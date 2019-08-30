@@ -203,7 +203,6 @@ func (r *byteReader) ReadUint64(i *uint64) error {
 	return nil
 }
 func (r *byteReader) ReadString(s *string) error {
-	fmt.Printf("%d %d\n", r.bytePosition, len(r.byteBuffer))
 	if (r.bytePosition + 2) > len(r.byteBuffer) {
 		return io.EOF
 	}

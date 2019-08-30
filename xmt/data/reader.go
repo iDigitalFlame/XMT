@@ -1,48 +1,346 @@
 package data
 
-// Reader is a basic interface that supports all types of read functions of the core Golang
-// builtin types. Functions pointer functions are avaliable to allow for easier usage and more
-// fulent operation.
-type Reader interface {
-	Close() error
+import (
+	"io"
+	"math"
+)
 
-	Bool() (bool, error)
+type readerBase struct {
+	r   io.Reader
+	buf []byte
+}
 
-	ReadBool(*bool) error
+func (r *readerBase) Close() error {
+	if c, ok := r.r.(io.Closer); ok {
+		return c.Close()
+	}
+	return nil
+}
 
-	Int() (int, error)
-	Int8() (int8, error)
-	Int16() (int16, error)
-	Int32() (int32, error)
-	Int64() (int64, error)
-
-	ReadInt(*int) error
-	ReadInt8(*int8) error
-	ReadInt16(*int16) error
-	ReadInt32(*int32) error
-	ReadInt64(*int64) error
-
-	Uint() (uint, error)
-	Uint8() (uint8, error)
-	Uint16() (uint16, error)
-	Uint32() (uint32, error)
-	Uint64() (uint64, error)
-
-	ReadUint(*uint) error
-	ReadUint8(*uint8) error
-	ReadUint16(*uint16) error
-	ReadUint32(*uint32) error
-	ReadUint64(*uint64) error
-
-	String() (string, error)
-
-	ReadString(*string) error
-
-	Read([]byte) (int, error)
-
-	Float32() (float32, error)
-	Float64() (float64, error)
-
-	ReadFloat32(*float32) error
-	ReadFloat64(*float64) error
+// NewReader creates a simple Reader struct from the base Reader
+// provided.
+func NewReader(r io.Reader) Reader {
+	return &readerBase{r: r, buf: make([]byte, 8)}
+}
+func (r *readerBase) Int() (int, error) {
+	v, err := r.Uint64()
+	if err != nil {
+		return 0, err
+	}
+	return int(v), nil
+}
+func (r *readerBase) Uint() (uint, error) {
+	v, err := r.Uint64()
+	if err != nil {
+		return 0, err
+	}
+	return uint(v), nil
+}
+func (r *readerBase) Bool() (bool, error) {
+	v, err := r.Uint8()
+	if err != nil {
+		return false, err
+	}
+	return v == 1, nil
+}
+func (r *readerBase) Int8() (int8, error) {
+	v, err := r.Uint8()
+	if err != nil {
+		return 0, err
+	}
+	return int8(v), nil
+}
+func (r *readerBase) ReadInt(p *int) error {
+	v, err := r.Int()
+	if err != nil {
+		return err
+	}
+	*p = v
+	return nil
+}
+func (r *readerBase) Int16() (int16, error) {
+	v, err := r.Uint16()
+	if err != nil {
+		return 0, err
+	}
+	return int16(v), nil
+}
+func (r *readerBase) Int32() (int32, error) {
+	v, err := r.Uint32()
+	if err != nil {
+		return 0, err
+	}
+	return int32(v), nil
+}
+func (r *readerBase) Int64() (int64, error) {
+	v, err := r.Uint64()
+	if err != nil {
+		return 0, err
+	}
+	return int64(v), nil
+}
+func (r *readerBase) Uint8() (uint8, error) {
+	n, err := r.r.Read(r.buf[0:1])
+	if err != nil {
+		return 0, err
+	}
+	if n < 1 {
+		return 0, io.EOF
+	}
+	return uint8(r.buf[0]), nil
+}
+func (r *readerBase) Bytes() ([]byte, error) {
+	t, err := r.Uint8()
+	if err != nil {
+		return nil, err
+	}
+	var l int
+	switch t {
+	case 0:
+		return nil, nil
+	case 1, 2:
+		n, err := r.Uint8()
+		if err != nil {
+			return nil, err
+		}
+		l = int(n)
+	case 3, 4:
+		n, err := r.Uint16()
+		if err != nil {
+			return nil, err
+		}
+		l = int(n)
+	case 5, 6:
+		n, err := r.Uint32()
+		if err != nil {
+			return nil, err
+		}
+		l = int(n)
+	case 7, 8:
+		n, err := r.Uint64()
+		if err != nil {
+			return nil, err
+		}
+		l = int(n)
+	default:
+		return nil, ErrInvalidBytes
+	}
+	b := make([]byte, l)
+	n, err := r.r.Read(b)
+	if err != nil {
+		return nil, err
+	}
+	if n != l {
+		return nil, io.EOF
+	}
+	return b, nil
+}
+func (r *readerBase) ReadUint(p *uint) error {
+	v, err := r.Uint()
+	if err != nil {
+		return err
+	}
+	*p = v
+	return nil
+}
+func (r *readerBase) ReadInt8(p *int8) error {
+	v, err := r.Int8()
+	if err != nil {
+		return err
+	}
+	*p = v
+	return nil
+}
+func (r *readerBase) ReadBool(p *bool) error {
+	v, err := r.Bool()
+	if err != nil {
+		return err
+	}
+	*p = v
+	return nil
+}
+func (r *readerBase) Uint16() (uint16, error) {
+	n, err := r.r.Read(r.buf[0:2])
+	if err != nil {
+		return 0, err
+	}
+	if n < 2 {
+		return 0, io.EOF
+	}
+	return uint16(r.buf[1]) | uint16(r.buf[0])<<8, nil
+}
+func (r *readerBase) Uint32() (uint32, error) {
+	n, err := r.r.Read(r.buf[0:4])
+	if err != nil {
+		return 0, err
+	}
+	if n < 4 {
+		return 0, io.EOF
+	}
+	return uint32(r.buf[3]) | uint32(r.buf[2])<<8 | uint32(r.buf[1])<<16 | uint32(r.buf[0])<<24, nil
+}
+func (r *readerBase) Uint64() (uint64, error) {
+	n, err := r.r.Read(r.buf)
+	if err != nil {
+		return 0, err
+	}
+	if n < 8 {
+		return 0, io.EOF
+	}
+	return uint64(r.buf[7]) | uint64(r.buf[6])<<8 | uint64(r.buf[5])<<16 | uint64(r.buf[4])<<24 |
+		uint64(r.buf[3])<<32 | uint64(r.buf[2])<<40 | uint64(r.buf[1])<<48 | uint64(r.buf[0])<<56, nil
+}
+func (r *readerBase) ReadInt16(p *int16) error {
+	v, err := r.Int16()
+	if err != nil {
+		return err
+	}
+	*p = v
+	return nil
+}
+func (r *readerBase) ReadInt32(p *int32) error {
+	v, err := r.Int32()
+	if err != nil {
+		return err
+	}
+	*p = v
+	return nil
+}
+func (r *readerBase) ReadInt64(p *int64) error {
+	v, err := r.Int64()
+	if err != nil {
+		return err
+	}
+	*p = v
+	return nil
+}
+func (r *readerBase) ReadUint8(p *uint8) error {
+	v, err := r.Uint8()
+	if err != nil {
+		return err
+	}
+	*p = v
+	return nil
+}
+func (r *readerBase) Float32() (float32, error) {
+	v, err := r.Uint32()
+	if err != nil {
+		return 0, nil
+	}
+	return math.Float32frombits(v), nil
+}
+func (r *readerBase) Float64() (float64, error) {
+	v, err := r.Uint64()
+	if err != nil {
+		return 0, nil
+	}
+	return math.Float64frombits(v), nil
+}
+func (r *readerBase) Read(b []byte) (int, error) {
+	return r.r.Read(b)
+}
+func (r *readerBase) ReadUint16(p *uint16) error {
+	v, err := r.Uint16()
+	if err != nil {
+		return err
+	}
+	*p = v
+	return nil
+}
+func (r *readerBase) ReadUint32(p *uint32) error {
+	v, err := r.Uint32()
+	if err != nil {
+		return err
+	}
+	*p = v
+	return nil
+}
+func (r *readerBase) ReadUint64(p *uint64) error {
+	v, err := r.Uint64()
+	if err != nil {
+		return err
+	}
+	*p = v
+	return nil
+}
+func (r *readerBase) ReadString(p *string) error {
+	v, err := r.UTFString()
+	if err != nil {
+		return err
+	}
+	*p = v
+	return nil
+}
+func (r *readerBase) UTFString() (string, error) {
+	t, err := r.Uint8()
+	if err != nil {
+		return "", err
+	}
+	var l int
+	switch t {
+	case 0:
+		return "", nil
+	case 1, 2:
+		n, err := r.Uint8()
+		if err != nil {
+			return "", err
+		}
+		l = int(n)
+	case 3, 4:
+		n, err := r.Uint16()
+		if err != nil {
+			return "", err
+		}
+		l = int(n)
+	case 5, 6:
+		n, err := r.Uint32()
+		if err != nil {
+			return "", err
+		}
+		l = int(n)
+	case 7, 8:
+		n, err := r.Uint64()
+		if err != nil {
+			return "", err
+		}
+		l = int(n)
+	default:
+		return "", ErrInvalidString
+	}
+	if t%2 == 0 {
+		b := make([]rune, l)
+		for i := range b {
+			v, err := r.Uint16()
+			if err != nil {
+				return "", err
+			}
+			b[i] = rune(v)
+		}
+		return string(b), nil
+	}
+	b := make([]byte, l)
+	n, err := r.r.Read(b)
+	if err != nil {
+		return "", err
+	}
+	if n != l {
+		return "", io.EOF
+	}
+	return string(b), nil
+}
+func (r *readerBase) ReadFloat32(p *float32) error {
+	v, err := r.Float32()
+	if err != nil {
+		return err
+	}
+	*p = v
+	return nil
+}
+func (r *readerBase) ReadFloat64(p *float64) error {
+	v, err := r.Float64()
+	if err != nil {
+		return err
+	}
+	*p = v
+	return nil
 }
