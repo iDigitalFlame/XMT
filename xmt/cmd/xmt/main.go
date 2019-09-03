@@ -1,187 +1,133 @@
 package main
 
 import (
-	"bytes"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"time"
 
 	"github.com/iDigitalFlame/logx/logx"
 	"github.com/iDigitalFlame/xmt/xmt/com"
 	"github.com/iDigitalFlame/xmt/xmt/com/c2"
 	"github.com/iDigitalFlame/xmt/xmt/com/c2/tcp"
+	"github.com/iDigitalFlame/xmt/xmt/com/c2/udp"
 	"github.com/iDigitalFlame/xmt/xmt/crypto"
 	"github.com/iDigitalFlame/xmt/xmt/crypto/cbk"
-	"github.com/iDigitalFlame/xmt/xmt/data"
-	"github.com/iDigitalFlame/xmt/xmt/device"
-	"github.com/iDigitalFlame/xmt/xmt/device/local"
 )
 
-func main1() {
-	b := &bytes.Buffer{}
+type cw bool
+type uu bool
 
-	x, err := cbk.NewCipherEx(
-		25,
-		32,
-		crypto.NewMultiSource(
-			crypto.NewSource("password"),
-			crypto.NewSource("password123"),
-		),
-		//rand.NewSource(987651),
-	)
-	if err != nil {
-		panic(err)
+func (q cw) Read(b []byte) ([]byte, error) {
+	i := make([]byte, base64.StdEncoding.DecodedLen(len(b)))
+	if _, err := base64.StdEncoding.Decode(i, b); err != nil {
+		return nil, err
 	}
-	x.A = 10
-	x.B = 20
-	x.C = 30
-
-	w := crypto.NewWriter(x, b)
-	w.WriteBool(true)
-	w.WriteInt(123466)
-	w.WriteString("This is a loooooooooooooong string!")
-	w.WriteUTF16String("This is a nice UTF16 string!!!!")
-	w.Close()
-
-	y, err := cbk.NewCipherEx(
-		25,
-		32,
-		crypto.NewMultiSource(
-			crypto.NewSource("password"),
-			crypto.NewSource("password123"),
-		),
-		//rand.NewSource(987651),
-	)
-	if err != nil {
-		panic(err)
-	}
-	y.A = 10
-	y.B = 20
-	y.C = 30
-
-	fmt.Printf("write\n")
-
-	r := crypto.NewReader(y, bytes.NewReader(b.Bytes()))
-	t, err := r.Bool()
-	if err != nil {
-		panic(err)
-	}
-	i, err := r.Int()
-	if err != nil {
-		panic(err)
-	}
-	s, err := r.UTFString()
-	if err != nil {
-		panic(err)
-	}
-	s2, err := r.UTFString()
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Printf("b: %t, i: %d, s: %s, s2: %s\n", t, i, s, s2)
-
-	op := new(device.Network)
-	if err := op.Refresh(); err != nil {
-		panic(err)
-	}
-
-	fmt.Printf("%s\n", op)
+	return i, nil
 }
-
-func main2() {
-	fmt.Print("%+v\n", local.Host())
-
-	p := &com.Packet{}
-	if err := data.Write(p, local.Host()); err != nil {
-		panic(err)
-	}
-	p.Close()
-
-	fmt.Printf("(%s) %d bytes\n", p.Device, p.Len())
-
-	b, _ := json.Marshal(p)
-	fmt.Printf("%s\n", b)
-
-	var c *com.Packet
-	if err := json.Unmarshal(b, &c); err != nil {
-		panic(err)
-	}
-
-	fmt.Printf("(%s) %d bytes\n%s\n", c.Device, c.Len(), c.Payload())
-
-}
-
-type bbb struct{}
-type zzz struct{}
-
-func (r *bbb) Jitter() int8 {
-	return 50
-}
-func (r *bbb) Sleep() time.Duration {
-	return -1 //time.Second * 5
-}
-func (r *bbb) Close() error {
-	return nil
-}
-func (r *bbb) Size() int {
-	return -1
-}
-func (r *bbb) Wrapper() c2.Wrapper {
-	return nil
-}
-func (r *bbb) Transport() c2.Transport {
-	return &zzz{}
-}
-func (r *bbb) Listen(s string) (c2.Listener, error) {
-	return tcp.Raw.Listen(s)
-}
-func (r *bbb) Connect(s string) (c2.Connection, error) {
-	return tcp.Raw.Connect(s)
-}
-
-func (r *zzz) Read(b []byte) ([]byte, error) {
-	o := make([]byte, base64.StdEncoding.DecodedLen(len(b)))
-	n, err := base64.StdEncoding.Decode(o, b)
-	return o[:n], err
-}
-func (r *zzz) Write(b []byte) ([]byte, error) {
+func (q cw) Write(b []byte) ([]byte, error) {
 	o := make([]byte, base64.StdEncoding.EncodedLen(len(b)))
 	base64.StdEncoding.Encode(o, b)
 	return o, nil
 }
 
+func (u uu) Wrap(w io.WriteCloser) io.WriteCloser {
+	x, _ := cbk.NewCipherEx(190, 32, crypto.NewSource("password123"))
+	x.A = 120
+	x.B = 90
+	x.C = 10
+	return crypto.NewWriter(x, w)
+}
+func (u uu) Unwrap(r io.ReadCloser) io.ReadCloser {
+	x, _ := cbk.NewCipherEx(190, 32, crypto.NewSource("password123"))
+	x.A = 120
+	x.B = 90
+	x.C = 10
+	return crypto.NewReader(x, r)
+}
+
 func main() {
 
-	c2.Controller.Log = logx.NewConsole(logx.LTrace) //.SetLevel(logx.LTraceL
-
-	c, err := c2.Controller.Listen("basic", "127.0.0.1:8080", &bbb{})
-	if err != nil {
-		panic(err)
+	if len(os.Args) < 2 {
+		fmt.Printf("%s <1|2|3>\n", os.Args[0])
+		os.Exit(1)
 	}
 
-	c.Receive = func(s *c2.Session, p *com.Packet) {
-		if p.ID == 123 {
-			x := &com.Packet{ID: 456}
-			s.WritePacket(x)
+	c2.Controller.Log = logx.NewConsole(logx.LDebug)
+
+	p := &c2.CustomProfile{
+		CSleep:     time.Duration(5) * time.Second,
+		CJitter:    0,
+		CWrapper:   uu(true),
+		CTransform: cw(true),
+	}
+	p1 := &c2.CustomProfile{
+		CSleep:  time.Duration(5) * time.Second,
+		CJitter: 0,
+	}
+
+	switch os.Args[1] {
+	case "1":
+		tl, err := c2.Controller.Listen("MyTCP", ":8080", tcp.Raw, p)
+		if err != nil {
+			panic(err)
 		}
-	}
+		tl.Oneshot = func(s *c2.Session, p *com.Packet) {
+			fmt.Printf("TL: %v oneshot %s\n", s, p.String())
+		}
+		tl.Receive = func(s *c2.Session, p *com.Packet) {
+			if s != nil {
+				fmt.Printf("[%s] sent: %s\n", s.ID, p.String())
+				if p.ID == 123 {
+					s.WritePacket(&com.Packet{ID: 456})
+				}
+			}
+		}
+		for {
+			fmt.Printf("Gathering current sessions:\n")
+			for _, v := range tl.Sessions() {
+				fmt.Printf("Session: %s (Created: %s, Last: %s)\n", v.ID, v.Created, v.Last)
+			}
+			fmt.Println()
+			time.Sleep(time.Second * 10)
+		}
 
-	v, err := c2.Controller.Connect("127.0.0.1:8080", &bbb{})
-	if err != nil {
-		panic(err)
+	case "2":
+		tc, err := c2.Controller.Connect("127.0.0.1:8080", tcp.Raw, p)
+		if err != nil {
+			panic(err)
+		}
+		tc.Receive = func(s *c2.Session, p *com.Packet) {
+			fmt.Printf("TC %s: got %s\n", s.ID.ID(), p.String())
+		}
+		tc.Times(-1, 10)
+		_, err = tc.Proxy("127.0.0.1:9090", udp.Raw, p1)
+		if err != nil {
+			panic(err)
+		}
+	case "3":
+		tpc, err := c2.Controller.Connect("127.0.0.1:9090", udp.Raw, p1)
+		if err != nil {
+			panic(err)
+		}
+		tpc.Receive = func(s *c2.Session, p *com.Packet) {
+			fmt.Printf("TCP %s: got %s\n", s.ID.ID(), p.String())
+		}
+		tpc.Times(-1, 10)
+		time.Sleep(5 * time.Second)
+		tpc.WritePacket(&com.Packet{ID: 123})
+		tpc.WritePacket(&com.Packet{ID: 123})
+		tpc.WritePacket(&com.Packet{ID: 123})
+		tpc.WritePacket(&com.Packet{ID: 123})
+		tpc.WritePacket(&com.Packet{ID: 123})
+	case "4":
+		if err := c2.Controller.Oneshot("127.0.0.1:9090", udp.Raw, p1, &com.Packet{ID: 990}); err != nil {
+			panic(err)
+		}
+	default:
+		os.Exit(-1)
 	}
-	v.Receive = func(p *com.Packet) {
-		fmt.Printf("client received packet: %+v\n", p)
-	}
-
-	z := &com.Packet{ID: 123}
-	z.WriteString("This is a secret message")
-	v.WritePacket(z)
-	v.Wake()
 
 	c2.Controller.Wait()
-	v.Close()
-	c.Close()
 }

@@ -5,32 +5,33 @@ import (
 	"encoding/hex"
 	"io"
 	"runtime"
+	"strings"
 
 	"github.com/denisbrodbeck/machineid"
 	"github.com/iDigitalFlame/xmt/xmt/data"
 )
 
 const (
-	// Windows repersents the Windows family of Operating Systems.
+	// Windows represents the Windows family of Operating Systems.
 	Windows deviceOS = 0x0
-	// Linux repersents the Linux family of Operating Systems
+	// Linux represents the Linux family of Operating Systems
 	Linux deviceOS = 0x1
-	// Unix repersents the Unix family of Operating Systems
+	// Unix represents the Unix family of Operating Systems
 	Unix deviceOS = 0x2
-	// Mac repersents the MacOS/BSD family of Operating Systems
+	// Mac represents the MacOS/BSD family of Operating Systems
 	Mac deviceOS = 0x3
 
-	// Arch64 repersents the 64-bit chipset family.
+	// Arch64 represents the 64-bit chipset family.
 	Arch64 deviceArch = 0x0
-	// Arch86 repersents the 32-bit chipset family.
+	// Arch86 represents the 32-bit chipset family.
 	Arch86 deviceArch = 0x1
-	// ArchARM repersents the ARM chipset family.
+	// ArchARM represents the ARM chipset family.
 	ArchARM deviceArch = 0x2
-	// ArchPowerPC repersents the PowerPC chipset family.
+	// ArchPowerPC represents the PowerPC chipset family.
 	ArchPowerPC deviceArch = 0x3
-	// ArchMips repersents the MIPS chipset family.
+	// ArchMips represents the MIPS chipset family.
 	ArchMips deviceArch = 0x4
-	// ArchUnknown repersents an unknown chipset family.
+	// ArchUnknown represents an unknown chipset family.
 	ArchUnknown deviceArch = 0x5
 
 	// IDSize is the amount of bytes used to store the Host ID and
@@ -39,16 +40,18 @@ const (
 
 	// SmallIDSize is the amount of bytes used for printing the Host ID
 	// value using the ID function.
-	SmallIDSize = 8
+	SmallIDSize = MachineIDSize
 
 	// MachineIDSize is the amount of bytes that is used as the Host
 	// specific ID value that does not change when on the same host.
 	MachineIDSize = 28
 
-	xmtID = "xmtFramework"
+	xmtID              = "xmtFramework"
+	xmtIDPrime  uint32 = 16777619
+	xmtIDOffset uint32 = 2166136261
 )
 
-// ID is an alias for a byte array that reperents a 48 byte
+// ID is an alias for a byte array that represents a 48 byte
 // client identification number.  This is used for tracking and
 // detection purposes.
 type ID []byte
@@ -67,12 +70,12 @@ func getID() ID {
 	return i
 }
 
-// ID returns a small string repersentation of this ID instance.
+// ID returns a small string representation of this ID instance.
 func (i ID) ID() string {
 	if len(i) < SmallIDSize {
 		return i.String()
 	}
-	return hex.EncodeToString(i[:SmallIDSize])
+	return strings.ToUpper(hex.EncodeToString(i[SmallIDSize:]))
 }
 func getArch() deviceArch {
 	switch runtime.GOARCH {
@@ -90,9 +93,20 @@ func getArch() deviceArch {
 	return ArchUnknown
 }
 
-// String returns a repersentation of this ID instance.
+// Hash returns the 32bit hash sum of this ID value.
+// The hash mechanism used is similar to the hash/fnv mechanism.
+func (i ID) Hash() uint32 {
+	h := xmtIDOffset
+	for x := range i {
+		h *= xmtIDPrime
+		h ^= uint32(i[x])
+	}
+	return h
+}
+
+// String returns a representation of this ID instance.
 func (i ID) String() string {
-	return hex.EncodeToString(i)
+	return strings.ToUpper(hex.EncodeToString(i))
 }
 func (d deviceOS) String() string {
 	switch d {

@@ -10,6 +10,13 @@ import (
 	"golang.org/x/xerrors"
 )
 
+const (
+	// MaxAutoMultiSize is the max amount of packets that
+	// are automatically converted into a group before sending from
+	// a client or server. Groups of larger multi-packets can be created manually.
+	MaxAutoMultiSize = 64
+)
+
 var (
 	// ErrTooLarge is raised if memory cannot be allocated to store data in a buffer.
 	ErrTooLarge = xerrors.New("buffer size is too large")
@@ -18,11 +25,10 @@ var (
 	ErrInvalidIndex = xerrors.New("buffer index provided is not valid")
 )
 
-// Packet is a strust that is a Reader and Writer that can
+// Packet is a struct that is a Reader and Writer that can
 // be generated to be sent, or received from a Connection.
 type Packet struct {
 	ID     uint16
-	Frag   Fragment
 	Flags  Flag
 	Device device.ID
 
@@ -34,9 +40,12 @@ type Packet struct {
 // Reset resets the payload buffer to be empty,
 // but it retains the underlying storage for use by future writes.
 func (p *Packet) Reset() {
-	p.buf = p.buf[:0]
+	p.ID = 0
 	p.wpos = 0
 	p.rpos = 0
+	p.Flags = 0
+	p.Device = nil
+	p.buf = p.buf[:0]
 }
 
 // Len returns the number of bytes of the unread portion of the
@@ -45,9 +54,17 @@ func (p *Packet) Len() int {
 	return len(p.buf) - p.wpos
 }
 
-// Empty returns true if this packet is nil
+// ResetFull is similar to Reset, but discards the buffer,
+// which must be allocated again. If using the buffer, Reset()
+// is preferable.
+func (p *Packet) ResetFull() {
+	p.Reset()
+	p.buf = nil
+}
+
+// IsEmpty returns true if this packet is nil
 // or does not have any value or data associated with it.
-func (p *Packet) Empty() bool {
+func (p *Packet) IsEmpty() bool {
 	return p == nil || (p.buf == nil && p.ID <= 0)
 }
 
@@ -55,9 +72,9 @@ func (p *Packet) Empty() bool {
 // as a string.
 func (p *Packet) String() string {
 	if p == nil {
-		return "0x0 <empty>"
+		return "0x0 F:0x0 (0)"
 	}
-	return fmt.Sprintf("0x%X %d bytes", p.ID, p.Len())
+	return fmt.Sprintf("0x%X F:0x%X (%d)", p.ID, p.Flags, p.Len())
 }
 
 // Payload returns a slice of length p.Len() holding the unread portion of the
@@ -74,7 +91,6 @@ func (p *Packet) MarshalJSON() ([]byte, error) {
 	return json.Marshal(
 		map[string]interface{}{
 			"id":      p.ID,
-			"frag":    p.Frag,
 			"flags":   p.Flags,
 			"device":  p.Device,
 			"payload": p.buf,
@@ -93,13 +109,6 @@ func (p *Packet) UnmarshalJSON(b []byte) error {
 		return xerrors.Errorf("json: missing \"id\" property")
 	}
 	if err := json.Unmarshal(i, &(p.ID)); err != nil {
-		return err
-	}
-	f, ok := m["frag"]
-	if !ok {
-		return xerrors.Errorf("json: missing \"frag\" property")
-	}
-	if err := json.Unmarshal(f, &(p.Frag)); err != nil {
 		return err
 	}
 	q, ok := m["flags"]
@@ -132,10 +141,7 @@ func (p *Packet) MarshalStream(w data.Writer) error {
 	if err := w.WriteUint16(p.ID); err != nil {
 		return err
 	}
-	if err := w.WriteUint32(uint32(p.Frag)); err != nil {
-		return err
-	}
-	if err := w.WriteUint32(uint32(p.Flags)); err != nil {
+	if err := p.Flags.MarshalStream(w); err != nil {
 		return err
 	}
 	if err := p.Device.MarshalStream(w); err != nil {
@@ -150,18 +156,12 @@ func (p *Packet) MarshalStream(w data.Writer) error {
 // UnmarshalStream reads the data of this Packet from the supplied Reader.
 func (p *Packet) UnmarshalStream(r data.Reader) error {
 	var err error
-	var i, f uint32
 	if p.ID, err = r.Uint16(); err != nil {
 		return err
 	}
-	if i, err = r.Uint32(); err != nil {
+	if err := p.Flags.UnmarshalStream(r); err != nil {
 		return err
 	}
-	if f, err = r.Uint32(); err != nil {
-		return err
-	}
-	p.Flags = Flag(f)
-	p.Frag = Fragment(i)
 	if err := p.Device.UnmarshalStream(r); err != nil {
 		return err
 	}
