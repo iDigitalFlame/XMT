@@ -36,7 +36,7 @@ type Session struct {
 	send       chan *com.Packet
 	recv       chan *com.Packet
 	wake       chan bool
-	errors     uint8
+	errors     int8
 	server     string
 	cancel     context.CancelFunc
 	parent     *Handle
@@ -44,7 +44,7 @@ type Session struct {
 	connect    func(string) (Connection, error)
 	wrapper    Wrapper
 	transform  Transform
-	controller *controller
+	controller *Server
 }
 
 // Wake will interrupt the sleep of the current
@@ -138,7 +138,7 @@ func (s *Session) listen() {
 		}
 		c.Close()
 	}
-	s.controller.events <- &eventCallback{
+	s.controller.events <- &callback{
 		session:     s,
 		sessionFunc: s.Released,
 	}

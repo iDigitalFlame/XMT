@@ -137,6 +137,19 @@ func (d deviceArch) String() string {
 	return "Unknown"
 }
 
+// IDFromString attempts to convert the hex string supplied
+// into an ID value.
+func IDFromString(s string) (ID, error) {
+	i, err := hex.DecodeString(s)
+	if err != nil {
+		return nil, err
+	}
+	if len(i) == 0 {
+		return nil, nil
+	}
+	return ID(i), nil
+}
+
 // MarshalStream writes the data of this ID to the supplied Writer.
 func (i *ID) MarshalStream(w data.Writer) error {
 	if _, err := w.Write(*i); err != nil {

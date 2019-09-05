@@ -2,6 +2,7 @@ package cbk
 
 import (
 	crypto "crypto/rand"
+	"errors"
 	"io"
 	"math"
 	"math/rand"
@@ -21,11 +22,11 @@ const (
 var (
 	// ErrSize is returned when an array is read that does not contain enough slots for keys
 	// which is three.
-	ErrSize = xerrors.New("byte array size must be greather than or equal to three (3)")
+	ErrSize = errors.New("byte array size must be greather than or equal to three (3)")
 
 	// ErrBlockSize is an error returned when an invalid value for the block size is given
 	// when creating the Cipher.
-	ErrBlockSize = xerrors.New("block size must be between 16 and 128 and a power of two")
+	ErrBlockSize = errors.New("block size must be between 16 and 128 and a power of two")
 
 	bufs = &sync.Pool{
 		New: func() interface{} {
@@ -43,7 +44,7 @@ var (
 	}
 )
 
-// Cipher is the repersentation of the CBK Cipher.
+// Cipher is the representation of the CBK Cipher.
 // CBK is a block based cipher that allows for a variable size index in encoding.
 type Cipher struct {
 	A      byte
@@ -321,7 +322,7 @@ func (e *Cipher) blockIndex(a bool, t, i uint16) byte {
 }
 func (e *Cipher) flushOutput(w io.Writer) (int, error) {
 	if e.pos == 0 {
-		return 0, io.EOF
+		return 0, nil
 	}
 	e.index++
 	if e.index > 30 {

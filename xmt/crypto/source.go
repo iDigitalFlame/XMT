@@ -11,20 +11,20 @@ const (
 	// DefaultRounds is the amount of rounds that the hash is passed through
 	// when using the NewSource function.
 	DefaultRounds = 10
-	// DefaultSource is the default Source Seed used for MultiSource structs
-	// if a soruce is not provided during creation.
+	// DefaultSource is the default Source Seed used for MultiSource struct data
+	// if a source is not provided during creation.
 	DefaultSource int64 = 0x123456789F
 )
 
 // MultiSource is a struct that is a random Source that can use multiple
-// source providers and spreads the calls amoung them in a random manner.
+// source providers and spreads the calls among them in a random manner.
 type MultiSource struct {
 	s    []rand.Source
 	rng  *rand.Rand
 	seed int64
 }
 
-// Int63 retunns a int64 number between zero and the max value.
+// Int63 returns a int64 number between zero and the max value.
 func (m *MultiSource) Int63() int64 {
 	if len(m.s) == 0 {
 		return m.rng.Int63()
@@ -51,7 +51,7 @@ func (m *MultiSource) Add(s ...rand.Source) {
 }
 
 // NewSource creates a random Source from the provided interface.
-// This function supports all types of Golang primitaves.
+// This function supports all types of Golang primitives.
 func NewSource(seed interface{}) rand.Source {
 	return NewSourceEx(DefaultRounds, seed)
 }
@@ -66,7 +66,7 @@ func NewMultiSource(s ...rand.Source) *MultiSource {
 }
 
 // NewSourceEx creates a random Source from the provided interface.
-// This function supports all types of Golang primitaves. This function
+// This function supports all types of Golang primitives. This function
 // allows for supplying the rounds value, which defaults to the value of DefaultRounds.
 func NewSourceEx(rounds int, seed interface{}) rand.Source {
 	var s int64

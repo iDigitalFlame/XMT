@@ -17,6 +17,9 @@ var (
 	packetBufferSize = 4096
 )
 
+type rawConnection struct {
+	*streamConnection
+}
 type packetListener struct {
 	buf     []byte
 	del     chan net.Addr
@@ -37,14 +40,12 @@ type packetConnection struct {
 	addr   net.Addr
 	parent *packetListener
 }
-type packetRawConnection struct {
-	*streamConnection
-}
 
 func (s *streamConnection) IP() string {
 	return s.RemoteAddr().String()
 }
 func (p *packetListener) Close() error {
+	defer func() { recover() }()
 	for _, v := range p.active {
 		if err := v.Close(); err != nil {
 			return err
@@ -57,6 +58,7 @@ func (p *packetConnection) IP() string {
 	return p.addr.String()
 }
 func (p *packetConnection) Close() error {
+	defer func() { recover() }()
 	if p.parent != nil {
 		p.parent = nil
 		close(p.buf)
@@ -66,8 +68,16 @@ func (p *packetConnection) Close() error {
 func (p *packetListener) String() string {
 	return fmt.Sprintf("Packet(%s) %s", strings.ToUpper(p.network), p.listen.LocalAddr().String())
 }
-func (p *packetRawConnection) IP() string {
-	return p.RemoteAddr().String()
+func (r *rawConnection) Read(b []byte) (int, error) {
+	if r.timeout > 0 {
+		r.Conn.SetReadDeadline(time.Now().Add(r.timeout))
+	}
+	n, err := r.Conn.Read(b)
+	if n > ipInfoSize {
+		copy(b, b[ipInfoSize:])
+		n -= ipInfoSize
+	}
+	return n, err
 }
 func (s *streamConnection) Read(b []byte) (int, error) {
 	if s.timeout > 0 {
@@ -116,17 +126,6 @@ func (p *packetListener) Accept() (c2.Connection, error) {
 	}
 	return nil, nil
 }
-func (p *packetRawConnection) Read(b []byte) (int, error) {
-	if p.timeout > 0 {
-		p.Conn.SetReadDeadline(time.Now().Add(p.timeout))
-	}
-	n, err := p.Conn.Read(b)
-	if n > ipInfoSize {
-		copy(b, b[ipInfoSize:])
-		n -= ipInfoSize
-	}
-	return n, err
-}
 
 // Connector creates a new packet based connector from the supplied
 // network type and timeout. Packet based connectors are only valid for UDP,
@@ -135,11 +134,18 @@ func Connector(n string, t time.Duration) (c2.Connector, error) {
 	switch n {
 	case "udp", "udp4", "udp6", "unixgram":
 	default:
-		if !strings.Contains(n, "ip:") {
+		if len(n) <= 3 || n[0] != 'i' || n[1] == 'p' || n[2] == ':' {
 			return nil, c2.ErrInvalidNetwork
 		}
 	}
-	return &packetConnector{network: n, dial: &net.Dialer{Timeout: t}}, nil
+	return &packetConnector{
+		dial: &net.Dialer{
+			Timeout:   t,
+			KeepAlive: t,
+			DualStack: true,
+		},
+		network: n,
+	}, nil
 }
 func (p *packetConnector) Listen(a string) (c2.Listener, error) {
 	l, err := net.ListenPacket(p.network, a)
@@ -161,7 +167,15 @@ func (p *packetConnector) Connect(a string) (c2.Connection, error) {
 		return nil, err
 	}
 	if p.network[0] == 'i' && p.network[1] == 'p' {
-		return &packetRawConnection{&streamConnection{Conn: c, timeout: p.dial.Timeout}}, nil
+		return &rawConnection{
+			&streamConnection{
+				Conn:    c,
+				timeout: p.dial.Timeout,
+			},
+		}, nil
 	}
-	return &streamConnection{Conn: c, timeout: p.dial.Timeout}, nil
+	return &streamConnection{
+		Conn:    c,
+		timeout: p.dial.Timeout,
+	}, nil
 }

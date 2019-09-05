@@ -1,23 +1,22 @@
 package data
 
 import (
+	"errors"
 	"io"
-
-	"golang.org/x/xerrors"
 )
 
 var (
 	// ErrInvalidBytes is an error that occurs when the Bytes function
 	// could not propertly determine the type of byte array from the Reader.
-	ErrInvalidBytes = xerrors.New("could not understand string type")
+	ErrInvalidBytes = errors.New("could not understand string type")
 	// ErrInvalidString is an error that occurs when the ReadString or String functions
 	// could not propertly determine the type of string from the Reader.
-	ErrInvalidString = xerrors.New("could not understand string type")
+	ErrInvalidString = errors.New("could not understand string type")
 )
 
 // Reader is a basic interface that supports all types of read functions of the core Golang
 // builtin types. Functions pointer functions are avaliable to allow for easier usage and more
-// fulent operation.
+// fluid operation.
 type Reader interface {
 	Bool() (bool, error)
 

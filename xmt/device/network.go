@@ -14,7 +14,7 @@ const (
 	IPv6 bool = true
 )
 
-// Interface is a struct that repersents a Network interface
+// Interface is a struct that represents a Network interface
 // that is active on the host system.
 type Interface struct {
 	Name     string           `json:"name"`
@@ -79,7 +79,7 @@ func (n *Network) Refresh() error {
 	return nil
 }
 
-// String returns the string repersentation of this Interface.
+// String returns the string representation of this Interface.
 func (i *Interface) String() string {
 	return fmt.Sprintf(
 		"%s (%s): %s", i.Name, i.Hardware.String(), i.Address,

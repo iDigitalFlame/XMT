@@ -3,7 +3,7 @@ package c2
 import "io"
 
 // Wrapper is an interface that allows for wrapping the
-// binary streams into seperate stream types. This allows for
+// binary streams into separate stream types. This allows for
 // using encryption or compression.
 type Wrapper interface {
 	Wrap(io.WriteCloser) io.WriteCloser

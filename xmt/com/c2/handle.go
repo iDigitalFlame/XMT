@@ -47,7 +47,7 @@ type Handle struct {
 	cancel     context.CancelFunc
 	sessions   map[uint32]*Session
 	listener   Listener
-	controller *controller
+	controller *Server
 }
 type buffer struct {
 	w    io.WriteCloser
@@ -71,7 +71,7 @@ func (h *Handle) listen() {
 			for x := 0; x < len(h.close); x++ {
 				v := <-h.close
 				if h.Disconnect != nil {
-					h.controller.events <- &eventCallback{
+					h.controller.events <- &callback{
 						session:     h.sessions[v],
 						sessionFunc: h.Disconnect,
 					}
@@ -103,33 +103,11 @@ func returnBuffer(b *buffer) {
 	buffers.Put(b)
 }
 
-func (h *Handle) Remove(i device.ID) {
-	h.close <- i.Hash()
-}
-func (h *Handle) Sessions() []*Session {
-	l := make([]*Session, 0, len(h.sessions))
-	for _, v := range h.sessions {
-		l = append(l, v)
-	}
-	return l
-}
-func (h *Handle) Session(i device.ID) *Session {
-	if i == nil {
-		return nil
-	}
-	if s, ok := h.sessions[i.Hash()]; ok {
-		return s
-	}
-	return nil
-}
-
 // Close stops the operation of the Listener associated with
 // this Handle and any clients that may be connected. Resources used
 // with this Ticket and Listener will be freed up for reuse.
 func (h *Handle) Close() error {
 	defer func() { recover() }()
-	if h.ctx.Err() == nil {
-	}
 	h.cancel()
 	err := h.listener.Close()
 	close(h.close)
@@ -140,6 +118,24 @@ func (h *Handle) Close() error {
 // Handle is still able to send and receive Packets.
 func (h *Handle) IsActive() bool {
 	return h.ctx.Err() == nil
+}
+
+// Remove removes and closes the Session and releases all
+// it's associated resources.  This does not close the
+// Session on the client's end, use the Shutdown function on
+// the Session to shutdown the client process.
+func (h *Handle) Remove(i device.ID) {
+	h.close <- i.Hash()
+}
+
+// Sessions returns an array of all the current Sessions connected
+// to this Handle.
+func (h *Handle) Sessions() []*Session {
+	l := make([]*Session, 0, len(h.sessions))
+	for _, v := range h.sessions {
+		l = append(l, v)
+	}
+	return l
 }
 func (h *Handle) session(c Connection) {
 	defer c.Close()
@@ -218,9 +214,22 @@ func (h *Handle) session(c Connection) {
 		return
 	}
 }
+
+// Session returns the session that matches the specified
+// device ID.  This function will return nil if the session matching
+// the ID is not found.
+func (h *Handle) Session(i device.ID) *Session {
+	if i == nil {
+		return nil
+	}
+	if s, ok := h.sessions[i.Hash()]; ok {
+		return s
+	}
+	return nil
+}
 func processFully(h *Handle, s *Session, p *com.Packet) {
 	if h != nil && h.Receive != nil {
-		h.controller.events <- &eventCallback{
+		h.controller.events <- &callback{
 			packet:     p,
 			session:    s,
 			packetFunc: h.Receive,
@@ -230,7 +239,7 @@ func processFully(h *Handle, s *Session, p *com.Packet) {
 		return
 	}
 	if s.Receive != nil {
-		s.controller.events <- &eventCallback{
+		s.controller.events <- &callback{
 			packet:     p,
 			session:    s,
 			packetFunc: s.Receive,
@@ -263,13 +272,13 @@ func process(h *Handle, s *Session, p *com.Packet) error {
 	}
 	if h != nil && p.Flags&com.FlagOneshot != 0 {
 		if h.Oneshot != nil {
-			h.controller.events <- &eventCallback{
+			h.controller.events <- &callback{
 				packet:     p,
 				packetFunc: h.Oneshot,
 			}
 		}
 		if h.Receive != nil {
-			h.controller.events <- &eventCallback{
+			h.controller.events <- &callback{
 				packet:     p,
 				packetFunc: h.Receive,
 			}
@@ -283,7 +292,7 @@ func process(h *Handle, s *Session, p *com.Packet) error {
 		return nil
 	}
 	if p.Flags&com.FlagMultiDevice == 0 && s.Update != nil {
-		s.controller.events <- &eventCallback{
+		s.controller.events <- &callback{
 			session:     s,
 			sessionFunc: s.Update,
 		}
@@ -349,13 +358,10 @@ func (h *Handle) client(c Connection, p *com.Packet) *Session {
 		}
 		h.controller.Log.Trace("[%s:%s] %s: Received client device info: (OS: %s, %s).", h.name, s.Device.ID.ID(), c.IP(), s.Device.OS.String(), s.Device.Version)
 		if p.Flags&com.FlagProxy == 0 {
-			if err := write(c, h.Wrapper, h.Transform, &com.Packet{ID: PacketRegistered, Device: p.Device}); err != nil {
-				h.controller.Log.Warning("[%s:%s] %s: Received an error writing data to client! [%s]", h.name, s.Device.ID.ID(), c.IP(), err.Error())
-				return nil
-			}
+			s.send <- &com.Packet{ID: PacketRegistered, Device: p.Device}
 		}
 		if h.Register != nil {
-			h.controller.events <- &eventCallback{
+			h.controller.events <- &callback{
 				session:     s,
 				sessionFunc: h.Register,
 			}
@@ -364,7 +370,7 @@ func (h *Handle) client(c Connection, p *com.Packet) *Session {
 		return s
 	}
 	if h.Connect != nil {
-		h.controller.events <- &eventCallback{
+		h.controller.events <- &callback{
 			session:     s,
 			sessionFunc: h.Connect,
 		}
@@ -385,7 +391,7 @@ func read(c io.Reader, w Wrapper, t Transform) (*com.Packet, error) {
 	b.Reset()
 	for {
 		n, err = c.Read(v)
-		if err != nil {
+		if err != nil && err != io.EOF {
 			return nil, err
 		}
 		if _, err = b.Write(v[:n]); err != nil {

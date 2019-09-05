@@ -2,6 +2,7 @@ package com
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/iDigitalFlame/xmt/xmt/data"
@@ -19,10 +20,10 @@ const (
 
 var (
 	// ErrTooLarge is raised if memory cannot be allocated to store data in a buffer.
-	ErrTooLarge = xerrors.New("buffer size is too large")
+	ErrTooLarge = errors.New("buffer size is too large")
 	// ErrInvalidIndex is raised if a specified Grow or index function is supplied with an
 	// negative or out of bounds number.
-	ErrInvalidIndex = xerrors.New("buffer index provided is not valid")
+	ErrInvalidIndex = errors.New("buffer index provided is not valid")
 )
 
 // Packet is a struct that is a Reader and Writer that can

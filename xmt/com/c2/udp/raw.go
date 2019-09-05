@@ -5,14 +5,20 @@ import (
 	"time"
 )
 
+const (
+	network = "udp"
+)
+
 var (
 	// Raw is the UDP Raw connector.  This connector uses raw UDP
 	// connections without any encoding or Transforms.
 	Raw = &packetConnector{
 		dial: &net.Dialer{
-			Timeout: RawDefaultTimeout,
+			Timeout:   RawDefaultTimeout,
+			KeepAlive: RawDefaultTimeout,
+			DualStack: true,
 		},
-		network: "udp",
+		network: network,
 	}
 
 	// RawDefaultTimeout is the default timeout used for the Raw TCP connector.

@@ -10,23 +10,22 @@ import (
 	"github.com/iDigitalFlame/xmt/xmt/com/c2"
 )
 
+type streamClient struct {
+	c *streamConnector
+}
 type streamListener struct {
 	listen  net.Listener
 	network string
 	timeout time.Duration
 }
 type streamConnector struct {
+	tls     *tls.Config
 	dial    *net.Dialer
 	network string
 }
 type streamConnection struct {
 	timeout time.Duration
 	net.Conn
-}
-type tlsStreamConnector struct {
-	dial    *net.Dialer
-	config  *tls.Config
-	network string
 }
 
 func (s *streamListener) Close() error {
@@ -49,14 +48,30 @@ func (s *streamListener) Accept() (c2.Connection, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &streamConnection{Conn: c, timeout: s.timeout}, nil
+	return &streamConnection{
+		Conn:    c,
+		timeout: s.timeout,
+	}, nil
 }
 func (s *streamConnector) Listen(a string) (c2.Listener, error) {
-	c, err := net.Listen(s.network, a)
-	if err != nil {
-		return nil, nil
+	var err error
+	var c net.Listener
+	if s.tls != nil {
+		if (s.tls.Certificates == nil || len(s.tls.Certificates) == 0) || s.tls.GetCertificate == nil {
+			return nil, ErrInvalidTLSConfig
+		}
+		c, err = tls.Listen(s.network, a, s.tls)
+	} else {
+		c, err = net.Listen(s.network, a)
 	}
-	return &streamListener{network: s.network, listen: c, timeout: s.dial.Timeout}, nil
+	if err != nil {
+		return nil, err
+	}
+	return &streamListener{
+		listen:  c,
+		network: s.network,
+		timeout: s.dial.Timeout,
+	}, nil
 }
 
 // Connector creates a new simple stream based connector from
@@ -64,69 +79,45 @@ func (s *streamConnector) Listen(a string) (c2.Listener, error) {
 // only valid for TCP and UNIX sockets.  UDP/ICMP/IP will return an
 // ErrInvalidNetwork error.
 func Connector(n string, t time.Duration) (c2.Connector, error) {
-	switch n {
-	case "tcp", "tcp4", "tcp6", "unix", "unixpacket":
-	default:
-		return nil, c2.ErrInvalidNetwork
-	}
-	return &streamConnector{dial: &net.Dialer{Timeout: t}, network: n}, nil
+	return ConnectorSecure(n, t, nil)
+}
+func (s *streamClient) Connect(a string) (c2.Connection, error) {
+	return s.c.Connect(a)
 }
 func (s *streamConnector) Connect(a string) (c2.Connection, error) {
-	c, err := s.dial.Dial(s.network, a)
+	var err error
+	var c net.Conn
+	if s.tls != nil {
+		c, err = tls.DialWithDialer(s.dial, s.network, a, s.tls)
+	} else {
+		c, err = s.dial.Dial(s.network, a)
+	}
 	if err != nil {
 		return nil, err
 	}
-	return &streamConnection{Conn: c, timeout: s.dial.Timeout}, nil
-}
-func (t *tlsStreamConnector) Listen(a string) (c2.Listener, error) {
-	if t.config == nil || (t.config.Certificates == nil || len(t.config.Certificates) == 0) || t.config.GetCertificate == nil {
-		return nil, ErrInvalidTLSConfig
-	}
-	c, err := tls.Listen(t.network, a, t.config)
-	if err != nil {
-		return nil, nil
-	}
-	return &streamListener{network: t.network, listen: c, timeout: t.dial.Timeout}, nil
-}
-func (t *tlsStreamConnector) Connect(a string) (c2.Connection, error) {
-	c, err := tls.DialWithDialer(t.dial, t.network, a, t.config)
-	if err != nil {
-		return nil, err
-	}
-	return &streamConnection{Conn: c, timeout: t.dial.Timeout}, nil
+	return &streamConnection{
+		Conn:    c,
+		timeout: s.dial.Timeout,
+	}, nil
 }
 
-// SecureConnector creates a new simple stream based connector from
+// ConnectorSecure creates a new simple stream based connector from
 // the supplied network type and timeout.  Stream based connectors are
 // only valid for TCP and UNIX sockets.  UDP/ICMP/IP will return an
 // ErrInvalidNetwork error. This stream uses TLS with the provided config.
-func SecureConnector(n string, t time.Duration, c *tls.Config) (c2.Connector, error) {
-	return SecureServerEx(n, t, nil, c)
-}
-
-// SecureServer creates a new simple stream based connector from
-// the supplied network type and timeout.  Stream based connectors are
-// only valid for TCP and UNIX sockets.  UDP/ICMP/IP will return an
-// ErrInvalidNetwork error. This stream uses TLS with the provided certificates.
-func SecureServer(n string, t time.Duration, cert *tls.Certificate) (c2.Connector, error) {
-	return SecureServerEx(n, t, cert, nil)
-}
-
-// SecureServerEx creates a new simple stream based connector from
-// the supplied network type and timeout.  Stream based connectors are
-// only valid for TCP and UNIX sockets.  UDP/ICMP/IP will return an
-// ErrInvalidNetwork error. This stream uses TLS with the provided certificates and configuration.
-func SecureServerEx(n string, t time.Duration, cert *tls.Certificate, c *tls.Config) (c2.Connector, error) {
+func ConnectorSecure(n string, t time.Duration, c *tls.Config) (c2.Connector, error) {
 	switch n {
 	case "tcp", "tcp4", "tcp6", "unix", "unixpacket":
 	default:
 		return nil, c2.ErrInvalidNetwork
 	}
-	if c == nil {
-		c = &tls.Config{}
-	}
-	if cert != nil {
-		c.Certificates = []tls.Certificate{*cert}
-	}
-	return &tlsStreamConnector{dial: &net.Dialer{Timeout: t}, network: n, config: c}, nil
+	return &streamConnector{
+		tls: c,
+		dial: &net.Dialer{
+			Timeout:   t,
+			KeepAlive: t,
+			DualStack: true,
+		},
+		network: n,
+	}, nil
 }

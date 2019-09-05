@@ -2,6 +2,7 @@ package c2
 
 import (
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"time"
@@ -50,21 +51,18 @@ const (
 	// registration to the server.
 	PacketRegistered = 0xFB
 
-	maxEvents       = 256
-	maxErrors uint8 = 3
+	maxEvents      = 256
+	maxErrors int8 = 3
 )
 
 var (
-	// Log is the C2 Package logging facility. This log is used for debugging and is
-	// made for use on
-	Log = logx.NewConsole(logx.LTrace)
 	// Controller is the master list and manager for all C2 client connections.
 	// The controller acts as staging point to control and manage all connections.
-	Controller = initController()
+	Controller = NewServer("global", logx.NewConsole(logx.LInfo))
 
 	// ErrFullBuffer is returned from the WritePacket function when the send buffer for
 	// Session is full.
-	ErrFullBuffer = xerrors.New("cannot add a Packet to a full send buffer")
+	ErrFullBuffer = errors.New("cannot add a Packet to a full send buffer")
 
 	// DefaultWrapper is a raw Wrapper provided for use when
 	// no Wrapper is provided.  This struct does not modify the
@@ -73,12 +71,12 @@ var (
 
 	// ErrEmptyPacket is a error returned by the Connect function when
 	// the expected return result from the server was invalid or not expected.
-	ErrEmptyPacket = xerrors.New("server sent an invalid response")
+	ErrEmptyPacket = errors.New("server sent an invalid response")
 
 	// ErrNoConnector is a error returned by the Connect  and Listen functions when
 	// the Connector is nil and the provided Profile is also nil or does not inherit
 	// the Connector interface.
-	ErrNoConnector = xerrors.New("invalid or missing connector")
+	ErrNoConnector = errors.New("invalid or missing connector")
 
 	// DefaultTransform is a simple Transform instance that does not
 	// make any changes to the underlying connection.  Used when no
@@ -88,16 +86,34 @@ var (
 	// ErrInvalidNetwork is an error returned from the NewStreamConnector function
 	// when a non-stream network is used, or the NewChunkConnector function when a stream
 	// network is used.
-	ErrInvalidNetwork = xerrors.New("invalid network type")
+	ErrInvalidNetwork = errors.New("invalid network type")
 
 	// ErrInvalidPacketID is a error returned inside the client thread when the received packet
 	// ID does not match the client ID and does not match any proxy client connected.
-	ErrInvalidPacketID = xerrors.New("received a Packet ID that does not match our own ID")
+	ErrInvalidPacketID = errors.New("received a Packet ID that does not match our own ID")
 
 	// ErrInvalidPacketCount is returned when attempting to read a packet marked
 	// as multi or frag an the total count returned is zero.
-	ErrInvalidPacketCount = xerrors.New("frag total is zero on a multi or frag packet")
+	ErrInvalidPacketCount = errors.New("frag total is zero on a multi or frag packet")
 )
+
+// Server is a struct that helps manage and contain
+// the sessions and processes events.
+type Server struct {
+	Log logx.Log
+
+	ctx    context.Context
+	name   string
+	events chan *callback
+	cancel context.CancelFunc
+	active map[string]*Handle
+}
+type callback struct {
+	session     *Session
+	packet      *com.Packet
+	sessionFunc func(*Session)
+	packetFunc  func(*Session, *com.Packet)
+}
 
 // Profile is a struct that represents a C2 profile. This is used for
 // defining the specifics that will be used to listen by servers and connect
@@ -109,20 +125,6 @@ type Profile interface {
 	Jitter() int8
 	Wrapper() Wrapper
 	Transform() Transform
-}
-type controller struct {
-	Log logx.Log
-
-	ctx    context.Context
-	events chan *eventCallback
-	cancel context.CancelFunc
-	active map[string]*Handle
-}
-type eventCallback struct {
-	session     *Session
-	packet      *com.Packet
-	sessionFunc func(*Session)
-	packetFunc  func(*Session, *com.Packet)
 }
 
 // Connector is an interface that passes methods that can be used to form
@@ -149,54 +151,46 @@ type Connection interface {
 	IP() string
 	io.ReadWriteCloser
 }
+type clientConnector interface {
+	Connect(string) (Connection, error)
+}
 
 // Wait will block until the current controller
 // is closed and shutdown.
-func (c *controller) Wait() {
-	<-c.ctx.Done()
+func (s *Server) Wait() {
+	<-s.ctx.Done()
 }
-func (c *controller) process() {
-	for c.ctx.Err() == nil {
+func (s *Server) process() {
+	for s.ctx.Err() == nil {
 		select {
-		case <-c.ctx.Done():
+		case <-s.ctx.Done():
 			return
-		case e := <-c.events:
-			e.trigger(c.Log)
+		case e := <-s.events:
+			e.trigger(s)
 		}
 	}
-}
-func initController() *controller {
-	c := &controller{
-		Log:    logx.Global,
-		active: make(map[string]*Handle),
-		events: make(chan *eventCallback, maxEvents),
-	}
-	c.ctx, c.cancel = context.WithCancel(context.Background())
-	c.Log.Trace("Controller %p started...", c)
-	go c.process()
-	return c
 }
 
 // Close stops the processing thread from this Controller and
 // releases all associated resources.
-func (c *controller) Close() error {
+func (s *Server) Close() error {
 	defer func() { recover() }()
-	c.cancel()
-	close(c.events)
+	s.cancel()
+	close(s.events)
 	return nil
 }
 
 // IsActive returns true if this Controller is
 // still able to send and receive Packets.
-func (c *controller) IsActive() bool {
-	return c.ctx.Err() == nil
+func (s *Server) IsActive() bool {
+	return s.ctx.Err() == nil
 }
-func (e *eventCallback) trigger(l logx.Log) {
-	defer func(x logx.Log) {
+func (e *callback) trigger(s *Server) {
+	defer func(x *Server) {
 		if err := recover(); err != nil {
-			x.Error("Controller recovered from a panic! (%s)", err)
+			x.Log.Error("[%s] Controller recovered from a panic! (%s)", x.name, err)
 		}
-	}(l)
+	}(s)
 	if e.packet != nil && e.packetFunc != nil {
 		e.packetFunc(e.session, e.packet)
 	}
@@ -209,16 +203,26 @@ func (e *eventCallback) trigger(l logx.Log) {
 	e.sessionFunc = nil
 }
 
-// Connect creates a Session using the supplied Profile to connect to
-// the listening server specified.
-func (c *controller) Connect(s string, v Connector, p Profile) (*Session, error) {
-	return c.ConnectWith(s, v, p, nil)
+// NewServer creates a new Server instance for manageing C2
+// clients and session. If needed the default "c2.Controller" is the
+// recommended Server to use.
+func NewServer(n string, l logx.Log) *Server {
+	s := &Server{
+		Log:    l,
+		name:   n,
+		active: make(map[string]*Handle),
+		events: make(chan *callback, maxEvents),
+	}
+	s.ctx, s.cancel = context.WithCancel(context.Background())
+	s.Log.Trace("[%s] Controller started...", n)
+	go s.process()
+	return s
 }
 
 // Listen adds the Listener under the name provided.  A Handle struct
 // to control and receive callback functions is added to assist in
 // manageing connections to this Listener.
-func (c *controller) Listen(s, b string, v Connector, p Profile) (*Handle, error) {
+func (s *Server) Listen(n, b string, v Connector, p Profile) (*Handle, error) {
 	if v == nil {
 		if x, ok := p.(Connector); ok {
 			v = x
@@ -233,15 +237,15 @@ func (c *controller) Listen(s, b string, v Connector, p Profile) (*Handle, error
 	if l == nil {
 		return nil, xerrors.Errorf("unable to listen on \"%s\"", b)
 	}
-	x := strings.ToLower(s)
-	if _, ok := c.active[x]; ok {
+	x := strings.ToLower(n)
+	if _, ok := s.active[x]; ok {
 		return nil, xerrors.Errorf("listener \"%s\" is already active", x)
 	}
 	h := &Handle{
 		name:       x,
 		listener:   l,
 		sessions:   make(map[uint32]*Session),
-		controller: c,
+		controller: s,
 	}
 	if p != nil {
 		h.size = p.Size()
@@ -258,19 +262,25 @@ func (c *controller) Listen(s, b string, v Connector, p Profile) (*Handle, error
 		h.Transform = DefaultTransform
 	}
 	h.close = make(chan uint32, h.size)
-	h.ctx, h.cancel = context.WithCancel(c.ctx)
-	c.active[x] = h
-	c.Log.Debug("Added listener type \"%s\" as \"%s\"...", l.String(), strings.ToLower(s))
+	h.ctx, h.cancel = context.WithCancel(s.ctx)
+	s.active[x] = h
+	s.Log.Debug("Added listener type \"%s\" as \"%s\"...", l.String(), strings.ToLower(n))
 	go h.listen()
 	return h, nil
+}
+
+// Connect creates a Session using the supplied Profile to connect to
+// the listening server specified.
+func (s *Server) Connect(a string, v clientConnector, p Profile) (*Session, error) {
+	return s.ConnectWith(a, v, p, nil)
 }
 
 // Oneshot sends the packet with the specified data to the server and does NOT
 // register the device with the controller.  This is used for spending specific data
 // segments in single use connections.
-func (c *controller) Oneshot(s string, v Connector, p Profile, d *com.Packet) error {
+func (s *Server) Oneshot(a string, v clientConnector, p Profile, d *com.Packet) error {
 	if v == nil {
-		if x, ok := p.(Connector); ok {
+		if x, ok := p.(clientConnector); ok {
 			v = x
 		} else {
 			return ErrNoConnector
@@ -288,7 +298,7 @@ func (c *controller) Oneshot(s string, v Connector, p Profile, d *com.Packet) er
 	if t == nil {
 		t = DefaultTransform
 	}
-	i, err := v.Connect(s)
+	i, err := v.Connect(a)
 	if err != nil {
 		return xerrors.Errorf("unable to connect to \"%s\": %w", s, err)
 	}
@@ -307,9 +317,9 @@ func (c *controller) Oneshot(s string, v Connector, p Profile, d *com.Packet) er
 // the listening server specified. This function allows for passing the data Packet
 // specified to the server with the initial registration. The data will be passed on
 // normally.
-func (c *controller) ConnectWith(s string, v Connector, p Profile, d *com.Packet) (*Session, error) {
+func (s *Server) ConnectWith(a string, v clientConnector, p Profile, d *com.Packet) (*Session, error) {
 	if v == nil {
-		if x, ok := p.(Connector); ok {
+		if x, ok := p.(clientConnector); ok {
 			v = x
 		} else {
 			return nil, ErrNoConnector
@@ -326,11 +336,11 @@ func (c *controller) ConnectWith(s string, v Connector, p Profile, d *com.Packet
 		wake:       make(chan bool, 1),
 		errors:     maxErrors,
 		Device:     device.Local,
-		server:     s,
+		server:     a,
 		connect:    v.Connect,
-		controller: c,
+		controller: s,
 	}
-	n.ctx, n.cancel = context.WithCancel(c.ctx)
+	n.ctx, n.cancel = context.WithCancel(s.ctx)
 	if p != nil {
 		n.Sleep = p.Sleep()
 		n.Jitter = p.Jitter()
@@ -349,9 +359,9 @@ func (c *controller) ConnectWith(s string, v Connector, p Profile, d *com.Packet
 	if n.transform == nil {
 		n.transform = DefaultTransform
 	}
-	i, err := v.Connect(s)
+	i, err := v.Connect(a)
 	if err != nil {
-		return nil, xerrors.Errorf("unable to connect to \"%s\": %w", s, err)
+		return nil, xerrors.Errorf("unable to connect to \"%s\": %w", a, err)
 	}
 	defer i.Close()
 	z := &com.Packet{ID: PacketHello}
@@ -375,7 +385,7 @@ func (c *controller) ConnectWith(s string, v Connector, p Profile, d *com.Packet
 	if r.IsEmpty() || r.ID != PacketRegistered {
 		return nil, ErrEmptyPacket
 	}
-	c.Log.Debug("Connected client \"%s\" to \"%s\"...", n.ID, s)
+	s.Log.Debug("[%s] Client connected to \"%s\"...", n.ID, a)
 	go n.listen()
 	return n, nil
 }
