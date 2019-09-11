@@ -29,7 +29,7 @@ func (p *PacketGroup) New() *Packet {
 		p.last++
 	}
 	n := &Packet{ID: p.ID}
-	n.Flags.Add(FlagFrag)
+	n.Flags |= FlagFrag
 	n.Flags.SetFragPosition(p.last)
 	p.packets = append(p.packets, n)
 	return n

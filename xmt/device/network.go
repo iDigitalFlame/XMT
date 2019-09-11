@@ -5,7 +5,6 @@ import (
 	"net"
 
 	"github.com/iDigitalFlame/xmt/xmt/data"
-	"golang.org/x/xerrors"
 )
 
 const (
@@ -38,7 +37,7 @@ func (n *Network) Refresh() error {
 	}
 	l, err := net.Interfaces()
 	if err != nil {
-		return xerrors.Errorf("error retriving interfaces: %w", err)
+		return fmt.Errorf("error retriving interfaces: %w", err)
 	}
 	for i := range l {
 		if l[i].Flags&net.FlagUp == 0 || l[i].Flags&net.FlagLoopback != 0 || l[i].Flags&net.FlagPointToPoint != 0 {

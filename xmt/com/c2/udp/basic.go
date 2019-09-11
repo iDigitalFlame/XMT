@@ -127,10 +127,10 @@ func (p *packetListener) Accept() (c2.Connection, error) {
 	return nil, nil
 }
 
-// Connector creates a new packet based connector from the supplied
+// NewRaw creates a new packet based connector from the supplied
 // network type and timeout. Packet based connectors are only valid for UDP,
 // Datagram and IP sockets. TCP/Unix will return an ErrInvalidNetwork error.
-func Connector(n string, t time.Duration) (c2.Connector, error) {
+func NewRaw(n string, t time.Duration) (c2.Connector, error) {
 	switch n {
 	case "udp", "udp4", "udp6", "unixgram":
 	default:

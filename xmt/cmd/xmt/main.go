@@ -1,268 +1,126 @@
 package main
 
 import (
-	"bufio"
-	"encoding/base64"
+	"crypto/aes"
 	"fmt"
-	"io"
 	"net/http"
-	"net/url"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/iDigitalFlame/logx/logx"
 	"github.com/iDigitalFlame/xmt/xmt/com"
 	"github.com/iDigitalFlame/xmt/xmt/com/c2"
 	"github.com/iDigitalFlame/xmt/xmt/com/c2/tcp"
-	"github.com/iDigitalFlame/xmt/xmt/com/c2/udp"
-	"github.com/iDigitalFlame/xmt/xmt/crypto"
+	"github.com/iDigitalFlame/xmt/xmt/com/c2/transform"
+	"github.com/iDigitalFlame/xmt/xmt/com/c2/wrapper"
 	"github.com/iDigitalFlame/xmt/xmt/crypto/cbk"
-	"github.com/iDigitalFlame/xmt/xmt/device"
+	"github.com/iDigitalFlame/xmt/xmt/crypto/xor"
+	"github.com/iDigitalFlame/xmt/xmt/device/local"
 	"github.com/iDigitalFlame/xmt/xmt/util"
 )
 
-type cw bool
-type uu bool
-
-func (q cw) Read(b []byte) ([]byte, error) {
-	//fmt.Printf("rd[%s]\n", b)
-	i := make([]byte, base64.StdEncoding.DecodedLen(len(b)))
-	if _, err := base64.StdEncoding.Decode(i, b); err != nil {
-		return nil, err
-	}
-	return i, nil
-}
-func (q cw) Write(b []byte) ([]byte, error) {
-	o := make([]byte, base64.StdEncoding.EncodedLen(len(b)))
-	base64.StdEncoding.Encode(o, b)
-	//fmt.Printf("wr[%s]\n", o)
-	return o, nil
-}
-
-func (u uu) Wrap(w io.WriteCloser) io.WriteCloser {
-	x, _ := cbk.NewCipherEx(190, 32, crypto.NewSource("password123"))
-	x.A = 120
-	x.B = 90
-	x.C = 10
-	return crypto.NewWriter(x, w)
-}
-func (u uu) Unwrap(r io.ReadCloser) io.ReadCloser {
-	x, _ := cbk.NewCipherEx(190, 32, crypto.NewSource("password123"))
-	x.A = 120
-	x.B = 90
-	x.C = 10
-	return crypto.NewReader(x, r)
-}
-
-func main2() {
-	u, err := url.Parse(os.Args[1])
-	fmt.Printf("%s | %s |%s |%s(%s)\n", u.Scheme, u.Host, u.Path, u.Port(), err)
-}
-
 func main() {
-	s := "/api/%10s/"
 
-	if len(os.Args) >= 2 {
-		s = os.Args[1]
-	}
+	testWebC2()
+}
 
-	c2.Controller.Log = logx.NewConsole(logx.LTrace)
-	c := &c2.CustomProfile{
-		CSleep:     time.Duration(5) * time.Second,
-		CJitter:    0,
-		CWrapper:   uu(true),
-		CTransform: cw(true),
-	}
-
-	p := util.Matcher(s)
-	a := util.Matcher("Firefox-%10fs-%d.%100d")
-
-	m, _ := p.Match()
-	o, _ := a.Match()
-
-	w := tcp.NewWeb(time.Duration(10)*time.Second, nil)
-	w.Handle("/", http.FileServer(http.Dir("/tmp/")))
-	w.HandleFunc("/index.html", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Hello! %v", r)
+func testWebC2() {
+	c2.Controller.Log = logx.NewConsole(logx.LDebug)
+	c2.Controller.Mux = c2.MuxFunc(func(s *c2.Session, p *com.Packet) {
+		fmt.Printf("[%s] Packet: %s\n", s.ID.String(), p.String())
+		if p.ID == 910 {
+			n1, _ := p.UTFString()
+			n2, _ := p.UTFString()
+			fmt.Printf("Payload: %s, %s\n", n1, n2)
+		}
 	})
 
-	w.Rule(&tcp.WebRule{
-		URL:   m,
-		Agent: o,
-	})
-	w.Generator = &tcp.WebGenerator{
-		URL:   p,
-		Agent: a,
+	//xo := xor.Cipher([]byte("derp string"))
+
+	//y, _ := wrapper.NewCrypto(xo, xo)
+
+	z1, err := aes.NewCipher([]byte("123456789012345678901234567890AB"))
+	if err != nil {
+		panic(err)
+	}
+	y, _ := wrapper.NewCryptoBlock(z1, []byte("ABCDEF1234567890"))
+
+	x := cbk.NewCipher(100)
+	x.A = 20
+	x.B = 30
+	x.C = 40
+
+	xr := cbk.NewCipher(100)
+	xr.A = 20
+	xr.B = 30
+	xr.C = 40
+
+	x1, _ := wrapper.NewCrypto(x, xr)
+
+	xx := xor.Cipher([]byte("this is my xor key"))
+	x2, _ := wrapper.NewCrypto(xx, xx)
+
+	p := &c2.Profile{
+		Sleep:     time.Duration(5) * time.Second,
+		Transform: transform.DNS,
+		Wrapper:   wrapper.NewMulti(wrapper.Zlib, y, x1, x2),
 	}
 
-	u, err := c2.Controller.Listen("http", "127.0.0.1:8080", w, c)
+	g := &tcp.WebGenerator{
+		URL:  util.Matcher("/post/%31fd/%12fd/%31fd/edit/%4fl"),
+		Host: util.Matcher("%6fl.myblogsite.com"),
+	}
+
+	s := tcp.NewWeb(p.Sleep)
+	s.Handle("/", http.FileServer(http.Dir("/tmp/")))
+
+	s.Rule(&tcp.WebRule{
+		URL:  g.URL.(util.Matcher).Match(),
+		Host: g.Host.(util.Matcher).Match(),
+	})
+
+	//var err error
+	h, err := c2.Controller.Listen("http", "127.0.0.1:8080", s, p)
 	if err != nil {
 		panic(err)
 	}
 
-	u.Receive = func(s *c2.Session, p *com.Packet) {
-		fmt.Printf("Received packet[%s]\n", p)
-		if p.ID == 980 {
-			i, err := p.UTFString()
-			fmt.Printf("Payload: %s: %s\n", i, err)
+	time.Sleep(3 * time.Second)
 
-			e := &com.Packet{ID: 450}
-			e.WriteString("Hello from server!")
-			e.Close()
-			s.WritePacket(e)
-		}
-	}
-
-	time.Sleep(time.Second * 1)
-
-	y := &tcp.WebClient{
-		Generator: &tcp.WebGenerator{
-			URL:   p,
-			Agent: a,
-		},
-	}
-
-	v, err := c2.Controller.Connect("http://127.0.0.1:8080", y, c)
-	if err != nil {
-		panic(err)
-	}
-	v.Receive = func(s *c2.Session, p *com.Packet) {
-		fmt.Printf("Received packet[%s]\n", p)
-		if p.ID == 450 {
-			i, err := p.UTFString()
-			fmt.Printf("Payload: %s: %s\n", i, err)
-		}
-	}
-	_, err = v.Proxy("127.0.0.1:9090", udp.Raw, c)
+	c, err := c2.Controller.Connect("http://127.0.0.1:8080", &tcp.WebClient{Generator: g}, p)
 	if err != nil {
 		panic(err)
 	}
 
 	time.Sleep(5 * time.Second)
 
-	t := &com.Packet{ID: 980}
-	t.WriteString("Hello from client!")
-	t.Close()
-	v.WritePacket(t)
+	o := &com.Packet{ID: 910}
+	o.Flags |= com.FlagFrag
+	o.Flags.SetFragTotal(2)
+	o.Flags.SetFragGroup(999)
+	o.Flags.SetFragPosition(0)
+	o.WriteString("derp!")
+	fmt.Printf("p1: %s, %s\n", o, o.Flags)
+	c.WritePacket(o)
 
-	c2.Controller.Wait()
-}
+	time.Sleep(5 * time.Second)
+	q := &com.Packet{ID: 910}
+	q.Flags |= com.FlagFrag
+	q.Flags.SetFragTotal(2)
+	q.Flags.SetFragGroup(999)
+	q.Flags.SetFragPosition(1)
+	q.WriteString("derp!")
+	fmt.Printf("p2: %s, %s\n", q, q.Flags)
+	c.WritePacket(q)
 
-func main12() {
+	fmt.Printf("%s\n", h.Session(local.ID()))
 
-	if len(os.Args) < 2 {
-		fmt.Printf("%s <1|2|3>\n", os.Args[0])
-		os.Exit(1)
-	}
+	time.Sleep(10 * time.Second)
 
-	c2.Controller.Log = logx.NewConsole(logx.LDebug)
+	c.Shutdown()
 
-	p := &c2.CustomProfile{
-		CSleep:     time.Duration(5) * time.Second,
-		CJitter:    0,
-		CWrapper:   uu(true),
-		CTransform: cw(true),
-	}
-	p1 := &c2.CustomProfile{
-		CSleep:  time.Duration(5) * time.Second,
-		CJitter: 0,
-	}
+	time.Sleep(15 * time.Second)
 
-	switch os.Args[1] {
-	case "1":
-		tl, err := c2.Controller.Listen("MyTCP", ":8080", tcp.Raw, p)
-		if err != nil {
-			panic(err)
-		}
-		tl.Oneshot = func(s *c2.Session, p *com.Packet) {
-			fmt.Printf("TL: %v oneshot %s\n", s, p.String())
-		}
-		tl.Receive = func(s *c2.Session, p *com.Packet) {
-			if s != nil {
-				fmt.Printf("[%s] sent: %s\n", s.ID, p.String())
-				if p.ID == 123 {
-					s.WritePacket(&com.Packet{ID: 456})
-				}
-			}
-		}
-
-		r := bufio.NewReader(os.Stdin)
-		go func(t *c2.Handle) {
-			for {
-				fmt.Printf("Gathering current sessions:\n")
-				for _, v := range t.Sessions() {
-					fmt.Printf("Session: %s (Created: %s, Last: %s)\n", v.ID, v.Created, v.Last)
-				}
-				fmt.Println()
-				time.Sleep(time.Second * 10)
-			}
-		}(tl)
-
-		for {
-			fmt.Printf("\nShutdown session? ")
-			v, err := r.ReadString('\n')
-			if err != nil {
-				continue
-			}
-			i, err := device.IDFromString(strings.TrimSpace(v))
-			if err != nil {
-				continue
-			}
-			fmt.Printf("\nSelected: [%s]\n", i.ID())
-			s := tl.Session(i)
-			if s == nil {
-				continue
-			}
-			s.Shutdown()
-		}
-
-	case "2":
-		tc, err := c2.Controller.Connect("127.0.0.1:8080", tcp.Raw, p)
-		if err != nil {
-			panic(err)
-		}
-		tc.Receive = func(s *c2.Session, p *com.Packet) {
-			fmt.Printf("TC %s: got %s\n", s.ID.ID(), p.String())
-		}
-		tc.Times(-1, 10)
-		_, err = tc.Proxy("127.0.0.1:9090", udp.Raw, p1)
-		if err != nil {
-			panic(err)
-		}
-	case "3":
-		tpc, err := c2.Controller.Connect("127.0.0.1:9090", udp.Raw, p)
-		if err != nil {
-			panic(err)
-		}
-		tpc.Receive = func(s *c2.Session, p *com.Packet) {
-			fmt.Printf("TCP %s: got %s\n", s.ID.ID(), p.String())
-		}
-		tpc.Times(-1, 10)
-		time.Sleep(5 * time.Second)
-		tpc.WritePacket(&com.Packet{ID: 123})
-		tpc.WritePacket(&com.Packet{ID: 123})
-		tpc.WritePacket(&com.Packet{ID: 123})
-		tpc.WritePacket(&com.Packet{ID: 123})
-		tpc.WritePacket(&com.Packet{ID: 123})
-	case "4":
-		if err := c2.Controller.Oneshot("127.0.0.1:9090", udp.Raw, p1, &com.Packet{ID: 990}); err != nil {
-			panic(err)
-		}
-	case "5":
-		o := tcp.NewWeb(time.Duration(5)*time.Second, nil)
-		h, err := o.Listen("127.0.0.1:8080")
-		if err != nil {
-			panic(err)
-		}
-		h1, err := o.Listen("127.0.0.1:9090")
-		if err != nil {
-			panic(err)
-		}
-		fmt.Printf("http server: %v %v\n", h, h1)
-	default:
-		os.Exit(-1)
-	}
+	fmt.Printf("%s\n", h.Session(local.ID()))
 
 	c2.Controller.Wait()
 }

@@ -15,7 +15,7 @@ var (
 	// Local is the pointer to the local
 	// machine instance. This instance is loaded at
 	// runtime and is used for local data gathering.
-	Local = &Machine{
+	Local = &localMachine{&Machine{
 		ID:       getID(),
 		OS:       deviceOS(compat.Os()),
 		PID:      uint64(os.Getpid()),
@@ -25,6 +25,7 @@ var (
 		Network:  Network{},
 		Hostname: "Unknown",
 		Elevated: compat.Elevated(),
+	},
 	}
 	// Newline is the machine specific newline character.
 	Newline = compat.Newline()
@@ -47,6 +48,9 @@ type Machine struct {
 	Hostname string     `json:"hostname"`
 	Elevated bool       `json:"elevated"`
 }
+type localMachine struct {
+	*Machine
+}
 
 func init() {
 	if h, err := os.Hostname(); err == nil {
@@ -58,6 +62,22 @@ func init() {
 	if err := Local.Network.Refresh(); err != nil {
 		panic(fmt.Sprintf("error getting network information: %s", err.Error()))
 	}
+}
+func (l *localMachine) Refresh() error {
+	u, err := user.Current()
+	if err != nil {
+		return err
+	}
+	l.User = u.Username
+	if l.Hostname, err = os.Hostname(); err != nil {
+		return err
+	}
+	if err := Local.Network.Refresh(); err != nil {
+		return err
+	}
+	l.PID = uint64(os.Getpid())
+	l.Elevated = compat.Elevated()
+	return nil
 }
 
 // MarshalStream writes the data of this Machine from the supplied Writer.

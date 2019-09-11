@@ -22,7 +22,7 @@ func User() string {
 	return device.Local.User
 }
 
-// ID retuns the local machine's ID value.
+// ID returns the local machine's ID value.
 func ID() device.ID {
 	return device.Local.ID
 }
@@ -54,7 +54,7 @@ func Hostname() string {
 
 // Host returns the pointer to the Local Machine struct.
 func Host() *device.Machine {
-	return device.Local
+	return device.Local.Machine
 }
 
 // Network returns the local machine's Network data.
@@ -64,5 +64,5 @@ func Network() device.Network {
 
 // Machine returns the pointer to the Local Machine struct.
 func Machine() *device.Machine {
-	return device.Local
+	return device.Local.Machine
 }

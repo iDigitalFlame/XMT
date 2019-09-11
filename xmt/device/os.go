@@ -69,14 +69,6 @@ func getID() ID {
 	rand.Read(i[MachineIDSize:])
 	return i
 }
-
-// ID returns a small string representation of this ID instance.
-func (i ID) ID() string {
-	if len(i) < SmallIDSize {
-		return i.String()
-	}
-	return strings.ToUpper(hex.EncodeToString(i[SmallIDSize:]))
-}
 func getArch() deviceArch {
 	switch runtime.GOARCH {
 	case "386":
@@ -106,6 +98,14 @@ func (i ID) Hash() uint32 {
 
 // String returns a representation of this ID instance.
 func (i ID) String() string {
+	if len(i) < SmallIDSize {
+		return strings.ToUpper(hex.EncodeToString(i))
+	}
+	return strings.ToUpper(hex.EncodeToString(i[SmallIDSize:]))
+}
+
+// FullString returns the full string representation of this ID instance.
+func (i ID) FullString() string {
 	return strings.ToUpper(hex.EncodeToString(i))
 }
 func (d deviceOS) String() string {

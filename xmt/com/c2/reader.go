@@ -113,6 +113,7 @@ func (w *wrapBuffer) Bytes() ([]byte, error) {
 	b := make([]byte, l)
 	n, err := w.Read(b)
 	if err != nil {
+
 		return nil, err
 	}
 	if n != l {
@@ -323,7 +324,11 @@ func (w *wrapBuffer) ReadString(i *string) error {
 	return nil
 }
 func (w *wrapBuffer) Read(b []byte) (int, error) {
-	return w.r.Read(b)
+	n, err := w.r.Read(b)
+	if err == io.EOF && n == len(b) {
+		return n, nil
+	}
+	return n, err
 }
 func (w *wrapBuffer) ReadFloat32(i *float32) error {
 	v, err := w.Float32()

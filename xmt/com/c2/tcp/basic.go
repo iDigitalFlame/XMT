@@ -53,6 +53,14 @@ func (s *streamListener) Accept() (c2.Connection, error) {
 		timeout: s.timeout,
 	}, nil
 }
+
+// NewRaw creates a new simple stream based connector from
+// the supplied network type and timeout.  Stream based connectors are
+// only valid for TCP and UNIX sockets.  UDP/ICMP/IP will return an
+// ErrInvalidNetwork error.
+func NewRaw(n string, t time.Duration) (c2.Connector, error) {
+	return NewRawTLS(n, t, nil)
+}
 func (s *streamConnector) Listen(a string) (c2.Listener, error) {
 	var err error
 	var c net.Listener
@@ -73,17 +81,10 @@ func (s *streamConnector) Listen(a string) (c2.Listener, error) {
 		timeout: s.dial.Timeout,
 	}, nil
 }
-
-// Connector creates a new simple stream based connector from
-// the supplied network type and timeout.  Stream based connectors are
-// only valid for TCP and UNIX sockets.  UDP/ICMP/IP will return an
-// ErrInvalidNetwork error.
-func Connector(n string, t time.Duration) (c2.Connector, error) {
-	return ConnectorSecure(n, t, nil)
-}
 func (s *streamClient) Connect(a string) (c2.Connection, error) {
 	return s.c.Connect(a)
 }
+
 func (s *streamConnector) Connect(a string) (c2.Connection, error) {
 	var err error
 	var c net.Conn
@@ -101,11 +102,11 @@ func (s *streamConnector) Connect(a string) (c2.Connection, error) {
 	}, nil
 }
 
-// ConnectorSecure creates a new simple stream based connector from
+// NewRawTLS creates a new simple stream based connector from
 // the supplied network type and timeout.  Stream based connectors are
 // only valid for TCP and UNIX sockets.  UDP/ICMP/IP will return an
 // ErrInvalidNetwork error. This stream uses TLS with the provided config.
-func ConnectorSecure(n string, t time.Duration, c *tls.Config) (c2.Connector, error) {
+func NewRawTLS(n string, t time.Duration, c *tls.Config) (c2.Connector, error) {
 	switch n {
 	case "tcp", "tcp4", "tcp6", "unix", "unixpacket":
 	default:

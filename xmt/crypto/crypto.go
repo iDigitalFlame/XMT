@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"crypto/cipher"
 	"io"
 
 	"github.com/iDigitalFlame/xmt/xmt/data"
@@ -74,4 +75,32 @@ func NewWriter(c Writer, w io.Writer) data.Writer {
 		return data.NewWriter(w)
 	}
 	return data.NewWriter(&writer{c: c, w: w})
+}
+
+func BlockDecryptReader(b cipher.Block, iv []byte, r io.Reader) data.Reader {
+	return data.NewReader(&cipher.StreamReader{
+		R: r,
+		S: cipher.NewCFBDecrypter(b, iv),
+	})
+}
+
+func BlockDecryptWriter(b cipher.Block, iv []byte, w io.Writer) data.Writer {
+	return data.NewWriter(&cipher.StreamWriter{
+		W: w,
+		S: cipher.NewCFBDecrypter(b, iv),
+	})
+}
+
+func BlockEncryptReader(b cipher.Block, iv []byte, r io.Reader) data.Reader {
+	return data.NewReader(&cipher.StreamReader{
+		R: r,
+		S: cipher.NewCFBEncrypter(b, iv),
+	})
+}
+
+func BlockEncryptWriter(b cipher.Block, iv []byte, w io.Writer) data.Writer {
+	return data.NewWriter(&cipher.StreamWriter{
+		W: w,
+		S: cipher.NewCFBEncrypter(b, iv),
+	})
 }

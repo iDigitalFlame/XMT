@@ -3,12 +3,11 @@ package cbk
 import (
 	crypto "crypto/rand"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"math/rand"
 	"sync"
-
-	"golang.org/x/xerrors"
 )
 
 const (
@@ -69,7 +68,7 @@ func NewCipher(d int) *Cipher {
 // Reset resets the encryption keys and sets them to new random bytes.
 func (e *Cipher) Reset() error {
 	if _, err := crypto.Read(e.buf[0:3]); err != nil {
-		return xerrors.Errorf("unable to generate random values: %w", err)
+		return fmt.Errorf("unable to generate random values: %w", err)
 	}
 	e.A = e.buf[0]
 	e.B = e.buf[1]

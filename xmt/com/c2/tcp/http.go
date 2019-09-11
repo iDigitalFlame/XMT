@@ -38,6 +38,7 @@ var (
 			IdleConnTimeout:       RawDefaultTimeout,
 			TLSHandshakeTimeout:   RawDefaultTimeout,
 			ExpectContinueTimeout: RawDefaultTimeout,
+			ResponseHeaderTimeout: RawDefaultTimeout,
 		},
 	}
 
@@ -45,8 +46,8 @@ var (
 	// a client attempts a connection. The default values are a URL for an API
 	// and Firefox version 64 user agent.
 	DefaultGenerator = &WebGenerator{
-		URL:   util.String("/news/post/"),
-		Agent: util.String("Mozilla/5.0 (Windows NT 6.1; WOW64; rv:64.0) Gecko/20100101 Firefox/64.0"),
+		URL:   util.Matcher("/news/post/%d/"),
+		Agent: util.Matcher("Mozilla/5.0 (Windows NT 6.1; WOW64; rv:64.0) Gecko/20101%100d Firefox/64.0"),
 	}
 
 	bufs = &sync.Pool{
@@ -78,9 +79,9 @@ type Web struct {
 // used by the Web server to determine the difference between
 // normal and C2 traffic.
 type WebRule struct {
-	URL   util.Regexp
-	Host  util.Regexp
-	Agent util.Regexp
+	URL   matcher
+	Host  matcher
+	Agent matcher
 }
 
 // WebClient is a simple struct that supports the
@@ -98,6 +99,9 @@ type webClient struct {
 	reader *http.Response
 	client *http.Client
 	parent *Web
+}
+type matcher interface {
+	MatchString(string) bool
 }
 type webListener struct {
 	new      chan *webConnection
@@ -143,6 +147,16 @@ func (w *webListener) listen() {
 }
 func (w *webClient) IP() string {
 	return w.reader.Request.RemoteAddr
+}
+
+// NewWeb creates a new Web C2 server instance. This can be passed
+// to the Listen function of a controller to serve a Web Server that
+// also acts as a C2 instance. This struct supports all the default
+// Golang http.Server functions and can be used to serve real web pages.
+// Rules must be defined using the 'Rule' function to allow the server to
+// differentiate between C2 and real traffic.
+func NewWeb(t time.Duration) *Web {
+	return NewWebTLS(t, nil)
 }
 
 // Rule adds the specified rules to the Web instance to
@@ -231,24 +245,27 @@ func (m *WebRule) checkMatch(r *http.Request) bool {
 	}
 	return true
 }
+func (w *webConnection) Read(b []byte) (int, error) {
+	return w.reader.Body.Read(b)
+}
 
-// NewWeb creates a new Web C2 server instance. This can be passed
+// NewWebTLS creates a new TLS wrapped Web C2 server instance. This can be passed
 // to the Listen function of a controller to serve a Web Server that
 // also acts as a C2 instance. This struct supports all the default
 // Golang http.Server functions and can be used to serve real web pages.
 // Rules must be defined using the 'Rule' function to allow the server to
 // differentiate between C2 and real traffic.
-func NewWeb(t time.Duration, g *WebGenerator) *Web {
+func NewWebTLS(t time.Duration, c *tls.Config) *Web {
 	w := &Web{
+		tls: c,
 		dial: &net.Dialer{
 			Timeout:   t,
 			KeepAlive: t,
 			DualStack: true,
 		},
-		lock:      &sync.Mutex{},
-		rules:     make([]*WebRule, 0),
-		handler:   &http.ServeMux{},
-		Generator: g,
+		lock:    &sync.Mutex{},
+		rules:   make([]*WebRule, 0),
+		handler: &http.ServeMux{},
 	}
 	w.ctx, w.cancel = context.WithCancel(context.Background())
 	w.Client = &http.Client{
@@ -261,12 +278,10 @@ func NewWeb(t time.Duration, g *WebGenerator) *Web {
 			IdleConnTimeout:       w.dial.Timeout,
 			TLSHandshakeTimeout:   w.dial.Timeout,
 			ExpectContinueTimeout: w.dial.Timeout,
+			ResponseHeaderTimeout: RawDefaultTimeout,
 		},
 	}
 	return w
-}
-func (w *webConnection) Read(b []byte) (int, error) {
-	return w.reader.Body.Read(b)
 }
 
 // Listen returns a new C2 listener for this Web instance. This
@@ -293,6 +308,7 @@ func (w *Web) Listen(a string) (c2.Listener, error) {
 			TLSConfig:         w.tls,
 			Handler:           &http.ServeMux{},
 			ReadTimeout:       w.dial.Timeout,
+			IdleTimeout:       w.dial.Timeout,
 			WriteTimeout:      w.dial.Timeout,
 			ReadHeaderTimeout: w.dial.Timeout,
 		},
@@ -300,6 +316,7 @@ func (w *Web) Listen(a string) (c2.Listener, error) {
 	}
 	l.ctx, l.cancel = context.WithCancel(w.ctx)
 	l.Server.Handler.(*http.ServeMux).Handle("/", l)
+	l.Server.BaseContext = l.context
 	go l.listen()
 	return l, nil
 }
@@ -341,6 +358,9 @@ func (w *WebClient) Connect(a string) (c2.Connection, error) {
 		c.gen = DefaultGenerator
 	}
 	return c, nil
+}
+func (w *webListener) context(n net.Listener) context.Context {
+	return w.ctx
 }
 func (w *webClient) request(b *bytes.Buffer) (*http.Response, error) {
 	r, err := http.NewRequest(http.MethodPost, "", b)

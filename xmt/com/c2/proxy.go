@@ -2,9 +2,9 @@ package c2
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/iDigitalFlame/xmt/xmt/com"
-	"golang.org/x/xerrors"
 )
 
 // Proxy is a struct that controls a Proxied
@@ -101,7 +101,7 @@ func (p *Proxy) session(c Connection) {
 			return
 		}
 		p.client(c, v)
-		v.ResetFull()
+		v.Reset()
 	}
 	d.Close()
 }
@@ -110,8 +110,8 @@ func (p *Proxy) client(c Connection, d *com.Packet) {
 		return
 	}
 	i := d.Device.Hash()
-	d.Flags.Add(com.FlagProxy)
-	p.parent.controller.Log.Trace("[%s:Proxy] Received a packet \"%s\" from \"%s\" (%s), session hash \"%X\".", p.parent.ID, d.String(), d.Device.ID(), c.IP(), i)
+	d.Flags |= com.FlagProxy
+	p.parent.controller.Log.Trace("[%s:Proxy] Received a packet \"%s\" from \"%s\" (%s), session hash 0x%X.", p.parent.ID, d.String(), d.Device, c.IP(), i)
 	if p.parent.ctx.Err() != nil {
 		return
 	}
@@ -125,8 +125,8 @@ func (p *Proxy) client(c Connection, d *com.Packet) {
 		}
 		p.send[i] = x
 		p.parent.new <- x
-		if d.ID == PacketHello {
-			v := &com.Packet{ID: PacketRegistered, Device: d.Device}
+		if d.ID == MsgHello {
+			v := &com.Packet{ID: MsgRegistered, Device: d.Device, Job: d.Job}
 			if err := write(c, p.wrapper, p.transform, v); err != nil {
 				p.parent.controller.Log.Warning("[%s:Proxy] Received an error writing data to client \"%s\"! (%s)", p.parent.ID, c.IP(), err.Error())
 			}
@@ -148,20 +148,16 @@ func (p *Proxy) client(c Connection, d *com.Packet) {
 // listener that will send any received Packets "upstream" via the current
 // Session. Packets destined for hosts connected to this proxy will be routed
 // back on forth on this Session.
-func (s *Session) Proxy(b string, v Connector, p Profile) (*Proxy, error) {
+func (s *Session) Proxy(b string, v Connector, p *Profile) (*Proxy, error) {
 	if v == nil {
-		if x, ok := p.(Connector); ok {
-			v = x
-		} else {
-			return nil, ErrNoConnector
-		}
+		return nil, ErrNoConnector
 	}
 	l, err := v.Listen(b)
 	if err != nil {
-		return nil, xerrors.Errorf("unable to listen on \"%s\": %w", b, err)
+		return nil, fmt.Errorf("unable to listen on \"%s\": %w", b, err)
 	}
 	if l == nil {
-		return nil, xerrors.Errorf("unable to listen on \"%s\"", b)
+		return nil, fmt.Errorf("unable to listen on \"%s\"", b)
 	}
 	i := &Proxy{
 		send:     make(map[uint32]*proxyClient),
@@ -169,14 +165,11 @@ func (s *Session) Proxy(b string, v Connector, p Profile) (*Proxy, error) {
 		listener: l,
 	}
 	if p != nil {
-		i.wrapper = p.Wrapper()
-		i.transform = p.Transform()
+		i.wrapper = p.Wrapper
+		i.transform = p.Transform
 	}
 	if i.wrapper == nil {
 		i.wrapper = DefaultWrapper
-	}
-	if i.transform == nil {
-		i.transform = DefaultTransform
 	}
 	i.ctx, i.cancel = context.WithCancel(s.ctx)
 	s.controller.Log.Debug("[%s] Added listener Proxy type \"%s\"...", s.ID, l.String())
