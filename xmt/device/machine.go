@@ -1,7 +1,6 @@
 package device
 
 import (
-	"fmt"
 	"os"
 	"os/user"
 
@@ -15,17 +14,18 @@ var (
 	// Local is the pointer to the local
 	// machine instance. This instance is loaded at
 	// runtime and is used for local data gathering.
-	Local = &localMachine{&Machine{
-		ID:       getID(),
-		OS:       deviceOS(compat.Os()),
-		PID:      uint64(os.Getpid()),
-		Arch:     getArch(),
-		User:     "Unknown",
-		Version:  compat.Version(),
-		Network:  Network{},
-		Hostname: "Unknown",
-		Elevated: compat.Elevated(),
-	},
+	Local = &localMachine{
+		&Machine{
+			ID:       getID(),
+			OS:       deviceOS(compat.Os()),
+			PID:      uint64(os.Getpid()),
+			Arch:     getArch(),
+			User:     "Unknown",
+			Version:  compat.Version(),
+			Network:  Network{},
+			Hostname: "Unknown",
+			Elevated: compat.Elevated(),
+		},
 	}
 	// Newline is the machine specific newline character.
 	Newline = compat.Newline()
@@ -59,9 +59,7 @@ func init() {
 	if u, err := user.Current(); err == nil {
 		Local.User = u.Username
 	}
-	if err := Local.Network.Refresh(); err != nil {
-		panic(fmt.Sprintf("error getting network information: %s", err.Error()))
-	}
+	Local.Network.Refresh()
 }
 func (l *localMachine) Refresh() error {
 	u, err := user.Current()

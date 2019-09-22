@@ -8,9 +8,15 @@ import (
 	"math"
 	"math/rand"
 	"sync"
+
+	"github.com/iDigitalFlame/xmt/xmt/data"
 )
 
 const (
+	// CbkID is the integer value used to represent
+	// this Cipher when written to or read from a stream.
+	CbkID uint8 = 0xC3
+
 	// BlockSize is the default block buffer size of this Cipher.
 	BlockSize = 16
 
@@ -246,6 +252,22 @@ func (e *Cipher) scramble(b []byte, d bool) {
 		}
 	}
 }
+
+// MarshalStream allows this Cipher to be written to a stream.
+func (e *Cipher) MarshalStream(w data.Writer) error {
+	if err := w.WriteUint8(CbkID); err != nil {
+		return err
+	}
+	b := bufs.Get().([]byte)
+	defer bufs.Put(b)
+	b[0] = e.D
+	b[1] = byte(len(e.buf))
+	if err := e.writeIndex(b[2:]); err != nil {
+		return err
+	}
+	w.Write(b[:5])
+	return nil
+}
 func (e *Cipher) readInput(r io.Reader) (int, error) {
 	n, err := r.Read(e.buf)
 	if err != nil {
@@ -281,6 +303,22 @@ func (e *Cipher) readInput(r io.Reader) (int, error) {
 		return 0, io.EOF
 	}
 	return n, nil
+}
+
+// UnmarshalStream allows this Cipher to be read from a stream.
+func (e *Cipher) UnmarshalStream(r data.Reader) error {
+	b := bufs.Get().([]byte)
+	defer bufs.Put(b)
+	if _, err := r.Read(b[:5]); err != nil {
+		return err
+	}
+	e.D = b[0]
+	e.buf = make([]byte, b[1])
+	e.total = -1
+	if err := e.readIndex(b[2:]); err != nil {
+		return err
+	}
+	return nil
 }
 func (e *Cipher) blockIndex(a bool, t, i uint16) byte {
 	switch v := t % 8; {

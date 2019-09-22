@@ -95,8 +95,10 @@ func (w *wrapBuffer) WriteInt(n int) error {
 	return w.WriteUint64(uint64(n))
 }
 func (w *wrapBuffer) small(b ...byte) error {
-	_, err := w.Write(b)
-	return err
+	if _, err := w.Write(b); err != nil {
+		return err
+	}
+	return nil
 }
 func (b *buffer) reslice(n int) (int, bool) {
 	if l := len(b.buf); n <= cap(b.buf)-l {
@@ -140,24 +142,27 @@ func (w *wrapBuffer) WriteUint8(n uint8) error {
 	return w.small(byte(n))
 }
 func (w *wrapBuffer) WriteBytes(b []byte) error {
+	if b == nil {
+		return w.small(0)
+	}
 	switch l := len(b); {
 	case l == 0:
 		return w.small(0)
-	case l < data.WriteStringSmall:
+	case l < data.DataLimitSmall:
 		if err := w.WriteUint8(1); err != nil {
 			return err
 		}
 		if err := w.WriteUint8(uint8(l)); err != nil {
 			return err
 		}
-	case l < data.WriteStringMedium:
+	case l < data.DataLimitMedium:
 		if err := w.WriteUint8(3); err != nil {
 			return err
 		}
 		if err := w.WriteUint16(uint16(l)); err != nil {
 			return err
 		}
-	case l < data.WriteStringLarge:
+	case l < data.DataLimitLarge:
 		if err := w.WriteUint8(5); err != nil {
 			return err
 		}
@@ -202,45 +207,4 @@ func (w *wrapBuffer) WriteFloat32(n float32) error {
 }
 func (w *wrapBuffer) WriteFloat64(n float64) error {
 	return w.WriteUint64(math.Float64bits(n))
-}
-func (w *wrapBuffer) WriteUTF8String(n string) error {
-	return w.WriteBytes([]byte(n))
-}
-func (w *wrapBuffer) WriteUTF16String(n string) error {
-	switch l := len(n); {
-	case l == 0:
-		return w.small(0, 0)
-	case l < data.WriteStringSmall:
-		if err := w.WriteUint8(2); err != nil {
-			return err
-		}
-		if err := w.WriteUint8(uint8(l)); err != nil {
-			return err
-		}
-	case l < data.WriteStringMedium:
-		if err := w.WriteUint8(4); err != nil {
-			return err
-		}
-		if err := w.WriteUint16(uint16(l)); err != nil {
-			return err
-		}
-	case l < data.WriteStringLarge:
-		if err := w.WriteUint8(6); err != nil {
-			return err
-		}
-		if err := w.WriteUint32(uint32(l)); err != nil {
-			return err
-		}
-	default:
-		if err := w.WriteUint8(8); err != nil {
-			return err
-		}
-		if err := w.WriteUint64(uint64(l)); err != nil {
-			return err
-		}
-	}
-	for i := range n {
-		w.small(byte(uint16(n[i])>>8), byte(n[i]))
-	}
-	return nil
 }

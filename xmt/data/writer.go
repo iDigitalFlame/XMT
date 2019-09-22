@@ -6,15 +6,15 @@ import (
 )
 
 const (
-	// WriteStringSmall is the size value allowed for small strings
+	// DataLimitSmall is the size value allowed for small strings
 	// using the WriteString and WriteBytes functions.
-	WriteStringSmall = 2 << 7
-	// WriteStringLarge is the size value allowed for large strings
+	DataLimitSmall = 2 << 7
+	// DataLimitLarge is the size value allowed for large strings
 	// using the WriteString and WriteBytes functions.
-	WriteStringLarge = 2 << 31
-	// WriteStringMedium is the size value allowed for medium strings
+	DataLimitLarge = 2 << 31
+	// DataLimitMedium is the size value allowed for medium strings
 	// using the WriteString and WriteBytes functions.
-	WriteStringMedium = 2 << 15
+	DataLimitMedium = 2 << 15
 )
 
 type writerBase struct {
@@ -43,8 +43,10 @@ func (w *writerBase) WriteInt(n int) error {
 	return w.WriteUint64(uint64(n))
 }
 func (w *writerBase) small(b ...byte) error {
-	_, err := w.w.Write(b)
-	return err
+	if _, err := w.w.Write(b); err != nil {
+		return err
+	}
+	return nil
 }
 func (w *writerBase) WriteUint(n uint) error {
 	return w.WriteUint64(uint64(n))
@@ -71,24 +73,27 @@ func (w *writerBase) WriteUint8(n uint8) error {
 	return w.small(byte(n))
 }
 func (w *writerBase) WriteBytes(b []byte) error {
+	if b == nil {
+		return w.small(0)
+	}
 	switch l := len(b); {
 	case l == 0:
 		return w.small(0)
-	case l < WriteStringSmall:
+	case l < DataLimitSmall:
 		if err := w.WriteUint8(1); err != nil {
 			return err
 		}
 		if err := w.WriteUint8(uint8(l)); err != nil {
 			return err
 		}
-	case l < WriteStringMedium:
+	case l < DataLimitMedium:
 		if err := w.WriteUint8(3); err != nil {
 			return err
 		}
 		if err := w.WriteUint16(uint16(l)); err != nil {
 			return err
 		}
-	case l < WriteStringLarge:
+	case l < DataLimitLarge:
 		if err := w.WriteUint8(5); err != nil {
 			return err
 		}
@@ -133,45 +138,4 @@ func (w *writerBase) WriteFloat32(n float32) error {
 }
 func (w *writerBase) WriteFloat64(n float64) error {
 	return w.WriteUint64(math.Float64bits(n))
-}
-func (w *writerBase) WriteUTF8String(n string) error {
-	return w.WriteBytes([]byte(n))
-}
-func (w *writerBase) WriteUTF16String(n string) error {
-	switch l := len(n); {
-	case l == 0:
-		return w.small(0, 0)
-	case l < WriteStringSmall:
-		if err := w.WriteUint8(2); err != nil {
-			return err
-		}
-		if err := w.WriteUint8(uint8(l)); err != nil {
-			return err
-		}
-	case l < WriteStringMedium:
-		if err := w.WriteUint8(4); err != nil {
-			return err
-		}
-		if err := w.WriteUint16(uint16(l)); err != nil {
-			return err
-		}
-	case l < WriteStringLarge:
-		if err := w.WriteUint8(6); err != nil {
-			return err
-		}
-		if err := w.WriteUint32(uint32(l)); err != nil {
-			return err
-		}
-	default:
-		if err := w.WriteUint8(8); err != nil {
-			return err
-		}
-		if err := w.WriteUint64(uint64(l)); err != nil {
-			return err
-		}
-	}
-	for i := range n {
-		w.small(byte(uint16(n[i])>>8), byte(n[i]))
-	}
-	return nil
 }

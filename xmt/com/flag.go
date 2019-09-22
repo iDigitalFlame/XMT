@@ -98,7 +98,9 @@ func (f Flag) String() string {
 	if b.Len() == 0 {
 		b.WriteString(fmt.Sprintf("V%X", int64(f)))
 	}
-	if f&FlagFrag != 0 {
+	if f&FlagMulti != 0 {
+		b.WriteString(fmt.Sprintf("[%d]", f.FragTotal()))
+	} else if f&FlagFrag != 0 {
 		b.WriteString(fmt.Sprintf("[%X:%d/%d]", f.FragGroup(), f.FragPosition()+1, f.FragTotal()))
 	}
 	s := b.String()
@@ -133,7 +135,7 @@ func (f *Flag) SetFragGroup(n uint16) {
 // SetFragTotal sets the total count of packets
 // in the fragment group.
 func (f *Flag) SetFragTotal(n uint16) {
-	*f = Flag(n)<<48 | Flag(f.FragPosition())>>32 | Flag(uint32(*f)) | FlagFrag
+	*f = Flag(n)<<48 | Flag(f.FragPosition())<<32 | Flag(uint32(*f)) | FlagFrag
 }
 
 // SetFragPosition sets the position this packet is located

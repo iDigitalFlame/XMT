@@ -12,9 +12,9 @@ const (
 )
 
 var (
-	// Raw is the TCP Raw connector.  This connector uses raw TCP
+	// Raw is the TCP Raw provider. This provider uses raw TCP
 	// connections without any encoding or Transforms.
-	Raw = &streamConnector{
+	Raw = &provider{
 		dial: &net.Dialer{
 			Timeout:   RawDefaultTimeout,
 			KeepAlive: RawDefaultTimeout,
@@ -27,9 +27,24 @@ var (
 	// wrapped in TLS encryption using certificates.  This default
 	// connector is only valid for clients that connect to servers with
 	// properly signed and trusted root certificates.
-	TLS = &streamClient{
-		c: &streamConnector{
+	TLS = &client{
+		p: &provider{
 			tls:     &tls.Config{},
+			dial:    Raw.dial,
+			network: network,
+		},
+	}
+
+	// TLSNoCertCheck is the TCP over TLS connector profile. This connector uses TCP
+	// wrapped in TLS encryption using certificates.  This default
+	// connector is only valid for clients that connect to servers with
+	// properly signed and trusted root certificates.
+	// This instance DOES NOT check the server certificate.
+	TLSNoCertCheck = &client{
+		p: &provider{
+			tls: &tls.Config{
+				InsecureSkipVerify: true,
+			},
 			dial:    Raw.dial,
 			network: network,
 		},

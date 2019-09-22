@@ -8,6 +8,10 @@ import (
 )
 
 var (
+	// XorID is the integer value used to represent
+	// this Cipher when written to or read from a stream.
+	XorID uint8 = 0xC1
+
 	bufs = &sync.Pool{
 		New: func() interface{} {
 			return make([]byte, bufSize)
@@ -48,6 +52,34 @@ func (c Cipher) Encrypt(b []byte) {
 func (c Cipher) Flush(w io.Writer) error {
 	if f, ok := w.(data.Flusher); ok {
 		return f.Flush()
+	}
+	return nil
+}
+
+// MarshalStream allows this Cipher to be written to a stream.
+func (c Cipher) MarshalStream(w data.Writer) error {
+	if err := w.WriteUint8(XorID); err != nil {
+		return err
+	}
+	if err := w.WriteUint16(uint16(len(c))); err != nil {
+		return err
+	}
+	if _, err := w.Write(c); err != nil {
+		return err
+	}
+	return nil
+}
+
+// UnmarshalStream allows this Cipher to be read from a stream.
+func (c Cipher) UnmarshalStream(r data.Reader) error {
+	l, err := r.Uint16()
+	if err != nil {
+		return err
+	}
+	c = make([]byte, l)
+	n, err := r.Read(c)
+	if err != nil && (err != io.EOF || l != uint16(n)) {
+		return err
 	}
 	return nil
 }

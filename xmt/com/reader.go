@@ -83,11 +83,23 @@ func (p *Packet) Int64() (int64, error) {
 
 // Uint8 reads the value from the Packet payload buffer.
 func (p *Packet) Uint8() (uint8, error) {
-	if p.rpos+1 > len(p.buf) {
-		return 0, io.EOF
+	if p.stream != nil {
+		n, err := p.stream.Read(p.buf[0:1])
+		if err != nil {
+			return 0, err
+		}
+		if n < 1 {
+			return 0, io.EOF
+		}
+	} else {
+		if p.rpos+1 > len(p.buf) {
+			return 0, io.EOF
+		}
 	}
 	v := uint8(p.buf[p.rpos])
-	p.rpos++
+	if p.stream == nil {
+		p.rpos++
+	}
 	return v, nil
 }
 
@@ -129,8 +141,8 @@ func (p *Packet) Bytes() ([]byte, error) {
 		return nil, data.ErrInvalidBytes
 	}
 	b := make([]byte, l)
-	n, err := p.Read(b)
-	if err != nil {
+	n, err := data.ReadFully(p, b)
+	if err != nil && (err != io.EOF || n != l) {
 		return nil, err
 	}
 	if n != l {
@@ -174,32 +186,68 @@ func (p *Packet) ReadBool(i *bool) error {
 
 // Uint16 reads the value from the Packet payload buffer.
 func (p *Packet) Uint16() (uint16, error) {
-	if p.rpos+2 > len(p.buf) {
-		return 0, io.EOF
+	if p.stream != nil {
+		n, err := p.stream.Read(p.buf[0:2])
+		if err != nil {
+			return 0, err
+		}
+		if n < 2 {
+			return 0, io.EOF
+		}
+	} else {
+		if p.rpos+2 > len(p.buf) {
+			return 0, io.EOF
+		}
 	}
 	v := uint16(p.buf[p.rpos+1]) | uint16(p.buf[p.rpos])<<8
-	p.rpos += 2
+	if p.stream == nil {
+		p.rpos += 2
+	}
 	return v, nil
 }
 
 // Uint32 reads the value from the Packet payload buffer.
 func (p *Packet) Uint32() (uint32, error) {
-	if p.rpos+4 > len(p.buf) {
-		return 0, io.EOF
+	if p.stream != nil {
+		n, err := p.stream.Read(p.buf[0:4])
+		if err != nil {
+			return 0, err
+		}
+		if n < 4 {
+			return 0, io.EOF
+		}
+	} else {
+		if p.rpos+4 > len(p.buf) {
+			return 0, io.EOF
+		}
 	}
 	v := uint32(p.buf[p.rpos+3]) | uint32(p.buf[p.rpos+2])<<8 | uint32(p.buf[p.rpos+1])<<16 | uint32(p.buf[p.rpos])<<24
-	p.rpos += 4
+	if p.stream == nil {
+		p.rpos += 4
+	}
 	return v, nil
 }
 
 // Uint64 reads the value from the Packet payload buffer.
 func (p *Packet) Uint64() (uint64, error) {
-	if p.rpos+8 > len(p.buf) {
-		return 0, io.EOF
+	if p.stream != nil {
+		n, err := p.stream.Read(p.buf)
+		if err != nil {
+			return 0, err
+		}
+		if n < 8 {
+			return 0, io.EOF
+		}
+	} else {
+		if p.rpos+8 > len(p.buf) {
+			return 0, io.EOF
+		}
 	}
 	v := uint64(p.buf[p.rpos+7]) | uint64(p.buf[p.rpos+6])<<8 | uint64(p.buf[p.rpos+5])<<16 | uint64(p.buf[p.rpos+4])<<24 |
 		uint64(p.buf[p.rpos+3])<<32 | uint64(p.buf[p.rpos+2])<<40 | uint64(p.buf[p.rpos+1])<<48 | uint64(p.buf[p.rpos])<<56
-	p.rpos += 8
+	if p.stream == nil {
+		p.rpos += 8
+	}
 	return v, nil
 }
 
@@ -265,61 +313,14 @@ func (p *Packet) Float64() (float64, error) {
 	return math.Float64frombits(v), nil
 }
 
-// UTFString reads the value from the Packet payload buffer.
-func (p *Packet) UTFString() (string, error) {
-	t, err := p.Uint8()
+// StringVal reads the value from the Packet payload buffer.
+func (p *Packet) StringVal() (string, error) {
+	b, err := p.Bytes()
 	if err != nil {
+		if err == data.ErrInvalidBytes {
+			return "", data.ErrInvalidString
+		}
 		return "", err
-	}
-	var l int
-	switch t {
-	case 0:
-		return "", nil
-	case 1, 2:
-		n, err := p.Uint8()
-		if err != nil {
-			return "", err
-		}
-		l = int(n)
-	case 3, 4:
-		n, err := p.Uint16()
-		if err != nil {
-			return "", err
-		}
-		l = int(n)
-	case 5, 6:
-		n, err := p.Uint32()
-		if err != nil {
-			return "", err
-		}
-		l = int(n)
-	case 7, 8:
-		n, err := p.Uint64()
-		if err != nil {
-			return "", err
-		}
-		l = int(n)
-	default:
-		return "", data.ErrInvalidString
-	}
-	if t%2 == 0 {
-		b := make([]rune, l)
-		for i := range b {
-			v, err := p.Uint16()
-			if err != nil {
-				return "", err
-			}
-			b[i] = rune(v)
-		}
-		return string(b), nil
-	}
-	b := make([]byte, l)
-	n, err := p.Read(b)
-	if err != nil {
-		return "", err
-	}
-	if n != l {
-		return "", io.EOF
 	}
 	return string(b), nil
 }
@@ -360,7 +361,7 @@ func (p *Packet) ReadUint64(i *uint64) error {
 // ReadString reads the value from the Packet payload buffer into
 // the provided pointer.
 func (p *Packet) ReadString(i *string) error {
-	v, err := p.UTFString()
+	v, err := p.StringVal()
 	if err != nil {
 		return err
 	}
@@ -371,6 +372,9 @@ func (p *Packet) ReadString(i *string) error {
 // Read reads the next len(p) bytes from the buffer or until the buffer
 // is drained. The return value n is the number of bytes read.
 func (p *Packet) Read(b []byte) (int, error) {
+	if p.stream != nil {
+		return p.stream.Read(b)
+	}
 	if len(p.buf) <= p.rpos {
 		p.Reset()
 		if len(b) == 0 {

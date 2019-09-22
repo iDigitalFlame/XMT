@@ -9,7 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/iDigitalFlame/xmt/xmt/com/c2"
+	"github.com/iDigitalFlame/xmt/xmt/data"
 )
 
 const (
@@ -31,8 +31,14 @@ const (
 	// data as a Base64 byte array. This may be combined with the Base64
 	// transfrom.
 	Base64 = base64Wrapper(false)
+
+	hexID    uint8 = 0xD1
+	zlibID   uint8 = 0xD2
+	gzipID   uint8 = 0xD3
+	base64ID uint8 = 0xD4
 )
 
+type simple bool
 type hexWrapper bool
 type zlibWrapper int8
 type gzipWrapper int8
@@ -41,13 +47,13 @@ type nopWriteCloser struct {
 	io.Writer
 }
 
-func (n *nopWriteCloser) Close() error {
+func (*nopWriteCloser) Close() error {
 	return nil
 }
 
 // NewZlib returns a Zlib compreession wrapper. This function will return and error
 // if the commpression level is invalid.
-func NewZlib(level int) (c2.Wrapper, error) {
+func NewZlib(level int) (Wrapper, error) {
 	if level < zlib.HuffmanOnly || level > zlib.BestCompression {
 		return nil, fmt.Errorf("zlib: invalid compression level: %d", level)
 	}
@@ -56,33 +62,67 @@ func NewZlib(level int) (c2.Wrapper, error) {
 
 // NewGzip returns a Gzip compreession wrapper. This function will return and error
 // if the commpression level is invalid.
-func NewGzip(level int) (c2.Wrapper, error) {
+func NewGzip(level int) (Wrapper, error) {
 	if level < gzip.HuffmanOnly || level > gzip.BestCompression {
 		return nil, fmt.Errorf("gzip: invalid compression level: %d", level)
 	}
 	return gzipWrapper(level), nil
 }
-func (h hexWrapper) Wrap(w io.WriteCloser) (io.WriteCloser, error) {
+func (hexWrapper) MarshalStream(w data.Writer) error {
+	return w.WriteUint8(hexID)
+}
+func (base64Wrapper) MarshalStream(w data.Writer) error {
+	return w.WriteUint8(base64ID)
+}
+func (z zlibWrapper) MarshalStream(w data.Writer) error {
+	if err := w.WriteUint8(zlibID); err != nil {
+		return err
+	}
+	return w.WriteInt8(int8(z))
+}
+func (g gzipWrapper) MarshalStream(w data.Writer) error {
+	if err := w.WriteUint8(gzipID); err != nil {
+		return err
+	}
+	return w.WriteInt8(int8(g))
+}
+func (z *zlibWrapper) UnmarshalStream(r data.Reader) error {
+	l, err := r.Int8()
+	if err != nil {
+		return err
+	}
+	*z = zlibWrapper(l)
+	return nil
+}
+func (g *gzipWrapper) UnmarshalStream(r data.Reader) error {
+	l, err := r.Int8()
+	if err != nil {
+		return err
+	}
+	*g = gzipWrapper(l)
+	return nil
+}
+func (hexWrapper) Wrap(w io.WriteCloser) (io.WriteCloser, error) {
 	return &nopWriteCloser{hex.NewEncoder(w)}, nil
 }
-func (h hexWrapper) Unwrap(r io.ReadCloser) (io.ReadCloser, error) {
+func (hexWrapper) Unwrap(r io.ReadCloser) (io.ReadCloser, error) {
 	return ioutil.NopCloser(hex.NewDecoder(r)), nil
+}
+func (gzipWrapper) Unwrap(r io.ReadCloser) (io.ReadCloser, error) {
+	return gzip.NewReader(r)
+}
+func (zlibWrapper) Unwrap(r io.ReadCloser) (io.ReadCloser, error) {
+	return zlib.NewReader(r)
 }
 func (z zlibWrapper) Wrap(w io.WriteCloser) (io.WriteCloser, error) {
 	return zlib.NewWriterLevel(w, int(z))
 }
-func (z zlibWrapper) Unwrap(r io.ReadCloser) (io.ReadCloser, error) {
-	return zlib.NewReader(r)
-}
 func (g gzipWrapper) Wrap(w io.WriteCloser) (io.WriteCloser, error) {
 	return gzip.NewWriterLevel(w, int(g))
 }
-func (g gzipWrapper) Unwrap(r io.ReadCloser) (io.ReadCloser, error) {
-	return gzip.NewReader(r)
-}
-func (b base64Wrapper) Wrap(w io.WriteCloser) (io.WriteCloser, error) {
+func (base64Wrapper) Wrap(w io.WriteCloser) (io.WriteCloser, error) {
 	return base64.NewEncoder(base64.StdEncoding, w), nil
 }
-func (b base64Wrapper) Unwrap(r io.ReadCloser) (io.ReadCloser, error) {
+func (base64Wrapper) Unwrap(r io.ReadCloser) (io.ReadCloser, error) {
 	return ioutil.NopCloser(base64.NewDecoder(base64.StdEncoding, r)), nil
 }

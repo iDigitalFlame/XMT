@@ -77,6 +77,8 @@ func NewWriter(c Writer, w io.Writer) data.Writer {
 	return data.NewWriter(&writer{c: c, w: w})
 }
 
+// BlockDecryptReader creates a data.Reader type from the specified block Cipher,
+// IV and Reader. This is used to Decrypt data.
 func BlockDecryptReader(b cipher.Block, iv []byte, r io.Reader) data.Reader {
 	return data.NewReader(&cipher.StreamReader{
 		R: r,
@@ -84,6 +86,8 @@ func BlockDecryptReader(b cipher.Block, iv []byte, r io.Reader) data.Reader {
 	})
 }
 
+// BlockDecryptWriter creates a data.Writer type from the specified block Cipher,
+// IV and Writer. This is used to Decrypt data.
 func BlockDecryptWriter(b cipher.Block, iv []byte, w io.Writer) data.Writer {
 	return data.NewWriter(&cipher.StreamWriter{
 		W: w,
@@ -91,6 +95,8 @@ func BlockDecryptWriter(b cipher.Block, iv []byte, w io.Writer) data.Writer {
 	})
 }
 
+// BlockEncryptReader creates a data.Reader type from the specified block Cipher,
+// IV and Reader. This is used to Encrypt data.
 func BlockEncryptReader(b cipher.Block, iv []byte, r io.Reader) data.Reader {
 	return data.NewReader(&cipher.StreamReader{
 		R: r,
@@ -98,6 +104,8 @@ func BlockEncryptReader(b cipher.Block, iv []byte, r io.Reader) data.Reader {
 	})
 }
 
+// BlockEncryptWriter creates a data.Reader type from the specified block Cipher,
+// IV and Writer. This is used to Encrypt data.
 func BlockEncryptWriter(b cipher.Block, iv []byte, w io.Writer) data.Writer {
 	return data.NewWriter(&cipher.StreamWriter{
 		W: w,

@@ -6,14 +6,17 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/iDigitalFlame/xmt/xmt/data"
 	"github.com/iDigitalFlame/xmt/xmt/util"
 )
 
 const (
 	bufSize = 512
 
-	dnsNameMax   = 256
-	dnsRecordMax = 128
+	dnsID uint8 = 0xE0
+
+	dnsNameMax   = 128
+	dnsRecordMax = dnsNameMax
 )
 
 var (
@@ -32,7 +35,10 @@ var (
 		"amazon.com",
 		"cnn.com",
 		"youtube.com",
-		"twitch.tc",
+		"twitch.tv",
+		"reddit.com",
+		"facebook.com",
+		"slack.com",
 	}
 
 	// ErrInvalidLength is an error raised by the Read and Write functions
@@ -58,7 +64,7 @@ type DNSClient struct {
 
 func (d *DNSClient) getName() string {
 	if d.Domains == nil || len(d.Domains) == 0 {
-		return "derp.derp.com"
+		return DefaultDNSNames[util.Rand.Intn(len(DefaultDNSNames))]
 	}
 	if len(d.Domains) == 1 {
 		return d.Domains[0]
@@ -67,7 +73,7 @@ func (d *DNSClient) getName() string {
 }
 
 // Read satisfies the Transform interface requirements.
-func (d *DNSClient) Read(b []byte, w io.Writer) error {
+func (d *DNSClient) Read(w io.Writer, b []byte) error {
 	if len(b) < 16 {
 		return ErrInvalidLength
 	}
@@ -77,25 +83,27 @@ func (d *DNSClient) Read(b []byte, w io.Writer) error {
 		return io.EOF
 	}
 	x, v := 12, 0
-	for ; i > 0 && x < len(b); i-- {
+	for ; i >= 0 && x < len(b); i-- {
 		if v = int(b[x]); v == 0 {
 			break
 		}
 		x += v + 1
 	}
 	x += 15
-	for ; c > 0 && x < len(b); c-- {
+	for ; c >= 0 && x < len(b); c-- {
 		if v = int(b[x]); v == 0 {
 			break
 		}
-		w.Write(b[x+1 : x+v+1])
+		if _, err := w.Write(b[x+1 : x+v+1]); err != nil {
+			return err
+		}
 		x += v + 1
 	}
 	return nil
 }
 
 // Write satisfies the Transform interface requirements.
-func (d *DNSClient) Write(b []byte, w io.Writer) error {
+func (d *DNSClient) Write(w io.Writer, b []byte) error {
 	if b == nil || len(b) == 0 {
 		return ErrInvalidLength
 	}
@@ -117,9 +125,9 @@ func (d *DNSClient) Write(b []byte, w io.Writer) error {
 	t, y := 0, 0
 	for x := range n {
 		t = len(n[x])
-		if t > dnsNameMax {
-			continue
-		}
+		//if t > dnsNameMax {
+		//	continue
+		//}
 		t = copy(g[1:dnsNameMax], []byte(n[x]))
 		g[0] = byte(t)
 		w.Write(g[:t+1])
@@ -129,16 +137,35 @@ func (d *DNSClient) Write(b []byte, w io.Writer) error {
 	g[10], g[11], g[12], g[13], g[14] = 0, 0, 0, 0, 0
 	w.Write(g[:15])
 	for y < len(b) {
-		if t = copy(g[1:dnsNameMax], b[y:]); t == 0 {
+		if t = copy(g[1:dnsRecordMax], b[y:]); t == 0 {
 			break
 		}
 		g[0] = byte(t)
 		w.Write(g[:t+1])
-		if t < len(g) {
+		if t+1 < dnsRecordMax || t == 0 {
 			break
 		}
 		y += t
 	}
 	bufs.Put(g)
+	return nil
+}
+
+// MarshalStream attempts to write this DNS Transform to a stream.
+func (d *DNSClient) MarshalStream(w data.Writer) error {
+	if err := w.WriteUint8(dnsID); err != nil {
+		return err
+	}
+	if err := data.WriteStringList(w, d.Domains); err != nil {
+		return err
+	}
+	return nil
+}
+
+// UnmarshalStream attempts to read this DNS Transform from a stream.
+func (d *DNSClient) UnmarshalStream(r data.Reader) error {
+	if err := data.ReadStringList(r, &(d.Domains)); err != nil {
+		return err
+	}
 	return nil
 }

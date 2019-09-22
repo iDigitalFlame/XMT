@@ -1,8 +1,18 @@
 package data
 
 import (
+	"errors"
 	"io"
 	"math"
+)
+
+var (
+	// ErrInvalidBytes is an error that occurs when the Bytes function
+	// could not propertly determine the type of byte array from the Reader.
+	ErrInvalidBytes = errors.New("could not understand string type")
+	// ErrInvalidString is an error that occurs when the ReadString or String functions
+	// could not propertly determine the type of string from the Reader.
+	ErrInvalidString = errors.New("could not understand string type")
 )
 
 type readerBase struct {
@@ -126,8 +136,8 @@ func (r *readerBase) Bytes() ([]byte, error) {
 		return nil, ErrInvalidBytes
 	}
 	b := make([]byte, l)
-	n, err := r.r.Read(b)
-	if err != nil {
+	n, err := ReadFully(r.r, b)
+	if err != nil && (err != io.EOF || n != l) {
 		return nil, err
 	}
 	if n != l {
@@ -160,7 +170,7 @@ func (r *readerBase) ReadBool(p *bool) error {
 	return nil
 }
 func (r *readerBase) Uint16() (uint16, error) {
-	n, err := r.r.Read(r.buf[0:2])
+	n, err := ReadFully(r.r, r.buf[0:2])
 	if err != nil {
 		return 0, err
 	}
@@ -170,7 +180,7 @@ func (r *readerBase) Uint16() (uint16, error) {
 	return uint16(r.buf[1]) | uint16(r.buf[0])<<8, nil
 }
 func (r *readerBase) Uint32() (uint32, error) {
-	n, err := r.r.Read(r.buf[0:4])
+	n, err := ReadFully(r.r, r.buf[0:4])
 	if err != nil {
 		return 0, err
 	}
@@ -180,7 +190,7 @@ func (r *readerBase) Uint32() (uint32, error) {
 	return uint32(r.buf[3]) | uint32(r.buf[2])<<8 | uint32(r.buf[1])<<16 | uint32(r.buf[0])<<24, nil
 }
 func (r *readerBase) Uint64() (uint64, error) {
-	n, err := r.r.Read(r.buf)
+	n, err := ReadFully(r.r, r.buf)
 	if err != nil {
 		return 0, err
 	}
@@ -264,67 +274,20 @@ func (r *readerBase) ReadUint64(p *uint64) error {
 	return nil
 }
 func (r *readerBase) ReadString(p *string) error {
-	v, err := r.UTFString()
+	v, err := r.StringVal()
 	if err != nil {
 		return err
 	}
 	*p = v
 	return nil
 }
-func (r *readerBase) UTFString() (string, error) {
-	t, err := r.Uint8()
+func (r *readerBase) StringVal() (string, error) {
+	b, err := r.Bytes()
 	if err != nil {
+		if err == ErrInvalidBytes {
+			return "", ErrInvalidString
+		}
 		return "", err
-	}
-	var l int
-	switch t {
-	case 0:
-		return "", nil
-	case 1, 2:
-		n, err := r.Uint8()
-		if err != nil {
-			return "", err
-		}
-		l = int(n)
-	case 3, 4:
-		n, err := r.Uint16()
-		if err != nil {
-			return "", err
-		}
-		l = int(n)
-	case 5, 6:
-		n, err := r.Uint32()
-		if err != nil {
-			return "", err
-		}
-		l = int(n)
-	case 7, 8:
-		n, err := r.Uint64()
-		if err != nil {
-			return "", err
-		}
-		l = int(n)
-	default:
-		return "", ErrInvalidString
-	}
-	if t%2 == 0 {
-		b := make([]rune, l)
-		for i := range b {
-			v, err := r.Uint16()
-			if err != nil {
-				return "", err
-			}
-			b[i] = rune(v)
-		}
-		return string(b), nil
-	}
-	b := make([]byte, l)
-	n, err := r.r.Read(b)
-	if err != nil {
-		return "", err
-	}
-	if n != l {
-		return "", io.EOF
 	}
 	return string(b), nil
 }

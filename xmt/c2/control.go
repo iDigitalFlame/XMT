@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
 	"github.com/iDigitalFlame/logx/logx"
+	"github.com/iDigitalFlame/xmt/xmt/c2/transform"
+	"github.com/iDigitalFlame/xmt/xmt/c2/wrapper"
 	"github.com/iDigitalFlame/xmt/xmt/com"
 	"github.com/iDigitalFlame/xmt/xmt/device"
 	"github.com/iDigitalFlame/xmt/xmt/util"
@@ -21,7 +22,7 @@ const (
 
 	// DefaultJitter is the default Jitter value when the provided jitter
 	// value is negative.
-	DefaultJitter = 5
+	DefaultJitter int8 = 5
 
 	// DefaultBufferSize is the default byte array size used when the
 	// buffer size in a Profile is negative or zero.
@@ -36,19 +37,13 @@ var (
 	// The controller acts as staging point to control and manage all connections.
 	Controller = NewServer("global", logx.NewConsole(logx.LInfo))
 
-	// DefaultWrapper is a raw Wrapper provided for use when
-	// no Wrapper is provided.  This struct does not modify the
-	// underlying streams and returns the paramater during a Wrap/Unwrap.
-	DefaultWrapper = &rawWrapper{}
-
 	// DefaultProfile is an simple profile for use with
 	// testing or filling without having to define all the
 	// profile properties.
 	DefaultProfile = &Profile{
-		Size:    DefaultBufferSize,
-		Sleep:   DefaultSleep,
-		Jitter:  DefaultJitter,
-		Wrapper: DefaultWrapper,
+		Size:   DefaultBufferSize,
+		Sleep:  DefaultSleep,
+		Jitter: DefaultJitter,
 	}
 
 	// ErrEmptyPacket is a error returned by the Connect function when
@@ -62,16 +57,11 @@ var (
 
 	// DefaultServerMux is the default Mux instance that handles simple C2
 	// client and server functions, from the server side.
-	DefaultServerMux = &serverMux{}
+	DefaultServerMux = mux(true)
 
 	// DefaultClientMux is the default Mux instance that handles simple C2
 	// server and client functions, from the client side.
-	DefaultClientMux = &clientMux{}
-
-	// ErrInvalidNetwork is an error returned from the NewStreamConnector function
-	// when a non-stream network is used, or the NewChunkConnector function when a stream
-	// network is used.
-	ErrInvalidNetwork = errors.New("invalid network type")
+	DefaultClientMux = mux(false)
 )
 
 // Server is a struct that helps manage and contain
@@ -95,60 +85,14 @@ type Profile struct {
 	Size      int
 	Sleep     time.Duration
 	Jitter    int8
-	Wrapper   Wrapper
-	Transform Transform
+	Wrapper   wrapper.Wrapper
+	Transform transform.Transform
 }
 type callback struct {
 	packet      *com.Packet
 	session     *Session
 	packetFunc  func(*Session, *com.Packet)
 	sessionFunc func(*Session)
-}
-
-// Wrapper is an interface that allows for wrapping the
-// binary streams into separate stream types. This allows for
-// using encryption or compression.
-type Wrapper interface {
-	Wrap(io.WriteCloser) (io.WriteCloser, error)
-	Unwrap(io.ReadCloser) (io.ReadCloser, error)
-}
-type rawWrapper struct{}
-
-// Connector is an interface that passes methods that can be used to form
-// connections between the client and server.  Other functions include the
-// process of listening and accepting connections.
-type Connector interface {
-	Listen(string) (Listener, error)
-	Connect(string) (Connection, error)
-}
-
-// Listener is an interface that is used to Listen on a specific protocol
-// for client connections.  The Listener does not take any actions on the clients
-// but transcribes the data into bytes for the Session handler.  If the Transform()
-// function returns nil, the DefaultTransform will be used.
-type Listener interface {
-	String() string
-	Accept() (Connection, error)
-	io.Closer
-}
-
-// Transform is an interface that can modify the data BEFORE
-// it is written or AFTER is read from a Connection.
-// Transforms may be used to mask and unmask communications
-// as benign protocols such as DNS, FTP or HTTP.
-type Transform interface {
-	Read([]byte, io.Writer) error
-	Write([]byte, io.Writer) error
-}
-
-// Connection is an interface that represents a C2 connection
-// between the client and the server.
-type Connection interface {
-	IP() string
-	io.ReadWriteCloser
-}
-type clientConnector interface {
-	Connect(string) (Connection, error)
 }
 
 // Wait will block until the current controller
@@ -161,10 +105,10 @@ func (s *Server) process() {
 		select {
 		case <-s.ctx.Done():
 			return
-		case e := <-s.events:
-			e.trigger(s)
 		case r := <-s.close:
 			delete(s.active, r)
+		case e := <-s.events:
+			e.trigger(s)
 		}
 	}
 }
@@ -187,7 +131,7 @@ func (s *Server) IsActive() bool {
 func (e *callback) trigger(s *Server) {
 	defer func(x *Server) {
 		if err := recover(); err != nil {
-			x.Log.Error("[%s] Controller recovered from a panic! (%s)", x.name, err)
+			x.Log.Error("[%s] Controller trigger function recovered from a panic! (%s)", x.name, err)
 		}
 	}(s)
 	if e.packet != nil && e.packetFunc != nil {
@@ -218,17 +162,11 @@ func NewServer(n string, l logx.Log) *Server {
 	go s.process()
 	return s
 }
-func (r *rawWrapper) Wrap(o io.WriteCloser) (io.WriteCloser, error) {
-	return o, nil
-}
-func (r *rawWrapper) Unwrap(i io.ReadCloser) (io.ReadCloser, error) {
-	return i, nil
-}
 
 // Listen adds the Listener under the name provided.  A Handle struct
 // to control and receive callback functions is added to assist in
 // manageing connections to this Listener.
-func (s *Server) Listen(n, b string, v Connector, p *Profile) (*Handle, error) {
+func (s *Server) Listen(n, b string, v com.Server, p *Profile) (*Handle, error) {
 	if v == nil {
 		return nil, ErrNoConnector
 	}
@@ -257,38 +195,32 @@ func (s *Server) Listen(n, b string, v Connector, p *Profile) (*Handle, error) {
 	if h.size <= 0 {
 		h.size = DefaultBufferSize
 	}
-	if h.Wrapper == nil {
-		h.Wrapper = DefaultWrapper
-	}
 	h.close = make(chan uint32, h.size)
 	h.ctx, h.cancel = context.WithCancel(s.ctx)
 	s.active[x] = h
-	s.Log.Debug("Added listener type \"%s\" as \"%s\"...", l.String(), strings.ToLower(n))
+	s.Log.Debug("Added listener type \"%s\" as \"%s\"...", l, strings.ToLower(n))
 	go h.listen()
 	return h, nil
 }
 
 // Connect creates a Session using the supplied Profile to connect to
 // the listening server specified.
-func (s *Server) Connect(a string, v clientConnector, p *Profile) (*Session, error) {
+func (s *Server) Connect(a string, v com.Connector, p *Profile) (*Session, error) {
 	return s.ConnectWith(a, v, p, nil)
 }
 
 // Oneshot sends the packet with the specified data to the server and does NOT
 // register the device with the controller.  This is used for spending specific data
 // segments in single use connections.
-func (s *Server) Oneshot(a string, v clientConnector, p *Profile, d *com.Packet) error {
+func (s *Server) Oneshot(a string, v com.Connector, p *Profile, d *com.Packet) error {
 	if v == nil {
 		return ErrNoConnector
 	}
-	var w Wrapper
-	var t Transform
+	var w wrapper.Wrapper
+	var t transform.Transform
 	if p != nil {
 		w = p.Wrapper
 		t = p.Transform
-	}
-	if w == nil {
-		w = DefaultWrapper
 	}
 	i, err := v.Connect(a)
 	if err != nil {
@@ -309,7 +241,7 @@ func (s *Server) Oneshot(a string, v clientConnector, p *Profile, d *com.Packet)
 // the listening server specified. This function allows for passing the data Packet
 // specified to the server with the initial registration. The data will be passed on
 // normally.
-func (s *Server) ConnectWith(a string, v clientConnector, p *Profile, d *com.Packet) (*Session, error) {
+func (s *Server) ConnectWith(a string, v com.Connector, p *Profile, d *com.Packet) (*Session, error) {
 	if v == nil {
 		return nil, ErrNoConnector
 	}
@@ -343,22 +275,15 @@ func (s *Server) ConnectWith(a string, v clientConnector, p *Profile, d *com.Pac
 	if n.Jitter < 0 {
 		n.Jitter = DefaultJitter
 	}
-	if n.wrapper == nil {
-		n.wrapper = DefaultWrapper
-	}
 	i, err := v.Connect(a)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to \"%s\": %w", a, err)
 	}
 	defer i.Close()
 	z := &com.Packet{ID: MsgHello, Job: uint16(util.Rand.Uint32())}
-	if err := n.Device.MarshalStream(z); err != nil {
-		return nil, err
-	}
+	n.Device.MarshalStream(z)
 	if d != nil {
-		if err := d.MarshalStream(z); err != nil {
-			return nil, err
-		}
+		d.MarshalStream(z)
 		z.Flags |= com.FlagData
 	}
 	z.Close()

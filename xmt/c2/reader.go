@@ -111,9 +111,8 @@ func (w *wrapBuffer) Bytes() ([]byte, error) {
 		return nil, data.ErrInvalidBytes
 	}
 	b := make([]byte, l)
-	n, err := w.Read(b)
-	if err != nil {
-
+	n, err := data.ReadFully(w, b)
+	if err != nil && (err != io.EOF || n != l) {
 		return nil, err
 	}
 	if n != l {
@@ -158,7 +157,7 @@ func (b *buffer) Read(p []byte) (int, error) {
 	return n, nil
 }
 func (w *wrapBuffer) Uint16() (uint16, error) {
-	n, err := w.Read(w.rbuf[0:2])
+	n, err := data.ReadFully(w, w.rbuf[0:2])
 	if err != nil {
 		return 0, err
 	}
@@ -168,7 +167,7 @@ func (w *wrapBuffer) Uint16() (uint16, error) {
 	return uint16(w.rbuf[1]) | uint16(w.rbuf[0])<<8, nil
 }
 func (w *wrapBuffer) Uint32() (uint32, error) {
-	n, err := w.Read(w.rbuf[0:4])
+	n, err := data.ReadFully(w, w.rbuf[0:4])
 	if err != nil {
 		return 0, err
 	}
@@ -178,7 +177,7 @@ func (w *wrapBuffer) Uint32() (uint32, error) {
 	return uint32(w.rbuf[3]) | uint32(w.rbuf[2])<<8 | uint32(w.rbuf[1])<<16 | uint32(w.rbuf[0])<<24, nil
 }
 func (w *wrapBuffer) Uint64() (uint64, error) {
-	n, err := w.Read(w.rbuf)
+	n, err := data.ReadFully(w, w.rbuf)
 	if err != nil {
 		return 0, err
 	}
@@ -234,60 +233,13 @@ func (w *wrapBuffer) Float64() (float64, error) {
 	}
 	return math.Float64frombits(v), nil
 }
-func (w *wrapBuffer) UTFString() (string, error) {
-	t, err := w.Uint8()
+func (w *wrapBuffer) StringVal() (string, error) {
+	b, err := w.Bytes()
 	if err != nil {
+		if err == data.ErrInvalidBytes {
+			return "", data.ErrInvalidString
+		}
 		return "", err
-	}
-	var l int
-	switch t {
-	case 0:
-		return "", nil
-	case 1, 2:
-		n, err := w.Uint8()
-		if err != nil {
-			return "", err
-		}
-		l = int(n)
-	case 3, 4:
-		n, err := w.Uint16()
-		if err != nil {
-			return "", err
-		}
-		l = int(n)
-	case 5, 6:
-		n, err := w.Uint32()
-		if err != nil {
-			return "", err
-		}
-		l = int(n)
-	case 7, 8:
-		n, err := w.Uint64()
-		if err != nil {
-			return "", err
-		}
-		l = int(n)
-	default:
-		return "", data.ErrInvalidString
-	}
-	if t%2 == 0 {
-		b := make([]rune, l)
-		for i := range b {
-			v, err := w.Uint16()
-			if err != nil {
-				return "", err
-			}
-			b[i] = rune(v)
-		}
-		return string(b), nil
-	}
-	b := make([]byte, l)
-	n, err := w.Read(b)
-	if err != nil {
-		return "", err
-	}
-	if n != l {
-		return "", io.EOF
 	}
 	return string(b), nil
 }
@@ -316,7 +268,7 @@ func (w *wrapBuffer) ReadUint64(i *uint64) error {
 	return nil
 }
 func (w *wrapBuffer) ReadString(i *string) error {
-	v, err := w.UTFString()
+	v, err := w.StringVal()
 	if err != nil {
 		return err
 	}

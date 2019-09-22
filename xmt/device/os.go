@@ -3,7 +3,11 @@ package device
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"io"
+	"os"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -51,6 +55,18 @@ const (
 	xmtIDOffset uint32 = 2166136261
 )
 
+var (
+	// Environment is a mapping of environment string names
+	// to their string values.
+	Environment = make(map[string]string)
+
+	// ErrInvalidID is returned by the 'IDFromString' function when
+	// the returned ID value is invalid or nil.
+	ErrInvalidID = errors.New("id format is invalid or empty")
+
+	envRegexp = regexp.MustCompile("(%([\\w\\d()-_]+)%|\\$([[\\w\\d-_]+))")
+)
+
 // ID is an alias for a byte array that represents a 48 byte
 // client identification number.  This is used for tracking and
 // detection purposes.
@@ -58,6 +74,17 @@ type ID []byte
 type deviceOS uint8
 type deviceArch uint8
 
+func init() {
+	for _, v := range os.Environ() {
+		if i := strings.IndexRune(v, '='); i > 0 {
+			Environment[strings.ToLower(v[:i])] = v[i+1:]
+		}
+	}
+	Environment["tmp"] = os.TempDir()
+	Environment["temp"] = Environment["tmp"]
+	Environment["tmpdir"] = Environment["tmp"]
+	Environment["tempdir"] = Environment["tmp"]
+}
 func getID() ID {
 	i := ID(make([]byte, IDSize))
 	s, err := machineid.ProtectedID(xmtID)
@@ -104,6 +131,27 @@ func (i ID) String() string {
 	return strings.ToUpper(hex.EncodeToString(i[SmallIDSize:]))
 }
 
+// Expand attempts to determine environment variables from the current
+// session and translate them in the supplied string.
+func Expand(s string) string {
+	v := envRegexp.FindAllStringSubmatch(s, -1)
+	if len(v) > 0 {
+		for _, i := range v {
+			if len(i) == 4 {
+				n := i[2]
+				if len(i[3]) > 0 {
+					n = i[3]
+				}
+				if d, ok := Environment[strings.ToLower(n)]; ok {
+					s = strings.Replace(s, i[0], d, -1)
+				}
+			}
+		}
+		return s
+	}
+	return s
+}
+
 // FullString returns the full string representation of this ID instance.
 func (i ID) FullString() string {
 	return strings.ToUpper(hex.EncodeToString(i))
@@ -144,8 +192,14 @@ func IDFromString(s string) (ID, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(i) == 0 {
-		return nil, nil
+	if i == nil || len(i) == 0 {
+		return nil, ErrInvalidID
+	}
+	switch len(i) {
+	case 4, MachineIDSize, IDSize:
+		break
+	default:
+		return nil, fmt.Errorf("id size %d is invalid", len(i))
 	}
 	return ID(i), nil
 }
@@ -163,7 +217,7 @@ func (i *ID) UnmarshalStream(r data.Reader) error {
 	if *i == nil {
 		*i = append(*i, make([]byte, IDSize)...)
 	}
-	n, err := r.Read(*i)
+	n, err := data.ReadFully(r, *i)
 	if err != nil {
 		return err
 	}

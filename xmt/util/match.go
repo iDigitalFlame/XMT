@@ -9,16 +9,7 @@ import (
 	"sync"
 )
 
-var (
-	builders = &sync.Pool{
-		New: func() interface{} {
-			return new(strings.Builder)
-		},
-	}
-
-	regxFalse = falseRegexp(false)
-	regxBuild = regexp.MustCompile("(\\%(\\d+f?)?[dhcsuln])")
-
+const (
 	matchNum         = "([%c0-9]+)"
 	matchHex         = "([%ca-f0-9]+)"
 	matchLower       = "([%ca-z]+)"
@@ -36,6 +27,17 @@ var (
 	matchUpperRange  = "([%cA-Z]{1,%d})"
 	matchStringRange = "([%ca-zA-Z0-9]{1,%d})"
 	matchStringFixed = "([%ca-zA-Z0-9]{%d})"
+)
+
+var (
+	builders = &sync.Pool{
+		New: func() interface{} {
+			return new(strings.Builder)
+		},
+	}
+
+	regxFalse = falseRegexp(false)
+	regxBuild = regexp.MustCompile("(\\%(\\d+f?)?[dhcsuln])")
 )
 
 // Matcher is an alias of a string that can

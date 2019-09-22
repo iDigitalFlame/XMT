@@ -11,9 +11,16 @@ const (
 	bufSizeSmall = 64
 )
 
-// Flush does nothing for the Packet struct.  Just
+// Flush does nothing for the Packet struct. Just
 // here for compatibility.
 func (p *Packet) Flush() error {
+	return nil
+}
+
+// Flush will push out any Packets to the underlying Packet
+// Writer (if not nil).
+func (s *Stream) Flush() error {
+	s.flushPackets()
 	return nil
 }
 
@@ -21,6 +28,9 @@ func (p *Packet) Flush() error {
 // has been written to. This will allow the packet payload to be
 // uniform to the data written to it.
 func (p *Packet) Close() error {
+	if p.stream != nil {
+		p.stream.Clear()
+	}
 	if p.wpos > 0 {
 		p.buf = p.buf[:p.wpos]
 	}
@@ -45,9 +55,22 @@ func (p *Packet) Grow(n int) error {
 func (p *Packet) WriteInt(n int) error {
 	return p.WriteUint64(uint64(n))
 }
+
+// WriteInt writes the supplied value to the Stream payload buffer.
+func (s *Stream) WriteInt(n int) error {
+	return s.WriteUint64(uint64(n))
+}
 func (p *Packet) small(b ...byte) error {
-	_, err := p.Write(b)
-	return err
+	if _, err := p.Write(b); err != nil {
+		return err
+	}
+	return nil
+}
+func (s *Stream) small(b ...byte) error {
+	if _, err := s.Write(b); err != nil {
+		return err
+	}
+	return nil
 }
 
 // WriteUint writes the supplied value to the Packet payload buffer.
@@ -55,9 +78,19 @@ func (p *Packet) WriteUint(n uint) error {
 	return p.WriteUint64(uint64(n))
 }
 
+// WriteUint writes the supplied value to the Stream payload buffer.
+func (s *Stream) WriteUint(n uint) error {
+	return s.WriteUint64(uint64(n))
+}
+
 // WriteInt8 writes the supplied value to the Packet payload buffer.
 func (p *Packet) WriteInt8(n int8) error {
 	return p.WriteUint8(uint8(n))
+}
+
+// WriteInt8 writes the supplied value to the Stream payload buffer.
+func (s *Stream) WriteInt8(n int8) error {
+	return s.WriteUint8(uint8(n))
 }
 
 // WriteBool writes the supplied value to the Packet payload buffer.
@@ -66,6 +99,14 @@ func (p *Packet) WriteBool(n bool) error {
 		return p.WriteUint8(1)
 	}
 	return p.WriteUint8(0)
+}
+
+// WriteBool writes the supplied value to the Stream payload buffer.
+func (s *Stream) WriteBool(n bool) error {
+	if n {
+		return s.WriteUint8(1)
+	}
+	return s.WriteUint8(0)
 }
 func (p *Packet) grow(n int) (int, error) {
 	m := len(p.buf) - p.wpos
@@ -110,9 +151,19 @@ func (p *Packet) WriteInt16(n int16) error {
 	return p.WriteUint16(uint16(n))
 }
 
+// WriteInt16 writes the supplied value to the Stream payload buffer.
+func (s *Stream) WriteInt16(n int16) error {
+	return s.WriteUint16(uint16(n))
+}
+
 // WriteInt32 writes the supplied value to the Packet payload buffer.
 func (p *Packet) WriteInt32(n int32) error {
 	return p.WriteUint32(uint32(n))
+}
+
+// WriteInt32 writes the supplied value to the Stream payload buffer.
+func (s *Stream) WriteInt32(n int32) error {
+	return s.WriteUint32(uint32(n))
 }
 
 // WriteInt64 writes the supplied value to the Packet payload buffer.
@@ -120,31 +171,44 @@ func (p *Packet) WriteInt64(n int64) error {
 	return p.WriteUint64(uint64(n))
 }
 
+// WriteInt64 writes the supplied value to the Stream payload buffer.
+func (s *Stream) WriteInt64(n int64) error {
+	return s.WriteUint64(uint64(n))
+}
+
 // WriteUint8 writes the supplied value to the Packet payload buffer.
 func (p *Packet) WriteUint8(n uint8) error {
 	return p.small(byte(n))
 }
 
+// WriteUint8 writes the supplied value to the Stream payload buffer.
+func (s *Stream) WriteUint8(n uint8) error {
+	return s.small(byte(n))
+}
+
 // WriteBytes writes the supplied value to the Packet payload buffer.
 func (p *Packet) WriteBytes(b []byte) error {
+	if b == nil {
+		return p.small(0)
+	}
 	switch l := len(b); {
 	case l == 0:
 		return p.small(0)
-	case l < data.WriteStringSmall:
+	case l < data.DataLimitSmall:
 		if err := p.WriteUint8(1); err != nil {
 			return err
 		}
 		if err := p.WriteUint8(uint8(l)); err != nil {
 			return err
 		}
-	case l < data.WriteStringMedium:
+	case l < data.DataLimitMedium:
 		if err := p.WriteUint8(3); err != nil {
 			return err
 		}
 		if err := p.WriteUint16(uint16(l)); err != nil {
 			return err
 		}
-	case l < data.WriteStringLarge:
+	case l < data.DataLimitLarge:
 		if err := p.WriteUint8(5); err != nil {
 			return err
 		}
@@ -164,6 +228,49 @@ func (p *Packet) WriteBytes(b []byte) error {
 	}
 	return nil
 }
+
+// WriteBytes writes the supplied value to the Stream payload buffer.
+func (s *Stream) WriteBytes(b []byte) error {
+	if b == nil {
+		return s.small(0)
+	}
+	switch l := len(b); {
+	case l == 0:
+		return s.small(0)
+	case l < data.DataLimitSmall:
+		if err := s.WriteUint8(1); err != nil {
+			return err
+		}
+		if err := s.WriteUint8(uint8(l)); err != nil {
+			return err
+		}
+	case l < data.DataLimitMedium:
+		if err := s.WriteUint8(3); err != nil {
+			return err
+		}
+		if err := s.WriteUint16(uint16(l)); err != nil {
+			return err
+		}
+	case l < data.DataLimitLarge:
+		if err := s.WriteUint8(5); err != nil {
+			return err
+		}
+		if err := s.WriteUint32(uint32(l)); err != nil {
+			return err
+		}
+	default:
+		if err := s.WriteUint8(7); err != nil {
+			return err
+		}
+		if err := s.WriteUint64(uint64(l)); err != nil {
+			return err
+		}
+	}
+	if _, err := s.Write(b); err != nil {
+		return err
+	}
+	return nil
+}
 func (p *Packet) reslice(n int) (int, bool) {
 	if l := len(p.buf); n <= cap(p.buf)-l {
 		p.buf = p.buf[:l+n]
@@ -177,9 +284,21 @@ func (p *Packet) WriteUint16(n uint16) error {
 	return p.small(byte(n>>8), byte(n))
 }
 
+// WriteUint16 writes the supplied value to the Stream payload buffer.
+func (s *Stream) WriteUint16(n uint16) error {
+	return s.small(byte(n>>8), byte(n))
+}
+
 // WriteUint32 writes the supplied value to the Packet payload buffer.
 func (p *Packet) WriteUint32(n uint32) error {
 	return p.small(
+		byte(n>>24), byte(n>>16), byte(n>>8), byte(n),
+	)
+}
+
+// WriteUint32 writes the supplied value to the Stream payload buffer.
+func (s *Stream) WriteUint32(n uint32) error {
+	return s.small(
 		byte(n>>24), byte(n>>16), byte(n>>8), byte(n),
 	)
 }
@@ -192,9 +311,22 @@ func (p *Packet) WriteUint64(n uint64) error {
 	)
 }
 
+// WriteUint64 writes the supplied value to the Stream payload buffer.
+func (s *Stream) WriteUint64(n uint64) error {
+	return s.small(
+		byte(n>>56), byte(n>>48), byte(n>>40), byte(n>>32),
+		byte(n>>24), byte(n>>16), byte(n>>8), byte(n),
+	)
+}
+
 // WriteString writes the supplied value to the Packet payload buffer.
 func (p *Packet) WriteString(n string) error {
 	return p.WriteBytes([]byte(n))
+}
+
+// WriteString writes the supplied value to the Stream payload buffer.
+func (s *Stream) WriteString(n string) error {
+	return s.WriteBytes([]byte(n))
 }
 
 // Write appends the contents of p to the buffer, growing the buffer as
@@ -215,52 +347,17 @@ func (p *Packet) WriteFloat32(n float32) error {
 	return p.WriteUint32(math.Float32bits(n))
 }
 
+// WriteFloat32 writes the supplied value to the Stream payload buffer.
+func (s *Stream) WriteFloat32(n float32) error {
+	return s.WriteUint32(math.Float32bits(n))
+}
+
 // WriteFloat64 writes the supplied value to the Packet payload buffer.
 func (p *Packet) WriteFloat64(n float64) error {
 	return p.WriteUint64(math.Float64bits(n))
 }
 
-// WriteUTF8String writes the supplied value to the Packet payload buffer.
-func (p *Packet) WriteUTF8String(n string) error {
-	return p.WriteBytes([]byte(n))
-}
-
-// WriteUTF16String writes the supplied value to the Packet payload buffer.
-func (p *Packet) WriteUTF16String(n string) error {
-	switch l := len(n); {
-	case l == 0:
-		return p.small(0, 0)
-	case l < data.WriteStringSmall:
-		if err := p.WriteUint8(2); err != nil {
-			return err
-		}
-		if err := p.WriteUint8(uint8(l)); err != nil {
-			return err
-		}
-	case l < data.WriteStringMedium:
-		if err := p.WriteUint8(4); err != nil {
-			return err
-		}
-		if err := p.WriteUint16(uint16(l)); err != nil {
-			return err
-		}
-	case l < data.WriteStringLarge:
-		if err := p.WriteUint8(6); err != nil {
-			return err
-		}
-		if err := p.WriteUint32(uint32(l)); err != nil {
-			return err
-		}
-	default:
-		if err := p.WriteUint8(8); err != nil {
-			return err
-		}
-		if err := p.WriteUint64(uint64(l)); err != nil {
-			return err
-		}
-	}
-	for i := range n {
-		p.small(byte(uint16(n[i])>>8), byte(n[i]))
-	}
-	return nil
+// WriteFloat64 writes the supplied value to the Stream payload buffer.
+func (s *Stream) WriteFloat64(n float64) error {
+	return s.WriteUint64(math.Float64bits(n))
 }

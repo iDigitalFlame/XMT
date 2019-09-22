@@ -94,14 +94,19 @@ func modifyCommand(e *exec.Cmd) {
 	}
 }
 func getRegistry(s, v string) (*bytes.Reader, bool, error) {
+	var k registry.Key
 	p := strings.ToUpper(s)
-	k := registry.LOCAL_MACHINE
-	if strings.HasPrefix(p, "HKEY_CURRENT_USER") || strings.HasPrefix(p, "HKCU") {
+	switch {
+	case strings.HasPrefix(p, "HKEY_CURRENT_USER") || strings.HasPrefix(p, "HKCU"):
 		k = registry.CURRENT_USER
-	} else if strings.HasPrefix(p, "HKEY_CLASSES_ROOT") || strings.HasPrefix(p, "HKCR") {
+	case strings.HasPrefix(p, "HKEY_CLASSES_ROOT") || strings.HasPrefix(p, "HKCR"):
 		k = registry.CLASSES_ROOT
-	} else if strings.HasPrefix(p, "HKEY_CURRENT_CONFIG") || strings.HasPrefix(p, "HKCC") {
+	case strings.HasPrefix(p, "HKEY_LOCAL_MACHINE") || strings.HasPrefix(p, "HKLM"):
+		k = registry.LOCAL_MACHINE
+	case strings.HasPrefix(p, "HKEY_CURRENT_CONFIG") || strings.HasPrefix(p, "HKCC"):
 		k = registry.CURRENT_CONFIG
+	default:
+		return nil, false, ErrInvalidPrefix
 	}
 	if i := strings.IndexRune(s, '\\'); i > 0 {
 		p = s[i+1:]

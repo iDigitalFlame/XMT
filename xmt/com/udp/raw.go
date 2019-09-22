@@ -12,7 +12,7 @@ const (
 var (
 	// Raw is the UDP Raw connector.  This connector uses raw UDP
 	// connections without any encoding or Transforms.
-	Raw = &packetConnector{
+	Raw = &provider{
 		dial: &net.Dialer{
 			Timeout:   RawDefaultTimeout,
 			KeepAlive: RawDefaultTimeout,

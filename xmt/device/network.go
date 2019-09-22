@@ -7,10 +7,10 @@ import (
 	"github.com/iDigitalFlame/xmt/xmt/data"
 )
 
-const (
+var (
 	// IPv6 is a compile flag that enables or disables support for IPv6 networks
 	// and addresses.
-	IPv6 bool = true
+	IPv6 = true
 )
 
 // Interface is a struct that represents a Network interface

