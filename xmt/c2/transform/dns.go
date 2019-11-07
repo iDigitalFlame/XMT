@@ -15,8 +15,8 @@ const (
 
 	dnsID uint8 = 0xE0
 
-	dnsNameMax   = 128
-	dnsRecordMax = dnsNameMax
+	dnsNameMax   = 64
+	dnsRecordMax = 128
 )
 
 var (
@@ -77,6 +77,7 @@ func (d *DNSClient) Read(w io.Writer, b []byte) error {
 	if len(b) < 16 {
 		return ErrInvalidLength
 	}
+	_ = b[16]
 	d.lastA, d.lastB = b[0], b[1]
 	c, i := uint16(b[11])|uint16(b[10])<<8, uint16(b[5])|uint16(b[4])<<8
 	if c == 0 || i == 0 {
@@ -108,6 +109,7 @@ func (d *DNSClient) Write(w io.Writer, b []byte) error {
 		return ErrInvalidLength
 	}
 	g := bufs.Get().([]byte)
+	_ = g[bufSize-1]
 	n := strings.Split(d.getName(), ".")
 	c, i := (len(b)/dnsRecordMax)+1, len(n)
 	if d.lastA != 0 && d.lastB != 0 {
@@ -124,10 +126,6 @@ func (d *DNSClient) Write(w io.Writer, b []byte) error {
 	w.Write(g[:12])
 	t, y := 0, 0
 	for x := range n {
-		t = len(n[x])
-		//if t > dnsNameMax {
-		//	continue
-		//}
 		t = copy(g[1:dnsNameMax], []byte(n[x]))
 		g[0] = byte(t)
 		w.Write(g[:t+1])

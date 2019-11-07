@@ -11,37 +11,31 @@ import (
 	"github.com/iDigitalFlame/xmt/xmt/c2/transform"
 	"github.com/iDigitalFlame/xmt/xmt/c2/wrapper"
 	"github.com/iDigitalFlame/xmt/xmt/com"
+	"github.com/iDigitalFlame/xmt/xmt/com/limits"
 	"github.com/iDigitalFlame/xmt/xmt/device"
 	"github.com/iDigitalFlame/xmt/xmt/util"
 )
 
 const (
-	// DefaultSleep is the default sleep Time when the provided sleep value
-	// is empty or negative.
-	DefaultSleep = time.Duration(30) * time.Second
+	name = "DefaultGlobal"
 
-	// DefaultJitter is the default Jitter value when the provided jitter
-	// value is negative.
-	DefaultJitter int8 = 5
-
-	// DefaultBufferSize is the default byte array size used when the
-	// buffer size in a Profile is negative or zero.
-	DefaultBufferSize = 4096
-
-	maxEvents      = 256
 	maxErrors int8 = 3
 )
 
 var (
-	// Controller is the master list and manager for all C2 client connections.
+	// Controller is the default master list and manager for all C2 client connections.
 	// The controller acts as staging point to control and manage all connections.
-	Controller = NewServer("global", logx.NewConsole(logx.LInfo))
+	Controller *Server
+
+	// DefaultSleep is the default sleep Time when the provided sleep value
+	// is empty or negative.
+	DefaultSleep = time.Duration(30) * time.Second
 
 	// DefaultProfile is an simple profile for use with
 	// testing or filling without having to define all the
 	// profile properties.
 	DefaultProfile = &Profile{
-		Size:   DefaultBufferSize,
+		Size:   limits.MediumLimit(),
 		Sleep:  DefaultSleep,
 		Jitter: DefaultJitter,
 	}
@@ -55,20 +49,24 @@ var (
 	// the Connector interface.
 	ErrNoConnector = errors.New("invalid or missing connector")
 
-	// DefaultServerMux is the default Mux instance that handles simple C2
-	// client and server functions, from the server side.
-	DefaultServerMux = mux(true)
+	// DefaultLogLevel is the default logging level used when creating the
+	// default Controller.
+	DefaultLogLevel = logx.LWarning
 
 	// DefaultClientMux is the default Mux instance that handles simple C2
 	// server and client functions, from the client side.
-	DefaultClientMux = mux(false)
+	DefaultClientMux = muxClient(false)
+
+	// DefaultJitter is the default Jitter value when the provided jitter
+	// value is negative.
+	DefaultJitter int8 = 5
 )
 
 // Server is a struct that helps manage and contain
 // the sessions and processes events.
 type Server struct {
 	Log logx.Log
-	Mux Mux
+	Mux Scheduler
 
 	ctx    context.Context
 	name   string
@@ -152,15 +150,47 @@ func (e *callback) trigger(s *Server) {
 func NewServer(n string, l logx.Log) *Server {
 	s := &Server{
 		Log:    l,
-		Mux:    DefaultServerMux,
 		name:   n,
 		active: make(map[string]*Handle),
-		events: make(chan *callback, maxEvents),
+		events: make(chan *callback, limits.SmallLimit()),
+	}
+	s.Mux = &muxServer{
+		active:     make(map[uint16]*Job),
+		controller: s,
 	}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	s.Log.Trace("[%s] Controller started...", n)
 	go s.process()
 	return s
+}
+
+// Listen adds the Listener under the name provided.  A Handle struct
+// to control and receive callback functions is added to assist in
+// manageing connections to this Listener.
+func Listen(n, b string, v com.Server, p *Profile) (*Handle, error) {
+	if Controller == nil {
+		Controller = NewServer(name, logx.NewConsole(DefaultLogLevel))
+	}
+	return Controller.Listen(n, b, v, p)
+}
+
+// Connect creates a Session using the supplied Profile to connect to
+// the listening server specified.
+func Connect(a string, v com.Connector, p *Profile) (*Session, error) {
+	if Controller == nil {
+		Controller = NewServer(name, logx.NewConsole(DefaultLogLevel))
+	}
+	return Controller.ConnectWith(a, v, p, nil)
+}
+
+// Oneshot sends the packet with the specified data to the server and does NOT
+// register the device with the controller.  This is used for spending specific data
+// segments in single use connections.
+func Oneshot(a string, v com.Connector, p *Profile, d *com.Packet) error {
+	if Controller == nil {
+		Controller = NewServer(name, logx.NewConsole(DefaultLogLevel))
+	}
+	return Controller.Oneshot(a, v, p, d)
 }
 
 // Listen adds the Listener under the name provided.  A Handle struct
@@ -193,7 +223,7 @@ func (s *Server) Listen(n, b string, v com.Server, p *Profile) (*Handle, error) 
 		h.Transform = p.Transform
 	}
 	if h.size <= 0 {
-		h.size = DefaultBufferSize
+		h.size = limits.MediumLimit()
 	}
 	h.close = make(chan uint32, h.size)
 	h.ctx, h.cancel = context.WithCancel(s.ctx)
@@ -241,11 +271,22 @@ func (s *Server) Oneshot(a string, v com.Connector, p *Profile, d *com.Packet) e
 // the listening server specified. This function allows for passing the data Packet
 // specified to the server with the initial registration. The data will be passed on
 // normally.
+func ConnectWith(a string, v com.Connector, p *Profile, d *com.Packet) (*Session, error) {
+	if Controller == nil {
+		Controller = NewServer(name, logx.NewConsole(DefaultLogLevel))
+	}
+	return Controller.ConnectWith(a, v, p, d)
+}
+
+// ConnectWith creates a Session using the supplied Profile to connect to
+// the listening server specified. This function allows for passing the data Packet
+// specified to the server with the initial registration. The data will be passed on
+// normally.
 func (s *Server) ConnectWith(a string, v com.Connector, p *Profile, d *com.Packet) (*Session, error) {
 	if v == nil {
 		return nil, ErrNoConnector
 	}
-	x := DefaultBufferSize
+	x := limits.MediumLimit()
 	if p != nil && p.Size > 0 {
 		x = p.Size
 	}

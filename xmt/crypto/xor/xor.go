@@ -64,10 +64,8 @@ func (c Cipher) MarshalStream(w data.Writer) error {
 	if err := w.WriteUint16(uint16(len(c))); err != nil {
 		return err
 	}
-	if _, err := w.Write(c); err != nil {
-		return err
-	}
-	return nil
+	_, err := w.Write(c)
+	return err
 }
 
 // UnmarshalStream allows this Cipher to be read from a stream.

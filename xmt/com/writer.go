@@ -13,14 +13,14 @@ const (
 
 // Flush does nothing for the Packet struct. Just
 // here for compatibility.
-func (p *Packet) Flush() error {
+func (Packet) Flush() error {
 	return nil
 }
 
 // Flush will push out any Packets to the underlying Packet
 // Writer (if not nil).
 func (s *Stream) Flush() error {
-	s.flushPackets()
+	s.flushPackets(false)
 	return nil
 }
 
@@ -61,16 +61,12 @@ func (s *Stream) WriteInt(n int) error {
 	return s.WriteUint64(uint64(n))
 }
 func (p *Packet) small(b ...byte) error {
-	if _, err := p.Write(b); err != nil {
-		return err
-	}
-	return nil
+	_, err := p.Write(b)
+	return err
 }
 func (s *Stream) small(b ...byte) error {
-	if _, err := s.Write(b); err != nil {
-		return err
-	}
-	return nil
+	_, err := s.Write(b)
+	return err
 }
 
 // WriteUint writes the supplied value to the Packet payload buffer.
@@ -223,10 +219,8 @@ func (p *Packet) WriteBytes(b []byte) error {
 			return err
 		}
 	}
-	if _, err := p.Write(b); err != nil {
-		return err
-	}
-	return nil
+	_, err := p.Write(b)
+	return err
 }
 
 // WriteBytes writes the supplied value to the Stream payload buffer.
@@ -266,10 +260,8 @@ func (s *Stream) WriteBytes(b []byte) error {
 			return err
 		}
 	}
-	if _, err := s.Write(b); err != nil {
-		return err
-	}
-	return nil
+	_, err := s.Write(b)
+	return err
 }
 func (p *Packet) reslice(n int) (int, bool) {
 	if l := len(p.buf); n <= cap(p.buf)-l {

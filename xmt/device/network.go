@@ -79,7 +79,7 @@ func (n *Network) Refresh() error {
 }
 
 // String returns the string representation of this Interface.
-func (i *Interface) String() string {
+func (i Interface) String() string {
 	return fmt.Sprintf(
 		"%s (%s): %s", i.Name, i.Hardware.String(), i.Address,
 	)

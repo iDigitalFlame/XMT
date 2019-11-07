@@ -53,7 +53,7 @@ type CipherTrippleDes struct {
 }
 
 // BlockSize returns the cipher's block size.
-func (c *Block) BlockSize() int {
+func (c Block) BlockSize() int {
 	return c.block.BlockSize()
 }
 

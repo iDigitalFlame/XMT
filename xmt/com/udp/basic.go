@@ -8,13 +8,11 @@ import (
 	"time"
 
 	"github.com/iDigitalFlame/xmt/xmt/com"
+	"github.com/iDigitalFlame/xmt/xmt/com/limits"
 )
 
 var (
 	ipInfoSize = 20
-
-	packetDeleteSize = 64
-	packetBufferSize = 4096
 )
 
 type raw struct {
@@ -59,16 +57,16 @@ func (l *listener) Close() error {
 	close(l.del)
 	return l.listen.Close()
 }
-func (l *listener) String() string {
+func (l listener) String() string {
 	return fmt.Sprintf("Packet(%s) %s", strings.ToUpper(l.network), l.listen.LocalAddr().String())
 }
-func (l *listener) Addr() net.Addr {
+func (l listener) Addr() net.Addr {
 	return l.listen.LocalAddr()
 }
-func (c *conn) LocalAddr() net.Addr {
+func (c conn) LocalAddr() net.Addr {
 	return c.addr
 }
-func (c *conn) RemoteAddr() net.Addr {
+func (c conn) RemoteAddr() net.Addr {
 	return c.addr
 }
 func (r *raw) Read(b []byte) (int, error) {
@@ -92,11 +90,11 @@ func (c *conn) Read(b []byte) (int, error) {
 	}
 	return n, nil
 }
+func (conn) SetDeadline(_ time.Time) error {
+	return nil
+}
 func (c *conn) Write(b []byte) (int, error) {
 	return c.parent.listen.WriteTo(b, c.addr)
-}
-func (*conn) SetDeadline(_ time.Time) error {
-	return nil
 }
 func (s *stream) Read(b []byte) (int, error) {
 	if s.timeout > 0 {
@@ -118,7 +116,7 @@ func (l *listener) Accept() (net.Conn, error) {
 	c, ok := l.active[a]
 	if !ok {
 		c = &conn{
-			buf:    make(chan byte, packetBufferSize),
+			buf:    make(chan byte, limits.LargeLimit()),
 			addr:   a,
 			parent: l,
 		}
@@ -132,10 +130,10 @@ func (l *listener) Accept() (net.Conn, error) {
 	}
 	return nil, nil
 }
-func (*conn) SetReadDeadline(_ time.Time) error {
+func (conn) SetReadDeadline(_ time.Time) error {
 	return nil
 }
-func (*conn) SetWriteDeadline(_ time.Time) error {
+func (conn) SetWriteDeadline(_ time.Time) error {
 	return nil
 }
 func (p *provider) Connect(s string) (net.Conn, error) {
@@ -160,8 +158,8 @@ func (p *provider) Listen(s string) (net.Listener, error) {
 		return nil, err
 	}
 	c := &listener{
-		buf:     make([]byte, packetBufferSize),
-		del:     make(chan net.Addr, packetDeleteSize),
+		buf:     make([]byte, limits.LargeLimit()),
+		del:     make(chan net.Addr, limits.SmallLimit()),
 		listen:  l,
 		active:  make(map[net.Addr]*conn),
 		network: p.network,

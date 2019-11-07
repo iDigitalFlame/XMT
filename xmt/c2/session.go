@@ -13,25 +13,19 @@ import (
 	"github.com/iDigitalFlame/xmt/xmt/c2/transform"
 	"github.com/iDigitalFlame/xmt/xmt/c2/wrapper"
 	"github.com/iDigitalFlame/xmt/xmt/com"
-	"github.com/iDigitalFlame/xmt/xmt/data"
+	"github.com/iDigitalFlame/xmt/xmt/com/limits"
 	"github.com/iDigitalFlame/xmt/xmt/device"
 )
 
 const (
 	jitterMin int8 = 0
 	jitterMax int8 = 100
-
-	packetMaxMerge uint16 = 64
 )
 
 var (
 	// ErrFullBuffer is returned from the WritePacket function when the send buffer for
 	// Session is full.
 	ErrFullBuffer = errors.New("cannot add a Packet to a full send buffer")
-
-	// PacketMultiMaxSize is the limit of size that a auto generated
-	// multi packet can be before being truncated.
-	PacketMultiMaxSize = data.DataLimitMedium
 )
 
 // Session is a struct that represents a connection between the client and
@@ -66,6 +60,7 @@ type Session struct {
 	transform  transform.Transform
 	controller *Server
 }
+type wrapSession Session
 
 // Wake will interrupt the sleep of the current
 // session thread. This will trigger the send and receive functions
@@ -114,13 +109,13 @@ func (s *Session) listen() {
 	for ; s.ctx.Err() == nil; s.wait() {
 		s.controller.Log.Trace("[%s] Waking up...", s.ID)
 		if len(s.del) > 0 {
-			for x := 0; x < len(s.del); x++ {
+			for x := 0; len(s.del) > 0; x++ {
 				delete(s.proxies, <-s.del)
 			}
 		}
 		if len(s.new) > 0 {
 			var n *proxyClient
-			for x := 0; x < len(s.new); x++ {
+			for x := 0; len(s.new) > 0; x++ {
 				n = <-s.new
 				s.proxies[n.hash] = n
 			}
@@ -208,13 +203,26 @@ func (s *Session) Log() logx.Log {
 }
 
 // IsProxy returns true when a Proxy has been attached to this Session and is active.
-func (s *Session) IsProxy() bool {
+func (s Session) IsProxy() bool {
 	return s.proxies != nil && len(s.proxies) > 0
 }
 
 // String returns the ID of this Session.
-func (s *Session) String() string {
+func (s Session) String() string {
 	return fmt.Sprintf("[%s] %s", s.ID.FullString(), s.Last.Format(time.RFC1123))
+}
+
+// IsClient returns true when this Session is not associated to
+// a Handle on this end, which signifies that this session is Client initiated.
+func (s Session) IsClient() bool {
+	return s.parent == nil
+}
+
+// Remote returns a string representation of the remotely
+// connected IP address. This could be the IP address of the
+// c2 server or the public IP of the client.
+func (s Session) Remote() string {
+	return s.server
 }
 
 // IsActive returns true if this Session is
@@ -223,28 +231,59 @@ func (s *Session) IsActive() bool {
 	return s.ctx.Err() == nil
 }
 
-// IsClient returns true when this Session is not associated to
-// a Handle on this end, which signifies that this session is Client initiated.
-func (s *Session) IsClient() bool {
-	return s.parent == nil
+// Read attempts to grab a Packet from the receiving
+// buffer. This function will wait for a Packet while the buffer is empty.
+func (s *Session) Read() *com.Packet {
+	return <-s.recv
 }
 
-// ReadPacket attempts to grab a Packet from the receiving
-// buffer. This functions nil if there the buffer is empty.
-func (s *Session) ReadPacket() *com.Packet {
-	if len(s.recv) > 0 {
-		if p, ok := <-s.recv; ok {
-			return p
-		}
+// Session returns the Session ID value for this
+// Session instance.
+func (s Session) Session() device.ID {
+	return s.ID
+}
+
+// Write adds the supplied Packet into the stack to be sent to the server
+// on next wake. This call is asynchronous and returns immediately. Unlike 'WritePacket'
+// this function does NOT return an error and will wait for the buffer to have open spots.
+func (s *Session) Write(p *com.Packet) {
+	if p.Size() > (limits.FragLimit() + com.PacketHeaderSize) {
+		s.writeLargePacket(p)
+	} else {
+		s.send <- p
+	}
+}
+
+// Host returns the associated Machine that initiated this
+// Session.
+func (s Session) Host() *device.Machine {
+	return s.Device
+}
+func (s *Session) peek(i net.Conn) error {
+	if s.ctx.Err() != nil {
+		return s.ctx.Err()
+	}
+	v, err := next(s.send, s.Device.ID, false)
+	if err != nil {
+		return err
+	}
+	s.controller.Log.Trace("[%s] Sending Packet \"%s\" to \"%s\".", s.ID, v.String(), s.server)
+	if err := write(i, s.wrapper, s.transform, v); err != nil {
+		return err
 	}
 	return nil
 }
 
-// WriteWait adds the supplied Packet into the stack to be sent to the server
-// on next wake. This call is asynchronous and returns immediately. Unlike 'WritePacket'
-// this function does NOT return an error and will wait for the buffer to have open spots.
-func (s *Session) WriteWait(p *com.Packet) {
-	s.send <- p
+// ReadPacket attempts to grab a Packet from the receiving
+// buffer. This function returns nil if there the buffer is empty.
+func (s *Session) ReadPacket() *com.Packet {
+	if len(s.recv) > 0 {
+		return <-s.recv
+	}
+	return nil
+}
+func (w *wrapSession) Write(p *com.Packet) {
+	w.send <- p
 }
 
 // Context returns the current Session's context.
@@ -272,29 +311,47 @@ func (s *Session) Time(t time.Duration, j int) {
 		s.send <- n
 	}
 }
-func (s *Session) peek(i net.Conn) error {
-	if len(s.ctx.Done()) > 0 {
-		return s.ctx.Err()
-	}
-	v, err := next(s.send, s.Device.ID, false)
-	if err != nil {
-		return err
-	}
-	s.controller.Log.Trace("[%s] Sending Packet \"%s\" to \"%s\".", s.ID, v.String(), s.server)
-	if err := write(i, s.wrapper, s.transform, v); err != nil {
-		return err
-	}
-	return nil
-}
 
 // WritePacket adds the supplied Packet into the stack to be sent to the server
 // on next wake. This call is asynchronous and returns immediately.  The only error may be
 // returned if the send buffer is full.
 func (s *Session) WritePacket(p *com.Packet) error {
+	if p.Size() > (limits.FragLimit() + com.PacketHeaderSize) {
+		if len(s.send)+((p.Size()/limits.FragLimit())+1) >= cap(s.send) {
+			return ErrFullBuffer
+		}
+		return s.writeLargePacket(p)
+	}
 	if len(s.send) == cap(s.send) {
 		return ErrFullBuffer
 	}
 	s.send <- p
+	return nil
+}
+func (w *wrapSession) WritePacket(p *com.Packet) error {
+	if len(w.send) == cap(w.send) {
+		return ErrFullBuffer
+	}
+	w.send <- p
+	return nil
+}
+func (s *Session) writeLargePacket(p *com.Packet) error {
+	p.Check(s.ID)
+	f := &com.Stream{
+		ID:     p.ID,
+		Job:    p.Job,
+		Max:    limits.FragLimit(),
+		Flags:  com.FlagData,
+		Device: p.Device,
+	}
+	w := wrapSession(*s)
+	f.Writer(&w)
+	if err := p.MarshalStream(f); err != nil {
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
 	return nil
 }
 func next(c chan *com.Packet, i device.ID, s bool) (*com.Packet, error) {
@@ -322,7 +379,7 @@ func next(c chan *com.Packet, i device.ID, s bool) (*com.Packet, error) {
 		}
 		p.Clear()
 	}
-	for ; len(c) > 0 && t < packetMaxMerge && m.Size() < PacketMultiMaxSize; t++ {
+	for ; len(c) > 0 && t < uint16(limits.SmallLimit()) && m.Size() < limits.MediumLimit(); t++ {
 		p = <-c
 		if p.Check(i) {
 			a = true

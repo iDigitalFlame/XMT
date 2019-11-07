@@ -1,7 +1,9 @@
 package c2
 
 import (
+	"github.com/iDigitalFlame/xmt/xmt/c2/action"
 	"github.com/iDigitalFlame/xmt/xmt/com"
+	"github.com/iDigitalFlame/xmt/xmt/com/limits"
 )
 
 // Mux is an interface that handles Packets when the arrive.
@@ -15,6 +17,13 @@ type MuxMap struct {
 	Default MuxFunc
 
 	m map[uint16]MuxFunc
+}
+
+// Scheduler is a type of Mux that allows for Scheduling Packets
+// to be sent to a client and tracked by the Server.
+type Scheduler interface {
+	Schedule(*Session, *com.Packet) (*Job, error)
+	Mux
 }
 
 // MuxFunc is the definition of a Mux Handler func. Once wrapped as a 'MuxFunc'..,
@@ -65,4 +74,29 @@ func (m *MuxMap) Handle(s *Session, p *com.Packet) {
 // of more complex Mux definitions.
 func (m MuxFunc) Handle(s *Session, p *com.Packet) {
 	m(s, p)
+}
+
+// Process runs the Execute function of the supplied Action and sends the
+// results back to the provided Session via Packet Stream.
+func Process(a action.Action, s *Session, p *com.Packet) {
+	if a.Thread() {
+		go processAction(a, s, p)
+	} else {
+		processAction(a, s, p)
+	}
+}
+func processAction(a action.Action, s *Session, p *com.Packet) {
+	o := &com.Stream{
+		ID:     MsgResult,
+		Job:    p.Job,
+		Max:    limits.FragLimit(),
+		Device: p.Device,
+	}
+	o.Writer(s)
+	if err := a.Execute(s, p, o); err != nil {
+		o.Clear()
+		o.Flags |= com.FlagError
+		o.WriteString(err.Error())
+	}
+	o.Close()
 }

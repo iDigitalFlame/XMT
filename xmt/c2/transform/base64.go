@@ -42,10 +42,8 @@ func (b b64) Read(w io.Writer, p []byte) error {
 			i[x] -= byte(b)
 		}
 	}
-	if _, err = w.Write(i[:n]); err != nil {
-		return err
-	}
-	return nil
+	_, err = w.Write(i[:n])
+	return err
 }
 func (b b64) Write(w io.Writer, p []byte) error {
 	if b != 0 {
@@ -62,10 +60,8 @@ func (b b64) Write(w io.Writer, p []byte) error {
 		o = make([]byte, c)
 	}
 	base64.StdEncoding.Encode(o, p)
-	if _, err := w.Write(o[:c]); err != nil {
-		return err
-	}
-	return nil
+	_, err := w.Write(o[:c])
+	return err
 }
 func (b b64) MarshalStream(w data.Writer) error {
 	if err := w.WriteUint8(base64ID); err != nil {

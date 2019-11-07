@@ -8,6 +8,7 @@ import (
 	"github.com/iDigitalFlame/xmt/xmt/c2/transform"
 	"github.com/iDigitalFlame/xmt/xmt/c2/wrapper"
 	"github.com/iDigitalFlame/xmt/xmt/com"
+	"github.com/iDigitalFlame/xmt/xmt/com/limits"
 )
 
 // Proxy is a struct that controls a Proxied
@@ -192,8 +193,8 @@ func (s *Session) Proxy(b string, v com.Server, p *Profile) (*Proxy, error) {
 	i.ctx, i.cancel = context.WithCancel(s.ctx)
 	s.controller.Log.Debug("[%s] Added listener Proxy type \"%s\"...", s.ID, l)
 	if s.proxies == nil {
-		s.del = make(chan uint32, DefaultBufferSize)
-		s.new = make(chan *proxyClient, DefaultBufferSize)
+		s.del = make(chan uint32, limits.SmallLimit())
+		s.new = make(chan *proxyClient, limits.MediumLimit())
 		s.proxies = make(map[uint32]*proxyClient)
 	}
 	go i.listen()

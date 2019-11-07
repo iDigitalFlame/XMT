@@ -19,7 +19,7 @@ func (b *buffer) Reset() {
 	b.rpos = 0
 	b.buf = b.buf[:0]
 }
-func (b *buffer) Flush() error {
+func (buffer) Flush() error {
 	return nil
 }
 func (b *buffer) Close() error {
@@ -95,10 +95,8 @@ func (w *wrapBuffer) WriteInt(n int) error {
 	return w.WriteUint64(uint64(n))
 }
 func (w *wrapBuffer) small(b ...byte) error {
-	if _, err := w.Write(b); err != nil {
-		return err
-	}
-	return nil
+	_, err := w.Write(b)
+	return err
 }
 func (b *buffer) reslice(n int) (int, bool) {
 	if l := len(b.buf); n <= cap(b.buf)-l {
@@ -177,10 +175,8 @@ func (w *wrapBuffer) WriteBytes(b []byte) error {
 			return err
 		}
 	}
-	if _, err := w.Write(b); err != nil {
-		return err
-	}
-	return nil
+	_, err := w.Write(b)
+	return err
 }
 func (w *wrapBuffer) WriteUint16(n uint16) error {
 	return w.small(byte(n>>8), byte(n))

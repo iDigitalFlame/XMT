@@ -9,12 +9,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/iDigitalFlame/xmt/xmt/com/limits"
 	"github.com/iDigitalFlame/xmt/xmt/com/tcp"
 	"github.com/iDigitalFlame/xmt/xmt/util"
-)
-
-const (
-	maxCons = 256
 )
 
 var (
@@ -31,7 +28,7 @@ var (
 				KeepAlive: tcp.RawDefaultTimeout,
 				DualStack: true,
 			}).DialContext,
-			MaxIdleConns:          maxCons,
+			MaxIdleConns:          limits.SmallLimit(),
 			IdleConnTimeout:       tcp.RawDefaultTimeout,
 			TLSHandshakeTimeout:   tcp.RawDefaultTimeout,
 			ExpectContinueTimeout: tcp.RawDefaultTimeout,
@@ -52,9 +49,7 @@ var (
 // used by the Web server to determine the difference between
 // normal and C2 traffic.
 type Rule struct {
-	URL   matcher
-	Host  matcher
-	Agent matcher
+	URL, Host, Agent matcher
 }
 
 // Server is a C2 profile that mimics a standard web server and
@@ -91,9 +86,7 @@ type Client struct {
 // This struct can be used as a C2 client connector. If the Client
 // property is not set, the DefaultClient value will be used.
 type Generator struct {
-	URL   fmt.Stringer
-	Host  fmt.Stringer
-	Agent fmt.Stringer
+	URL, Host, Agent fmt.Stringer
 }
 type matcher interface {
 	MatchString(string) bool
@@ -130,7 +123,7 @@ func (s *Server) Rule(r ...*Rule) {
 	}
 	s.rules = append(s.rules, r...)
 }
-func (r *Rule) checkMatch(c *http.Request) bool {
+func (r Rule) checkMatch(c *http.Request) bool {
 	if r.Host != nil && !r.Host.MatchString(c.Host) {
 		return false
 	}
@@ -187,7 +180,7 @@ func NewTLS(t time.Duration, c *tls.Config) *Server {
 			Dial:                  w.dial.Dial,
 			Proxy:                 http.ProxyFromEnvironment,
 			DialContext:           w.dial.DialContext,
-			MaxIdleConns:          maxCons,
+			MaxIdleConns:          limits.SmallLimit(),
 			IdleConnTimeout:       w.dial.Timeout,
 			TLSHandshakeTimeout:   w.dial.Timeout,
 			ExpectContinueTimeout: w.dial.Timeout,
@@ -243,7 +236,7 @@ func (s *Server) Listen(u string) (net.Listener, error) {
 		return nil, err
 	}
 	l := &listener{
-		new:    make(chan *conn, maxCons),
+		new:    make(chan *conn, limits.SmallLimit()),
 		parent: s,
 		Server: &http.Server{
 			TLSConfig:         s.tls,

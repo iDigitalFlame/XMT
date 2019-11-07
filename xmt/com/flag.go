@@ -61,6 +61,11 @@ func (f *Flag) Add(n Flag) {
 	*f = *f | n
 }
 
+// ClearFrag clears all Frag and Multi related flags and data.
+func (f *Flag) ClearFrag() {
+	*f = Flag(uint16(*f)) ^ FlagFrag
+}
+
 // FragLen is similar to the Total function. This returns
 // the total amount of fragmentented packets to expect.
 func (f Flag) FragLen() int {

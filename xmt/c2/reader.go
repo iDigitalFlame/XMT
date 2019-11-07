@@ -164,6 +164,7 @@ func (w *wrapBuffer) Uint16() (uint16, error) {
 	if n < 2 {
 		return 0, io.EOF
 	}
+	_ = w.rbuf[1]
 	return uint16(w.rbuf[1]) | uint16(w.rbuf[0])<<8, nil
 }
 func (w *wrapBuffer) Uint32() (uint32, error) {
@@ -174,6 +175,7 @@ func (w *wrapBuffer) Uint32() (uint32, error) {
 	if n < 4 {
 		return 0, io.EOF
 	}
+	_ = w.rbuf[3]
 	return uint32(w.rbuf[3]) | uint32(w.rbuf[2])<<8 | uint32(w.rbuf[1])<<16 | uint32(w.rbuf[0])<<24, nil
 }
 func (w *wrapBuffer) Uint64() (uint64, error) {
@@ -184,6 +186,7 @@ func (w *wrapBuffer) Uint64() (uint64, error) {
 	if n < 8 {
 		return 0, io.EOF
 	}
+	_ = w.rbuf[7]
 	return uint64(w.rbuf[7]) | uint64(w.rbuf[6])<<8 | uint64(w.rbuf[5])<<16 | uint64(w.rbuf[4])<<24 |
 		uint64(w.rbuf[3])<<32 | uint64(w.rbuf[2])<<40 | uint64(w.rbuf[1])<<48 | uint64(w.rbuf[0])<<56, nil
 }

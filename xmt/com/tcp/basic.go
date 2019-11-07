@@ -28,7 +28,7 @@ type provider struct {
 	network string
 }
 
-func (l *listener) String() string {
+func (l listener) String() string {
 	return fmt.Sprintf("Stream(%s) %s", strings.ToUpper(l.network), l.Addr().String())
 }
 func (c *conn) Read(b []byte) (int, error) {

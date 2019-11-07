@@ -206,10 +206,8 @@ func IDFromString(s string) (ID, error) {
 
 // MarshalStream writes the data of this ID to the supplied Writer.
 func (i *ID) MarshalStream(w data.Writer) error {
-	if _, err := w.Write(*i); err != nil {
-		return err
-	}
-	return nil
+	_, err := w.Write(*i)
+	return err
 }
 
 // UnmarshalStream reads the data of this ID from the supplied Reader.

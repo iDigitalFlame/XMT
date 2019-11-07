@@ -13,7 +13,10 @@ import (
 )
 
 const (
-	emptyPacket = "0xNULL"
+	// PacketHeaderSize is the length of the Packet header in bytes.
+	PacketHeaderSize = 44
+
+	empty = "0xNULL"
 )
 
 var (
@@ -30,19 +33,13 @@ var (
 // Packet is a struct that is a Reader and Writer that can
 // be generated to be sent, or received from a Connection.
 type Packet struct {
-	ID     uint16
-	Job    uint16
-	Flags  Flag
-	Device device.ID
+	ID, Job uint16
+	Flags   Flag
+	Device  device.ID
 
-	buf    []byte
-	rpos   int
-	wpos   int
-	stream *Stream
-}
-type writer interface {
-	WriteWait(*Packet)
-	WritePacket(*Packet) error
+	buf        []byte
+	rpos, wpos int
+	stream     *Stream
 }
 
 // Reset resets the payload buffer to be empty,
@@ -73,7 +70,7 @@ func (p *Packet) Clear() {
 }
 
 // Len returns the total size of this Packet payload.
-func (p *Packet) Len() int {
+func (p Packet) Len() int {
 	if p.stream != nil {
 		return p.stream.Len()
 	}
@@ -102,7 +99,7 @@ func (p *Packet) IsEmpty() bool {
 func (p *Packet) String() string {
 	switch {
 	case p == nil:
-		return emptyPacket
+		return empty
 	case (p.buf == nil || len(p.buf) == 0) && p.Flags == 0 && p.Job == 0:
 		return fmt.Sprintf("0x%X", p.ID)
 	case (p.buf == nil || len(p.buf) == 0) && p.Flags == 0:
@@ -154,7 +151,7 @@ func (p *Packet) Payload() []byte {
 // parameters. This function will return true if the Device is nil or
 // matches the specified host ID, false if otherwise.
 func (p *Packet) Check(i device.ID) bool {
-	if p.Job == 0 {
+	if p.Job == 0 && p.Flags&FlagProxy == 0 {
 		p.Job = uint16(util.Rand.Uint32())
 	}
 	if p.Device == nil {
@@ -174,13 +171,16 @@ func (p *Packet) Combine(o *Packet) error {
 	if o.buf == nil || o.Len() == 0 {
 		return nil
 	}
-	if p.stream != nil {
-		return p.stream.Add(o)
-	}
 	if p.ID != o.ID {
 		return ErrMismatchedID
 	}
 	p.Flags.SetFragTotal(o.Flags.FragTotal())
+	if p.Flags.FragPosition() < o.Flags.FragPosition() {
+		p.Flags.SetFragPosition(o.Flags.FragPosition())
+	}
+	if p.stream != nil {
+		return p.stream.Add(o)
+	}
 	if _, err := p.Write(o.buf[o.wpos:]); err != nil {
 		return fmt.Errorf("unable to write to Packet: %w", err)
 	}

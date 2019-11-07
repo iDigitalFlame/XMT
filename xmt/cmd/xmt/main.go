@@ -2,14 +2,18 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/iDigitalFlame/logx/logx"
 	"github.com/iDigitalFlame/xmt/xmt/c2"
+	"github.com/iDigitalFlame/xmt/xmt/c2/action"
 	"github.com/iDigitalFlame/xmt/xmt/c2/transform"
 	"github.com/iDigitalFlame/xmt/xmt/c2/wrapper"
+	"github.com/iDigitalFlame/xmt/xmt/com"
+	"github.com/iDigitalFlame/xmt/xmt/com/limits"
 	"github.com/iDigitalFlame/xmt/xmt/com/tcp"
 	"github.com/iDigitalFlame/xmt/xmt/com/web"
 	"github.com/iDigitalFlame/xmt/xmt/crypto/xor"
@@ -17,11 +21,12 @@ import (
 )
 
 func main() {
+
 	testWebC2()
 }
 
 func testWebC2() {
-	c2.Controller.Log = logx.NewConsole(logx.LTrace)
+	c2.DefaultLogLevel = logx.LDebug
 
 	u := &web.Generator{
 		URL:  util.Matcher("/post/%31d/%12d/%31d/edit/%4fl"),
@@ -44,7 +49,7 @@ func testWebC2() {
 		os.Exit(1)
 	}
 
-	c2.PacketMultiMaxSize = 1024
+	limits.Limits = limits.Large
 
 	switch os.Args[1] {
 	case "s":
@@ -55,23 +60,88 @@ func testWebC2() {
 			Host: u.Host.(util.Matcher).Match(),
 		})
 
-		c, err := c2.Controller.Listen("http", "127.0.0.1:8080", w, p)
+		c, err := c2.Listen("http", "127.0.0.1:8080", w, p)
 		if err != nil {
 			panic(err)
 		}
 		c.Register = func(s *c2.Session) {
 			fmt.Printf("registered! %s\n", s.ID)
-			s.Time(10*time.Second, 0)
+			s.Time(3*time.Second, 0)
 		}
 
-		time.Sleep(30 * time.Second)
+		time.Sleep(5 * time.Second)
 
 		for _, v := range c.Sessions() {
-			v.WritePacket(c2.Execute.New("ls", "-al"))
+			c, err := action.Download.Bytes("/tmp/what1.txt", []byte("This is my special string!\n"))
+			if err != nil {
+				panic(err)
+			}
+			j, err := c2.Controller.Mux.Schedule(v, c)
+			if err != nil {
+				panic(err)
+			}
+			j.Done = func(s *c2.Session, p *com.Packet) {
+				fmt.Printf("job %s:%d finished! %s, reading!\n", s.ID, p.Job, p)
+				b, err := ioutil.ReadAll(p)
+				if err != nil {
+					fmt.Printf("err: %s\n", err)
+				}
+				fmt.Printf("result [\n%s\n]\n", b)
+			}
+			j.Error = func(s *c2.Session, p *com.Packet) {
+				er, _ := p.StringVal()
+				fmt.Printf("job %s:%d failed! %s\n", s.ID, p.Job, er)
+			}
+		}
+
+		time.Sleep(5 * time.Second)
+
+		for _, v := range c.Sessions() {
+			c := action.ProcessList.List()
+			j, err := c2.Controller.Mux.Schedule(v, c)
+			if err != nil {
+				panic(err)
+			}
+			j.Done = func(s *c2.Session, p *com.Packet) {
+				fmt.Printf("job %s:%d finished! %s, reading!\n", s.ID, p.Job, p)
+				b, err := ioutil.ReadAll(p)
+				if err != nil {
+					fmt.Printf("err: %s\n", err)
+				}
+				fmt.Printf("result [\n%s\n]\n", b)
+			}
+			j.Error = func(s *c2.Session, p *com.Packet) {
+				er, _ := p.StringVal()
+				fmt.Printf("job %s:%d failed! %s\n", s.ID, p.Job, er)
+			}
+		}
+
+		time.Sleep(5 * time.Second)
+
+		for _, v := range c.Sessions() {
+			c := action.Execute.Run(&action.Command{
+				Args: []string{"ls", "-al", "/"},
+			})
+			j, err := c2.Controller.Mux.Schedule(v, c)
+			if err != nil {
+				panic(err)
+			}
+			j.Done = func(s *c2.Session, p *com.Packet) {
+				fmt.Printf("job %s:%d finished! %s, reading!\n", s.ID, p.Job, p)
+				b, err := ioutil.ReadAll(p)
+				if err != nil {
+					fmt.Printf("err: %s\n", err)
+				}
+				fmt.Printf("result [\n%s\n]\n", b)
+			}
+			j.Error = func(s *c2.Session, p *com.Packet) {
+				er, _ := p.StringVal()
+				fmt.Printf("job %s:%d failed! %s\n", s.ID, p.Job, er)
+			}
 		}
 
 	case "c":
-		i, err := c2.Controller.Connect("http://127.0.0.1:8080", &web.Client{Generator: u}, p)
+		i, err := c2.Connect("http://127.0.0.1:8080", &web.Client{Generator: u}, p)
 		if err != nil {
 			panic(err)
 		}
@@ -80,7 +150,7 @@ func testWebC2() {
 			panic(err)
 		}
 	case "p":
-		_, err := c2.Controller.Connect("localhost:9090", tcp.Raw, &c2.Profile{
+		_, err := c2.Connect("localhost:9090", tcp.Raw, &c2.Profile{
 			Sleep:     3 * time.Second,
 			Transform: transform.DNS,
 		})

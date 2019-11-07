@@ -47,7 +47,7 @@ type nopWriteCloser struct {
 	io.Writer
 }
 
-func (*nopWriteCloser) Close() error {
+func (nopWriteCloser) Close() error {
 	return nil
 }
 

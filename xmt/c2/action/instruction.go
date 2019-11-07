@@ -1,7 +1,8 @@
 package action
 
+/*
+NOt sure what im doing here..
 import (
-	"github.com/iDigitalFlame/xmt/xmt/c2"
 	"github.com/iDigitalFlame/xmt/xmt/com"
 	"github.com/iDigitalFlame/xmt/xmt/data"
 )
@@ -24,13 +25,13 @@ type Instruction interface {
 	String() string
 	Get() []*Parameter
 	Set([]*Parameter) error
+	Instruct(Session) error
 	Children() []Instruction
-	Instruct(*c2.Session) error
 	Generate() (*com.Packet, error)
 	SetParameter(string, *Parameter) error
 	GetParameter(string) (*Parameter, error)
-	Execute(*c2.Session, data.Reader, data.Writer) error
-	Result(*c2.Session, data.Reader) (bool, string, error)
+	Execute(Session, data.Reader, data.Writer) error
+	Result(Session, data.Reader) (bool, string, error)
 }
 
 func (p *Parameter) Clear() {
@@ -53,3 +54,4 @@ func NewParameter(name, def string, req bool) *Parameter {
 		Value: def,
 	}
 }
+*/

@@ -199,6 +199,7 @@ func (p *Packet) Uint16() (uint16, error) {
 			return 0, io.EOF
 		}
 	}
+	_ = p.buf[p.rpos+1]
 	v := uint16(p.buf[p.rpos+1]) | uint16(p.buf[p.rpos])<<8
 	if p.stream == nil {
 		p.rpos += 2
@@ -221,6 +222,7 @@ func (p *Packet) Uint32() (uint32, error) {
 			return 0, io.EOF
 		}
 	}
+	_ = p.buf[p.rpos+3]
 	v := uint32(p.buf[p.rpos+3]) | uint32(p.buf[p.rpos+2])<<8 | uint32(p.buf[p.rpos+1])<<16 | uint32(p.buf[p.rpos])<<24
 	if p.stream == nil {
 		p.rpos += 4
@@ -243,6 +245,7 @@ func (p *Packet) Uint64() (uint64, error) {
 			return 0, io.EOF
 		}
 	}
+	_ = p.buf[p.rpos+7]
 	v := uint64(p.buf[p.rpos+7]) | uint64(p.buf[p.rpos+6])<<8 | uint64(p.buf[p.rpos+5])<<16 | uint64(p.buf[p.rpos+4])<<24 |
 		uint64(p.buf[p.rpos+3])<<32 | uint64(p.buf[p.rpos+2])<<40 | uint64(p.buf[p.rpos+1])<<48 | uint64(p.buf[p.rpos])<<56
 	if p.stream == nil {
@@ -373,12 +376,13 @@ func (p *Packet) ReadString(i *string) error {
 // is drained. The return value n is the number of bytes read.
 func (p *Packet) Read(b []byte) (int, error) {
 	if p.stream != nil {
-		return p.stream.Read(b)
+		n, err := p.stream.Read(b)
+		return n, err
 	}
 	if len(p.buf) <= p.rpos {
 		p.Reset()
 		if len(b) == 0 {
-			return 0, nil
+			return 0, io.EOF
 		}
 		return 0, io.EOF
 	}

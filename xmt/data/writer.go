@@ -43,10 +43,8 @@ func (w *writerBase) WriteInt(n int) error {
 	return w.WriteUint64(uint64(n))
 }
 func (w *writerBase) small(b ...byte) error {
-	if _, err := w.w.Write(b); err != nil {
-		return err
-	}
-	return nil
+	_, err := w.w.Write(b)
+	return err
 }
 func (w *writerBase) WriteUint(n uint) error {
 	return w.WriteUint64(uint64(n))
@@ -108,10 +106,8 @@ func (w *writerBase) WriteBytes(b []byte) error {
 			return err
 		}
 	}
-	if _, err := w.w.Write(b); err != nil {
-		return err
-	}
-	return nil
+	_, err := w.w.Write(b)
+	return err
 }
 func (w *writerBase) WriteUint16(n uint16) error {
 	return w.small(byte(n>>8), byte(n))

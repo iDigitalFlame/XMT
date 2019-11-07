@@ -16,10 +16,8 @@ const (
 	// CbkID is the integer value used to represent
 	// this Cipher when written to or read from a stream.
 	CbkID uint8 = 0xC3
-
 	// BlockSize is the default block buffer size of this Cipher.
 	BlockSize = 16
-
 	// BlockSizeMax is the maximum block buffer size of this Cipher
 	BlockSizeMax = 128
 )
@@ -28,7 +26,6 @@ var (
 	// ErrSize is returned when an array is read that does not contain enough slots for keys
 	// which is three.
 	ErrSize = errors.New("byte array size must be greather than or equal to three (3)")
-
 	// ErrBlockSize is an error returned when an invalid value for the block size is given
 	// when creating the Cipher.
 	ErrBlockSize = errors.New("block size must be between 16 and 128 and a power of two")
@@ -52,16 +49,12 @@ var (
 // Cipher is the representation of the CBK Cipher.
 // CBK is a block based cipher that allows for a variable size index in encoding.
 type Cipher struct {
-	A      byte
-	B      byte
-	C      byte
-	D      byte
-	Source rand.Source
+	A, B, C, D byte
+	Source     rand.Source
 
-	buf   []byte
-	pos   int
-	index uint8
-	total int
+	buf        []byte
+	index      uint8
+	pos, total int
 }
 
 // NewCipher returns a new CBK Cipher with the D value specified. The other A, B and C values
@@ -85,7 +78,7 @@ func (e *Cipher) Reset() error {
 }
 
 // BlockSize returns the cipher's block BlockSize.
-func (e *Cipher) BlockSize() int {
+func (e Cipher) BlockSize() int {
 	return e.total
 }
 func clear(b []byte, z [][]byte) {
@@ -99,10 +92,7 @@ func clear(b []byte, z [][]byte) {
 }
 
 // Shuffle will switch around the bytes in the array based on the Cipher bytes.
-func (e *Cipher) Shuffle(b []byte) {
-	if e == nil {
-		return
-	}
+func (e Cipher) Shuffle(b []byte) {
 	if len(b) > 1 {
 		b[0] += e.A
 	}
@@ -125,10 +115,7 @@ func (e *Cipher) Shuffle(b []byte) {
 }
 
 // Deshuffle will reverse the switch around the bytes in the array based on the Cipher bytes.
-func (e *Cipher) Deshuffle(b []byte) {
-	if e == nil {
-		return
-	}
+func (e Cipher) Deshuffle(b []byte) {
 	if len(b) > 1 {
 		b[0] -= e.A
 	}
@@ -320,7 +307,7 @@ func (e *Cipher) UnmarshalStream(r data.Reader) error {
 	}
 	return nil
 }
-func (e *Cipher) blockIndex(a bool, t, i uint16) byte {
+func (e Cipher) blockIndex(a bool, t, i uint16) byte {
 	switch v := t % 8; {
 	case v == 0 && a:
 		return byte((((t+1)*(1+i+uint16(e.A)*t) + t + 5) / 3) + 4 + (5 * t) + (i / 5))
@@ -400,7 +387,7 @@ func (e *Cipher) Read(r io.Reader, b []byte) (int, error) {
 		return n, nil
 	}
 	if e.pos >= e.total {
-		if o, err := e.readInput(r); err != nil && err != io.EOF || o == 0 {
+		if o, err := e.readInput(r); err != nil && (err != io.EOF || o == 0) {
 			return o, err
 		}
 	}

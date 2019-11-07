@@ -80,32 +80,32 @@ func (l *listener) Close() error {
 	close(l.new)
 	return l.listener.Close()
 }
-func (*conn) LocalAddr() net.Addr {
+func (conn) LocalAddr() net.Addr {
 	return networkEmpty
 }
-func (l *listener) String() string {
+func (l listener) String() string {
 	return fmt.Sprintf("Web: %s", l.listener.Addr().String())
 }
-func (l *listener) Addr() net.Addr {
+func (l listener) Addr() net.Addr {
 	return l.listener.Addr()
 }
-func (*client) LocalAddr() net.Addr {
+func (client) LocalAddr() net.Addr {
 	return networkEmpty
 }
-func (c *conn) RemoteAddr() net.Addr {
+func (c conn) RemoteAddr() net.Addr {
 	return addr(c.reader.RemoteAddr)
 }
-func (c *client) RemoteAddr() net.Addr {
+func (c client) RemoteAddr() net.Addr {
 	return addr(c.host)
+}
+func (conn) SetDeadline(_ time.Time) error {
+	return nil
 }
 func (c *conn) Read(b []byte) (int, error) {
 	return c.reader.Body.Read(b)
 }
 func (c *conn) Write(b []byte) (int, error) {
 	return c.writer.Write(b)
-}
-func (*conn) SetDeadline(_ time.Time) error {
-	return nil
 }
 func (c *client) Read(b []byte) (int, error) {
 	if c.reader == nil {
@@ -119,6 +119,9 @@ func (c *client) Read(b []byte) (int, error) {
 		}
 	}
 	return c.reader.Body.Read(b)
+}
+func (client) SetDeadline(_ time.Time) error {
+	return nil
 }
 func (c *client) Write(b []byte) (int, error) {
 	if c.buf == nil {
@@ -134,16 +137,13 @@ func (l *listener) Accept() (net.Conn, error) {
 		return n, nil
 	}
 }
-func (*client) SetDeadline(_ time.Time) error {
+func (conn) SetReadDeadline(_ time.Time) error {
 	return nil
 }
-func (*conn) SetReadDeadline(_ time.Time) error {
+func (conn) SetWriteDeadline(_ time.Time) error {
 	return nil
 }
-func (*conn) SetWriteDeadline(_ time.Time) error {
-	return nil
-}
-func (*client) SetReadDeadline(_ time.Time) error {
+func (client) SetReadDeadline(_ time.Time) error {
 	return nil
 }
 func (c *client) request() (*http.Response, error) {
@@ -199,7 +199,7 @@ func (c *client) request() (*http.Response, error) {
 	}
 	return o, nil
 }
-func (*client) SetWriteDeadline(_ time.Time) error {
+func (client) SetWriteDeadline(_ time.Time) error {
 	return nil
 }
 func (l *listener) context(_ net.Listener) context.Context {

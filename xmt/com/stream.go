@@ -5,7 +5,7 @@ import (
 	"io"
 	"sort"
 
-	"github.com/iDigitalFlame/xmt/xmt/data"
+	"github.com/iDigitalFlame/xmt/xmt/com/limits"
 	"github.com/iDigitalFlame/xmt/xmt/device"
 	"github.com/iDigitalFlame/xmt/xmt/util"
 )
@@ -25,16 +25,18 @@ var (
 // used to write-on-demand the Packet buffer if a Packet Writer
 // is supplied via the Writer function.
 type Stream struct {
-	ID     uint16
-	Job    uint16
-	Max    int
-	Flags  Flag
-	Device device.ID
+	ID, Job uint16
+	Max     int
+	Flags   Flag
+	Device  device.ID
 
-	last    uint16
-	wrote   uint16
-	writer  writer
-	packets []*Packet
+	last, wrote uint16
+	writer      writer
+	packets     []*Packet
+}
+type writer interface {
+	Write(*Packet)
+	WritePacket(*Packet) error
 }
 
 // Clear discards the underlying buffers, which must be regenerated
@@ -49,7 +51,7 @@ func (s *Stream) Clear() {
 
 // Len returns the number of Packets in the
 // underlying Packet array.
-func (s *Stream) Len() int {
+func (s Stream) Len() int {
 	return len(s.packets)
 }
 
@@ -72,8 +74,10 @@ func (s *Stream) New() *Packet {
 	if s.packets == nil {
 		s.packets = make([]*Packet, 0, 1)
 	} else {
-		s.packets[s.last].Close()
-		s.last++
+		if uint16(len(s.packets)) > s.last {
+			s.packets[s.last].Close()
+			s.last++
+		}
 	}
 	if s.Flags.FragGroup() == 0 {
 		s.Flags.SetFragGroup(uint16(util.Rand.Int()))
@@ -102,24 +106,14 @@ func (s *Stream) Close() error {
 		s.packets[i].Flags.SetFragPosition(uint16(i))
 		s.packets[i].Flags.SetFragTotal(uint16(len(s.packets)))
 	}
+	if len(s.packets) == 1 {
+		s.packets[s.wrote].Flags.ClearFrag()
+	}
 	if s.writer != nil {
 		s.last++
-		s.flushPackets()
+		s.flushPackets(true)
 	}
 	return nil
-}
-func (s *Stream) flushPackets() {
-	if s.writer == nil {
-		return
-	}
-	for s.wrote < s.last {
-		if len(s.packets) == 1 {
-			s.packets[s.wrote].Flags = 0
-		}
-		s.writer.WriteWait(s.packets[s.wrote])
-		s.wrote++
-	}
-	return
 }
 
 // Swap swaps the Packets in the array in the current
@@ -131,8 +125,22 @@ func (s *Stream) Swap(i, j int) {
 // Less returns true if the Frag Position of
 // the Packet is less than the other supplied Packet
 // position.
-func (s *Stream) Less(i, j int) bool {
+func (s Stream) Less(i, j int) bool {
 	return s.packets[i].Flags.FragPosition() < s.packets[j].Flags.FragPosition()
+}
+func (s *Stream) flushPackets(c bool) {
+	if !c && len(s.packets) <= 2 {
+		return
+	}
+	if s.writer == nil {
+		return
+	}
+	for s.wrote < s.last {
+		s.packets[s.wrote].Flags.SetFragTotal(uint16(len(s.packets)))
+		s.writer.Write(s.packets[s.wrote])
+		s.wrote++
+	}
+	return
 }
 
 // Add adds the supplied Packet to the stream array. This
@@ -146,8 +154,12 @@ func (s *Stream) Add(p *Packet) error {
 	if s.packets == nil {
 		s.packets = make([]*Packet, 0, 1)
 	}
-	s.packets = append(s.packets, p)
 	s.last++
+	s.packets = append(s.packets, p)
+	s.Flags.SetFragTotal(p.Flags.FragTotal())
+	if s.Flags.FragPosition() < p.Flags.FragPosition() {
+		s.Flags.SetFragPosition(p.Flags.FragPosition())
+	}
 	sort.Sort(s)
 	return nil
 }
@@ -177,6 +189,18 @@ func (s *Stream) Writer(w writer) error {
 	return nil
 }
 
+// WriteAll attempts to flush all the underlying Packets to the
+// provided writer.
+func (s *Stream) WriteAll(w writer) error {
+	if s.writer != nil {
+		return ErrAlreadyAttached
+	}
+	s.writer = w
+	err := s.Close()
+	s.writer = nil
+	return err
+}
+
 // Read fulfills the io.Reader interface. This function will
 // return ErrWriterAttached if a Packet Writer is attached.
 func (s *Stream) Read(b []byte) (int, error) {
@@ -188,13 +212,19 @@ func (s *Stream) Read(b []byte) (int, error) {
 	}
 	var n int
 	var p *Packet
-	for ; n < len(b); s.wrote++ {
+	for n < len(b) {
 		if s.wrote >= uint16(len(s.packets)) {
-			return n, nil
+			return n, io.EOF
 		}
 		p = s.packets[s.wrote]
-		p.rpos = copy(b[n:], p.buf[p.rpos:])
-		n += p.rpos
+		i, err := p.Read(b[n:])
+		if i == 0 || err == io.EOF {
+			s.wrote++
+		}
+		n += i
+		if err != nil && err != io.EOF {
+			return n, err
+		}
 	}
 	return n, nil
 }
@@ -212,11 +242,11 @@ func (s *Stream) Write(b []byte) (int, error) {
 	if s.Max <= -1 {
 		return p.Write(b)
 	} else if s.Max == 0 {
-		s.Max = data.DataLimitMedium
+		s.Max = limits.FragLimit()
 	}
 	if p.Size() >= s.Max {
 		p = s.New()
-		s.flushPackets()
+		s.flushPackets(false)
 	}
 	if len(b) < s.Max {
 		return p.Write(b)
@@ -236,7 +266,7 @@ func (s *Stream) Write(b []byte) (int, error) {
 		n += v
 		if n < len(b) {
 			p = s.New()
-			s.flushPackets()
+			s.flushPackets(false)
 		}
 	}
 	return n, nil
