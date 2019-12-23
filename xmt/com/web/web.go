@@ -64,7 +64,7 @@ type Server struct {
 	ctx     context.Context
 	tls     *tls.Config
 	dial    *net.Dialer
-	lock    *sync.RWMutex
+	lock    sync.RWMutex
 	rules   []*Rule
 	cancel  context.CancelFunc
 	handler *http.ServeMux
@@ -169,7 +169,7 @@ func NewTLS(t time.Duration, c *tls.Config) *Server {
 			KeepAlive: t,
 			DualStack: true,
 		},
-		lock:    &sync.RWMutex{},
+		lock:    sync.RWMutex{},
 		rules:   make([]*Rule, 0),
 		handler: &http.ServeMux{},
 	}

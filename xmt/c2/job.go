@@ -3,8 +3,9 @@ package c2
 import (
 	"context"
 	"fmt"
+	"time"
 
-	"github.com/iDigitalFlame/xmt/xmt/c2/action"
+	"github.com/iDigitalFlame/xmt/xmt/c2/control"
 	"github.com/iDigitalFlame/xmt/xmt/com"
 	"github.com/iDigitalFlame/xmt/xmt/util"
 )
@@ -14,9 +15,10 @@ import (
 // callbacks that can be used to watch for completion and also
 // offers a Wait function to pause execution until a response is received.
 type Job struct {
-	ID          uint16
-	Result      *com.Packet
-	Done, Error func(*Session, *com.Packet)
+	ID              uint16
+	Done, Error     func(*Session, *com.Packet)
+	Result, Initial *com.Packet
+	Start, Complete time.Time
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -27,37 +29,35 @@ type muxServer struct {
 	controller *Server
 }
 
-// NewJob creates a new Job struct and initializes the context and
-// cancel objects inside. The provided uint16 is the Job ID.
-func NewJob(i uint16) *Job {
-	return NewJobContext(context.Background(), i)
+// Wait will block until the Job is completed or the
+// parent Controller is shutdown.
+func (j *Job) Wait() {
+	if j.ctx.Err() != nil {
+		return
+	}
+	<-j.ctx.Done()
+}
+
+// IsDone returns true when the Job has received a response.
+func (j *Job) IsDone() bool {
+	return j.ctx.Err() != nil
 }
 func (muxClient) Handle(s *Session, p *com.Packet) {
 	s.controller.Log.Debug("[%s:Mux] Received packet \"%s\"...", s.ID, p.String())
 	switch p.ID {
 	case MsgUpload:
-		Process(action.Upload, s, p)
+		Process(control.Upload, s, p)
 	case MsgRefresh:
-		Process(action.Refresh, s, p)
+		Process(control.Refresh, s, p)
 	case MsgExecute:
-		Process(action.Execute, s, p)
+		Process(control.Execute, s, p)
 	case MsgDownload:
-		Process(action.Download, s, p)
+		Process(control.Download, s, p)
 	case MsgProcesses:
-		Process(action.ProcessList, s, p)
+		Process(control.ProcessList, s, p)
 	case MsgHello, MsgPing, MsgSleep, MsgRegistered:
 		return
 	}
-}
-
-// NewJobContext creates a new Job struct and initializes the context and
-// cancel objects inside. The provided uint16 is the Job ID and the context
-// is the parent context, which will be used to cancel the Job if the parent
-// cancels.
-func NewJobContext(x context.Context, i uint16) *Job {
-	j := &Job{ID: i}
-	j.ctx, j.cancel = context.WithCancel(x)
-	return j
 }
 func (m *muxServer) Handle(s *Session, p *com.Packet) {
 	if s == nil {
@@ -70,6 +70,8 @@ func (m *muxServer) Handle(s *Session, p *com.Packet) {
 	}
 	m.controller.Log.Trace("[%s:Mux] Received response for Job ID %d.", p.Device, j.ID)
 	j.Result = p
+	j.Complete = time.Now()
+	j.cancel()
 	if p.Flags&com.FlagError != 0 && j.Error != nil {
 		m.controller.events <- &callback{
 			packet:     p,
@@ -84,7 +86,6 @@ func (m *muxServer) Handle(s *Session, p *com.Packet) {
 		}
 	}
 	delete(m.active, j.ID)
-	j.cancel()
 }
 func (m *muxServer) Schedule(s *Session, p *com.Packet) (*Job, error) {
 	if p.Job == 0 {
@@ -96,21 +97,29 @@ func (m *muxServer) Schedule(s *Session, p *com.Packet) (*Job, error) {
 	if err := s.WritePacket(p); err != nil {
 		return nil, err
 	}
-	j := NewJobContext(m.controller.ctx, p.Job)
+	j := &Job{
+		ID:      p.Job,
+		Start:   time.Now(),
+		Initial: p,
+	}
+	j.ctx, j.cancel = context.WithCancel(m.controller.ctx)
 	m.active[p.Job] = j
 	return j, nil
 }
 
 /*
-func (m muxClientDefault) server(s *Session, p *com.Packet) {
-	fmt.Printf("srv %s: %s\n", s, p)
-	if p.Flags&com.FlagError != 0 {
-		v, _ := p.StringVal()
-		fmt.Printf("error: %s\n", v)
-	} else {
-
-		b := make([]byte, 8096)
-		n, err := p.Read(b)
-		fmt.Printf("Payload %d %s:\n%s\n", n, err, b)
-	}
+// NewJobContext creates a new Job struct and initializes the context and
+// cancel objects inside. The provided uint16 is the Job ID and the context
+// is the parent context, which will be used to cancel the Job if the parent
+// cancels.
+func NewJobContext(x context.Context, i uint16) *Job {
+	j := &Job{ID: i}
+	j.ctx, j.cancel = context.WithCancel(x)
+	return j
+} */
+/*
+// NewJob creates a new Job struct and initializes the context and
+// cancel objects inside. The provided uint16 is the Job ID.
+func NewJob(i uint16) *Job {
+	return NewJobContext(context.Background(), i)
 }*/

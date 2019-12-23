@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/iDigitalFlame/xmt/xmt/data"
+	data "github.com/iDigitalFlame/xmt/xmt-data"
 )
 
 var (
@@ -86,7 +86,7 @@ func (i Interface) String() string {
 }
 
 // MarshalStream writes the data of this Network to the supplied Writer.
-func (n *Network) MarshalStream(w data.Writer) error {
+func (n Network) MarshalStream(w data.Writer) error {
 	l := uint8(len(*n))
 	if err := w.WriteUint8(l); err != nil {
 		return err
@@ -116,7 +116,7 @@ func (n *Network) UnmarshalStream(r data.Reader) error {
 }
 
 // MarshalStream writes the data of this Interface to the supplied Writer.
-func (i *Interface) MarshalStream(w data.Writer) error {
+func (i Interface) MarshalStream(w data.Writer) error {
 	if err := w.WriteString(i.Name); err != nil {
 		return err
 	}

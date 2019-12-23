@@ -16,6 +16,13 @@ const (
 	DefaultSource int64 = 0x123456789F
 )
 
+// Source is an interface that supports seed assistance in Ciphers and other
+// cryptographic functions.
+type Source interface {
+	Reset() error
+	Next(uint16) uint16
+}
+
 // MultiSource is a struct that is a random Source that can use multiple
 // source providers and spreads the calls among them in a random manner.
 type MultiSource struct {
@@ -76,6 +83,8 @@ func NewSourceEx(rounds int, seed interface{}) rand.Source {
 	switch seed.(type) {
 	case int:
 		s = int64(seed.(int))
+	case byte:
+		s = int64(seed.(byte))
 	case bool:
 		if seed.(bool) {
 			s = 1

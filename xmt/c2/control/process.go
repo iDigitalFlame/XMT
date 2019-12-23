@@ -1,4 +1,4 @@
-package action
+package control
 
 import (
 	"context"
@@ -7,10 +7,10 @@ import (
 	"os/exec"
 	"time"
 
-	ps "github.com/shirou/gopsutil/process"
-
 	"github.com/iDigitalFlame/xmt/xmt/com"
 	"github.com/iDigitalFlame/xmt/xmt/data"
+
+	ps "github.com/shirou/gopsutil/process"
 )
 
 type list uint16
@@ -49,6 +49,12 @@ func (execute) Thread() bool {
 }
 func (l list) List() *com.Packet {
 	return l.ListEx(false)
+}
+
+// Run encodes the specified command into a packet for sending
+// to a client to be executed.
+func Run(c *Command) *com.Packet {
+	return Execute.Run(c)
 }
 func (l list) ListAll() *com.Packet {
 	return l.ListEx(true)

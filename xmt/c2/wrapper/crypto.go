@@ -20,7 +20,6 @@ var (
 	// to any of the New* functions when the arguments are nil or
 	// empty.
 	ErrInvalid = errors.New("provided crypto arguments cannot be nil")
-
 	// ErrInvalidRead is an error that is returned when the attempted writer
 	// returned from a Read function is not valid as a c2.Writer. This error can be
 	// returned during the last sanity checks.

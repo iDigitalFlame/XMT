@@ -4,7 +4,7 @@ import (
 	"crypto/cipher"
 	"io"
 
-	"github.com/iDigitalFlame/xmt/xmt/data"
+	data "github.com/iDigitalFlame/xmt/xmt-data"
 )
 
 type reader struct {
@@ -14,13 +14,6 @@ type reader struct {
 type writer struct {
 	w io.Writer
 	c Writer
-}
-
-// Source is an interface that supports seed assistance in Ciphers and other
-// cryptographic functions.
-type Source interface {
-	Reset() error
-	Next(uint16) uint16
 }
 
 // Reader is an interface that supports reading bytes from a Reader through

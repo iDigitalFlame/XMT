@@ -9,18 +9,18 @@ import (
 
 	"github.com/iDigitalFlame/logx/logx"
 	"github.com/iDigitalFlame/xmt/xmt/c2"
-	"github.com/iDigitalFlame/xmt/xmt/c2/action"
+	"github.com/iDigitalFlame/xmt/xmt/c2/control"
 	"github.com/iDigitalFlame/xmt/xmt/c2/transform"
 	"github.com/iDigitalFlame/xmt/xmt/c2/wrapper"
 	"github.com/iDigitalFlame/xmt/xmt/com"
 	"github.com/iDigitalFlame/xmt/xmt/com/limits"
 	"github.com/iDigitalFlame/xmt/xmt/com/tcp"
 	"github.com/iDigitalFlame/xmt/xmt/com/web"
-	"github.com/iDigitalFlame/xmt/xmt/crypto/xor"
+	"github.com/iDigitalFlame/xmt/xmt/crypto/cbk"
 	"github.com/iDigitalFlame/xmt/xmt/util"
 )
 
-func main() {
+func main1() {
 
 	testWebC2()
 }
@@ -33,11 +33,12 @@ func testWebC2() {
 		Host: util.Matcher("%6fl.myblogsite.com"),
 	}
 
+	c1, c2 := cbk.NewCipher(75), cbk.NewCipher(75)
+	c1.A, c1.B, c1.C, c1.D = 99, 10, 45, 17
+	c2.A, c2.B, c2.C, c2.D = 99, 10, 45, 17
+
 	g, _ := wrapper.NewGzip(7)
-	x, _ := wrapper.NewCrypto(
-		xor.Cipher("this is a key"),
-		xor.Cipher("this is a key"),
-	)
+	x, _ := wrapper.NewCrypto(c1, c2)
 
 	p := &c2.Profile{
 		Sleep:     time.Duration(5) * time.Second,
@@ -72,7 +73,7 @@ func testWebC2() {
 		time.Sleep(5 * time.Second)
 
 		for _, v := range c.Sessions() {
-			c, err := action.Download.Bytes("/tmp/what1.txt", []byte("This is my special string!\n"))
+			c, err := control.Download.Bytes("/tmp/what1.txt", []byte("This is my special string!\n"))
 			if err != nil {
 				panic(err)
 			}
@@ -97,7 +98,7 @@ func testWebC2() {
 		time.Sleep(5 * time.Second)
 
 		for _, v := range c.Sessions() {
-			c := action.ProcessList.List()
+			c := control.ProcessList.List()
 			j, err := c2.Controller.Mux.Schedule(v, c)
 			if err != nil {
 				panic(err)
@@ -119,7 +120,7 @@ func testWebC2() {
 		time.Sleep(5 * time.Second)
 
 		for _, v := range c.Sessions() {
-			c := action.Execute.Run(&action.Command{
+			c := control.Run(&control.Command{
 				Args: []string{"ls", "-al", "/"},
 			})
 			j, err := c2.Controller.Mux.Schedule(v, c)

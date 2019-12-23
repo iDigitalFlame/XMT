@@ -1,4 +1,4 @@
-package action
+package control
 
 import (
 	"context"
@@ -38,7 +38,6 @@ type refresh uint16
 // and processing Packet command functions.
 type Action interface {
 	Thread() bool
-	//Result(*Session, data.Reader) (string, error)
 	Execute(Session, data.Reader, data.Writer) error
 }
 
@@ -67,8 +66,8 @@ type Session interface {
 func (refresh) Thread() bool {
 	return false
 }
-func (refresh) Do(s Session) error {
-	return s.WritePacket(&com.Packet{ID: uint16(Refresh)})
+func (r refresh) Do(s Session) error {
+	return s.WritePacket(&com.Packet{ID: uint16(r)})
 }
 func (refresh) Execute(_ Session, _ data.Reader, w data.Writer) error {
 	if err := device.Local.Refresh(); err != nil {

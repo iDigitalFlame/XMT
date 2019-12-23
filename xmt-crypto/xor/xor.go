@@ -4,7 +4,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/iDigitalFlame/xmt/xmt/data"
+	data "github.com/iDigitalFlame/xmt/xmt-data"
 )
 
 var (

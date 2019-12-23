@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/denisbrodbeck/machineid"
-	"github.com/iDigitalFlame/xmt/xmt/data"
+	data "github.com/iDigitalFlame/xmt/xmt-data"
 )
 
 const (
@@ -205,8 +205,8 @@ func IDFromString(s string) (ID, error) {
 }
 
 // MarshalStream writes the data of this ID to the supplied Writer.
-func (i *ID) MarshalStream(w data.Writer) error {
-	_, err := w.Write(*i)
+func (i ID) MarshalStream(w data.Writer) error {
+	_, err := w.Write(i)
 	return err
 }
 

@@ -1,6 +1,6 @@
 package c2
 
-import "github.com/iDigitalFlame/xmt/xmt/c2/action"
+import "github.com/iDigitalFlame/xmt/xmt/c2/control"
 
 // Packet Message ID Constants.  Used for
 // reference.
@@ -15,11 +15,12 @@ const (
 	MsgShutdown   = 0xFE04
 	MsgRegistered = 0xFE06
 
-	MsgUpload    = uint16(action.Upload)
-	MsgRefresh   = uint16(action.Refresh)
-	MsgExecute   = uint16(action.Execute)
-	MsgDownload  = uint16(action.Download)
-	MsgProcesses = uint16(action.ProcessList)
+	// Actions
+	MsgUpload    = uint16(control.Upload)
+	MsgRefresh   = uint16(control.Refresh)
+	MsgExecute   = uint16(control.Execute)
+	MsgDownload  = uint16(control.Download)
+	MsgProcesses = uint16(control.ProcessList)
 
 	MsgProxy = 0xFE11 // registry required
 	MsgSpawn = 0xFE12 // registry required

@@ -4,13 +4,14 @@ import (
 	"os"
 	"os/user"
 
-	"github.com/iDigitalFlame/xmt/xmt/data"
-	"github.com/iDigitalFlame/xmt/xmt/device/compat"
+	data "github.com/iDigitalFlame/xmt/xmt-data"
+	compat "github.com/iDigitalFlame/xmt/xmt-device/compat"
 )
 
 var (
 	// Shell is the default machine specific command shell.
 	Shell = compat.Shell()
+
 	// Local is the pointer to the local
 	// machine instance. This instance is loaded at
 	// runtime and is used for local data gathering.
@@ -27,8 +28,10 @@ var (
 			Elevated: compat.Elevated(),
 		},
 	}
+
 	// Newline is the machine specific newline character.
 	Newline = compat.Newline()
+
 	// ShellArgs is the default machine specific command shell
 	// arguments to run commands.
 	ShellArgs = compat.ShellArgs()
@@ -79,7 +82,7 @@ func (l *localMachine) Refresh() error {
 }
 
 // MarshalStream writes the data of this Machine from the supplied Writer.
-func (m *Machine) MarshalStream(w data.Writer) error {
+func (m Machine) MarshalStream(w data.Writer) error {
 	if err := m.ID.MarshalStream(w); err != nil {
 		return err
 	}

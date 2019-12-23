@@ -22,7 +22,6 @@ var (
 	// ErrInvalidPacketID is a error returned inside the client thread when the received packet
 	// ID does not match the client ID and does not match any proxy client connected.
 	ErrInvalidPacketID = errors.New("received a Packet ID that does not match our own ID")
-
 	// ErrInvalidPacketCount is returned when attempting to read a packet marked
 	// as multi or frag an the total count returned is zero.
 	ErrInvalidPacketCount = errors.New("frag total is zero on a multi or frag packet")

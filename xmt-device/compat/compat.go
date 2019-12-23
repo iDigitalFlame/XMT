@@ -1,5 +1,12 @@
 package compat
 
+// This package is used for cross-device compatibility.
+// It is recommended to not use this package for direct calls.
+// The device and local packages will transparently use this package for most calls.
+// This package does not cache any results, so multiple calls to compat.Elevated will
+// preform multiple checks while local.Elevated will only preform the first check and
+// cache the rest.
+
 import "errors"
 
 var (

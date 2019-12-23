@@ -9,13 +9,14 @@ import (
 	"math/rand"
 	"sync"
 
-	"github.com/iDigitalFlame/xmt/xmt/data"
+	data "github.com/iDigitalFlame/xmt/xmt-data"
 )
 
 const (
 	// CbkID is the integer value used to represent
 	// this Cipher when written to or read from a stream.
 	CbkID uint8 = 0xC3
+
 	// BlockSize is the default block buffer size of this Cipher.
 	BlockSize = 16
 	// BlockSizeMax is the maximum block buffer size of this Cipher
@@ -26,6 +27,7 @@ var (
 	// ErrSize is returned when an array is read that does not contain enough slots for keys
 	// which is three.
 	ErrSize = errors.New("byte array size must be greather than or equal to three (3)")
+
 	// ErrBlockSize is an error returned when an invalid value for the block size is given
 	// when creating the Cipher.
 	ErrBlockSize = errors.New("block size must be between 16 and 128 and a power of two")

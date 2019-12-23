@@ -1,7 +1,7 @@
 package c2
 
 import (
-	"github.com/iDigitalFlame/xmt/xmt/c2/action"
+	"github.com/iDigitalFlame/xmt/xmt/c2/control"
 	"github.com/iDigitalFlame/xmt/xmt/com"
 	"github.com/iDigitalFlame/xmt/xmt/com/limits"
 )
@@ -78,14 +78,14 @@ func (m MuxFunc) Handle(s *Session, p *com.Packet) {
 
 // Process runs the Execute function of the supplied Action and sends the
 // results back to the provided Session via Packet Stream.
-func Process(a action.Action, s *Session, p *com.Packet) {
+func Process(a control.Action, s *Session, p *com.Packet) {
 	if a.Thread() {
 		go processAction(a, s, p)
 	} else {
 		processAction(a, s, p)
 	}
 }
-func processAction(a action.Action, s *Session, p *com.Packet) {
+func processAction(a control.Action, s *Session, p *com.Packet) {
 	o := &com.Stream{
 		ID:     MsgResult,
 		Job:    p.Job,

@@ -13,7 +13,6 @@ var (
 		Large:  1024,
 		Medium: 512,
 	}
-
 	// Small provides the small values for buffers and size.
 	Small = &Limit{
 		Frag:   512,
@@ -21,7 +20,6 @@ var (
 		Large:  2048,
 		Medium: 1024,
 	}
-
 	// Medium provides the most efficient values for buffers
 	// and size. This is the default value for limits.
 	Medium = &Limit{
@@ -30,7 +28,6 @@ var (
 		Large:  4096,
 		Medium: 2048,
 	}
-
 	// Large provides the largest buffer and limit sizes. This is best for
 	// the fastest transfer rates, but will increase the detection rate.
 	Large = &Limit{

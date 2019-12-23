@@ -43,7 +43,6 @@ var (
 	// ErrEmptyPacket is a error returned by the Connect function when
 	// the expected return result from the server was invalid or not expected.
 	ErrEmptyPacket = errors.New("server sent an invalid response")
-
 	// ErrNoConnector is a error returned by the Connect  and Listen functions when
 	// the Connector is nil and the provided Profile is also nil or does not inherit
 	// the Connector interface.
@@ -341,4 +340,21 @@ func (s *Server) ConnectWith(a string, v com.Connector, p *Profile, d *com.Packe
 	s.Log.Debug("[%s] Client connected to \"%s\"...", n.ID, a)
 	go n.listen()
 	return n, nil
+}
+
+// Schedule will instruct the session with the specified command on the
+// Client's next check-in. This function will return a Job struct that can be used to manage
+// and monitor the results.
+func Schedule(s *Session, p *com.Packet) (*Job, error) {
+	if Controller == nil {
+		Controller = NewServer(name, logx.NewConsole(DefaultLogLevel))
+	}
+	return Controller.Schedule(s, p)
+}
+
+// Schedule will instruct the session with the specified command on the
+// Client's next check-in. This function will return a Job struct that can be used to manage
+// and monitor the results.
+func (s *Server) Schedule(x *Session, p *com.Packet) (*Job, error) {
+	return s.Mux.Schedule(x, p)
 }

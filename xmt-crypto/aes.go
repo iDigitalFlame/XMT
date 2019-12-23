@@ -5,7 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/des"
 
-	"github.com/iDigitalFlame/xmt/xmt/data"
+	data "github.com/iDigitalFlame/xmt/xmt-data"
 )
 
 const (
@@ -100,7 +100,7 @@ func NewAes(k []byte) (cipher.Block, error) {
 }
 
 // MarshalStream allows this Cipher to be written to a stream.
-func (c *Block) MarshalStream(w data.Writer) error {
+func (c Block) MarshalStream(w data.Writer) error {
 	if err := w.WriteUint8(c.ID); err != nil {
 		return err
 	}
