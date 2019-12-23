@@ -83,8 +83,6 @@ func NewSourceEx(rounds int, seed interface{}) rand.Source {
 	switch seed.(type) {
 	case int:
 		s = int64(seed.(int))
-	case byte:
-		s = int64(seed.(byte))
 	case bool:
 		if seed.(bool) {
 			s = 1

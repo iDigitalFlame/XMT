@@ -41,10 +41,10 @@ func (m *Multi) MarshalStream(w data.Writer) error {
 		return err
 	}
 	var ok bool
-	var o data.Writable
+	var o data.Writeable
 	for x := range m.list {
-		if o, ok = m.list[x].(data.Writable); !ok {
-			return fmt.Errorf("wrapper \"%T\" does not support the \"data.Writable\" interface", m.list[x])
+		if o, ok = m.list[x].(data.Writeable); !ok {
+			return fmt.Errorf("wrapper \"%T\" does not support the \"data.Writeable\" interface", m.list[x])
 		}
 		if err := o.MarshalStream(w); err != nil {
 			return err

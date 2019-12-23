@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	// CbkID is the integer value used to represent
+	// ID is the integer value used to represent
 	// this Cipher when written to or read from a stream.
-	CbkID uint8 = 0xC3
+	ID uint8 = 0xC3
 
 	// BlockSize is the default block buffer size of this Cipher.
 	BlockSize = 16
@@ -244,7 +244,7 @@ func (e *Cipher) scramble(b []byte, d bool) {
 
 // MarshalStream allows this Cipher to be written to a stream.
 func (e *Cipher) MarshalStream(w data.Writer) error {
-	if err := w.WriteUint8(CbkID); err != nil {
+	if err := w.WriteUint8(ID); err != nil {
 		return err
 	}
 	b := bufs.Get().([]byte)

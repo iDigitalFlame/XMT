@@ -122,7 +122,7 @@ func NewTrippleDes(k []byte) (cipher.Block, error) {
 	}}, nil
 }
 
-// Wrap creates a writable Block cipher from the specified
+// Wrap creates a Writeable Block cipher from the specified
 // ID, key and cipher.Block. This wrapping allows the block to be
 // written to a stream when the enclosing wrapper is also written.
 // Be sure to register the ID using the wrapper.Register function

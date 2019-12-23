@@ -87,12 +87,12 @@ func (i Interface) String() string {
 
 // MarshalStream writes the data of this Network to the supplied Writer.
 func (n Network) MarshalStream(w data.Writer) error {
-	l := uint8(len(*n))
+	l := uint8(len(n))
 	if err := w.WriteUint8(l); err != nil {
 		return err
 	}
 	for x := uint8(0); x < l; x++ {
-		if err := (*n)[x].MarshalStream(w); err != nil {
+		if err := n[x].MarshalStream(w); err != nil {
 			return err
 		}
 	}

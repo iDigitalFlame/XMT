@@ -10,9 +10,9 @@ package compat
 import "errors"
 
 var (
-	// ErrNoRegistry is an error that is returned when attempting to access the registry
-	// on a machine that is not running Windows.
-	ErrNoRegistry = errors.New("registry support is only avaliable on Windows")
+	// ErrNotWindows is an error that is returned when attempting to access Windows specific
+	// functions on a machine that is not running Windows.
+	ErrNotWindows = errors.New("support is only avaliable on Windows")
 	// ErrInvalidPrefix is an error returned when attempting to get registry data using
 	// an invalid Registry top level key prefix.
 	ErrInvalidPrefix = errors.New("cannot find the specified key prefix")
@@ -64,4 +64,12 @@ func Newline() string {
 // efficient way.
 func ShellArgs() []string {
 	return args
+}
+
+func Inject(p int, b []byte) (uintptr, error) {
+	return 0, nil
+}
+
+func Parent(p int, s []string) (int32, error) {
+	return 0, nil
 }

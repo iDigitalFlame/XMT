@@ -78,5 +78,5 @@ func getVersion() string {
 func modifyCommand(e *exec.Cmd) {
 }
 func getRegistry(s, v string) (*bytes.Reader, bool, error) {
-	return nil, false, ErrNoRegistry
+	return nil, false, ErrNotWindows
 }

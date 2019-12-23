@@ -40,9 +40,9 @@ func (c *cipherBlock) MarshalStream(w data.Writer) error {
 		return err
 	}
 	if c.block != nil {
-		b, ok := c.block.(data.Writable)
+		b, ok := c.block.(data.Writeable)
 		if !ok {
-			return fmt.Errorf("crypto block \"%T\" does not support the \"data.Writable\" interface", c.block)
+			return fmt.Errorf("crypto block \"%T\" does not support the \"data.Writeable\" interface", c.block)
 		}
 		if err := b.MarshalStream(w); err != nil {
 			return err
@@ -78,9 +78,9 @@ func (c *cipherWrapper) MarshalStream(w data.Writer) error {
 		return err
 	}
 	if c.r != nil {
-		i, ok := c.r.(data.Writable)
+		i, ok := c.r.(data.Writeable)
 		if !ok {
-			return fmt.Errorf("crypto reader \"%T\" does not support the \"data.Writable\" interface", c.r)
+			return fmt.Errorf("crypto reader \"%T\" does not support the \"data.Writeable\" interface", c.r)
 		}
 		if err := i.MarshalStream(w); err != nil {
 			return err
@@ -91,9 +91,9 @@ func (c *cipherWrapper) MarshalStream(w data.Writer) error {
 		}
 	}
 	if c.w != nil {
-		o, ok := c.w.(data.Writable)
+		o, ok := c.w.(data.Writeable)
 		if !ok {
-			return fmt.Errorf("crypto reader \"%T\" does not support the \"data.Writable\" interface", c.w)
+			return fmt.Errorf("crypto reader \"%T\" does not support the \"data.Writeable\" interface", c.w)
 		}
 		if err := o.MarshalStream(w); err != nil {
 			return err

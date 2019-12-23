@@ -41,11 +41,9 @@ const (
 	// IDSize is the amount of bytes used to store the Host ID and
 	// SessionID values.  The ID is the (HostID + SessionID).
 	IDSize = 32
-
 	// SmallIDSize is the amount of bytes used for printing the Host ID
 	// value using the ID function.
 	SmallIDSize = MachineIDSize
-
 	// MachineIDSize is the amount of bytes that is used as the Host
 	// specific ID value that does not change when on the same host.
 	MachineIDSize = 28
@@ -147,7 +145,6 @@ func Expand(s string) string {
 				}
 			}
 		}
-		return s
 	}
 	return s
 }

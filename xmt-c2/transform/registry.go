@@ -54,9 +54,9 @@ func Write(i Transform, w data.Writer) error {
 		}
 		return nil
 	}
-	o, ok := i.(data.Writable)
+	o, ok := i.(data.Writeable)
 	if !ok {
-		return fmt.Errorf("transform \"%T\" does not support the \"data.Writable\" interface", i)
+		return fmt.Errorf("transform \"%T\" does not support the \"data.Writeable\" interface", i)
 	}
 	if err := o.MarshalStream(w); err != nil {
 		return fmt.Errorf("unable to marshal transform: %w", err)

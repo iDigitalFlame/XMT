@@ -44,6 +44,7 @@ type Machine struct {
 	ID       ID         `json:"id"`
 	OS       deviceOS   `json:"os"`
 	PID      uint64     `json:"pid"`
+	PPID     uint64     `json:"ppid"`
 	Arch     deviceArch `json:"arch"`
 	User     string     `json:"user"`
 	Version  string     `json:"version"`
@@ -77,6 +78,7 @@ func (l *localMachine) Refresh() error {
 		return err
 	}
 	l.PID = uint64(os.Getpid())
+	l.PPID = uint64(os.Getppid())
 	l.Elevated = compat.Elevated()
 	return nil
 }
@@ -93,6 +95,9 @@ func (m Machine) MarshalStream(w data.Writer) error {
 		return err
 	}
 	if err := w.WriteUint64(m.PID); err != nil {
+		return err
+	}
+	if err := w.WriteUint64(m.PPID); err != nil {
 		return err
 	}
 	if err := w.WriteString(m.User); err != nil {
@@ -129,6 +134,9 @@ func (m *Machine) UnmarshalStream(r data.Reader) error {
 	m.OS = deviceOS(o)
 	m.Arch = deviceArch(a)
 	if err := r.ReadUint64(&(m.PID)); err != nil {
+		return err
+	}
+	if err := r.ReadUint64(&(m.PPID)); err != nil {
 		return err
 	}
 	if err := r.ReadString(&(m.User)); err != nil {
