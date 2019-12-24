@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/iDigitalFlame/xmt/xmt-com/limits"
-	"github.com/iDigitalFlame/xmt/xmt-com/tcp"
-	util "github.com/iDigitalFlame/xmt/xmt-util"
+	"github.com/iDigitalFlame/xmt/com/limits"
+	"github.com/iDigitalFlame/xmt/com/tcp"
+	"github.com/iDigitalFlame/xmt/util"
 )
 
 var (

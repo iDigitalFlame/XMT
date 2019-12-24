@@ -7,13 +7,11 @@ import (
 	"strings"
 	"time"
 
-	com "github.com/iDigitalFlame/xmt/xmt-com"
-	"github.com/iDigitalFlame/xmt/xmt-com/limits"
+	"github.com/iDigitalFlame/xmt/com"
+	"github.com/iDigitalFlame/xmt/com/limits"
 )
 
-var (
-	ipInfoSize = 20
-)
+var ipInfoSize = 20
 
 type raw struct {
 	*stream

@@ -5,12 +5,10 @@ import (
 	"net"
 )
 
-var (
-	// ErrInvalidNetwork is an error returned from the NewStreamConnector function
-	// when a non-stream network is used, or the NewChunkConnector function when a stream
-	// network is used.
-	ErrInvalidNetwork = errors.New("invalid network type")
-)
+// ErrInvalidNetwork is an error returned from the NewStreamConnector function
+// when a non-stream network is used, or the NewChunkConnector function when a stream
+// network is used.
+var ErrInvalidNetwork = errors.New("invalid network type")
 
 // Server is an interface that is used to Listen on a specific protocol
 // for client connections.  The Listener does not take any actions on the clients

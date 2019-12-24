@@ -17,13 +17,11 @@ const (
 	networkEmpty = addr("")
 )
 
-var (
-	bufs = &sync.Pool{
-		New: func() interface{} {
-			return new(bytes.Buffer)
-		},
-	}
-)
+var bufs = &sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
 
 type addr string
 type conn struct {

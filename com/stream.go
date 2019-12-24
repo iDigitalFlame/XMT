@@ -5,9 +5,9 @@ import (
 	"io"
 	"sort"
 
-	"github.com/iDigitalFlame/xmt/xmt-com/limits"
-	device "github.com/iDigitalFlame/xmt/xmt-device"
-	util "github.com/iDigitalFlame/xmt/xmt-util"
+	"github.com/iDigitalFlame/xmt/com/limits"
+	"github.com/iDigitalFlame/xmt/device"
+	"github.com/iDigitalFlame/xmt/util"
 )
 
 var (

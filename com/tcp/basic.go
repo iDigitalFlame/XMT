@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	com "github.com/iDigitalFlame/xmt/xmt-com"
+	"github.com/iDigitalFlame/xmt/com"
 )
 
 type conn struct {

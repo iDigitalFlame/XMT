@@ -4,7 +4,7 @@ import (
 	"io"
 	"math"
 
-	data "github.com/iDigitalFlame/xmt/xmt-data"
+	"github.com/iDigitalFlame/xmt/data"
 )
 
 // Int reads the value from the Packet payload buffer.

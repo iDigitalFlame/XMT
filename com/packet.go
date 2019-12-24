@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 
-	data "github.com/iDigitalFlame/xmt/xmt-data"
-	device "github.com/iDigitalFlame/xmt/xmt-device"
-	util "github.com/iDigitalFlame/xmt/xmt-util"
+	"github.com/iDigitalFlame/xmt/data"
+	"github.com/iDigitalFlame/xmt/device"
+	"github.com/iDigitalFlame/xmt/util"
 )
 
 const (

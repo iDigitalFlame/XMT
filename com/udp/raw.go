@@ -5,9 +5,7 @@ import (
 	"time"
 )
 
-const (
-	network = "udp"
-)
+const network = "udp"
 
 var (
 	// Raw is the UDP Raw connector.  This connector uses raw UDP

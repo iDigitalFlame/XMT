@@ -3,7 +3,7 @@ package com
 import (
 	"math"
 
-	data "github.com/iDigitalFlame/xmt/xmt-data"
+	"github.com/iDigitalFlame/xmt/data"
 )
 
 const (

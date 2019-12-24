@@ -1,0 +1,6 @@
+github.com/denisbrodbeck/machineid v1.0.1 h1:geKr9qtkB876mXguW2X6TU4ZynleN6ezuMSRhl4D7AQ=
+github.com/denisbrodbeck/machineid v1.0.1/go.mod h1:dJUwb7PTidGDeYyUBmXZ2GphQBbjJCrnectwCyxcUSI=
+github.com/iDigitalFlame/xmt/data v0.0.0-20191224215008-426a241549af h1:bIAh+JPyJmKxUyqySJSr+QYurJYiMMEcc5KslgWTPB0=
+github.com/iDigitalFlame/xmt/data v0.0.0-20191224215008-426a241549af/go.mod h1:Dg1mak0VqK1OO1uoZFhWI02Z5OeIpYEOGXnYxvyymCo=
+golang.org/x/sys v0.0.0-20191224085550-c709ea063b76 h1:Dho5nD6R3PcW2SH1or8vS0dszDaXRxIw55lBX7XiE5g=
+golang.org/x/sys v0.0.0-20191224085550-c709ea063b76/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=

@@ -7,9 +7,7 @@ import (
 	"time"
 )
 
-const (
-	network = "tcp"
-)
+const network = "tcp"
 
 var (
 	// Raw is the TCP Raw provider. This provider uses raw TCP
