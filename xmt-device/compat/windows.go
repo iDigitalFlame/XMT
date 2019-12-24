@@ -85,7 +85,7 @@ func getVersion() string {
 	return ""
 }
 func modifyCommand(e *exec.Cmd) {
-	if strings.HasSuffix(e.Args[0], "cmd.exe") {
+	if strings.HasSuffix(e.Args[0], "cmd.exe") && e.SysProcAttr == nil {
 		e.SysProcAttr = &syscall.SysProcAttr{
 			CmdLine:       strings.Join(e.Args, " "),
 			HideWindow:    false,

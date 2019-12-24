@@ -15,7 +15,7 @@ var (
 	// Local is the pointer to the local
 	// machine instance. This instance is loaded at
 	// runtime and is used for local data gathering.
-	Local = &localMachine{
+	Local = (&localMachine{
 		&Machine{
 			ID:       getID(),
 			OS:       deviceOS(compat.Os()),
@@ -27,7 +27,7 @@ var (
 			Hostname: "Unknown",
 			Elevated: compat.Elevated(),
 		},
-	}
+	}).init()
 
 	// Newline is the machine specific newline character.
 	Newline = compat.Newline()
@@ -56,15 +56,6 @@ type localMachine struct {
 	*Machine
 }
 
-func init() {
-	if h, err := os.Hostname(); err == nil {
-		Local.Hostname = h
-	}
-	if u, err := user.Current(); err == nil {
-		Local.User = u.Username
-	}
-	Local.Network.Refresh()
-}
 func (l *localMachine) Refresh() error {
 	u, err := user.Current()
 	if err != nil {
@@ -82,8 +73,19 @@ func (l *localMachine) Refresh() error {
 	l.Elevated = compat.Elevated()
 	return nil
 }
+func (l *localMachine) init() *localMachine {
+	if h, err := os.Hostname(); err == nil {
+		l.Hostname = h
+	}
+	if u, err := user.Current(); err == nil {
+		l.User = u.Username
+	}
+	l.Network.Refresh()
+	return l
+}
 
-// MarshalStream writes the data of this Machine from the supplied Writer.
+// MarshalStream transform this struct into a binary format and writes to the
+// supplied data.Writer.
 func (m Machine) MarshalStream(w data.Writer) error {
 	if err := m.ID.MarshalStream(w); err != nil {
 		return err
@@ -118,7 +120,8 @@ func (m Machine) MarshalStream(w data.Writer) error {
 	return nil
 }
 
-// UnmarshalStream reads the data of this Machine from the supplied Reader.
+// UnmarshalStream transforms this struct from a binary format that is read
+// from the supplied data.Reader.
 func (m *Machine) UnmarshalStream(r data.Reader) error {
 	if err := m.ID.UnmarshalStream(r); err != nil {
 		return err

@@ -56,7 +56,7 @@ const (
 var (
 	// Environment is a mapping of environment string names
 	// to their string values.
-	Environment = make(map[string]string)
+	Environment = getEnv()
 
 	// ErrInvalidID is returned by the 'IDFromString' function when
 	// the returned ID value is invalid or nil.
@@ -72,17 +72,6 @@ type ID []byte
 type deviceOS uint8
 type deviceArch uint8
 
-func init() {
-	for _, v := range os.Environ() {
-		if i := strings.IndexRune(v, '='); i > 0 {
-			Environment[strings.ToLower(v[:i])] = v[i+1:]
-		}
-	}
-	Environment["tmp"] = os.TempDir()
-	Environment["temp"] = Environment["tmp"]
-	Environment["tmpdir"] = Environment["tmp"]
-	Environment["tempdir"] = Environment["tmp"]
-}
 func getID() ID {
 	i := ID(make([]byte, IDSize))
 	s, err := machineid.ProtectedID(xmtID)
@@ -153,6 +142,17 @@ func Expand(s string) string {
 func (i ID) FullString() string {
 	return strings.ToUpper(hex.EncodeToString(i))
 }
+func getEnv() map[string]string {
+	m := make(map[string]string)
+	for _, v := range os.Environ() {
+		if i := strings.IndexRune(v, '='); i > 0 {
+			m[strings.ToLower(v[:i])] = v[i+1:]
+		}
+	}
+	t := os.TempDir()
+	m["tmp"], m["temp"], m["tmpdir"], m["tempdir"] = t, t, t, t
+	return m
+}
 func (d deviceOS) String() string {
 	switch d {
 	case Windows:
@@ -182,8 +182,7 @@ func (d deviceArch) String() string {
 	return "Unknown"
 }
 
-// IDFromString attempts to convert the hex string supplied
-// into an ID value.
+// IDFromString attempts to convert the hex string supplied into an ID value.
 func IDFromString(s string) (ID, error) {
 	i, err := hex.DecodeString(s)
 	if err != nil {
@@ -201,13 +200,15 @@ func IDFromString(s string) (ID, error) {
 	return ID(i), nil
 }
 
-// MarshalStream writes the data of this ID to the supplied Writer.
+// MarshalStream transform this struct into a binary format and writes to the
+// supplied data.Writer.
 func (i ID) MarshalStream(w data.Writer) error {
 	_, err := w.Write(i)
 	return err
 }
 
-// UnmarshalStream reads the data of this ID from the supplied Reader.
+// UnmarshalStream transforms this struct from a binary format that is read
+// from the supplied data.Reader.
 func (i *ID) UnmarshalStream(r data.Reader) error {
 	if *i == nil {
 		*i = append(*i, make([]byte, IDSize)...)

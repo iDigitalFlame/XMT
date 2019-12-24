@@ -14,16 +14,9 @@ import (
 const (
 	// PacketHeaderSize is the length of the Packet header in bytes.
 	PacketHeaderSize = 44
-
-	empty = "0xNULL"
 )
 
 var (
-	// ErrTooLarge is raised if memory cannot be allocated to store data in a buffer.
-	ErrTooLarge = errors.New("buffer size is too large")
-	// ErrInvalidIndex is raised if a specified Grow or index function is supplied with an
-	// negative or out of bounds number.
-	ErrInvalidIndex = errors.New("buffer index provided is not valid")
 	// ErrMismatchedID is an error that occurs when attempting to combine a Packet with a Packet that does
 	// not match the ID of the parent Packet.
 	ErrMismatchedID = errors.New("packet ID does not match combining packet ID")

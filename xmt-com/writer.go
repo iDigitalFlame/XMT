@@ -133,7 +133,7 @@ func (p *Packet) grow(n int) (int, error) {
 	p.buf = p.buf[:m+n]
 	return m, nil
 }
-func trySlice(n int) (b []byte, err error) {
+func trySlice1(n int) (b []byte, err error) {
 	defer func() {
 		if recover() != nil {
 			err = ErrTooLarge

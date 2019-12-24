@@ -6,12 +6,9 @@ github.com/denisbrodbeck/machineid v1.0.1 h1:geKr9qtkB876mXguW2X6TU4ZynleN6ezuMS
 github.com/denisbrodbeck/machineid v1.0.1/go.mod h1:dJUwb7PTidGDeYyUBmXZ2GphQBbjJCrnectwCyxcUSI=
 github.com/go-ole/go-ole v1.2.4 h1:nNBDSCOigTSiarFpYE9J/KtEA1IOW4CNeqT9TQDqCxI=
 github.com/go-ole/go-ole v1.2.4/go.mod h1:XCwSNxSkXRo4vlyPy93sltvi/qJq0jqQhjqQNIwKuxM=
-github.com/iDigitalFlame/logx v0.0.0-20191005045951-4408902ea8e6 h1:v+caZeloQvJMlKzspZWTBKieT1rWsnx0t8e4C0CeWdY=
 github.com/iDigitalFlame/logx/logx v0.0.0-20190830173643-498ce301ccb3/go.mod h1:CVj7ZH5KPHNoh4WdOXH4pfaQg3YHRMaTqtAmFHvu1tI=
 github.com/iDigitalFlame/logx/logx v0.0.0-20191005045951-4408902ea8e6 h1:c/GxEyURv+eyGXoaFbIEvQrIK5q0ot5rm8r71XJBkso=
 github.com/iDigitalFlame/logx/logx v0.0.0-20191005045951-4408902ea8e6/go.mod h1:CVj7ZH5KPHNoh4WdOXH4pfaQg3YHRMaTqtAmFHvu1tI=
-github.com/iDigitalFlame/xmt v0.0.0-20191107162505-73f6cfdfd756 h1:v9OqKDaAxIq03a0pZwTPCJXjYVnfiHjjLmhhp0+2xUI=
-github.com/iDigitalFlame/xmt v0.0.0-20191223200221-890da6a15484 h1:a5i1636XYIADN4QPJ32vzpq6mGAnmyUT5RlJLkXnCFI=
 github.com/iDigitalFlame/xmt/xmt v0.0.0-20191107162505-73f6cfdfd756/go.mod h1:9XQrP4Fo0VjsbOKPCcqOn7q3ngJV1CkHuNJQted0L2Q=
 github.com/iDigitalFlame/xmt/xmt-c2 v0.0.0-20191223195753-09a0c22f7e76 h1:LMFCrpK/BykDCYP4AHuz4LRuX7eb6vQMLkPiDk3vD2E=
 github.com/iDigitalFlame/xmt/xmt-c2 v0.0.0-20191223195753-09a0c22f7e76/go.mod h1:NgcZCSlFezp7vqh1gxeJsW3A0GPzwxNoBM/cOe1c5D0=
