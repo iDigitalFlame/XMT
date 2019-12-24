@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	data "github.com/iDigitalFlame/xmt/xmt-data"
+	"github.com/iDigitalFlame/xmt/data"
 )
 
 func TestDevice(t *testing.T) {

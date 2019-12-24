@@ -22,12 +22,10 @@ var (
 type packet struct {
 	ID     uint16
 	Job    uint16
-	Max    int
 	Flags  Flag
 	Device device.ID
 
-	b    []*Chunk
-	l, w uint16
+	*data.Chunk
 }
 
 // Clear discards the underlying buffers, which must be regenerated again.

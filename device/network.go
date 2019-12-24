@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 
-	data "github.com/iDigitalFlame/xmt/xmt-data"
+	"github.com/iDigitalFlame/xmt/data"
 )
 
 // IPv6 is a compile flag that enables or disables support for IPv6 networks

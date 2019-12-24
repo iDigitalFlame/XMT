@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/denisbrodbeck/machineid"
-	data "github.com/iDigitalFlame/xmt/xmt-data"
+	"github.com/iDigitalFlame/xmt/data"
 )
 
 const (

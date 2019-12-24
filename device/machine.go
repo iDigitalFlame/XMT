@@ -4,8 +4,8 @@ import (
 	"os"
 	"os/user"
 
-	data "github.com/iDigitalFlame/xmt/xmt-data"
-	compat "github.com/iDigitalFlame/xmt/xmt-device/compat"
+	"github.com/iDigitalFlame/xmt/data"
+	"github.com/iDigitalFlame/xmt/device/compat"
 )
 
 var (

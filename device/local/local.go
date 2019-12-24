@@ -5,7 +5,7 @@ package local
 // Most calls to local can also be satisfied by device.Local.
 // local.Hostname() is equal to device.Local.Hostname for example.
 
-import device "github.com/iDigitalFlame/xmt/xmt-device"
+import "github.com/iDigitalFlame/xmt/device"
 
 // OS returns the local machine's Operating System type.
 func OS() uint8 {
