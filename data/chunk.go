@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 )
 
 const (
@@ -24,6 +25,12 @@ var (
 	ErrInvalidIndex = errors.New("buffer index provided is not valid")
 	// ErrInvalidWhence is returned when the provided seek whence is not a valid whence value.
 	ErrInvalidWhence = errors.New("buffer seek whence is invalid")
+
+	bufs = &sync.Pool{
+		New: func() interface{} {
+			return make([]byte, 512)
+		},
+	}
 )
 
 // Chunk is a low level data container. Chunks allow for simple read/write
@@ -218,6 +225,31 @@ func (c *Chunk) Write(b []byte) (int, error) {
 	return n, nil
 }
 
+// MarshalStream writes the Chunk data into a binary data representation. This function will return an error
+// if any part of the writes fail.
+func (c Chunk) MarshalStream(w Writer) error {
+	return w.WriteBytes(c.buf[c.wpos:])
+}
+
+// UnmarshalStream reads the Chunk data from a binary data representation. This function will return an error
+// if any part of the writes fail.
+func (c *Chunk) UnmarshalStream(r Reader) error {
+	var err error
+	c.buf, err = r.Bytes()
+	c.rpos, c.wpos = 0, 0
+	return err
+}
+
+// WriteTo writes data to the supplied Writer until there's no more data to write or when an error occurs. The return
+// value is the number of bytes written. Any error encountered during the write is also returned.
+func (c Chunk) WriteTo(w io.Writer) (int64, error) {
+	if c.Empty() {
+		return 0, nil
+	}
+	n, err := w.Write(c.buf[c.wpos:])
+	return int64(n), err
+}
+
 // Seek will attempt to seek to the provided offset index and whence. This function will return
 // the new offset if successful and will return an error if the offset and/or whence are invalid.
 func (c *Chunk) Seek(o int64, w int) (int64, error) {
@@ -239,4 +271,30 @@ func (c *Chunk) Seek(o int64, w int) (int64, error) {
 	c.rpos = int(o)
 	return o, nil
 
+}
+
+// ReadFrom reads data from the supplied Reader until EOF or error. The return value is the number of
+// bytes read. Any error except io.EOF encountered during the read is also returned.
+func (c *Chunk) ReadFrom(r io.Reader) (int64, error) {
+	b := bufs.Get().([]byte)
+	defer bufs.Put(b)
+	var (
+		n   int
+		t   int64
+		err error
+	)
+	for {
+		n, err = r.Read(b)
+		if n > 0 {
+			c.Write(b[:n])
+			t += int64(n)
+		}
+		if err != nil {
+			break
+		}
+	}
+	if err != nil && errors.Is(err, io.EOF) {
+		err = nil
+	}
+	return t, err
 }
