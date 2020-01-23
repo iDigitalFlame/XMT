@@ -17,17 +17,17 @@ const (
 	DataLimitMedium = 2 << 15
 )
 
-type writerBase struct {
+type writer struct {
 	w io.Writer
 }
 
-func (w *writerBase) Flush() error {
+func (w *writer) Flush() error {
 	if f, ok := w.w.(Flusher); ok {
 		return f.Flush()
 	}
 	return nil
 }
-func (w *writerBase) Close() error {
+func (w *writer) Close() error {
 	if c, ok := w.w.(io.Closer); ok {
 		return c.Close()
 	}
@@ -37,40 +37,40 @@ func (w *writerBase) Close() error {
 // NewWriter creates a simple Writer struct from the base Writer
 // provided.
 func NewWriter(w io.Writer) Writer {
-	return &writerBase{w: w}
+	return &writer{w: w}
 }
-func (w *writerBase) WriteInt(n int) error {
+func (w *writer) WriteInt(n int) error {
 	return w.WriteUint64(uint64(n))
 }
-func (w *writerBase) small(b ...byte) error {
+func (w *writer) small(b ...byte) error {
 	_, err := w.w.Write(b)
 	return err
 }
-func (w *writerBase) WriteUint(n uint) error {
+func (w *writer) WriteUint(n uint) error {
 	return w.WriteUint64(uint64(n))
 }
-func (w *writerBase) WriteInt8(n int8) error {
+func (w *writer) WriteInt8(n int8) error {
 	return w.WriteUint8(uint8(n))
 }
-func (w *writerBase) WriteBool(n bool) error {
-	if n {
+func (w *writer) WriteBool(b bool) error {
+	if b {
 		return w.WriteUint8(1)
 	}
 	return w.WriteUint8(0)
 }
-func (w *writerBase) WriteInt16(n int16) error {
+func (w *writer) WriteInt16(n int16) error {
 	return w.WriteUint16(uint16(n))
 }
-func (w *writerBase) WriteInt32(n int32) error {
+func (w *writer) WriteInt32(n int32) error {
 	return w.WriteUint32(uint32(n))
 }
-func (w *writerBase) WriteInt64(n int64) error {
+func (w *writer) WriteInt64(n int64) error {
 	return w.WriteUint64(uint64(n))
 }
-func (w *writerBase) WriteUint8(n uint8) error {
+func (w *writer) WriteUint8(n uint8) error {
 	return w.small(byte(n))
 }
-func (w *writerBase) WriteBytes(b []byte) error {
+func (w *writer) WriteBytes(b []byte) error {
 	if b == nil {
 		return w.small(0)
 	}
@@ -109,29 +109,29 @@ func (w *writerBase) WriteBytes(b []byte) error {
 	_, err := w.w.Write(b)
 	return err
 }
-func (w *writerBase) WriteUint16(n uint16) error {
+func (w *writer) WriteUint16(n uint16) error {
 	return w.small(byte(n>>8), byte(n))
 }
-func (w *writerBase) WriteUint32(n uint32) error {
+func (w *writer) WriteUint32(n uint32) error {
 	return w.small(
 		byte(n>>24), byte(n>>16), byte(n>>8), byte(n),
 	)
 }
-func (w *writerBase) WriteUint64(n uint64) error {
+func (w *writer) WriteUint64(n uint64) error {
 	return w.small(
 		byte(n>>56), byte(n>>48), byte(n>>40), byte(n>>32),
 		byte(n>>24), byte(n>>16), byte(n>>8), byte(n),
 	)
 }
-func (w *writerBase) WriteString(n string) error {
-	return w.WriteBytes([]byte(n))
+func (w *writer) WriteString(s string) error {
+	return w.WriteBytes([]byte(s))
 }
-func (w *writerBase) Write(b []byte) (int, error) {
+func (w *writer) Write(b []byte) (int, error) {
 	return w.w.Write(b)
 }
-func (w *writerBase) WriteFloat32(n float32) error {
-	return w.WriteUint32(math.Float32bits(n))
+func (w *writer) WriteFloat32(f float32) error {
+	return w.WriteUint32(math.Float32bits(f))
 }
-func (w *writerBase) WriteFloat64(n float64) error {
-	return w.WriteUint64(math.Float64bits(n))
+func (w *writer) WriteFloat64(f float64) error {
+	return w.WriteUint64(math.Float64bits(f))
 }

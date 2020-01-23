@@ -47,7 +47,9 @@ const (
 	// MachineIDSize is the amount of bytes that is used as the Host
 	// specific ID value that does not change when on the same host.
 	MachineIDSize = 28
+)
 
+const (
 	xmtID              = "xmtFramework"
 	xmtIDPrime  uint32 = 16777619
 	xmtIDOffset uint32 = 2166136261
@@ -97,6 +99,12 @@ func getArch() deviceArch {
 		return ArchMips
 	}
 	return ArchUnknown
+}
+
+// Full returns the full string representation of this ID instance. Full is an
+// alias of the 'FullString' function.
+func (i ID) Full() string {
+	return i.FullString()
 }
 
 // Hash returns the 32bit hash sum of this ID value.

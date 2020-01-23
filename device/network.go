@@ -7,6 +7,8 @@ import (
 	"github.com/iDigitalFlame/xmt/data"
 )
 
+const maxNetworks = 255
+
 // IPv6 is a compile flag that enables or disables support for IPv6 networks
 // and addresses.
 var IPv6 = true
@@ -59,6 +61,9 @@ func (n *Network) Refresh() error {
 			Hardware: l[i].HardwareAddr,
 		}
 		for o := range a {
+			if o > maxNetworks {
+				break
+			}
 			var t net.IP
 			switch a[o].(type) {
 			case *net.IPNet:
@@ -145,7 +150,7 @@ func (n *Network) UnmarshalStream(r data.Reader) error {
 	if err != nil {
 		return err
 	}
-	for x := uint8(0); x < l; x++ {
+	for ; l > 0; l-- {
 		d := new(device)
 		if err := d.UnmarshalStream(r); err != nil {
 			return err

@@ -22,6 +22,11 @@ func PID() uint64 {
 	return device.Local.PID
 }
 
+// PPID returns the local machine's PPID value.
+func PPID() uint64 {
+	return device.Local.PID
+}
+
 // User returns the local machine's User value.
 func User() string {
 	return device.Local.User

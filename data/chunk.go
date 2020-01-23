@@ -8,9 +8,9 @@ import (
 )
 
 const (
-	empty    = "0xNULL"
-	bufMax   = int(^uint(0) >> 1)
-	bufSmall = 64
+	max   = int(^uint(0) >> 1)
+	small = 64
+	empty = "0xNULL"
 )
 
 var (
@@ -58,10 +58,25 @@ func (c *Chunk) Clear() {
 	c.buf = nil
 }
 
+// Rewind will seek the writing and reading positions back to zero. This function can be used
+// to 'reset' the Chunk without deleting any data.
+func (c *Chunk) Rewind() {
+	c.rpos, c.wpos = 0, 0
+}
+
 // Len returns the same result as Size. This function returns the amount
 // of bytes written or contained in this Chunk.
 func (c Chunk) Len() int {
 	return c.Size()
+}
+
+// Left returns the amount of bytes avaliable in this Chunk when a Limit is set. This
+// function will return -1 if there us no limit set.
+func (c Chunk) Left() int {
+	if c.Limit <= 0 {
+		return -1
+	}
+	return c.Limit - c.Size()
 }
 
 // Size returns the amount of bytes written or contained in this Chunk.
@@ -96,6 +111,16 @@ func (c Chunk) String() string {
 		return empty
 	}
 	return string(c.buf[c.wpos:])
+}
+
+// NewChunk creates a new Chunk struct and will use the provided byte
+// array as the underlying structure if is is not null.
+func NewChunk(b []byte) *Chunk {
+	c := &Chunk{buf: b}
+	if b != nil {
+		c.wpos = len(b)
+	}
+	return c
 }
 
 // Payload returns a copy of the underlying buffer contained in this Chunk.
@@ -145,17 +170,17 @@ func (c *Chunk) grow(n int) (int, error) {
 	if i, ok := c.reslice(n); ok {
 		return i, nil
 	}
-	if c.buf == nil && n <= bufSmall {
-		c.buf = make([]byte, n, bufSmall)
+	if c.buf == nil && n <= small {
+		c.buf = make([]byte, n, small)
 		return 0, nil
 	}
 	m := cap(c.buf)
 	switch {
 	case n <= m/2-x:
 		copy(c.buf, c.buf[c.wpos:])
-	case m > c.Limit-m-n:
-		return 0, io.EOF
-	case m > bufMax-m-n:
+	case c.Limit > 0 && m > c.Limit-m-n:
+		return 0, ErrLimit
+	case m > max-m-n:
 		return 0, ErrTooLarge
 	default:
 		b, err := trySlice(2*m + n)
@@ -242,11 +267,12 @@ func (c *Chunk) UnmarshalStream(r Reader) error {
 
 // WriteTo writes data to the supplied Writer until there's no more data to write or when an error occurs. The return
 // value is the number of bytes written. Any error encountered during the write is also returned.
-func (c Chunk) WriteTo(w io.Writer) (int64, error) {
+func (c *Chunk) WriteTo(w io.Writer) (int64, error) {
 	if c.Empty() {
 		return 0, nil
 	}
-	n, err := w.Write(c.buf[c.wpos:])
+	n, err := w.Write(c.buf[c.rpos:])
+	c.rpos += n
 	return int64(n), err
 }
 
@@ -280,21 +306,39 @@ func (c *Chunk) ReadFrom(r io.Reader) (int64, error) {
 	defer bufs.Put(b)
 	var (
 		n   int
+		w   int
 		t   int64
 		err error
 	)
 	for {
-		n, err = r.Read(b)
+		if c.Limit > 0 {
+			x := c.Limit - c.Size()
+			if x <= 0 {
+				break
+			}
+			n, err = r.Read(b[:x])
+		} else {
+			n, err = r.Read(b)
+		}
+		fmt.Printf("read1111: %d %s\n", n, err)
 		if n > 0 {
-			c.Write(b[:n])
-			t += int64(n)
+			w, err = c.Write(b[:n])
+			if w < n {
+				t += int64(w)
+			} else {
+				t += int64(n)
+			}
+			if err != nil {
+				break
+			}
 		}
 		if err != nil {
 			break
 		}
 	}
-	if err != nil && errors.Is(err, io.EOF) {
-		err = nil
-	}
+	// TODO: Should delete this?
+	//if err != nil && errors.Is(err, io.EOF) {
+	//	err = nil
+	//}
 	return t, err
 }

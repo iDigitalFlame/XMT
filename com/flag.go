@@ -38,7 +38,7 @@ const (
 )
 
 var (
-	sbufs = &sync.Pool{
+	stringBuf = &sync.Pool{
 		New: func() interface{} {
 			return new(strings.Builder)
 		},
@@ -55,27 +55,34 @@ var (
 //  |                         Frag Data                         |                   |
 type Flag uint64
 
-// Add appends the Flag to this current
-// flag value using the Bitwise OR operator.
-func (f *Flag) Add(n Flag) {
-	*f = *f | n
-}
-
-// ClearFrag clears all Frag and Multi related flags and data.
-func (f *Flag) ClearFrag() {
+// Clear clears all Frag and Multi related data values.
+func (f *Flag) Clear() {
 	*f = Flag(uint16(*f)) ^ FlagFrag
 }
 
-// FragLen is similar to the Total function. This returns
-// the total amount of fragmentented packets to expect.
-func (f Flag) FragLen() int {
-	return int(f.FragTotal())
+// Set appends the Flag value to this current Flag value.
+func (f *Flag) Set(n Flag) {
+	*f = *f | n
 }
 
-// String returns a character representation of this Flag
-// integer.
+// Len returns the count of fragmented packets that make up this fragment group.
+func (f Flag) Len() uint16 {
+	return uint16(f >> 48)
+}
+
+// Unset removes the Flag value to this current Flag value.
+func (f *Flag) Unset(n Flag) {
+	*f = *f &^ n
+}
+
+// Group returns the fragment group ID that this packet is part of.
+func (f Flag) Group() uint16 {
+	return uint16(f >> 16)
+}
+
+// String returns a character representation of this Flag.
 func (f Flag) String() string {
-	b := sbufs.Get().(*strings.Builder)
+	b := stringBuf.Get().(*strings.Builder)
 	if f&FlagData != 0 {
 		b.WriteRune('D')
 	}
@@ -104,49 +111,34 @@ func (f Flag) String() string {
 		b.WriteString(fmt.Sprintf("V%X", int64(f)))
 	}
 	if f&FlagMulti != 0 {
-		b.WriteString(fmt.Sprintf("[%d]", f.FragTotal()))
+		b.WriteString(fmt.Sprintf("[%d]", f.Len()))
 	} else if f&FlagFrag != 0 {
-		b.WriteString(fmt.Sprintf("[%X:%d/%d]", f.FragGroup(), f.FragPosition()+1, f.FragTotal()))
+		b.WriteString(fmt.Sprintf("[%X:%d/%d]", f.Group(), f.Position()+1, f.Len()))
 	}
 	s := b.String()
 	b.Reset()
-	sbufs.Put(b)
+	stringBuf.Put(b)
 	return s
 }
 
-// FragGroup returns the fragment group ID that this packet
-// is part of.
-func (f Flag) FragGroup() uint16 {
-	return uint16(f >> 16)
-}
-
-// FragTotal returns the count of fragmented packets
-// that make up this fragment group.
-func (f Flag) FragTotal() uint16 {
-	return uint16(f >> 48)
-}
-
-// FragPosition represents position of this packet in a fragment group.
-func (f Flag) FragPosition() uint16 {
+// Position represents position of this packet in a fragment group.
+func (f Flag) Position() uint16 {
 	return uint16(f >> 32)
 }
 
-// SetFragGroup sets the group ID of the fragment group this packet
-// is part of.
-func (f *Flag) SetFragGroup(n uint16) {
+// SetLen sets the total count of packets in the fragment group.
+func (f *Flag) SetLen(n uint16) {
+	*f = Flag(n)<<48 | Flag(f.Position())<<32 | Flag(uint32(*f)) | FlagFrag
+}
+
+// SetGroup sets the group ID of the fragment group this packet is part of.
+func (f *Flag) SetGroup(n uint16) {
 	*f = Flag((*f>>32)<<32) | Flag(n)<<16 | Flag(uint16(*f)) | FlagFrag
 }
 
-// SetFragTotal sets the total count of packets
-// in the fragment group.
-func (f *Flag) SetFragTotal(n uint16) {
-	*f = Flag(n)<<48 | Flag(f.FragPosition())<<32 | Flag(uint32(*f)) | FlagFrag
-}
-
-// SetFragPosition sets the position this packet is located
-// in the fragment group.
-func (f *Flag) SetFragPosition(n uint16) {
-	*f = Flag(f.FragTotal())<<48 | Flag(n)<<32 | Flag(uint32(*f)) | FlagFrag
+// SetPosition sets the position this packet is located in the fragment group.
+func (f *Flag) SetPosition(n uint16) {
+	*f = Flag(f.Len())<<48 | Flag(n)<<32 | Flag(uint32(*f)) | FlagFrag
 }
 
 // MarshalStream writes the data of this Flag to the supplied Writer.

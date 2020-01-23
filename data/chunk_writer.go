@@ -20,8 +20,8 @@ func (c *Chunk) WriteInt8(n int8) error {
 }
 
 // WriteBool writes the supplied value to the Chunk payload buffer.
-func (c *Chunk) WriteBool(n bool) error {
-	if n {
+func (c *Chunk) WriteBool(b bool) error {
+	if b {
 		return c.WriteUint8(1)
 	}
 	return c.WriteUint8(0)
@@ -136,22 +136,22 @@ func (c *Chunk) WriteUint64(n uint64) error {
 }
 
 // WriteString writes the supplied value to the Chunk payload buffer.
-func (c *Chunk) WriteString(n string) error {
-	return c.WriteBytes([]byte(n))
+func (c *Chunk) WriteString(s string) error {
+	return c.WriteBytes([]byte(s))
 }
 
 // WriteFloat32 writes the supplied value to the Chunk payload buffer.
-func (c *Chunk) WriteFloat32(n float32) error {
+func (c *Chunk) WriteFloat32(f float32) error {
 	if !c.Avaliable(4) {
 		return ErrLimit
 	}
-	return c.WriteUint32(math.Float32bits(n))
+	return c.WriteUint32(math.Float32bits(f))
 }
 
 // WriteFloat64 writes the supplied value to the Chunk payload buffer.
-func (c *Chunk) WriteFloat64(n float64) error {
+func (c *Chunk) WriteFloat64(f float64) error {
 	if !c.Avaliable(8) {
 		return ErrLimit
 	}
-	return c.WriteUint64(math.Float64bits(n))
+	return c.WriteUint64(math.Float64bits(f))
 }

@@ -65,11 +65,3 @@ func Newline() string {
 func ShellArgs() []string {
 	return args
 }
-
-func Inject(p int, b []byte) (uintptr, error) {
-	return 0, nil
-}
-
-func Parent(p int, s []string) (int32, error) {
-	return 0, nil
-}
