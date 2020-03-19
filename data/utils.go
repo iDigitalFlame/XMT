@@ -1,11 +1,13 @@
 package data
 
-import "io"
+import (
+	"errors"
+	"io"
+)
 
-// ReadStringList attempts to read a string list written using
-// the 'WriteStringList' function from the supplied string into
-// the string list pointer. If the provided array is nil or not large
-// enough, it will be resized.
+// ReadStringList attempts to read a string list written using the 'WriteStringList' function from the
+// supplied string into the string list pointer. If the provided array is nil or not large enough, it
+// will be resized.
 func ReadStringList(r Reader, s *[]string) error {
 	t, err := r.Uint8()
 	if err != nil {
@@ -53,14 +55,10 @@ func ReadStringList(r Reader, s *[]string) error {
 	return nil
 }
 
-// WriteStringList will attempt to write the supplied string list to
-// the writer. If the string list is nil or empty, it will write a zero
-// byte to the Writer. The resulting data can be read using the 'ReadStringList'
+// WriteStringList will attempt to write the supplied string list to the writer. If the string list is
+// nil or empty, it will write a zero byte to the Writer. The resulting data can be read using the 'ReadStringList'
 // function.
 func WriteStringList(w Writer, s []string) error {
-	if s == nil {
-		return w.WriteUint8(0)
-	}
 	switch l := len(s); {
 	case l == 0:
 		return w.WriteUint8(0)
@@ -101,16 +99,15 @@ func WriteStringList(w Writer, s []string) error {
 	return nil
 }
 
-// ReadFully attempts to Read all the bytes from the
-// specified reader until the length of the array or EOF.
+// ReadFully attempts to Read all the bytes from the specified reader until the length of the array or EOF.
 func ReadFully(r io.Reader, b []byte) (int, error) {
 	var n int
 	for n < len(b) {
 		i, err := r.Read(b[n:])
-		if err != nil && (err != io.EOF || n != len(b)) {
+		if n += i; err != nil && (!errors.Is(err, io.EOF) || n != len(b)) {
+
 			return n, err
 		}
-		n += i
 	}
 	return n, nil
 }

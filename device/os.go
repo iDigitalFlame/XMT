@@ -56,10 +56,6 @@ const (
 )
 
 var (
-	// Environment is a mapping of environment string names
-	// to their string values.
-	Environment = getEnv()
-
 	// ErrInvalidID is returned by the 'IDFromString' function when
 	// the returned ID value is invalid or nil.
 	ErrInvalidID = errors.New("id format is invalid or empty")
@@ -101,14 +97,14 @@ func getArch() deviceArch {
 	return ArchUnknown
 }
 
-// Full returns the full string representation of this ID instance. Full is an
-// alias of the 'FullString' function.
+// Full returns the full string representation of this ID instance. Full is an alias of
+// the 'FullString' function.
 func (i ID) Full() string {
 	return i.FullString()
 }
 
-// Hash returns the 32bit hash sum of this ID value.
-// The hash mechanism used is similar to the hash/fnv mechanism.
+// Hash returns the 32bit hash sum of this ID value. The hash mechanism used is similar
+// to the hash/fnv mechanism.
 func (i ID) Hash() uint32 {
 	h := xmtIDOffset
 	for x := range i {
@@ -126,21 +122,23 @@ func (i ID) String() string {
 	return strings.ToUpper(hex.EncodeToString(i[SmallIDSize:]))
 }
 
-// Expand attempts to determine environment variables from the current
-// session and translate them in the supplied string.
+// Expand attempts to determine environment variables from the current session and
+// translate them in the supplied string.
 func Expand(s string) string {
 	v := envRegexp.FindAllStringSubmatch(s, -1)
-	if len(v) > 0 {
-		for _, i := range v {
-			if len(i) == 4 {
-				n := i[2]
-				if len(i[3]) > 0 {
-					n = i[3]
-				}
-				if d, ok := Environment[strings.ToLower(n)]; ok {
-					s = strings.Replace(s, i[0], d, -1)
-				}
-			}
+	if len(v) == 0 {
+		return s
+	}
+	for _, i := range v {
+		if len(i) != 4 {
+			continue
+		}
+		n := i[2]
+		if len(i[3]) > 0 {
+			n = i[3]
+		}
+		if d, ok := Environment[strings.ToLower(n)]; ok {
+			s = strings.Replace(s, i[0], d, -1)
 		}
 	}
 	return s
@@ -196,7 +194,7 @@ func IDFromString(s string) (ID, error) {
 	if err != nil {
 		return nil, err
 	}
-	if i == nil || len(i) == 0 {
+	if len(i) == 0 {
 		return nil, ErrInvalidID
 	}
 	switch len(i) {
@@ -215,8 +213,8 @@ func (i ID) MarshalStream(w data.Writer) error {
 	return err
 }
 
-// UnmarshalStream transforms this struct from a binary format that is read
-// from the supplied data.Reader.
+// UnmarshalStream transforms this struct from a binary format that is read from the
+// supplied data.Reader.
 func (i *ID) UnmarshalStream(r data.Reader) error {
 	if *i == nil {
 		*i = append(*i, make([]byte, IDSize)...)

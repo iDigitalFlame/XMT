@@ -11,14 +11,15 @@ import (
 	"time"
 )
 
-const empty = addr("")
+var complete = finished{}
 
 type addr string
 type conn struct {
-	w     io.Writer
-	in    *http.Request
-	close chan bool
+	w    io.Writer
+	in   *http.Request
+	done chan finished
 }
+type finished struct{}
 type listener struct {
 	new    chan *conn
 	ctx    context.Context
@@ -43,7 +44,7 @@ func (addr) Network() string {
 func (c *conn) Close() error {
 	err := c.in.Body.Close()
 	c.in = nil
-	c.close <- true
+	c.done <- complete
 	return err
 }
 func (a addr) String() string {
@@ -53,14 +54,11 @@ func (l *listener) Close() error {
 	if l.new == nil {
 		return nil
 	}
-	defer func(z *listener) {
-		recover()
-		z.socket.Close()
-	}(l)
 	l.cancel()
 	close(l.new)
-	l.new = nil
-	return l.socket.Close()
+	err := l.socket.Close()
+	l.socket, l.new = nil, nil
+	return err
 }
 func (conn) LocalAddr() net.Addr {
 	return empty
@@ -69,6 +67,9 @@ func (l listener) String() string {
 	return fmt.Sprintf("WC2[%s]", l.socket.Addr().String())
 }
 func (l listener) Addr() net.Addr {
+	if l.socket == nil {
+		return empty
+	}
 	return l.socket.Addr()
 }
 func (c conn) RemoteAddr() net.Addr {
@@ -106,9 +107,9 @@ func (l *listener) context(_ net.Listener) context.Context {
 }
 func (l *listener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Body != nil && l.parent.checkMatch(r) {
-		c := &conn{w: w, in: r, close: make(chan bool)}
+		c := &conn{w: w, in: r, done: make(chan finished)}
 		l.new <- c
-		<-c.close
+		<-c.done
 	} else {
 		l.parent.handler.ServeHTTP(w, r)
 	}

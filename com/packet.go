@@ -11,7 +11,7 @@ import (
 )
 
 // PacketHeaderSize is the length of the Packet header in bytes.
-const PacketHeaderSize = 44
+const PacketHeaderSize = 45
 
 // ErrMismatchedID is an error that occurs when attempting to combine a Packet with a Packet that does
 // not match the ID of the parent Packet.
@@ -24,14 +24,25 @@ type Packet struct {
 	Job    uint16
 	Flags  Flag
 	Device device.ID
-
 	data.Chunk
 }
 
-// Size returns the amount of bytes written or contained in this Packet with
-// the header size added.
+// Size returns the amount of bytes written or contained in this Packet with the header size added.
 func (p Packet) Size() int {
-	return p.Chunk.Size() + PacketHeaderSize
+	if p.Empty() {
+		return PacketHeaderSize
+	}
+	s := p.Chunk.Size() + PacketHeaderSize
+	switch {
+	case s < data.DataLimitSmall:
+		return s + 1
+	case s < data.DataLimitMedium:
+		return s + 2
+	case s < data.DataLimitLarge:
+		return s + 4
+	default:
+		return s + 8
+	}
 }
 
 // String returns a string descriptor of the Packet struct.
@@ -55,9 +66,8 @@ func (p Packet) String() string {
 	return fmt.Sprintf("0x%X/%d %s: %dB", p.ID, p.Job, p.Flags, p.Size())
 }
 
-// Add attempts to combine the data and properties the supplied Packet with
-// the existsing Packet. This function will return an error if the ID's have a
-// mismatch or there was an error during the write operation.
+// Add attempts to combine the data and properties the supplied Packet with the existsing Packet. This
+// function will return an error if the ID's have a mismatch or there was an error during the write operation.
 func (p *Packet) Add(n *Packet) error {
 	if n == nil || n.Empty() {
 		return nil
@@ -71,15 +81,14 @@ func (p *Packet) Add(n *Packet) error {
 	return nil
 }
 
-// Belongs returns true if the specified Packet is a Frag that was
-// a part of the split Chunks of this as the original packet.
+// Belongs returns true if the specified Packet is a Frag that was a part of the split Chunks of this as the
+// original packet.
 func (p Packet) Belongs(n *Packet) bool {
-	return n != nil && p.Flags > 0 && n.Flags > 0 && p.ID == n.ID && p.Job == n.Job && p.Flags.Group() == n.Flags.Group() && !n.Empty()
+	return n != nil && p.Flags >= FlagFrag && n.Flags >= FlagFrag && p.ID == n.ID && p.Job == n.Job && p.Flags.Group() == n.Flags.Group() && !n.Empty()
 }
 
-// Verify is a function that will set any missing Job or Device
-// parameters. This function will return true if the Device is nil or
-// matches the specified host ID, false if otherwise.
+// Verify is a function that will set any missing Job or Device parameters. This function will return true if
+// the Device is nil or matches the specified host ID, false if otherwise.
 func (p *Packet) Verify(i device.ID) bool {
 	if p.Job == 0 && p.Flags&FlagProxy == 0 {
 		p.Job = uint16(util.Rand.Uint32())
@@ -116,10 +125,10 @@ func (p Packet) MarshalStream(w data.Writer) error {
 
 // UnmarshalStream reads the data of this Packet from the supplied Reader.
 func (p *Packet) UnmarshalStream(r data.Reader) error {
-	if err := r.ReadUint16(&(p.ID)); err != nil {
+	if err := r.ReadUint16(&p.ID); err != nil {
 		return err
 	}
-	if err := r.ReadUint16(&(p.Job)); err != nil {
+	if err := r.ReadUint16(&p.Job); err != nil {
 		return err
 	}
 	if err := p.Flags.UnmarshalStream(r); err != nil {

@@ -1,6 +1,7 @@
 package data
 
 import (
+	"errors"
 	"io"
 	"math"
 )
@@ -128,7 +129,7 @@ func (c *Chunk) Bytes() ([]byte, error) {
 	}
 	b := make([]byte, l)
 	n, err := ReadFully(c, b)
-	if err != nil && (err != io.EOF || n != l) {
+	if err != nil && (!errors.Is(err, io.EOF) || n != l) {
 		return nil, err
 	}
 	if n != l {

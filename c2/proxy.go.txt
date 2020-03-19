@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/iDigitalFlame/xmt/xmt-c2/transform"
-	"github.com/iDigitalFlame/xmt/xmt-c2/wrapper"
-	com "github.com/iDigitalFlame/xmt/xmt-com"
-	"github.com/iDigitalFlame/xmt/xmt-com/limits"
+	"github.com/iDigitalFlame/xmt/c2/transform"
+	"github.com/iDigitalFlame/xmt/c2/wrapper"
+	"github.com/iDigitalFlame/xmt/com"
+	"github.com/iDigitalFlame/xmt/com/limits"
 )
 
 // Proxy is a struct that controls a Proxied
@@ -40,11 +40,11 @@ func (p *Proxy) Wait() {
 	<-p.ctx.Done()
 }
 func (p *Proxy) listen() {
-	p.parent.controller.Log.Trace("[%s:Proxy] Starting listen \"%s\"...", p.parent.ID, p.listener)
+	p.parent.log.Trace("[%s:Proxy] Starting listen \"%s\"...", p.parent.ID, p.listener)
 	for p.ctx.Err() == nil {
 		c, err := p.listener.Accept()
 		if err != nil {
-			p.parent.controller.Log.Error("[%s:Proxy] Received error during listener operation! (%s)", p.parent.ID, err.Error())
+			p.parent.log.Error("[%s:Proxy] Received error during listener operation! (%s)", p.parent.ID, err.Error())
 			if p.ctx.Err() != nil {
 				break
 			}
@@ -52,15 +52,15 @@ func (p *Proxy) listen() {
 		if c == nil {
 			continue
 		}
-		p.parent.controller.Log.Trace("[%s:Proxy] Received a connection from \"%s\"...", p.parent.ID, c.RemoteAddr().String())
+		p.parent.log.Trace("[%s:Proxy] Received a connection from \"%s\"...", p.parent.ID, c.RemoteAddr().String())
 		go p.session(c)
 	}
-	p.parent.controller.Log.Debug("[%s:Proxy] Stopping listen...", p.parent.ID)
+	p.parent.log.Debug("[%s:Proxy] Stopping listen...", p.parent.ID)
 	p.cancel()
 	p.listener.Close()
 	for k, v := range p.send {
 		if p.parent.ctx.Err() == nil {
-			p.parent.del <- k
+			p.parent.delete <- k
 		}
 		close(v.send)
 	}
@@ -82,30 +82,30 @@ func (p *Proxy) session(c net.Conn) {
 	defer c.Close()
 	d, err := read(c, p.wrapper, p.transform)
 	if err != nil {
-		p.parent.controller.Log.Warning("[%s:Proxy] Received an error when attempting to read a Packet from \"%s\"! (%s)", p.parent.ID, c.RemoteAddr().String(), err.Error())
+		p.parent.log.Warning("[%s:Proxy] Received an error when attempting to read a Packet from \"%s\"! (%s)", p.parent.ID, c.RemoteAddr().String(), err.Error())
 		return
 	}
-	if d == nil || d.IsEmpty() {
-		p.parent.controller.Log.Warning("[%s:Proxy] Received an empty or invalid Packet from \"%s\"!", p.parent.ID, c.RemoteAddr().String())
+	if d == nil || d.Empty() {
+		p.parent.log.Warning("[%s:Proxy] Received an empty or invalid Packet from \"%s\"!", p.parent.ID, c.RemoteAddr().String())
 		return
 	}
 	if d.Flags&com.FlagIgnore != 0 {
-		p.parent.controller.Log.Trace("[%s:Proxy] Received an ignore packet from \"%s\".", p.parent.ID, c.RemoteAddr().String())
+		p.parent.log.Trace("[%s:Proxy] Received an ignore packet from \"%s\".", p.parent.ID, c.RemoteAddr().String())
 		return
 	}
 	if d.Flags&com.FlagMulti == 0 || d.Flags&com.FlagMultiDevice == 0 {
 		p.client(c, d)
 		return
 	}
-	n := d.Flags.FragTotal()
+	n := d.Flags.Len()
 	if n == 0 {
-		p.parent.controller.Log.Warning("[%s:Proxy] Received an invalid multi Packet from \"%s\"!", p.parent.ID, c.RemoteAddr().String())
+		p.parent.log.Warning("[%s:Proxy] Received an invalid multi Packet from \"%s\"!", p.parent.ID, c.RemoteAddr().String())
 		return
 	}
 	v := &com.Packet{}
 	for i := uint16(0); i < n && p.parent.ctx.Err() == nil; i++ {
 		if err := v.UnmarshalStream(d); err != nil {
-			p.parent.controller.Log.Warning("[%s:Proxy] Received an error when attempting to read a Packet from \"%s\"! (%s)", p.parent.ID, c.RemoteAddr().String(), err.Error())
+			p.parent.log.Warning("[%s:Proxy] Received an error when attempting to read a Packet from \"%s\"! (%s)", p.parent.ID, c.RemoteAddr().String(), err.Error())
 			return
 		}
 		p.client(c, v)
@@ -118,7 +118,7 @@ func (p *Proxy) client(c net.Conn, d *com.Packet) {
 		return
 	}
 	i := d.Device.Hash()
-	p.parent.controller.Log.Trace("[%s:Proxy] Received a packet \"%s\" from \"%s\" (%s), session hash 0x%X.", p.parent.ID, d.String(), d.Device, c.RemoteAddr().String(), i)
+	p.parent.log.Trace("[%s:Proxy] Received a packet \"%s\" from \"%s\" (%s), session hash 0x%X.", p.parent.ID, d.String(), d.Device, c.RemoteAddr().String(), i)
 	if p.parent.ctx.Err() != nil {
 		return
 	}
@@ -137,7 +137,7 @@ func (p *Proxy) client(c net.Conn, d *com.Packet) {
 		if d.ID == MsgHello {
 			v := &com.Packet{ID: MsgRegistered, Device: d.Device, Job: d.Job}
 			if err := write(c, p.wrapper, p.transform, v); err != nil {
-				p.parent.controller.Log.Warning("[%s:Proxy] Received an error writing data to client \"%s\"! (%s)", p.parent.ID, c.RemoteAddr().String(), err.Error())
+				p.parent.log.Warning("[%s:Proxy] Received an error writing data to client \"%s\"! (%s)", p.parent.ID, c.RemoteAddr().String(), err.Error())
 			}
 			return
 		}
@@ -157,15 +157,15 @@ func (p *Proxy) client(c net.Conn, d *com.Packet) {
 	}
 	v, err := next(x.send, d.Device, true)
 	if err != nil {
-		p.parent.controller.Log.Warning("[%s:Proxy] Received an error gathering packet data for client \"%s\"! (%s)", p.parent.ID, c.RemoteAddr().String(), err.Error())
+		p.parent.log.Warning("[%s:Proxy] Received an error gathering packet data for client \"%s\"! (%s)", p.parent.ID, c.RemoteAddr().String(), err.Error())
 		return
 	}
 	if v.ID != MsgSleep {
 		x.ready = true
 	}
-	p.parent.controller.Log.Trace("[%s:Proxy] Sending Packet \"%s\" to client \"%s\".", p.parent.ID, v.String(), c.RemoteAddr().String())
+	p.parent.log.Trace("[%s:Proxy] Sending Packet \"%s\" to client \"%s\".", p.parent.ID, v.String(), c.RemoteAddr().String())
 	if err := write(c, p.wrapper, p.transform, v); err != nil {
-		p.parent.controller.Log.Warning("[%s:Proxy] Received an error writing data to client \"%s\"! (%s)", p.parent.ID, c.RemoteAddr().String(), err.Error())
+		p.parent.log.Warning("[%s:Proxy] Received an error writing data to client \"%s\"! (%s)", p.parent.ID, c.RemoteAddr().String(), err.Error())
 	}
 }
 
@@ -173,7 +173,7 @@ func (p *Proxy) client(c net.Conn, d *com.Packet) {
 // listener that will send any received Packets "upstream" via the current
 // Session. Packets destined for hosts connected to this proxy will be routed
 // back on forth on this Session.
-func (s *Session) Proxy(b string, v com.Server, p *Profile) (*Proxy, error) {
+func (s *Session) Proxy(b string, v iServer, p *Profile) (*Proxy, error) {
 	if v == nil {
 		return nil, ErrNoConnector
 	}
@@ -194,9 +194,9 @@ func (s *Session) Proxy(b string, v com.Server, p *Profile) (*Proxy, error) {
 		i.transform = p.Transform
 	}
 	i.ctx, i.cancel = context.WithCancel(s.ctx)
-	s.controller.Log.Debug("[%s] Added listener Proxy type \"%s\"...", s.ID, l)
+	s.log.Debug("[%s] Added listener Proxy type \"%s\"...", s.ID, l)
 	if s.proxies == nil {
-		s.del = make(chan uint32, limits.SmallLimit())
+		s.delete = make(chan uint32, limits.SmallLimit())
 		s.new = make(chan *proxyClient, limits.MediumLimit())
 		s.proxies = make(map[uint32]*proxyClient)
 	}

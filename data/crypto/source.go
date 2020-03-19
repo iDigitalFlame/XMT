@@ -8,23 +8,21 @@ import (
 )
 
 const (
-	// DefaultRounds is the amount of rounds that the hash is passed through
-	// when using the NewSource function.
-	DefaultRounds = 10
-	// DefaultSource is the default Source Seed used for MultiSource struct data
-	// if a source is not provided during creation.
+	// DefaultRounds is the amount of rounds that the hash is passed through when using the NewSource function.
+	DefaultRounds = 4
+	// DefaultSource is the default Source Seed used for MultiSource struct data if a source is not provided
+	// during creation.
 	DefaultSource int64 = 0x123456789F
 )
 
-// Source is an interface that supports seed assistance in Ciphers and other
-// cryptographic functions.
+// Source is an interface that supports seed assistance in Ciphers and other cryptographic functions.
 type Source interface {
 	Reset() error
 	Next(uint16) uint16
 }
 
-// MultiSource is a struct that is a random Source that can use multiple
-// source providers and spreads the calls among them in a random manner.
+// MultiSource is a struct that is a random Source that can use multiple source providers and spreads
+// the calls among them in a random manner.
 type MultiSource struct {
 	s    []rand.Source
 	rng  *rand.Rand
@@ -120,6 +118,7 @@ func NewSourceEx(rounds int, seed interface{}) rand.Source {
 			b = []byte(fmt.Sprintf("%s", seed))
 		}
 		v := sha512.Sum512(b)
+		_ = v[7]
 		s += int64(
 			uint64(v[7]) | uint64(v[6])<<8 | uint64(v[5])<<16 | uint64(v[4])<<24 |
 				uint64(v[3])<<32 | uint64(v[2])<<40 | uint64(v[1])<<48 | uint64(v[0])<<56,

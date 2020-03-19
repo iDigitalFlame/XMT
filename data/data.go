@@ -1,8 +1,6 @@
 package data
 
-import (
-	"io"
-)
+import "io"
 
 // Reader is a basic interface that supports all types of read functions of the core Golang
 // builtin types. Functions pointer functions are avaliable to allow for easier usage and
@@ -27,8 +25,7 @@ type Reader interface {
 	Float32() (float32, error)
 	Float64() (float64, error)
 
-	// StringVal is used instead of 'String' for
-	// compatibility with fmt.Stringer.
+	// StringVal is used instead of 'String' for compatibility with fmt.Stringer.
 	StringVal() (string, error)
 
 	ReadBool(*bool) error
@@ -53,8 +50,7 @@ type Reader interface {
 	io.ReadCloser
 }
 
-// Writer is a basic interface that supports writing
-// of all core Golang builtin types.
+// Writer is a basic interface that supports writing of all core Golang builtin types.
 type Writer interface {
 	WriteBool(bool) error
 
@@ -81,20 +77,17 @@ type Writer interface {
 	Flusher
 }
 
-// Flusher is an interface that supports Flushing the
-// stream output to the underlying Writer.
+// Flusher is an interface that supports Flushing the stream output to the underlying Writer.
 type Flusher interface {
 	Flush() error
 }
 
-// Writeable is an interface that supports writing the target
-// struct data to a Writer.
+// Writeable is an interface that supports writing the target struct data to a Writer.
 type Writeable interface {
 	MarshalStream(Writer) error
 }
 
-// Readable is an interface that supports reading the target
-// struct data from a Reader.
+// Readable is an interface that supports reading the target struct data from a Reader.
 type Readable interface {
 	UnmarshalStream(Reader) error
 }

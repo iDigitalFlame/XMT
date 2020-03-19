@@ -15,26 +15,20 @@ const (
 	lenNumbers = 78
 )
 
-var (
-	// All represents the string instruction set that contains
-	// all alpha-numeric characters.
-	All set = [2]int{0, 62}
-	// Upper represents the string instruction set that contains
-	// only uppercase non-numeric characters.
-	Upper set = [2]int{26, 52}
-	// Lower represents the string instruction set that contains
-	// only lowercase non-numeric characters.
-	Lower set = [2]int{0, 26}
-	// Number represents the string instruction set that contains
-	// only numeric characters.
-	Number set = [2]int{52, 62}
-	// Characters represents the string instruction set that contains
-	// mixed case non-numeric characters.
-	Characters set = [2]int{0, 52}
+// Rand is the custom Random number generator, based on the current time as a seed.
+var Rand = &random{Rand: rand.New(rand.NewSource(time.Now().UnixNano()))}
 
-	// Rand is the generic Random number generator, based
-	// on a time seed.
-	Rand = &random{Rand: rand.New(rand.NewSource(time.Now().UnixNano()))}
+var (
+	// All represents the string instruction set that contains all alpha-numeric characters.
+	All set = [2]int{0, 62}
+	// Upper represents the string instruction set that contains only uppercase non-numeric characters.
+	Upper set = [2]int{26, 52}
+	// Lower represents the string instruction set that contains only lowercase non-numeric characters.
+	Lower set = [2]int{0, 26}
+	// Number represents the string instruction set that contains only numeric characters.
+	Number set = [2]int{52, 62}
+	// Characters represents the string instruction set that contains mixed case non-numeric characters.
+	Characters set = [2]int{0, 52}
 )
 
 type set [2]int

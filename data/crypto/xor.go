@@ -7,15 +7,13 @@ import (
 	"github.com/iDigitalFlame/xmt/data"
 )
 
-var (
-	bufs = &sync.Pool{
-		New: func() interface{} {
-			return make([]byte, smallBuf)
-		},
-	}
+const smallBuf = 512
 
-	smallBuf = 512
-)
+var bufs = &sync.Pool{
+	New: func() interface{} {
+		return make([]byte, smallBuf)
+	},
+}
 
 // XOR is an alias for a byte array that acts as the XOR
 // key data buffer.
@@ -24,7 +22,7 @@ type XOR []byte
 // Operate preforms the XOR operation on the specified byte
 // array using the cipher as the key.
 func (x XOR) Operate(b []byte) {
-	if x == nil || len(x) == 0 {
+	if len(x) == 0 {
 		return
 	}
 	for i := 0; i < len(b); i++ {
@@ -32,14 +30,12 @@ func (x XOR) Operate(b []byte) {
 	}
 }
 
-// Decrypt preforms the XOR operation on the specified byte
-// array using the cipher as the key.
+// Decrypt preforms the XOR operation on the specified byte array using the cipher as the key.
 func (x XOR) Decrypt(b []byte) {
 	x.Operate(b)
 }
 
-// Encrypt preforms the XOR operation on the specified byte
-// array using the cipher as the key.
+// Encrypt preforms the XOR operation on the specified byte array using the cipher as the key.
 func (x XOR) Encrypt(b []byte) {
 	x.Operate(b)
 }

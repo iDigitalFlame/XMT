@@ -11,11 +11,13 @@ import (
 	"time"
 
 	"github.com/iDigitalFlame/xmt/com"
-
 	"github.com/iDigitalFlame/xmt/com/limits"
 )
 
-const netWeb = "tcp"
+const (
+	empty  = addr("")
+	netWeb = "tcp"
+)
 
 // Server is a C2 profile that mimics a standard web server and client setup. This struct
 // inherits the http.Server struct and can be used to serve real files and pages. Use the
@@ -43,15 +45,15 @@ func (s *Server) Close() error {
 
 // Rule adds the specified rules to the Web instance to assist in determing real and C2 traffic.
 func (s *Server) Rule(r ...Rule) {
-	if r == nil || len(r) == 0 {
+	if len(r) == 0 {
 		return
 	}
 	s.lock.Lock()
-	defer s.lock.Unlock()
 	if s.rules == nil {
 		s.rules = make([]Rule, 0, len(r))
 	}
 	s.rules = append(s.rules, r...)
+	s.lock.Unlock()
 }
 
 // New creates a new Web C2 server instance. This can be passed to the Listen function of a controller to
@@ -98,7 +100,7 @@ func (s *Server) Handle(p string, h http.Handler) {
 	s.handler.Handle(p, h)
 }
 func (s *Server) checkMatch(r *http.Request) bool {
-	if s.rules == nil || len(s.rules) == 0 {
+	if len(s.rules) == 0 {
 		return false
 	}
 	s.lock.RLock()
@@ -169,10 +171,12 @@ func (f fileHandler) Open(_ string) (http.File, error) {
 // Listen returns a new C2 listener for this Web instance. This function creates a separate server, but still
 // shares the handler for the base Web instance that it's created from.
 func (s *Server) Listen(a string) (net.Listener, error) {
-	var err error
-	var c net.Listener
+	var (
+		err error
+		c   net.Listener
+	)
 	if s.tls != nil {
-		if (s.tls.Certificates == nil || len(s.tls.Certificates) == 0) || s.tls.GetCertificate == nil {
+		if len(s.tls.Certificates) == 0 || s.tls.GetCertificate == nil {
 			return nil, com.ErrInvalidTLSConfig
 		}
 		c, err = tls.Listen(netWeb, a, s.tls)

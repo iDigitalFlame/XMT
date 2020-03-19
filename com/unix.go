@@ -33,8 +33,8 @@ func NewUNIX(t time.Duration) (*UNIXConnector, error) {
 	return &UNIXConnector{TCPConnector: *n}, nil
 }
 
-// Connect instructs the connector to create a connection to the supplied address. This function will
-// return a connection handle if successful. Otherwise the returned error will be non-nil.
+// Connect instructs the connector to create a connection to the supplied address. This function will return a
+// connection handle if successful. Otherwise the returned error will be non-nil.
 func (u UNIXConnector) Connect(s string) (net.Conn, error) {
 	return newConn(netUNIX, s, u.TCPConnector)
 }
@@ -46,10 +46,7 @@ func (u UNIXConnector) Listen(s string) (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &TCPListener{
-		timeout:  u.TCPConnector.dialer.Timeout,
-		Listener: c,
-	}, nil
+	return &TCPListener{timeout: u.TCPConnector.dialer.Timeout, Listener: c}, nil
 }
 
 // NewSecureUNIX creates a new simple TLS wrapped UNIX socket based connector with the supplied timeout.

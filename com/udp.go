@@ -9,23 +9,23 @@ import (
 	"github.com/iDigitalFlame/xmt/com/limits"
 )
 
-// UDPConn is a struct that represents a UDP based network connection.
-// This struct can be used to control and manage the current connection.
+// UDPConn is a struct that represents a UDP based network connection. This struct can
+// be used to control and manage the current connection.
 type UDPConn struct {
 	buf    chan byte
 	addr   net.Addr
 	parent *UDPListener
 }
 
-// UDPStream is a struct that represents a UDP stream (direct) based network connection.
-// This struct can be used to control and manage the current connection.
+// UDPStream is a struct that represents a UDP stream (direct) based network connection. This struct
+// can be used to control and manage the current connection.
 type UDPStream struct {
 	timeout time.Duration
 	net.Conn
 }
 
-// UDPListener is a struct that represents a UDP based network connection listener.
-// This struct can be used to accept and create new UDP connections.
+// UDPListener is a struct that represents a UDP based network connection listener. This struct can
+// be used to accept and create new UDP connections.
 type UDPListener struct {
 	buf    []byte
 	delete chan net.Addr
@@ -33,35 +33,35 @@ type UDPListener struct {
 	active map[net.Addr]*UDPConn
 }
 
-// UDPConnector is a struct that represents a UDP based network connection handler.
-// This struct can be used to create new UDP listeners.
+// UDPConnector is a struct that represents a UDP based network connection handler. This struct
+// can be used to create new UDP listeners.
 type UDPConnector struct {
 	dialer *net.Dialer
 }
 
 // Close closes this connetion and frees any related resources.
 func (u *UDPConn) Close() error {
-	defer func() { recover() }()
-	if u.buf != nil {
-		u.parent = nil
+	if u.buf == nil {
 		close(u.buf)
+		u.buf, u.parent = nil, nil
 	}
 	return nil
 }
 
 // Close closes this listener. Any blocked Accept operations will be unblocked and return errors.
 func (u *UDPListener) Close() error {
-	defer func(z *UDPListener) {
-		recover()
-		z.socket.Close()
-	}(u)
+	if u.delete == nil || u.socket == nil {
+		return nil
+	}
 	for _, v := range u.active {
 		if err := v.Close(); err != nil {
 			return err
 		}
 	}
 	close(u.delete)
-	return u.socket.Close()
+	err := u.socket.Close()
+	u.delete, u.socket = nil, nil
+	return err
 }
 
 // String returns a string representation of this UDPListener.
@@ -86,31 +86,24 @@ func (u UDPConn) RemoteAddr() net.Addr {
 
 // NewUDP creates a new simple UDP based connector with the supplied timeout.
 func NewUDP(t time.Duration) *UDPConnector {
-	return &UDPConnector{
-		dialer: &net.Dialer{
-			Timeout:   t,
-			KeepAlive: t,
-			DualStack: true,
-		},
-	}
+	return &UDPConnector{dialer: &net.Dialer{Timeout: t, KeepAlive: t, DualStack: true}}
 }
 
 // Read will attempt to read len(b) bytes from the current connection and fill the supplied buffer.
 // The return values will be the amount of bytes read and any errors that occurred.
 func (u *UDPConn) Read(b []byte) (int, error) {
-	var n int
-	if len(u.buf) == 0 {
+	if len(u.buf) == 0 || u.parent == nil {
 		return 0, io.EOF
 	}
+	var n int
 	for ; len(u.buf) > 0 && n < len(b); n++ {
 		b[n] = <-u.buf
 	}
 	return n, nil
 }
 
-// SetDeadline sets the read and write deadlines associated
-// with the connection. This function does nothing for this type of
-// connection.
+// SetDeadline sets the read and write deadlines associated with the connection. This function
+// does nothing for this type of connection.
 func (UDPConn) SetDeadline(_ time.Time) error {
 	return nil
 }
@@ -118,6 +111,9 @@ func (UDPConn) SetDeadline(_ time.Time) error {
 // Write will attempt to write len(b) bytes to the current connection from the supplied buffer.
 // The return values will be the amount of bytes wrote and any errors that occurred.
 func (u *UDPConn) Write(b []byte) (int, error) {
+	if u.parent == nil {
+		return 0, io.ErrUnexpectedEOF
+	}
 	return u.parent.socket.WriteTo(b, u.addr)
 }
 
@@ -147,6 +143,9 @@ func (u *UDPListener) Accept() (net.Conn, error) {
 	for len(u.delete) > 0 {
 		delete(u.active, <-u.delete)
 	}
+	if u.socket == nil {
+		return nil, io.ErrClosedPipe
+	}
 	n, a, err := u.socket.ReadFrom(u.buf)
 	if err != nil {
 		return nil, err
@@ -175,16 +174,14 @@ func (u *UDPListener) Accept() (net.Conn, error) {
 	return nil, nil
 }
 
-// SetReadDeadline sets the deadline for future Read calls
-// and any currently-blocked Read call. This function does nothing for
-// this type of connection.
+// SetReadDeadline sets the deadline for future Read calls and any currently-blocked Read call. This
+// function does nothing for this type of connection.
 func (UDPConn) SetReadDeadline(_ time.Time) error {
 	return nil
 }
 
-// SetWriteDeadline sets the deadline for future Write calls
-// and any currently-blocked Write call. This function does nothing for
-// this type of connection.
+// SetWriteDeadline sets the deadline for future Write calls and any currently-blocked Write call. This
+// function does nothing for this type of connection.
 func (UDPConn) SetWriteDeadline(_ time.Time) error {
 	return nil
 }

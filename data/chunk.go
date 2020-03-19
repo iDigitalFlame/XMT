@@ -43,16 +43,16 @@ type Chunk struct {
 	rpos, wpos int
 }
 
-// Reset resets the Chunk buffer to be empty but retains the underlying
-// storage for use by future writes.
+// Reset resets the Chunk buffer to be empty but retains the underlying storage for use
+// by future writes.
 func (c *Chunk) Reset() {
 	c.wpos = 0
 	c.rpos = 0
 	c.buf = c.buf[:0]
 }
 
-// Clear is similar to Reset, but discards the buffer, which must be
-// allocated again. If using the buffer the Reset function is preferable.
+// Clear is similar to Reset, but discards the buffer, which must be allocated again. If using
+// the buffer the Reset function is preferable.
 func (c *Chunk) Clear() {
 	c.Reset()
 	c.buf = nil
@@ -64,14 +64,14 @@ func (c *Chunk) Rewind() {
 	c.rpos, c.wpos = 0, 0
 }
 
-// Len returns the same result as Size. This function returns the amount
-// of bytes written or contained in this Chunk.
+// Len returns the same result as Size. This function returns the amount of bytes written or
+// contained in this Chunk.
 func (c Chunk) Len() int {
 	return c.Size()
 }
 
-// Left returns the amount of bytes avaliable in this Chunk when a Limit is set. This
-// function will return -1 if there us no limit set.
+// Left returns the amount of bytes avaliable in this Chunk when a Limit is set. This function will
+// return -1 if there us no limit set.
 func (c Chunk) Left() int {
 	if c.Limit <= 0 {
 		return -1
@@ -94,7 +94,7 @@ func (Chunk) Flush() error {
 
 // Empty returns true if this Chunk's buffer is empty.
 func (c Chunk) Empty() bool {
-	return c.buf == nil || len(c.buf) == 0
+	return len(c.buf) == 0
 }
 
 // Close will truncate the writing buffer if this Chunk has been written to.
@@ -107,14 +107,14 @@ func (c *Chunk) Close() error {
 
 // String returns a string representation of this Chunk's buffer.
 func (c Chunk) String() string {
-	if c.buf == nil || len(c.buf) == 0 {
+	if len(c.buf) == 0 {
 		return empty
 	}
 	return string(c.buf[c.wpos:])
 }
 
-// NewChunk creates a new Chunk struct and will use the provided byte
-// array as the underlying structure if is is not null.
+// NewChunk creates a new Chunk struct and will use the provided byte array as the underlying
+// structure if is is not null.
 func NewChunk(b []byte) *Chunk {
 	c := &Chunk{buf: b}
 	if b != nil {
@@ -131,8 +131,7 @@ func (c Chunk) Payload() []byte {
 	return c.buf[c.wpos:]
 }
 
-// Grow grows the Chunk's buffer capacity, if necessary, to guarantee space for
-// another n bytes.
+// Grow grows the Chunk's buffer capacity, if necessary, to guarantee space for another n bytes.
 func (c *Chunk) Grow(n int) error {
 	if n <= 0 {
 		return ErrInvalidIndex
@@ -230,11 +229,10 @@ func (c *Chunk) Read(b []byte) (int, error) {
 	return n, nil
 }
 
-// Write appends the contents of p to the buffer, growing the buffer as
-// needed. If the buffer becomes too large, Write will return ErrTooLarge.
-// If there is a limit set, this function will return ErrLimit if the Limit is being hit.
-// If an ErrLimit is returned, check the returned bytes as ErrLimit is returned as a warning that
-// not all bytes have been written before refusing writes.
+// Write appends the contents of p to the buffer, growing the buffer as needed. If the buffer becomes
+// too large, Write will return ErrTooLarge. If there is a limit set, this function will return ErrLimit
+// if the Limit is being hit. If an ErrLimit is returned, check the returned bytes as ErrLimit is returned
+// as a warning that not all bytes have been written before refusing writes.
 func (c *Chunk) Write(b []byte) (int, error) {
 	m, ok := c.reslice(len(b))
 	if !ok {
@@ -303,7 +301,6 @@ func (c *Chunk) Seek(o int64, w int) (int64, error) {
 // bytes read. Any error except io.EOF encountered during the read is also returned.
 func (c *Chunk) ReadFrom(r io.Reader) (int64, error) {
 	b := bufs.Get().([]byte)
-	defer bufs.Put(b)
 	var (
 		n   int
 		w   int
@@ -320,7 +317,6 @@ func (c *Chunk) ReadFrom(r io.Reader) (int64, error) {
 		} else {
 			n, err = r.Read(b)
 		}
-		fmt.Printf("read1111: %d %s\n", n, err)
 		if n > 0 {
 			w, err = c.Write(b[:n])
 			if w < n {
@@ -332,10 +328,11 @@ func (c *Chunk) ReadFrom(r io.Reader) (int64, error) {
 				break
 			}
 		}
-		if err != nil {
+		if n < len(b) || err != nil {
 			break
 		}
 	}
+	bufs.Put(b)
 	// TODO: Should delete this?
 	//if err != nil && errors.Is(err, io.EOF) {
 	//	err = nil

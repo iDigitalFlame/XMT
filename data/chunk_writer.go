@@ -55,9 +55,6 @@ func (c *Chunk) WriteBytes(b []byte) error {
 	if !c.Avaliable(1) {
 		return ErrLimit
 	}
-	if b == nil {
-		return c.small(0)
-	}
 	switch l := len(b); {
 	case l == 0:
 		return c.small(0)
@@ -119,9 +116,7 @@ func (c *Chunk) WriteUint32(n uint32) error {
 	if !c.Avaliable(4) {
 		return ErrLimit
 	}
-	return c.small(
-		byte(n>>24), byte(n>>16), byte(n>>8), byte(n),
-	)
+	return c.small(byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
 }
 
 // WriteUint64 writes the supplied value to the Chunk payload buffer.

@@ -12,7 +12,7 @@ var (
 	// connection. The default values are a URL for an news post, Windows host and a Firefox version 70 user agent.
 	DefaultGenerator = Generator{
 		URL:   util.Matcher("/news/post/%d/"),
-		Agent: util.Matcher("Mozilla/5.0 (Windows NT 6.1; WOW64; rv:70.0) Gecko/20101%100d Firefox/70.0"),
+		Agent: util.Matcher("Mozilla/5.0 (Windows NT 10; WOW64; rv:79.0) Gecko/20101%100d Firefox/79.0"),
 	}
 )
 

@@ -10,7 +10,7 @@ import (
 
 var maxSize = 50
 
-func main() {
+func main221() {
 	/*
 		s, d, d1 := &data.Chunk{}, &data.Chunk{Limit: 12}, &data.Chunk{Limit: 16}
 

@@ -25,9 +25,11 @@ const (
 	// FlagError is a flag used to indicate that the packet indicates that an error
 	// condition has occurred. The contents of the Packet can be used to understand the error cause.
 	FlagError
-	// FlagIgnore is used to signal to the server or client that this Packet should be dropped and
-	// not processed. Can be used for connectivity checks.
-	FlagIgnore
+	// FlagChannel is a flag used to signify that the connection should be converted into/from a single
+	// channel connection. This means that the connection is kept alive and the client will not poll the server.
+	// This flag will be present on the top level multi-packet if included in a single packet inside. This flag will
+	// take affect on each hop that it goes through. Incompatible with 'FlagOneshot'. Has to be used once per connection.
+	FlagChannel
 	// FlagOneshot is used to signal that the Packet contains information and should not be used to
 	// create or re-establish a session.
 	FlagOneshot
@@ -37,13 +39,11 @@ const (
 	FlagMultiDevice
 )
 
-var (
-	stringBuf = &sync.Pool{
-		New: func() interface{} {
-			return new(strings.Builder)
-		},
-	}
-)
+var stringBuf = &sync.Pool{
+	New: func() interface{} {
+		return new(strings.Builder)
+	},
+}
 
 // Flag is a bitwise integer that represents important
 // information about the packet that its assigned to.
@@ -98,8 +98,8 @@ func (f Flag) String() string {
 	if f&FlagError != 0 {
 		b.WriteRune('E')
 	}
-	if f&FlagIgnore != 0 {
-		b.WriteRune('I')
+	if f&FlagChannel != 0 {
+		b.WriteRune('C')
 	}
 	if f&FlagOneshot != 0 {
 		b.WriteRune('O')

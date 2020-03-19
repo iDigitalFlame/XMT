@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// TCPConn is a struct that represents a TCP based network connection.
-// This struct can be used to control and manage the current connection.
+// TCPConn is a struct that represents a TCP based network connection. This struct can be used
+// to control and manage the current connection.
 type TCPConn struct {
 	timeout time.Duration
 	net.Conn
@@ -17,15 +17,15 @@ type tcpClient struct {
 	c TCPConnector
 }
 
-// TCPListener is a struct that represents a TCP based network connection listener.
-// This struct can be used to accept and create new TCP connections.
+// TCPListener is a struct that represents a TCP based network connection listener. This struct can be
+// used to accept and create new TCP connections.
 type TCPListener struct {
 	timeout time.Duration
 	net.Listener
 }
 
-// TCPConnector is a struct that represents a TCP based network connection handler.
-// This struct can be used to create new TCP listeners.
+// TCPConnector is a struct that represents a TCP based network connection handler. This struct can
+// be used to create new TCP listeners.
 type TCPConnector struct {
 	tls    *tls.Config
 	dialer *net.Dialer
@@ -54,18 +54,14 @@ func (t *TCPConn) Write(b []byte) (int, error) {
 	return t.Conn.Write(b)
 }
 
-// Accept will block and listen for a connection to it's current listening port. This function
-// wil return only when a connection is made or it is closed. The return error will most likely
-// be nil unless the listener is closed.
+// Accept will block and listen for a connection to it's current listening port. This function will return only
+// when a connection is made or it is closed. The return error will most likely be nil unless the listener is closed.
 func (t TCPListener) Accept() (net.Conn, error) {
 	c, err := t.Listener.Accept()
 	if err != nil {
 		return nil, err
 	}
-	return &TCPConn{
-		Conn:    c,
-		timeout: t.timeout,
-	}, nil
+	return &TCPConn{timeout: t.timeout, Conn: c}, nil
 }
 
 // NewTCP creates a new simple TCP based connector with the supplied timeout.
@@ -79,7 +75,11 @@ func (t tcpClient) Connect(s string) (net.Conn, error) {
 // Connect instructs the connector to create a connection to the supplied address. This function will
 // return a connection handle if successful. Otherwise the returned error will be non-nil.
 func (t TCPConnector) Connect(s string) (net.Conn, error) {
-	return newConn(netTCP, s, t)
+	c, err := newConn(netTCP, s, t)
+	if err != nil {
+		return nil, err
+	}
+	return &TCPConn{timeout: t.dialer.Timeout, Conn: c}, nil
 }
 func newConn(n, s string, t TCPConnector) (net.Conn, error) {
 	if t.tls != nil {
@@ -95,14 +95,11 @@ func (t TCPConnector) Listen(s string) (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &TCPListener{
-		timeout:  t.dialer.Timeout,
-		Listener: c,
-	}, nil
+	return &TCPListener{timeout: t.dialer.Timeout, Listener: c}, nil
 }
 func newListener(n, s string, t TCPConnector) (net.Listener, error) {
 	if t.tls != nil {
-		if (t.tls.Certificates == nil || len(t.tls.Certificates) == 0) || t.tls.GetCertificate == nil {
+		if len(t.tls.Certificates) == 0 || t.tls.GetCertificate == nil {
 			return nil, ErrInvalidTLSConfig
 		}
 		return tls.Listen(n, s, t.tls)
@@ -123,12 +120,5 @@ func newConnector(n string, t time.Duration, c *tls.Config) (*TCPConnector, erro
 	default:
 		return nil, fmt.Errorf("%s: %w", n, ErrInvalidNetwork)
 	}
-	return &TCPConnector{
-		tls: c,
-		dialer: &net.Dialer{
-			Timeout:   t,
-			KeepAlive: t,
-			DualStack: true,
-		},
-	}, nil
+	return &TCPConnector{tls: c, dialer: &net.Dialer{Timeout: t, KeepAlive: t, DualStack: true}}, nil
 }

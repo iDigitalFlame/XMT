@@ -6,14 +6,11 @@ import (
 )
 
 const (
-	// DataLimitSmall is the size value allowed for small strings
-	// using the WriteString and WriteBytes functions.
+	// DataLimitSmall is the size value allowed for small strings using the WriteString and WriteBytes functions.
 	DataLimitSmall = 2 << 7
-	// DataLimitLarge is the size value allowed for large strings
-	// using the WriteString and WriteBytes functions.
+	// DataLimitLarge is the size value allowed for large strings using the WriteString and WriteBytes functions.
 	DataLimitLarge = 2 << 31
-	// DataLimitMedium is the size value allowed for medium strings
-	// using the WriteString and WriteBytes functions.
+	// DataLimitMedium is the size value allowed for medium strings using the WriteString and WriteBytes functions.
 	DataLimitMedium = 2 << 15
 )
 
@@ -34,8 +31,7 @@ func (w *writer) Close() error {
 	return nil
 }
 
-// NewWriter creates a simple Writer struct from the base Writer
-// provided.
+// NewWriter creates a simple Writer struct from the base Writer provided.
 func NewWriter(w io.Writer) Writer {
 	return &writer{w: w}
 }
@@ -71,9 +67,6 @@ func (w *writer) WriteUint8(n uint8) error {
 	return w.small(byte(n))
 }
 func (w *writer) WriteBytes(b []byte) error {
-	if b == nil {
-		return w.small(0)
-	}
 	switch l := len(b); {
 	case l == 0:
 		return w.small(0)
@@ -113,9 +106,7 @@ func (w *writer) WriteUint16(n uint16) error {
 	return w.small(byte(n>>8), byte(n))
 }
 func (w *writer) WriteUint32(n uint32) error {
-	return w.small(
-		byte(n>>24), byte(n>>16), byte(n>>8), byte(n),
-	)
+	return w.small(byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
 }
 func (w *writer) WriteUint64(n uint64) error {
 	return w.small(

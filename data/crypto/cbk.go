@@ -65,8 +65,7 @@ func (e *CBK) Reset() error {
 	e.A = e.buf[0]
 	e.B = e.buf[1]
 	e.C = e.buf[2]
-	e.pos = 0
-	e.index = 0
+	e.pos, e.index = 0, 0
 	return nil
 }
 
@@ -154,16 +153,14 @@ func (e *CBK) adjust(i uint16) uint16 {
 	return uint16(math.Max(float64((e.A^e.B)-e.C)*float64(i+1), 1))
 }
 
-// Encrypt encrypts the first block in src into dst.
-// Dst and src must overlap entirely or not at all.
+// Encrypt encrypts the first block in src into dst. Dst and src must overlap entirely or not at all.
 func (e *CBK) Encrypt(dst, src []byte) {
 	copy(dst, src)
 	e.Shuffle(dst)
 	e.scramble(dst, true)
 }
 
-// Decrypt decrypts the first block in src into dst.
-// Dst and src must overlap entirely or not at all.
+// Decrypt decrypts the first block in src into dst. Dst and src must overlap entirely or not at all.
 func (e *CBK) Decrypt(dst, src []byte) {
 	copy(dst, src)
 	e.scramble(dst, false)
@@ -207,13 +204,14 @@ func (e *CBK) writeIndex(b []byte) error {
 	return nil
 }
 func (e *CBK) scramble(b []byte, d bool) {
-	o := chains.Get().([]byte)
-	defer clear(o, nil)
-	x := e.adjust(uint16(e.A*e.B) + uint16(e.D))
-	y := e.adjust(uint16((e.C-e.D)*e.A) + x + e.adjust(uint16(e.index)))
-	z := e.adjust(uint16(byte(x*y) + e.B - byte(e.D*e.index)))
-	var i int8
-	var g, h byte
+	var (
+		o    = chains.Get().([]byte)
+		x    = e.adjust(uint16(e.A*e.B) + uint16(e.D))
+		y    = e.adjust(uint16((e.C-e.D)*e.A) + x + e.adjust(uint16(e.index)))
+		z    = e.adjust(uint16(byte(x*y) + e.B - byte(e.D*e.index)))
+		i    int8
+		g, h byte
+	)
 	if d {
 		i = 5
 	}
@@ -231,6 +229,7 @@ func (e *CBK) scramble(b []byte, d bool) {
 			i++
 		}
 	}
+	clear(o, nil)
 }
 func (e *CBK) readInput(r io.Reader) (int, error) {
 	n, err := r.Read(e.buf)
@@ -246,9 +245,10 @@ func (e *CBK) readInput(r io.Reader) (int, error) {
 	if e.index > 30 {
 		e.index = 0
 	}
-	t := chains.Get().([]byte)
-	c := tables.Get().([][]byte)
-	defer clear(t, c)
+	var (
+		t = chains.Get().([]byte)
+		c = tables.Get().([][]byte)
+	)
 	e.cipherTable(t)
 	e.Deshuffle(e.buf)
 	e.scramble(e.buf, true)
@@ -263,6 +263,7 @@ func (e *CBK) readInput(r io.Reader) (int, error) {
 	}
 	e.total = int(e.buf[len(e.buf)-1])
 	e.pos = 0
+	clear(t, c)
 	if e.total == 0 {
 		return 0, io.EOF
 	}
@@ -314,9 +315,10 @@ func (e *CBK) flushOutput(w io.Writer) (int, error) {
 		e.index = 0
 	}
 	e.buf[e.total] = byte(e.pos)
-	t := chains.Get().([]byte)
-	c := tables.Get().([][]byte)
-	defer clear(t, c)
+	var (
+		t = chains.Get().([]byte)
+		c = tables.Get().([][]byte)
+	)
 	e.cipherTable(t)
 	for x := 0; x < len(c); x++ {
 		for z := 0; z < len(c[x]); z++ {
@@ -330,6 +332,7 @@ func (e *CBK) flushOutput(w io.Writer) (int, error) {
 	e.scramble(e.buf, false)
 	e.Shuffle(e.buf)
 	n, err := w.Write(e.buf)
+	clear(t, c)
 	if err != nil {
 		return 0, err
 	}
@@ -343,16 +346,16 @@ func (e *CBK) Read(r io.Reader, b []byte) (int, error) {
 		e.buf = make([]byte, size+1)
 	}
 	if e.total-e.pos > len(b) {
-		n := copy(b, e.buf[e.pos:e.pos+len(b)])
+		u := copy(b, e.buf[e.pos:e.pos+len(b)])
 		e.pos += len(b)
-		return n, nil
+		return u, nil
 	}
 	if e.pos >= e.total {
-		if o, err := e.readInput(r); err != nil && (err != io.EOF || o == 0) {
+		if o, err := e.readInput(r); err != nil && (!errors.Is(err, io.EOF) || o == 0) {
 			return o, err
 		}
 	}
-	n := 0
+	var n int
 	for i := 0; n < len(b) && e.pos < e.total && e.total < len(e.buf); n += i {
 		if e.total <= 0 {
 			return n, io.EOF
@@ -360,7 +363,7 @@ func (e *CBK) Read(r io.Reader, b []byte) (int, error) {
 		i = copy(b[n:], e.buf[e.pos:e.total])
 		e.pos += i
 		if e.pos >= e.total && e.total >= len(e.buf)-1 {
-			if _, err := e.readInput(r); err != nil && err != io.EOF {
+			if _, err := e.readInput(r); err != nil && !errors.Is(err, io.EOF) {
 				return n, err
 			}
 		}
@@ -378,11 +381,13 @@ func (e *CBK) Write(w io.Writer, b []byte) (int, error) {
 	} else if e.total == -1 {
 		e.total = len(e.buf) - 1
 	}
-	n := 0
-	for i := e.total; n < len(b); n += i {
+	var n, i int
+	for n < len(b) {
 		if e.pos >= e.total {
-			if o, err := e.flushOutput(w); err != nil {
-				return o, err
+			x, err := e.flushOutput(w)
+			n += x
+			if err != nil {
+				return n, err
 			}
 		}
 		i = copy(e.buf[e.pos:e.total], b[n:])
@@ -396,8 +401,8 @@ func (e *CBK) Write(w io.Writer, b []byte) (int, error) {
 	return n, nil
 }
 
-// NewCBKEx returns a new CBK Cipher with the D value, BlockSize and Entropy source specified. The other A, B and C values
-// are randomally generated at runtime.
+// NewCBKEx returns a new CBK Cipher with the D value, BlockSize and Entropy source specified. The other
+// A, B and C values are randomally generated at runtime.
 func NewCBKEx(d int, size int, source rand.Source) (*CBK, error) {
 	if size < size || size > sizeMax || math.Floor(math.Log2(float64(size))) != math.Ceil(math.Log2(float64(size))) {
 		return nil, ErrBlockSize

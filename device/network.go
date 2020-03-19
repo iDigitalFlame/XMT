@@ -9,10 +9,6 @@ import (
 
 const maxNetworks = 255
 
-// IPv6 is a compile flag that enables or disables support for IPv6 networks
-// and addresses.
-var IPv6 = true
-
 type device struct {
 	Name     string           `json:"name"`
 	Address  []net.IP         `json:"address"`
@@ -121,7 +117,7 @@ func (n Network) MarshalStream(w data.Writer) error {
 	return nil
 }
 func (d *device) UnmarshalStream(r data.Reader) error {
-	if err := r.ReadString(&(d.Name)); err != nil {
+	if err := r.ReadString(&d.Name); err != nil {
 		return err
 	}
 	m, err := r.Bytes()

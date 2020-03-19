@@ -7,11 +7,11 @@ import (
 )
 
 var (
-	// ErrInvalidBytes is an error that occurs when the Bytes function
-	// could not propertly determine the type of byte array from the Reader.
+	// ErrInvalidBytes is an error that occurs when the Bytes function could not propertly determine
+	// the type of byte array from the Reader.
 	ErrInvalidBytes = errors.New("could not understand bytes type")
-	// ErrInvalidString is an error that occurs when the ReadString or String functions
-	// could not propertly determine the type of string from the Reader.
+	// ErrInvalidString is an error that occurs when the ReadString or String functions could not propertly
+	// determine the type of string from the Reader.
 	ErrInvalidString = errors.New("could not understand string type")
 )
 
@@ -27,8 +27,7 @@ func (r *reader) Close() error {
 	return nil
 }
 
-// NewReader creates a simple Reader struct from the base io.Reader
-// provided.
+// NewReader creates a simple Reader struct from the base io.Reader provided.
 func NewReader(r io.Reader) Reader {
 	return &reader{r: r, buf: make([]byte, 8)}
 }
@@ -137,7 +136,7 @@ func (r *reader) Bytes() ([]byte, error) {
 	}
 	b := make([]byte, l)
 	n, err := ReadFully(r.r, b)
-	if err != nil && (err != io.EOF || n != l) {
+	if err != nil && (!errors.Is(err, io.EOF) || n != l) {
 		return nil, err
 	}
 	if n != l {
@@ -170,6 +169,7 @@ func (r *reader) ReadBool(p *bool) error {
 	return nil
 }
 func (r *reader) Uint16() (uint16, error) {
+	_ = r.buf[1]
 	n, err := ReadFully(r.r, r.buf[0:2])
 	if err != nil {
 		return 0, err
@@ -180,6 +180,7 @@ func (r *reader) Uint16() (uint16, error) {
 	return uint16(r.buf[1]) | uint16(r.buf[0])<<8, nil
 }
 func (r *reader) Uint32() (uint32, error) {
+	_ = r.buf[3]
 	n, err := ReadFully(r.r, r.buf[0:4])
 	if err != nil {
 		return 0, err
@@ -190,6 +191,7 @@ func (r *reader) Uint32() (uint32, error) {
 	return uint32(r.buf[3]) | uint32(r.buf[2])<<8 | uint32(r.buf[1])<<16 | uint32(r.buf[0])<<24, nil
 }
 func (r *reader) Uint64() (uint64, error) {
+	_ = r.buf[7]
 	n, err := ReadFully(r.r, r.buf)
 	if err != nil {
 		return 0, err

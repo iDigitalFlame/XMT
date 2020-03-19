@@ -7,12 +7,11 @@ import (
 	"time"
 )
 
-const (
-	// DefaultTimeout is the default timeout used for the Raw connectors.
-	// The default is 5 seconds.
-	DefaultTimeout = time.Duration(5) * time.Second
+// DefaultTimeout is the default timeout used for the Raw connectors. The default is 60 seconds (one minute).
+const DefaultTimeout = time.Duration(60) * time.Second
 
-	netIP   = "ip:"
+const (
+	netIP   = "ip:%d"
 	netTCP  = "tcp"
 	netUDP  = "udp"
 	netUNIX = "unix"
@@ -25,11 +24,13 @@ var (
 	// UDP is the UDP Raw connector. This connector uses raw UDP connections for communication.
 	UDP = NewUDP(DefaultTimeout)
 
+	// ICMP is the ICMP Raw connector. This connector uses raw ICMP connections for communication.
+	ICMP = NewIP(1, DefaultTimeout)
+
 	// TLS is the TCP over TLS connector client. This client uses TCP wrapped in TLS encryption
 	// using certificates. This client is only valid for clients that connect to servers with properly
 	// signed and trusted certificates.
 	TLS = &tcpClient{c: TCPConnector{tls: &tls.Config{}, dialer: TCP.dialer}}
-
 	// TLSNoCheck is the TCP over TLS connector profile. This client uses TCP wrapped in TLS encryption
 	// using certificates. This instance DOES NOT check the server certificate for validity.
 	TLSNoCheck = &tcpClient{c: TCPConnector{tls: &tls.Config{InsecureSkipVerify: true}, dialer: TCP.dialer}}
@@ -42,8 +43,7 @@ var (
 	// ErrInvalidNetwork is an error returned from the New* functions when an improper network is used
 	// that is not compatible with the New function return type.
 	ErrInvalidNetwork = errors.New("invalid network type")
-	// ErrInvalidTLSConfig is returned when attempting to use the default TLS Connector as a listener.
-	// This error is also returned when attemtping to use a TLS configuration that does not have a valid
-	// server certificates.
+	// ErrInvalidTLSConfig is returned when attempting to use the default TLS Connector as a listener. This error
+	// is also returned when attemtping to use a TLS configuration that does not have a valid server certificates.
 	ErrInvalidTLSConfig = errors.New("tls configuration is missing certificates")
 )
