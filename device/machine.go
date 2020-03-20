@@ -6,9 +6,8 @@ import (
 	"github.com/iDigitalFlame/xmt/data"
 )
 
-// Machine is a struct that contains information about a specific device.
-// This struct contains generic Operating System Information such as Version, Arch and
-// network information.
+// Machine is a struct that contains information about a specific device. This struct contains generic Operating
+// System Information such as Version, Arch and network information.
 type Machine struct {
 	ID       ID         `json:"id"`
 	OS       deviceOS   `json:"os"`
@@ -31,8 +30,7 @@ func (m Machine) String() string {
 	return fmt.Sprintf("[%s] %s (%s) %s%s", m.ID.String(), m.Hostname, m.Version, e, m.User)
 }
 
-// MarshalStream transform this struct into a binary format and writes to the
-// supplied data.Writer.
+// MarshalStream transform this struct into a binary format and writes to the supplied data.Writer.
 func (m Machine) MarshalStream(w data.Writer) error {
 	if err := m.ID.MarshalStream(w); err != nil {
 		return err
@@ -67,8 +65,7 @@ func (m Machine) MarshalStream(w data.Writer) error {
 	return nil
 }
 
-// UnmarshalStream transforms this struct from a binary format that is read from the
-// supplied data.Reader.
+// UnmarshalStream transforms this struct from a binary format that is read from the supplied data.Reader.
 func (m *Machine) UnmarshalStream(r data.Reader) error {
 	if err := m.ID.UnmarshalStream(r); err != nil {
 		return err

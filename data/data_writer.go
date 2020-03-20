@@ -5,15 +5,6 @@ import (
 	"math"
 )
 
-const (
-	// DataLimitSmall is the size value allowed for small strings using the WriteString and WriteBytes functions.
-	DataLimitSmall = 2 << 7
-	// DataLimitLarge is the size value allowed for large strings using the WriteString and WriteBytes functions.
-	DataLimitLarge = 2 << 31
-	// DataLimitMedium is the size value allowed for medium strings using the WriteString and WriteBytes functions.
-	DataLimitMedium = 2 << 15
-)
-
 type writer struct {
 	w io.Writer
 }

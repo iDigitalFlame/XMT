@@ -26,8 +26,7 @@ type RegistryFile struct {
 	k, v string
 }
 
-// Close fulfills the io.Closer interface. For this struct, this function does nothing and always
-// returns nil.
+// Close fulfills the io.Closer interface. For this struct, this function does nothing and always returns nil.
 func (RegistryFile) Close() error {
 	return nil
 }

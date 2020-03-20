@@ -1,18 +1,8 @@
 package data
 
 import (
-	"errors"
 	"io"
 	"math"
-)
-
-var (
-	// ErrInvalidBytes is an error that occurs when the Bytes function could not propertly determine
-	// the type of byte array from the Reader.
-	ErrInvalidBytes = errors.New("could not understand bytes type")
-	// ErrInvalidString is an error that occurs when the ReadString or String functions could not propertly
-	// determine the type of string from the Reader.
-	ErrInvalidString = errors.New("could not understand string type")
 )
 
 type reader struct {
@@ -136,7 +126,7 @@ func (r *reader) Bytes() ([]byte, error) {
 	}
 	b := make([]byte, l)
 	n, err := ReadFully(r.r, b)
-	if err != nil && (!errors.Is(err, io.EOF) || n != l) {
+	if err != nil && (err != io.EOF || n != l) {
 		return nil, err
 	}
 	if n != l {

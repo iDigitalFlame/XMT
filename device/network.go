@@ -15,8 +15,7 @@ type device struct {
 	Hardware net.HardwareAddr `json:"mac"`
 }
 
-// Network is a basic listing of network interfaces.  Used to store
-// and refresh interface lists.
+// Network is a basic listing of network interfaces.  Used to store and refresh interface lists.
 type Network []*device
 
 // Len returns the number of detected interfaces detected.
@@ -29,15 +28,14 @@ func (d device) String() string {
 	)
 }
 
-// Refresh collects the interfaces connected to this system and fills this Network
-// object with the information.  If previous Network information is contained in this Network
-// object, it is cleared before filling.
-func (n *Network) Refresh() error {
-	if len(*n) > 0 {
-		for i := range *n {
-			(*n)[i] = nil
+// Refresh collects the interfaces connected to this system and fills this Network object with the information.
+// If previous Network information is contained in this Network object, it is cleared before filling.
+func (n Network) Refresh() error {
+	if len(n) > 0 {
+		for i := range n {
+			n[i] = nil
 		}
-		*n = (*n)[0:0]
+		n = n[0:0]
 	}
 	l, err := net.Interfaces()
 	if err != nil {
@@ -79,7 +77,7 @@ func (n *Network) Refresh() error {
 			}
 		}
 		if len(c.Address) > 0 {
-			*n = append(*n, c)
+			n = append(n, c)
 		}
 	}
 	return nil

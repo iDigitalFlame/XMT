@@ -1,7 +1,6 @@
 package data
 
 import (
-	"errors"
 	"io"
 	"math"
 )
@@ -42,8 +41,7 @@ func (c *Chunk) Int8() (int8, error) {
 	return int8(v), nil
 }
 
-// ReadInt reads the value from the Chunk payload buffer into
-// the provided pointer.
+// ReadInt reads the value from the Chunk payload buffer into the provided pointer.
 func (c *Chunk) ReadInt(p *int) error {
 	v, err := c.Int()
 	if err != nil {
@@ -129,7 +127,7 @@ func (c *Chunk) Bytes() ([]byte, error) {
 	}
 	b := make([]byte, l)
 	n, err := ReadFully(c, b)
-	if err != nil && (!errors.Is(err, io.EOF) || n != l) {
+	if err != nil && (err != io.EOF || n != l) {
 		return nil, err
 	}
 	if n != l {
@@ -138,8 +136,7 @@ func (c *Chunk) Bytes() ([]byte, error) {
 	return b, nil
 }
 
-// ReadUint reads the value from the Chunk payload buffer into
-// the provided pointer.
+// ReadUint reads the value from the Chunk payload buffer into the provided pointer.
 func (c *Chunk) ReadUint(p *uint) error {
 	v, err := c.Uint()
 	if err != nil {
@@ -149,8 +146,7 @@ func (c *Chunk) ReadUint(p *uint) error {
 	return nil
 }
 
-// ReadInt8 reads the value from the Chunk payload buffer into
-// the provided pointer.
+// ReadInt8 reads the value from the Chunk payload buffer into the provided pointer.
 func (c *Chunk) ReadInt8(p *int8) error {
 	v, err := c.Int8()
 	if err != nil {
@@ -160,8 +156,7 @@ func (c *Chunk) ReadInt8(p *int8) error {
 	return nil
 }
 
-// ReadBool reads the value from the Chunk payload buffer into
-// the provided pointer.
+// ReadBool reads the value from the Chunk payload buffer into the provided pointer.
 func (c *Chunk) ReadBool(p *bool) error {
 	v, err := c.Bool()
 	if err != nil {
@@ -205,8 +200,7 @@ func (c *Chunk) Uint64() (uint64, error) {
 	return v, nil
 }
 
-// ReadInt16 reads the value from the Chunk payload buffer into
-// the provided pointer.
+// ReadInt16 reads the value from the Chunk payload buffer into the provided pointer.
 func (c *Chunk) ReadInt16(p *int16) error {
 	v, err := c.Int16()
 	if err != nil {
@@ -216,8 +210,7 @@ func (c *Chunk) ReadInt16(p *int16) error {
 	return nil
 }
 
-// ReadInt32 reads the value from the Chunk payload buffer into
-// the provided pointer.
+// ReadInt32 reads the value from the Chunk payload buffer into the provided pointer.
 func (c *Chunk) ReadInt32(p *int32) error {
 	v, err := c.Int32()
 	if err != nil {
@@ -227,8 +220,7 @@ func (c *Chunk) ReadInt32(p *int32) error {
 	return nil
 }
 
-// ReadInt64 reads the value from the Chunk payload buffer into
-// the provided pointer.
+// ReadInt64 reads the value from the Chunk payload buffer into the provided pointer.
 func (c *Chunk) ReadInt64(p *int64) error {
 	v, err := c.Int64()
 	if err != nil {
@@ -238,8 +230,7 @@ func (c *Chunk) ReadInt64(p *int64) error {
 	return nil
 }
 
-// ReadUint8 reads the value from the Chunk payload buffer into
-// the provided pointer.
+// ReadUint8 reads the value from the Chunk payload buffer into the provided pointer.
 func (c *Chunk) ReadUint8(p *uint8) error {
 	v, err := c.Uint8()
 	if err != nil {
@@ -279,8 +270,7 @@ func (c *Chunk) StringVal() (string, error) {
 	return string(b), nil
 }
 
-// ReadUint16 reads the value from the Chunk payload buffer into
-// the provided pointer.
+// ReadUint16 reads the value from the Chunk payload buffer into the provided pointer.
 func (c *Chunk) ReadUint16(p *uint16) error {
 	v, err := c.Uint16()
 	if err != nil {
@@ -290,8 +280,7 @@ func (c *Chunk) ReadUint16(p *uint16) error {
 	return nil
 }
 
-// ReadUint32 reads the value from the Chunk payload buffer into
-// the provided pointer.
+// ReadUint32 reads the value from the Chunk payload buffer into the provided pointer.
 func (c *Chunk) ReadUint32(p *uint32) error {
 	v, err := c.Uint32()
 	if err != nil {
@@ -301,8 +290,7 @@ func (c *Chunk) ReadUint32(p *uint32) error {
 	return nil
 }
 
-// ReadUint64 reads the value from the Chunk payload buffer into
-// the provided pointer.
+// ReadUint64 reads the value from the Chunk payload buffer into the provided pointer.
 func (c *Chunk) ReadUint64(p *uint64) error {
 	v, err := c.Uint64()
 	if err != nil {
@@ -312,8 +300,7 @@ func (c *Chunk) ReadUint64(p *uint64) error {
 	return nil
 }
 
-// ReadString reads the value from the Chunk payload buffer into
-// the provided pointer.
+// ReadString reads the value from the Chunk payload buffer into the provided pointer.
 func (c *Chunk) ReadString(p *string) error {
 	v, err := c.StringVal()
 	if err != nil {
@@ -323,8 +310,7 @@ func (c *Chunk) ReadString(p *string) error {
 	return nil
 }
 
-// ReadFloat32 reads the value from the Chunk payload buffer into
-// the provided pointer.
+// ReadFloat32 reads the value from the Chunk payload buffer into the provided pointer.
 func (c *Chunk) ReadFloat32(p *float32) error {
 	v, err := c.Float32()
 	if err != nil {
@@ -334,8 +320,7 @@ func (c *Chunk) ReadFloat32(p *float32) error {
 	return nil
 }
 
-// ReadFloat64 reads the value from the Chunk payload buffer into
-// the provided pointer.
+// ReadFloat64 reads the value from the Chunk payload buffer into the provided pointer.
 func (c *Chunk) ReadFloat64(p *float64) error {
 	v, err := c.Float64()
 	if err != nil {

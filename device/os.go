@@ -56,16 +56,14 @@ const (
 )
 
 var (
-	// ErrInvalidID is returned by the 'IDFromString' function when
-	// the returned ID value is invalid or nil.
+	// ErrInvalidID is returned by the 'IDFromString' function when the returned ID value is invalid or nil.
 	ErrInvalidID = errors.New("id format is invalid or empty")
 
 	envRegexp = regexp.MustCompile("(%([\\w\\d()-_]+)%|\\$([[\\w\\d-_]+))")
 )
 
-// ID is an alias for a byte array that represents a 48 byte
-// client identification number.  This is used for tracking and
-// detection purposes.
+// ID is an alias for a byte array that represents a 48 byte client identification number. This is used for
+// tracking and detection purposes.
 type ID []byte
 type deviceOS uint8
 type deviceArch uint8
@@ -97,14 +95,12 @@ func getArch() deviceArch {
 	return ArchUnknown
 }
 
-// Full returns the full string representation of this ID instance. Full is an alias of
-// the 'FullString' function.
+// Full returns the full string representation of this ID instance. Full is an alias of the 'FullString' function.
 func (i ID) Full() string {
 	return i.FullString()
 }
 
-// Hash returns the 32bit hash sum of this ID value. The hash mechanism used is similar
-// to the hash/fnv mechanism.
+// Hash returns the 32bit hash sum of this ID value. The hash mechanism used is similar to the hash/fnv mechanism.
 func (i ID) Hash() uint32 {
 	h := xmtIDOffset
 	for x := range i {
@@ -122,8 +118,8 @@ func (i ID) String() string {
 	return strings.ToUpper(hex.EncodeToString(i[SmallIDSize:]))
 }
 
-// Expand attempts to determine environment variables from the current session and
-// translate them in the supplied string.
+// Expand attempts to determine environment variables from the current session and translate them from
+// the supplied string.
 func Expand(s string) string {
 	v := envRegexp.FindAllStringSubmatch(s, -1)
 	if len(v) == 0 {
@@ -206,15 +202,13 @@ func IDFromString(s string) (ID, error) {
 	return ID(i), nil
 }
 
-// MarshalStream transform this struct into a binary format and writes to the
-// supplied data.Writer.
+// MarshalStream transform this struct into a binary format and writes to the supplied data.Writer.
 func (i ID) MarshalStream(w data.Writer) error {
 	_, err := w.Write(i)
 	return err
 }
 
-// UnmarshalStream transforms this struct from a binary format that is read from the
-// supplied data.Reader.
+// UnmarshalStream transforms this struct from a binary format that is read from the supplied data.Reader.
 func (i *ID) UnmarshalStream(r data.Reader) error {
 	if *i == nil {
 		*i = append(*i, make([]byte, IDSize)...)
