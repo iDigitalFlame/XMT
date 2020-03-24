@@ -46,7 +46,7 @@ type Session struct {
 	wake    chan waker
 	done    uint32
 	frags   map[uint16]*cluster
-	proxy   *proxy
+	swarm   *proxySwarm
 	sleep   time.Duration
 	jitter  uint8
 	errors  uint8
@@ -113,8 +113,8 @@ func (s *Session) Wake() {
 func (s *Session) listen() {
 	for ; atomic.LoadUint32(&s.done) == 0; s.wait() {
 		s.log.Trace("[%s] Waking up...", s.ID)
-		if s.proxy != nil {
-			s.proxy.process()
+		if s.swarm != nil {
+			s.swarm.process()
 		}
 		c, err := s.socket(s.host)
 		if err != nil {
@@ -133,7 +133,6 @@ func (s *Session) listen() {
 			}
 			break
 		}
-		//atomic.StoreUint32(&s.chm, 0)
 		c.Close()
 		if s.errors > maxErrors {
 			break
@@ -144,8 +143,8 @@ func (s *Session) listen() {
 	}
 	s.log.Trace("[%s] Stopping transaction thread...", s.ID)
 	s.cancel()
-	if s.proxy != nil {
-		s.proxy.close()
+	if s.swarm != nil {
+		s.swarm.Close()
 	}
 	if s.parent != nil && atomic.LoadUint32(&s.parent.done) == 0 {
 		s.parent.close <- s.Device.ID.Hash()
@@ -164,7 +163,7 @@ func (s Session) Jitter() uint8 {
 
 // IsProxy returns true when a Proxy has been attached to this Session and is active.
 func (s Session) IsProxy() bool {
-	return s.proxy != nil
+	return s.swarm != nil
 }
 
 // Close stops the listening thread from this Session and releases all associated resources.

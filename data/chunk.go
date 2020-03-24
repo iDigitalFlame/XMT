@@ -14,9 +14,9 @@ const (
 )
 
 var (
-	// ErrLimit is an error that is returned when a Limit is set on a Chunk and the
-	// size limit was hit when attempting to write to the Chunk. This error wraps the io.EOF
-	// error, which allows this error to match io.EOF for sanity checking.
+	// ErrLimit is an error that is returned when a Limit is set on a Chunk and the size limit was hit when
+	// attempting to write to the Chunk. This error wraps the io.EOF error, which allows this error to match
+	// io.EOF for sanity checking.
 	ErrLimit = fmt.Errorf("buffer size limit reached: %w", io.EOF)
 	// ErrTooLarge is raised if memory cannot be allocated to store data in a Chunk.
 	ErrTooLarge = errors.New("buffer size is too large")

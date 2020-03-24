@@ -351,7 +351,7 @@ func (e *CBK) Read(r io.Reader, b []byte) (int, error) {
 		return u, nil
 	}
 	if e.pos >= e.total {
-		if o, err := e.readInput(r); err != nil && (!errors.Is(err, io.EOF) || o == 0) {
+		if o, err := e.readInput(r); err != nil && (err != io.EOF || o == 0) {
 			return o, err
 		}
 	}
@@ -363,7 +363,7 @@ func (e *CBK) Read(r io.Reader, b []byte) (int, error) {
 		i = copy(b[n:], e.buf[e.pos:e.total])
 		e.pos += i
 		if e.pos >= e.total && e.total >= len(e.buf)-1 {
-			if _, err := e.readInput(r); err != nil && !errors.Is(err, io.EOF) {
+			if _, err := e.readInput(r); err != nil && err != io.EOF {
 				return n, err
 			}
 		}

@@ -192,7 +192,7 @@ func ReadFully(r io.Reader, b []byte) (int, error) {
 	var n int
 	for n < len(b) {
 		i, err := r.Read(b[n:])
-		if n += i; err != nil && (err != io.EOF || n != len(b)) {
+		if n += i; err != nil && (err != io.EOF || err != ErrLimit || n != len(b)) {
 			return n, err
 		}
 	}

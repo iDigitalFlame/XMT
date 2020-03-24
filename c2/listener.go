@@ -60,6 +60,7 @@ func (l *Listener) listen() {
 		c, err := l.listener.Accept()
 		if err != nil {
 			l.log.Error("[%s] Error occurred during Listener accept: %s!", l.name, err.Error())
+			continue
 		}
 		if c == nil {
 			continue

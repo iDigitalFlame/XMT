@@ -3,9 +3,9 @@ package c2
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
+	"net"
 	"sync"
 	"time"
 
@@ -71,6 +71,12 @@ type connection struct {
 	log    logx.Log
 	cancel context.CancelFunc
 }
+type serverClient interface {
+	Connect(string) (net.Conn, error)
+}
+type serverListener interface {
+	Listen(string) (net.Listener, error)
+}
 
 // Wrapper is an interface that wraps the binary streams into separate stream types. This allows for using
 // encryption or compression (or both!).
@@ -114,7 +120,7 @@ func notify(l *Listener, s *Session, p *com.Packet) error {
 		return nil
 	}
 	if s != nil && !bytes.Equal(p.Device, s.Device.ID) && p.Flags&com.FlagMultiDevice == 0 {
-		if s.proxy != nil && s.proxy.accept(p) {
+		if s.swarm != nil && s.swarm.accept(p) {
 			return nil
 		}
 		if p.ID == MsgRegister {
@@ -263,7 +269,7 @@ func notifyClient(l *Listener, s *Session, p *com.Packet) {
 }
 func readPacket(c io.Reader, w Wrapper, t Transform) (*com.Packet, error) {
 	b := buffers.Get().(*data.Chunk)
-	if _, err := b.ReadFrom(c); err != nil && !errors.Is(err, io.EOF) {
+	if _, err := b.ReadFrom(c); err != nil && err != io.EOF {
 		returnBuffer(b)
 		return nil, fmt.Errorf("unable to read from stream reader: %w", err)
 	}
@@ -294,7 +300,7 @@ func readPacket(c io.Reader, w Wrapper, t Transform) (*com.Packet, error) {
 		err = p.UnmarshalStream(r)
 	)
 	returnBuffer(b)
-	if err != nil && !errors.Is(err, io.EOF) {
+	if err != nil && err != io.EOF {
 		return nil, fmt.Errorf("unable to read from cache reader: %w", err)
 	}
 	if err := r.Close(); err != nil {

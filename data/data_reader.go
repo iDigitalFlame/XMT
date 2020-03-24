@@ -126,7 +126,7 @@ func (r *reader) Bytes() ([]byte, error) {
 	}
 	b := make([]byte, l)
 	n, err := ReadFully(r.r, b)
-	if err != nil && (err != io.EOF || n != l) {
+	if err != nil && (err != io.EOF || err != ErrLimit || n != l) {
 		return nil, err
 	}
 	if n != l {

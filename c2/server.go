@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"strings"
+
+	"github.com/iDigitalFlame/xmt/com/wc2"
 
 	"github.com/iDigitalFlame/logx/logx"
 	"github.com/iDigitalFlame/xmt/com"
@@ -36,13 +37,6 @@ type Server struct {
 	events chan event
 	cancel context.CancelFunc
 	active map[string]*Listener
-}
-
-type serverClient interface {
-	Connect(string) (net.Conn, error)
-}
-type serverListener interface {
-	Listen(string) (net.Listener, error)
 }
 
 // Wait will block until the current Server is closed and shutdown.
@@ -96,6 +90,67 @@ func (s *Server) IsActive() bool {
 func NewServer(l logx.Log) *Server {
 	return NewServerContext(context.Background(), l)
 }
+func convertHintConnect(s Setting) serverClient {
+	if len(s) == 0 {
+		return nil
+	}
+	switch s[0] {
+	case ipID:
+		if s[1] == 1 {
+			return com.ICMP
+		}
+		return com.NewIP(s[1], DefaultSleep)
+	case udpID:
+		return com.UDP
+	case tcpID:
+		return com.TCP
+	case tlsID:
+		if len(s) > 1 {
+			return com.TLSNoCheck
+		}
+		return com.TLS
+	case wc2ID:
+		_ = s[6]
+		var (
+			c       = 6
+			al      = uint16(uint64(s[2]) | uint64(s[1])<<8)
+			ul      = uint16(uint64(s[4]) | uint64(s[3])<<8)
+			hl      = s[5]
+			a, u, h util.Matcher
+		)
+		if al > 0 {
+			a = util.Matcher(string(s[c : c+int(al)]))
+			c += int(al)
+		}
+		if ul > 0 {
+			u = util.Matcher(string(s[c : c+int(ul)]))
+			c += int(ul)
+		}
+		if hl > 0 {
+			h = util.Matcher(string(s[c : c+int(hl)]))
+			c += int(hl)
+		}
+		return &wc2.Client{Generator: wc2.Generator{URL: u, Host: h, Agent: a}}
+	}
+	return nil
+}
+func convertHintListen(s Setting) serverListener {
+	if len(s) == 0 {
+		return nil
+	}
+	switch s[0] {
+	case ipID:
+		if s[1] == 1 {
+			return com.ICMP
+		}
+		return com.NewIP(s[1], DefaultSleep)
+	case udpID:
+		return com.UDP
+	case tcpID:
+		return com.TCP
+	}
+	return nil
+}
 
 // NewServerContext creates a new Server instance for managing C2 Listeners and Sessions. If the supplied Log is
 // nil, the 'logx.NOP' log will be used. This function will use the supplied Context as the base context for cancelation.
@@ -138,6 +193,9 @@ func (s *Server) Connect(a string, c serverClient, p *Profile) (*Session, error)
 // Oneshot sends the packet with the specified data to the server and does NOT register the device with the
 // Server. This is used for spending specific data segments in single use connections.
 func (s *Server) Oneshot(a string, c serverClient, p *Profile, d *com.Packet) error {
+	if c == nil && p != nil {
+		c = convertHintConnect(p.hint)
+	}
 	if c == nil {
 		return ErrNoConnector
 	}
@@ -168,6 +226,9 @@ func (s *Server) Oneshot(a string, c serverClient, p *Profile, d *com.Packet) er
 // Listen adds the Listener under the name provided. A Listener struct to control and receive callback functions
 // is added to assist in manageing connections to this Listener.
 func (s *Server) Listen(n, b string, c serverListener, p *Profile) (*Listener, error) {
+	if c == nil && p != nil {
+		c = convertHintListen(p.hint)
+	}
 	if c == nil {
 		return nil, ErrNoConnector
 	}
@@ -200,7 +261,7 @@ func (s *Server) Listen(n, b string, c serverListener, p *Profile) (*Listener, e
 		l.size = uint(limits.MediumLimit())
 	}
 	l.ctx, l.cancel = context.WithCancel(s.ctx)
-	s.Log.Debug("[%s] Added listener on %q!", x, b)
+	s.Log.Debug("[%s] Added Listener on %q!", x, b)
 	s.new <- l
 	go l.listen()
 	return l, nil
@@ -210,6 +271,9 @@ func (s *Server) Listen(n, b string, c serverListener, p *Profile) (*Listener, e
 // function allows for passing the data Packet specified to the server with the initial registration. The data
 // will be passed on normally.
 func (s *Server) ConnectWith(a string, c serverClient, p *Profile, d *com.Packet) (*Session, error) {
+	if c == nil && p != nil {
+		c = convertHintConnect(p.hint)
+	}
 	if c == nil {
 		return nil, ErrNoConnector
 	}

@@ -2,12 +2,7 @@
 
 package cmd
 
-import (
-	"errors"
-	"os/exec"
-)
-
-var exitError = new(exec.ExitError)
+import "os/exec"
 
 type options struct {
 	*exec.Cmd
@@ -16,7 +11,7 @@ type container struct{}
 
 func (p *Process) wait() {
 	err := p.opts.Wait()
-	if err != nil && !errors.Is(err, exitError) {
+	if _, ok := err.(*exec.ExitError); !ok && err != nil {
 		p.stopWith(err)
 		return
 	}

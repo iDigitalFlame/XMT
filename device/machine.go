@@ -30,7 +30,7 @@ func (m Machine) String() string {
 	return fmt.Sprintf("[%s] %s (%s) %s%s", m.ID.String(), m.Hostname, m.Version, e, m.User)
 }
 
-// MarshalStream transform this struct into a binary format and writes to the supplied data.Writer.
+// MarshalStream transforms this struct into a binary format and writes to the supplied data.Writer.
 func (m Machine) MarshalStream(w data.Writer) error {
 	if err := m.ID.MarshalStream(w); err != nil {
 		return err

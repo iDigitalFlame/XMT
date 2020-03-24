@@ -2,7 +2,6 @@ package wc2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -80,7 +79,7 @@ func (conn) SetDeadline(_ time.Time) error {
 }
 func (c *conn) Read(b []byte) (int, error) {
 	n, err := c.in.Body.Read(b)
-	if err != nil && n > 0 && errors.Is(err, io.EOF) {
+	if err != nil && n > 0 && err != io.EOF {
 		return n, nil
 	}
 	return n, err
