@@ -40,9 +40,10 @@ var (
 	// Transform into a DNS packet.
 	ErrInvalidLength = errors.New("length of byte array is invalid")
 
-	bufs = &sync.Pool{
+	bufs = sync.Pool{
 		New: func() interface{} {
-			return make([]byte, dnsSize)
+			b := make([]byte, dnsSize)
+			return &b
 		},
 	}
 )
@@ -76,14 +77,14 @@ func (d *DNSClient) Read(w io.Writer, b []byte) error {
 		return io.EOF
 	}
 	x, v := 12, 0
-	for ; i >= 0 && x < len(b); i-- {
+	for ; x < len(b); i-- {
 		if v = int(b[x]); v == 0 {
 			break
 		}
 		x += v + 1
 	}
 	x += 15
-	for ; c >= 0 && x < len(b); c-- {
+	for ; x < len(b); c-- {
 		if v = int(b[x]); v == 0 {
 			break
 		}
@@ -100,7 +101,7 @@ func (d *DNSClient) Write(w io.Writer, b []byte) error {
 	if len(b) == 0 {
 		return ErrInvalidLength
 	}
-	g := bufs.Get().([]byte)
+	g := *bufs.Get().(*[]byte)
 	_ = g[dnsSize-1]
 	n := strings.Split(d.domain(), ".")
 	c, i := (len(b)/dnsRecordMax)+1, len(n)
@@ -137,6 +138,6 @@ func (d *DNSClient) Write(w io.Writer, b []byte) error {
 		}
 		y += t
 	}
-	bufs.Put(g)
+	bufs.Put(&g)
 	return nil
 }

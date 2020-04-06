@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// DefaultTimeout is the default timeout used for the Raw connectors. The default is 60 seconds (one minute).
+// DefaultTimeout is the default timeout used for the default connectors. The default is 60 seconds (one minute).
 const DefaultTimeout = time.Duration(60) * time.Second
 
 const (
@@ -16,6 +16,10 @@ const (
 	netUDP  = "udp"
 	netUNIX = "unix"
 )
+
+// ListenConfig is the default listener config that is used to generate the Listeners. This can be used to specify the
+// listen 'KeepALive' timeout.
+var ListenConfig = net.ListenConfig{KeepAlive: DefaultTimeout}
 
 var (
 	// TCP is the TCP Raw connector. This connector uses raw TCP connections for communication.
@@ -47,3 +51,7 @@ var (
 	// is also returned when attemtping to use a TLS configuration that does not have a valid server certificates.
 	ErrInvalidTLSConfig = errors.New("tls configuration is missing certificates")
 )
+
+type deadline interface {
+	SetDeadline(time.Time) error
+}

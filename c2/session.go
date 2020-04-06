@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"sync/atomic"
 	"time"
@@ -15,21 +16,17 @@ import (
 	"github.com/iDigitalFlame/xmt/util"
 )
 
-const (
-	maxErrors = 3
+const maxErrors = 2
 
-	shutdownAck   uint8 = 0x0
-	shutdownTell  uint8 = 0x1
-	shutdownClose uint8 = 0x2
+var (
+	// ErrFullBuffer is returned from the WritePacket function when the send buffer for Session is full.
+	ErrFullBuffer = errors.New("cannot add a Packet to a full send buffer")
+	// ErrClosedSession is an error returned when attempting to write a Packet to a closed Session.
+	ErrClosedSession = fmt.Errorf("cannot write a Packet to a closed Session: %w", io.ErrClosedPipe)
 )
 
-// ErrFullBuffer is returned from the WritePacket function when the send buffer for
-// Session is full.
-var ErrFullBuffer = errors.New("cannot add a Packet to a full send buffer")
-
-// Session is a struct that represents a connection between the client and the Listener.
-// This struct does some automatic handeling and acts as the communication channel between
-// the client and server.
+// Session is a struct that represents a connection between the client and the Listener. This struct does some
+// automatic handeling and acts as the communication channel between the client and server.
 type Session struct {
 	ID       device.ID
 	Last     time.Time
@@ -38,7 +35,8 @@ type Session struct {
 	Receive  func(*Session, *com.Packet)
 	Shutdown func(*Session)
 
-	chm     uint32
+	ch      chan waker
+	mode    uint32
 	host    string
 	peek    *com.Packet
 	send    chan *com.Packet
@@ -60,8 +58,12 @@ type cluster struct {
 	data []*com.Packet
 }
 
+// Wait will block until the current Session is closed and shutdown.
+func (s *Session) Wait() {
+	<-s.ch
+}
 func (s *Session) wait() {
-	if s.sleep == 0 {
+	if s.sleep == 0 || atomic.LoadUint32(&s.done) > flagOpen {
 		return
 	}
 	w := s.sleep
@@ -77,31 +79,21 @@ func (s *Session) wait() {
 			}
 		}
 	}
-	x, c := context.WithTimeout(s.ctx, w)
+	x, c := context.WithTimeout(context.Background(), w)
 	select {
 	case <-s.wake:
 		break
 	case <-x.Done():
 		break
 	case <-s.ctx.Done():
+		atomic.StoreUint32(&s.done, flagLast)
 		break
 	}
 	c()
 }
 
-// Wait will block until the current Session is closed and shutdown.
-func (s *Session) Wait() {
-	<-s.ctx.Done()
-}
-
-// Stop indicates that the client should gracefully shutdown and release resources. This will not
-// close the session until the client acknowledges and sends the response to this packet.
-func (s *Session) Stop() {
-	s.shutdown(shutdownTell)
-}
-
 // Wake will interrupt the sleep of the current Session thread. This will trigger the send and receive
-// functions of this Session.
+// functions of this Session. This is not valid for Server side Sessions.
 func (s *Session) Wake() {
 	if s.wake == nil {
 		return
@@ -111,13 +103,30 @@ func (s *Session) Wake() {
 	}
 }
 func (s *Session) listen() {
-	for ; atomic.LoadUint32(&s.done) == 0; s.wait() {
+	if s.parent != nil {
+		atomic.StoreUint32(&s.done, flagClose)
+	}
+	s.wait()
+	for ; atomic.LoadUint32(&s.done) <= flagLast; s.wait() {
+		if s.done == flagLast {
+			if s.parent != nil {
+				break
+			}
+			s.peek = &com.Packet{ID: MsgShutdown, Device: s.ID}
+			atomic.StoreUint32(&s.mode, 0)
+			atomic.StoreUint32(&s.channel, 0)
+			atomic.StoreUint32(&s.done, flagOption)
+			close(s.send)
+		}
 		s.log.Trace("[%s] Waking up...", s.ID)
-		if s.swarm != nil {
+		if s.done == 0 && s.swarm != nil {
 			s.swarm.process()
 		}
 		c, err := s.socket(s.host)
 		if err != nil {
+			if s.done > 0 {
+				break
+			}
 			s.log.Warning("[%s] Received an error attempting to connect to %q: %s!", s.ID, s.host, err.Error())
 			if s.errors < maxErrors {
 				s.errors++
@@ -126,8 +135,8 @@ func (s *Session) listen() {
 			break
 		}
 		s.log.Trace("[%s] Connected to %q...", s.ID, s.host)
-		for o := false; atomic.LoadUint32(&s.done) == 0; {
-			if s.session(c, o) {
+		for o := false; atomic.LoadUint32(&s.done) <= flagOption; {
+			if s.session(c, o) && s.done == flagOpen {
 				o = true
 				continue
 			}
@@ -138,22 +147,29 @@ func (s *Session) listen() {
 			break
 		}
 	}
+	s.log.Trace("[%s] Stopping transaction thread...", s.ID)
+	s.shutdown()
+}
+func (s *Session) shutdown() {
 	if s.Shutdown != nil {
 		s.s.events <- event{s: s, sFunc: s.Shutdown}
 	}
-	s.log.Trace("[%s] Stopping transaction thread...", s.ID)
 	s.cancel()
 	if s.swarm != nil {
 		s.swarm.Close()
 	}
-	if s.parent != nil && atomic.LoadUint32(&s.parent.done) == 0 {
-		s.parent.close <- s.Device.ID.Hash()
+	if s.done < flagOption {
+		close(s.send)
 	}
-	close(s.send)
-	close(s.recv)
 	if s.wake != nil {
 		close(s.wake)
 	}
+	close(s.recv)
+	atomic.StoreUint32(&s.done, flagFinished)
+	if s.parent != nil && atomic.LoadUint32(&s.parent.done) < flagFinished {
+		s.parent.close <- s.ID.Hash()
+	}
+	close(s.ch)
 }
 
 // Jitter returns the Jitter percentage value. Values of zero (0) indicate that Jitter is disabled.
@@ -168,9 +184,13 @@ func (s Session) IsProxy() bool {
 
 // Close stops the listening thread from this Session and releases all associated resources.
 func (s *Session) Close() error {
-	atomic.StoreUint32(&s.done, 1)
+	atomic.StoreUint32(&s.done, flagLast)
 	s.cancel()
-	s.Wake()
+	if s.parent == nil {
+		s.Wait()
+	} else {
+		s.shutdown()
+	}
 	return nil
 }
 
@@ -183,16 +203,13 @@ func (s Session) String() string {
 		return fmt.Sprintf("[%s] %s/%d%%-> %s", s.ID.String(), s.sleep.String(), s.jitter, s.host)
 	case s.parent != nil && (s.jitter == 0 || s.jitter > 100):
 		return fmt.Sprintf("[%s] %s -> %s %s", s.ID.String(), s.sleep.String(), s.host, s.Last.Format(time.RFC1123))
-	default:
-		return fmt.Sprintf(
-			"[%s] %s/%d%%-> %s %s", s.ID.String(), s.sleep.String(), s.jitter, s.host, s.Last.Format(time.RFC1123),
-		)
 	}
+	return fmt.Sprintf("[%s] %s/%d%%-> %s %s", s.ID.String(), s.sleep.String(), s.jitter, s.host, s.Last.Format(time.RFC1123))
 }
 
 // IsActive returns true if this Session is still able to send and receive Packets.
 func (s Session) IsActive() bool {
-	return s.done == 0
+	return s.done == flagOpen
 }
 
 // IsClient returns true when this Session is not associated to a Listener on this end, which signifies that this
@@ -202,9 +219,9 @@ func (s Session) IsClient() bool {
 }
 
 // IsChannel will return true is this Session sets the Channel flag on any Packets that flow this this
-// Session, including Proxied clients.
+// Session, including Proxied clients or if this Session is currently in Channel mode, even if not explicitly set.
 func (s Session) IsChannel() bool {
-	return s.channel == 1
+	return s.channel == 1 || s.mode == 1
 }
 
 // SetJitter sets Jitter percentage of the Session's wake interval. This is a 0 to 100 percentage (inclusive) that
@@ -229,8 +246,8 @@ func (c *cluster) done() *com.Packet {
 	return nil
 }
 
-// Read attempts to grab a Packet from the receiving buffer. This function will wait for a Packet
-// while the buffer is empty.
+// Read attempts to grab a Packet from the receiving buffer. This function will wait for a Packet while the
+// buffer is empty.
 func (s *Session) Read() *com.Packet {
 	return <-s.recv
 }
@@ -262,20 +279,6 @@ func (s Session) Time() time.Duration {
 // for the buffer to have open spots.
 func (s *Session) Write(p *com.Packet) {
 	s.write(true, p)
-}
-func (s *Session) shutdown(w uint8) error {
-	switch w {
-	case shutdownAck:
-		s.WritePacket(&com.Packet{ID: MsgShutdown, Device: s.Device.ID, Job: 1})
-		if s.parent == nil {
-			return s.Close()
-		}
-	case shutdownClose:
-		return s.Close()
-	case shutdownTell:
-		return s.WritePacket(&com.Packet{ID: MsgShutdown, Device: s.Device.ID})
-	}
-	return nil
 }
 func (c *cluster) add(p *com.Packet) error {
 	if p == nil || p.Empty() {
@@ -314,14 +317,17 @@ func (s *Session) Context() context.Context {
 func (s *Session) next() (*com.Packet, error) {
 	if s.peek == nil && len(s.send) == 0 {
 		if s.parent == nil {
-			if atomic.LoadUint32(&s.chm) == 1 {
+			if atomic.LoadUint32(&s.mode) == 1 {
 				s.wait()
 			}
 			return &com.Packet{ID: MsgPing, Device: s.ID}, nil
 		}
 		return &com.Packet{ID: MsgSleep, Device: s.ID}, nil
 	}
-	var p *com.Packet
+	var (
+		p   *com.Packet
+		err error
+	)
 	if s.peek != nil {
 		p, s.peek = s.peek, nil
 	} else {
@@ -330,56 +336,10 @@ func (s *Session) next() (*com.Packet, error) {
 	if len(s.send) == 0 && p.Verify(s.ID) {
 		return p, nil
 	}
-	var (
-		v    = &com.Packet{ID: MsgMultiple, Device: s.ID, Flags: com.FlagMulti}
-		t    int
-		m, a bool
-	)
-	if p != nil {
-		m, t = true, 1
-		if p.Flags&com.FlagChannel != 0 {
-			v.Flags |= com.FlagChannel
-		}
-		if err := p.MarshalStream(v); err != nil {
-			return nil, err
-		}
-		p.Clear()
-		p = nil
+	if p, s.peek, err = nextPacket(s.send, p, s.ID); err != nil {
+		return nil, err
 	}
-	for len(s.send) > 0 && t < limits.SmallLimit() && v.Size() < limits.FragLimit() {
-		p = <-s.send
-		if p.Size()+v.Size() > limits.FragLimit() {
-			s.peek = p
-			break
-		}
-		if p.Verify(s.ID) {
-			a = true
-		} else {
-			m = true
-		}
-		if p.Flags&com.FlagChannel != 0 {
-			v.Flags |= com.FlagChannel
-		}
-		if err := p.MarshalStream(v); err != nil {
-			return nil, err
-		}
-		t++
-		p.Clear()
-		p = nil
-	}
-	if !a {
-		m, t = true, t+1
-		p = &com.Packet{ID: MsgPing, Device: s.ID}
-		if err := p.MarshalStream(v); err != nil {
-			return nil, err
-		}
-	}
-	v.Close()
-	if m {
-		v.Flags |= com.FlagMultiDevice
-	}
-	v.Flags.SetLen(uint16(t))
-	return v, nil
+	return p, nil
 }
 
 // WritePacket adds the supplied Packet into the stack to be sent to the server on next wake. This call is
@@ -394,15 +354,17 @@ func (s *Session) session(c net.Conn, o bool) bool {
 		return false
 	}
 	var y = o
-	//fmt.Printf("ch %d, s %t, chm %d\n", s.channel, o, s.chm)
 	switch {
 	case atomic.LoadUint32(&s.channel) == 0 && o:
+		if s.mode == 1 && p.Flags&com.FlagChannel == 0 {
+			break
+		}
 		fallthrough
 	case atomic.LoadUint32(&s.channel) == 1 && !o:
 		if !o {
-			atomic.StoreUint32(&s.chm, 1)
+			atomic.StoreUint32(&s.mode, 1)
 		} else {
-			atomic.StoreUint32(&s.chm, 0)
+			atomic.StoreUint32(&s.mode, 0)
 		}
 		y = !o
 		p.Flags |= com.FlagChannel
@@ -411,9 +373,9 @@ func (s *Session) session(c net.Conn, o bool) bool {
 		fallthrough
 	case p.Flags&com.FlagChannel != 0 && !o:
 		if !o {
-			atomic.StoreUint32(&s.chm, 1)
+			atomic.StoreUint32(&s.mode, 1)
 		} else {
-			atomic.StoreUint32(&s.chm, 0)
+			atomic.StoreUint32(&s.mode, 0)
 		}
 		y = !o
 		s.log.Trace("[%s] Setting Channel flag on next Packet to %q (set by Packet)!", s.ID, s.host)
@@ -438,12 +400,15 @@ func (s *Session) session(c net.Conn, o bool) bool {
 	return y
 }
 func (s *Session) write(w bool, p *com.Packet) error {
+	if atomic.LoadUint32(&s.done) > flagOpen {
+		return ErrClosedSession
+	}
 	if p.Len() <= limits.FragLimit() {
 		if !w && len(s.send)+1 >= cap(s.send) {
 			return ErrFullBuffer
 		}
 		s.send <- p
-		if atomic.LoadUint32(&s.chm) == 1 {
+		if atomic.LoadUint32(&s.mode) == 1 {
 			s.Wake()
 		}
 		return nil
@@ -455,7 +420,7 @@ func (s *Session) write(w bool, p *com.Packet) error {
 	var (
 		x    = int64(p.Len())
 		g    = uint16(util.Rand.Uint32())
-		f    = atomic.LoadUint32(&s.chm) == 1
+		f    = atomic.LoadUint32(&s.mode) == 1
 		err  error
 		t, n int64
 	)

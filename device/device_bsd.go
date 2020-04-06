@@ -42,12 +42,12 @@ func getVersion() string {
 				m[strings.ToUpper(i[0])] = strings.Replace(i[1], "\"", "", -1)
 			}
 		}
-		b, _ = m["ID"]
+		b = m["ID"]
 		if n, ok = m["PRETTY_NAME"]; !ok {
-			n, _ = m["NAME"]
+			n = m["NAME"]
 		}
 		if v, ok = m["VERSION_ID"]; !ok {
-			v, _ = m["VERSION"]
+			v = m["VERSION"]
 		}
 	}
 	if len(b) == 0 {

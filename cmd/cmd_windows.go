@@ -1,4 +1,4 @@
-// build windows
+// +build windows
 
 package cmd
 
@@ -72,9 +72,9 @@ type options struct {
 	closers []io.Closer
 }
 type container struct {
-	PID     int32
-	Name    string
-	Choices []string
+	pid     int32
+	name    string
+	choices []string
 }
 
 // Stop will attempt to terminate the currently running Process instance. Stopping a Process may prevent the
@@ -88,6 +88,9 @@ func (p *Process) Stop() error {
 		return p.stopWith(err)
 	}
 	return p.stopWith(nil)
+}
+func (c container) empty() bool {
+	return c.pid == 0 && len(c.name) == 0 && len(c.choices) == 0
 }
 func (p Process) isStarted() bool {
 	return p.opts != nil && p.opts.info.Process > 0
@@ -108,8 +111,8 @@ func startProcess(p *Process) error {
 	if err != nil {
 		return err
 	}
-	if p.parent != nil {
-		i, err := p.parent.pid()
+	if !p.container.empty() {
+		i, err := p.container.getPid()
 		if err != nil {
 			return err
 		}
@@ -118,20 +121,14 @@ func startProcess(p *Process) error {
 		}
 	}
 	if s.StdInput, err = p.opts.readHandle(p.Stdin); err != nil {
-		//p.opts.close()
-		//p.cancel()
 		return err
 	}
 	if s.StdOutput, err = p.opts.writeHandle(p.Stdout); err != nil {
-		//p.opts.close()
-		//p.cancel()
 		return err
 	}
 	if p.Stdout == p.Stderr {
 		s.StdErr = s.StdOutput
 	} else if s.StdErr, err = p.opts.writeHandle(p.Stderr); err != nil {
-		//p.opts.close()
-		//p.cancel()
 		return err
 	}
 	if s.StdInput > 0 || s.StdOutput > 0 || s.StdErr > 0 {
@@ -141,8 +138,6 @@ func startProcess(p *Process) error {
 	var e *startupInfoEx
 	if p.opts.parent > 0 {
 		if e, err = newParentEx(p.opts.parent, s); err != nil {
-			//p.opts.close()
-			//p.cancel()
 			return err
 		}
 	}
@@ -150,8 +145,6 @@ func startProcess(p *Process) error {
 		a = strings.Join(p.Args[1:], " ")
 	}
 	if err = run(x, a, p.Dir, nil, nil, p.flags, v, s, e, nil, &p.opts.info); err != nil {
-		//p.opts.close()
-		//p.cancel()
 		return err
 	}
 	go p.wait()
@@ -161,16 +154,11 @@ func startProcess(p *Process) error {
 // SetParent will instruct the Process to choose a parent with the supplied process name. If this string is empty,
 // this will use the current process (default). Always returns 'ErrNotSupportedOS' if the device is not running Windows.
 func (p *Process) SetParent(n string) error {
+	p.container.clear()
 	if len(n) == 0 {
-		p.parent = nil
 		return nil
 	}
-	if p.parent != nil {
-		p.parent.Name = n
-		p.parent.PID, p.parent.Choices = 0, nil
-	} else {
-		p.parent = &container{Name: n}
-	}
+	p.container.name = n
 	return nil
 }
 
@@ -224,16 +212,11 @@ func (p *Process) SetNewConsole(c bool) error {
 // zero, this will use the current process (default) and if < 0 this Process will choose a parent from a list
 // of writable processes. Always returns 'ErrNotSupportedOS' if the device is not running Windows.
 func (p *Process) SetParentPID(i int32) error {
+	p.container.clear()
 	if i == 0 {
-		p.parent = nil
 		return nil
 	}
-	if p.parent != nil {
-		p.parent.PID = i
-		p.parent.Name, p.parent.Choices = "", nil
-	} else {
-		p.parent = &container{PID: i}
-	}
+	p.container.pid = i
 	return nil
 }
 
@@ -295,12 +278,8 @@ func (p *Process) SetParentRandom(c []string) error {
 	if len(c) == 0 {
 		return p.SetParentPID(-1)
 	}
-	if p.parent != nil {
-		p.parent.Choices = c
-		p.parent.PID, p.parent.Name = 0, ""
-	} else {
-		p.parent = &container{Choices: c}
-	}
+	p.container.clear()
+	p.container.choices = c
 	return nil
 }
 

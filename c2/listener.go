@@ -29,6 +29,7 @@ type Listener struct {
 	Oneshot func(*com.Packet)
 	Receive func(*Session, *com.Packet)
 
+	ch       chan waker
 	size     uint
 	name     string
 	done     uint32
@@ -44,10 +45,12 @@ func (l *Listener) Wait() {
 }
 func (l *Listener) listen() {
 	l.log.Debug("[%s] Starting Listener %q...", l.name, l.listener)
-	for atomic.LoadUint32(&l.done) == 0 {
+	for atomic.LoadUint32(&l.done) == flagOpen {
 		if len(l.close) > 0 {
-			i := <-l.close
-			s, ok := l.sessions[i]
+			var (
+				i     = <-l.close
+				s, ok = l.sessions[i]
+			)
 			if !ok {
 				continue
 			}
@@ -59,7 +62,17 @@ func (l *Listener) listen() {
 		}
 		c, err := l.listener.Accept()
 		if err != nil {
+			if l.done > flagOpen {
+				break
+			}
+			e, ok := err.(net.Error)
+			if ok && e.Timeout() {
+				continue
+			}
 			l.log.Error("[%s] Error occurred during Listener accept: %s!", l.name, err.Error())
+			if ok && !e.Timeout() && !e.Temporary() {
+				break
+			}
 			continue
 		}
 		if c == nil {
@@ -69,20 +82,24 @@ func (l *Listener) listen() {
 		go l.handle(c)
 	}
 	l.log.Debug("[%s] Stopping Listener.", l.name)
+	for _, v := range l.sessions {
+		v.Close()
+	}
 	l.cancel()
 	close(l.close)
-	for _, v := range l.sessions {
-		v.shutdown(shutdownClose)
-	}
 	l.listener.Close()
+	atomic.StoreUint32(&l.done, flagFinished)
+	l.s.close <- l.name
+	close(l.ch)
 }
 
 // Close stops the operation of the Listener and any Sessions that may be connected. Resources used with this
-// Listener will be freed up for reuse.
+// Listener will be freed up for reuse. This function blocks until the listener socket is closed.
 func (l *Listener) Close() error {
-	atomic.StoreUint32(&l.done, 1)
-	l.cancel()
-	return nil
+	atomic.StoreUint32(&l.done, flagClose)
+	err := l.listener.Close()
+	l.Wait()
+	return err
 }
 
 // String returns the Name of this Listener.
@@ -92,7 +109,7 @@ func (l Listener) String() string {
 
 // IsActive returns true if the Listener is still able to send and receive Packets.
 func (l Listener) IsActive() bool {
-	return l.done == 0
+	return l.done == flagOpen
 }
 func (l *Listener) handle(c net.Conn) {
 	if !l.handlePacket(c, false) {
@@ -100,7 +117,7 @@ func (l *Listener) handle(c net.Conn) {
 		return
 	}
 	l.log.Debug("[%s] %s: Triggered Channel mode, holding open Channel!", l.name, c.RemoteAddr().String())
-	for atomic.LoadUint32(&l.done) == 0 {
+	for atomic.LoadUint32(&l.done) == flagOpen {
 		if l.handlePacket(c, true) {
 			break
 		}
@@ -118,12 +135,11 @@ func (l *Listener) Remove(i device.ID) {
 // Shutdown triggers a remote Shutdown and closure of the Session associated with the Device ID. This will not
 // immediately close a Session. The Session will be removed when the Client acknowledges the shutdown request.
 func (l *Listener) Shutdown(i device.ID) {
-	h := i.Hash()
-	s, ok := l.sessions[h]
+	s, ok := l.sessions[i.Hash()]
 	if !ok {
 		return
 	}
-	s.shutdown(shutdownTell)
+	s.Close()
 }
 
 // Connected returns an array of all the current Sessions connected to this Listener.
@@ -163,6 +179,7 @@ func (l *Listener) handlePacket(c net.Conn, o bool) bool {
 		notify(l, nil, p)
 		return false
 	}
+	l.log.Trace("[%s:%s] Received Packet %q.", l.name, c.RemoteAddr().String(), p)
 	if p.Flags&com.FlagMultiDevice == 0 && p.Flags&com.FlagProxy == 0 {
 		if s := l.client(c, p, o); s != nil {
 			n, err := s.next()
@@ -172,6 +189,7 @@ func (l *Listener) handlePacket(c net.Conn, o bool) bool {
 				l.log.Trace("[%s:%s] %s: Sending Packet %q to client...", l.name, s.Device.ID, s.host, n.String())
 				if err = writePacket(c, s.w, s.t, n); err != nil {
 					l.log.Warning("[%s:%s] %s: Received an error writing data to client: %s!", l.name, s.Device.ID, s.host, err.Error())
+					return o
 				}
 			}
 		}
@@ -211,6 +229,7 @@ func (l *Listener) handlePacket(c net.Conn, o bool) bool {
 			}
 		}
 		n.Clear()
+		n = nil
 		t++
 	}
 	m.Flags.SetLen(t)
@@ -236,6 +255,7 @@ func (l *Listener) client(c net.Conn, p *com.Packet, o bool) *Session {
 			return nil
 		}
 		s = &Session{
+			ch:      make(chan waker, 1),
 			ID:      p.Device,
 			send:    make(chan *com.Packet, l.size),
 			recv:    make(chan *com.Packet, l.size),

@@ -70,9 +70,12 @@ func (o *options) close() {
 	}
 	o.parent, o.closers = 0, nil
 }
-func (c container) pid() (int32, error) {
-	if c.PID > 0 {
-		return c.PID, nil
+func (c container) clear() {
+	c.pid, c.name, c.choices = 0, "", nil
+}
+func (c container) getPid() (int32, error) {
+	if c.pid > 0 {
+		return c.pid, nil
 	}
 	l, err := ps.Processes()
 	if err != nil {
@@ -82,8 +85,8 @@ func (c container) pid() (int32, error) {
 		return 0, ErrNoProcessFound
 	}
 	switch {
-	case len(c.Name) > 0:
-		s := strings.ToLower(string(c.Name))
+	case len(c.name) > 0:
+		s := strings.ToLower(string(c.name))
 		for i := range l {
 			if uint32(l[i].Pid) == device.Local.PID {
 				continue
@@ -97,11 +100,11 @@ func (c container) pid() (int32, error) {
 			}
 			return l[i].Pid, nil
 		}
-		return 0, fmt.Errorf("%s: %w", c.Name, ErrNoProcessFound)
-	case c.Choices != nil && len(c.Choices) > 0:
-		s := make([]string, len(c.Choices))
-		for i := range c.Choices {
-			s[i] = strings.ToLower(string(c.Choices[i]))
+		return 0, fmt.Errorf("%s: %w", c.name, ErrNoProcessFound)
+	case len(c.choices) > 0:
+		s := make([]string, len(c.choices))
+		for i := range c.choices {
+			s[i] = strings.ToLower(string(c.choices[i]))
 		}
 		for i := range l {
 			if uint32(l[i].Pid) == device.Local.PID {
@@ -120,7 +123,7 @@ func (c container) pid() (int32, error) {
 				}
 			}
 		}
-		return 0, fmt.Errorf("[%s]: %w", strings.Join(c.Choices, ", "), ErrNoProcessFound)
+		return 0, fmt.Errorf("[%s]: %w", strings.Join(c.choices, ", "), ErrNoProcessFound)
 	}
 	a := make([]int32, 0, len(l))
 	for i := range l {
@@ -191,11 +194,11 @@ func (o *options) readHandle(r io.Reader) (windows.Handle, error) {
 		return 0, nil
 	}
 	var h uintptr
-	switch r.(type) {
+	switch i := r.(type) {
 	case *os.File:
-		h = r.(*os.File).Fd()
+		h = i.Fd()
 	case file:
-		f, err := r.(file).File()
+		f, err := i.File()
 		if err != nil {
 			return 0, err
 		}
@@ -227,11 +230,11 @@ func (o *options) writeHandle(w io.Writer) (windows.Handle, error) {
 		return 0, nil
 	}
 	var h uintptr
-	switch w.(type) {
+	switch i := w.(type) {
 	case *os.File:
-		h = w.(*os.File).Fd()
+		h = i.Fd()
 	case file:
-		f, err := w.(file).File()
+		f, err := i.File()
 		if err != nil {
 			return 0, err
 		}

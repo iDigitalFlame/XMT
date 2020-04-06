@@ -78,42 +78,42 @@ func NewSourceEx(rounds int, seed interface{}) rand.Source {
 	if rounds <= 0 {
 		rounds = 1
 	}
-	switch seed.(type) {
+	switch i := seed.(type) {
 	case int:
-		s = int64(seed.(int))
+		s = int64(i)
 	case bool:
-		if seed.(bool) {
+		if i {
 			s = 1
 		}
 	case uint:
-		s = int64(seed.(uint))
+		s = int64(i)
 	case int8:
-		s = int64(seed.(int8))
+		s = int64(i)
 	case uint8:
-		s = int64(seed.(uint8))
+		s = int64(i)
 	case int16:
-		s = int64(seed.(int16))
+		s = int64(i)
 	case int32:
-		s = int64(seed.(int32))
+		s = int64(i)
 	case int64:
-		s = int64(seed.(int64))
+		s = int64(i)
 	case uint16:
-		s = int64(seed.(uint16))
+		s = int64(i)
 	case uint32:
-		s = int64(seed.(uint32))
+		s = int64(i)
 	case uint64:
-		s = int64(seed.(uint64))
+		s = int64(i)
 	case time.Time:
-		s = seed.(time.Time).Unix()
+		s = i.Unix()
 	case time.Duration:
-		s = int64(seed.(time.Duration))
+		s = int64(i)
 	default:
 		var b []byte
-		switch seed.(type) {
+		switch x := seed.(type) {
 		case []byte:
-			b = seed.([]byte)
+			b = x
 		case string:
-			b = []byte(seed.(string))
+			b = []byte(x)
 		default:
 			b = []byte(fmt.Sprintf("%s", seed))
 		}

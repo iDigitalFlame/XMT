@@ -39,7 +39,7 @@ const (
 	FlagMultiDevice
 )
 
-var stringBuf = &sync.Pool{
+var stringBuf = sync.Pool{
 	New: func() interface{} {
 		return new(strings.Builder)
 	},

@@ -44,16 +44,17 @@ type Process struct {
 	Stderr  io.Writer
 	Timeout time.Duration
 
-	ctx     context.Context
-	err     error
-	opts    *options
-	exit    uint32
-	once    uint32
-	flags   uint32
-	reader  *os.File
-	cancel  context.CancelFunc
-	parent  *container
+	ctx    context.Context
+	err    error
+	opts   *options
+	exit   uint32
+	once   uint32
+	flags  uint32
+	reader *os.File
+	cancel context.CancelFunc
+	//parent  *container
 	closers []*os.File
+	container
 }
 
 // ExitError is a type of error that is returned by the Wait and Run functions when a function

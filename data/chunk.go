@@ -26,9 +26,10 @@ var (
 	// ErrInvalidWhence is returned when the provided seek whence is not a valid whence value.
 	ErrInvalidWhence = errors.New("buffer seek whence is invalid")
 
-	bufs = &sync.Pool{
+	bufs = sync.Pool{
 		New: func() interface{} {
-			return make([]byte, 512)
+			b := make([]byte, 512)
+			return &b
 		},
 	}
 )
@@ -300,7 +301,7 @@ func (c *Chunk) Seek(o int64, w int) (int64, error) {
 // ReadFrom reads data from the supplied Reader until EOF or error. The return value is the number of
 // bytes read. Any error except io.EOF encountered during the read is also returned.
 func (c *Chunk) ReadFrom(r io.Reader) (int64, error) {
-	b := bufs.Get().([]byte)
+	b := *bufs.Get().(*[]byte)
 	var (
 		n   int
 		w   int
@@ -332,7 +333,7 @@ func (c *Chunk) ReadFrom(r io.Reader) (int64, error) {
 			break
 		}
 	}
-	bufs.Put(b)
+	bufs.Put(&b)
 	// TODO: Should delete this?
 	//if err != nil && errors.Is(err, io.EOF) {
 	//	err = nil

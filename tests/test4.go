@@ -5,25 +5,41 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
-	"github.com/iDigitalFlame/logx/logx"
+	"github.com/PurpleSec/logx"
 
 	"github.com/iDigitalFlame/xmt/c2"
 )
 
 func main() {
-	logx.Global.SetLevel(logx.LTrace)
+	logx.Global.SetLevel(logx.Debug)
 
 	var (
 		s = c2.NewServer(logx.Global)
-		c = c2.Config{c2.Sleep(time.Second * 5), c2.Jitter(30), c2.ConnectTCP}
+		c = c2.Config{
+			c2.Sleep(time.Second * 5),
+			c2.Jitter(10),
+			c2.ConnectTCP,
+			//c2.WrapBase64,
+			//c2.WrapGzip,
+		}
 	)
 
 	p, err := c.Profile()
 	if err != nil {
 		panic(err)
 	}
+
+	e := make(chan os.Signal, 1)
+	signal.Notify(e, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP)
+
+	go func() {
+		fmt.Printf("GOT SIGNAL %s\n", <-e)
+		s.Close()
+	}()
 
 	if len(os.Args) >= 2 {
 		switch os.Args[1] {
@@ -52,6 +68,12 @@ func proxy(s *c2.Server, p *c2.Profile) {
 		panic(err)
 	}
 	fmt.Printf("New Proxy [%v]\n", i)
+
+	//time.Sleep(15 * time.Second)
+	//if err := c.WritePacket(&com.Packet{ID: 0xABCD}); err != nil {
+	//	panic(err)
+	//}
+
 	c.Wait()
 }
 func client(s *c2.Server, p *c2.Profile) {
@@ -60,6 +82,12 @@ func client(s *c2.Server, p *c2.Profile) {
 		panic(err)
 	}
 	fmt.Printf("New Session [%s]\n", c)
+
+	//time.Sleep(15 * time.Second)
+	//if err := c.WritePacket(&com.Packet{ID: 0xDEED}); err != nil {
+	//	panic(err)
+	//}
+
 	c.Wait()
 }
 func server(s *c2.Server, p *c2.Profile) {
@@ -74,6 +102,19 @@ func server(s *c2.Server, p *c2.Profile) {
 		panic(err)
 	}
 	fmt.Printf("New Listener [%s]\n", l)
+
+	go func() {
+		for {
+			fmt.Printf("%-10s%-8s%-20s\n", "ID", "PID", "OS")
+			for _, v := range s.Connected() {
+				fmt.Printf(
+					"%-10s%-8d%-20s\n", v.ID, v.Device.PID, v.Device.Version,
+				)
+			}
+			time.Sleep(time.Second * 5)
+		}
+	}()
+
 	l.Wait()
 }
 func proxyClient(s *c2.Server, p *c2.Profile) {
@@ -81,5 +122,13 @@ func proxyClient(s *c2.Server, p *c2.Profile) {
 	if err != nil {
 		panic(err)
 	}
+
+	//time.Sleep(15 * time.Second)
+	//c.SetChannel(true)
+
+	//if err := c.WritePacket(&com.Packet{ID: 0xFFA1}); err != nil {
+	//	panic(err)
+	//}
+
 	c.Wait()
 }

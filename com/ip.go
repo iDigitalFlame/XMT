@@ -1,6 +1,7 @@
 package com
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"time"
@@ -66,17 +67,18 @@ func (i IPConnector) Connect(s string) (net.Conn, error) {
 // Listen instructs the connector to create a listener on the supplied listeneing address. This function
 // will return a handler to a listener and an error if there are any issues creating the listener.
 func (i IPConnector) Listen(s string) (net.Listener, error) {
-	c, err := net.ListenPacket(fmt.Sprintf(netIP, i.proto), s)
+	c, err := ListenConfig.ListenPacket(context.Background(), fmt.Sprintf(netIP, i.proto), s)
 	if err != nil {
 		return nil, err
 	}
 	l := &IPListener{
 		proto: i.proto,
 		Listener: &UDPListener{
-			buf:    make([]byte, limits.LargeLimit()),
-			delete: make(chan net.Addr, limits.SmallLimit()),
-			socket: c,
-			active: make(map[net.Addr]*UDPConn),
+			buf:     make([]byte, limits.LargeLimit()),
+			delete:  make(chan net.Addr, limits.SmallLimit()),
+			socket:  c,
+			active:  make(map[net.Addr]*UDPConn),
+			timeout: i.dialer.Timeout,
 		},
 	}
 	return l, nil

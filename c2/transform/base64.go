@@ -30,8 +30,8 @@ func (b b64) Read(w io.Writer, p []byte) error {
 		c = base64.StdEncoding.DecodedLen(len(p))
 	)
 	if c < dnsSize {
-		i = bufs.Get().([]byte)
-		defer bufs.Put(i)
+		i = *bufs.Get().(*[]byte)
+		defer bufs.Put(&i)
 	} else {
 		i = make([]byte, c)
 	}
@@ -58,8 +58,8 @@ func (b b64) Write(w io.Writer, p []byte) error {
 		o []byte
 	)
 	if c < dnsSize {
-		o = bufs.Get().([]byte)
-		defer bufs.Put(o)
+		o = *bufs.Get().(*[]byte)
+		defer bufs.Put(&o)
 	} else {
 		o = make([]byte, c)
 	}

@@ -1,3 +1,7 @@
+github.com/PurpleSec/logx v1.0.0 h1:gffIzRnADlWxzblLF0auhNjfWCl2CJsbF8Tb8O3of+U=
+github.com/PurpleSec/logx v1.0.0/go.mod h1:tkLK6CqkhkRSVejDMVgZa0jTq97aRikVNjAON9iUiK0=
+github.com/PurpleSec/parseurl v1.0.1 h1:pxni8f2FvC6hbK/z9XD2/GhLFbHqjOYekCwue503zEs=
+github.com/PurpleSec/parseurl v1.0.1/go.mod h1:mZgE03Iv0LBkLPItVE7HnYhaFLXqBRdkl5XZXsKt5wc=
 github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d h1:G0m3OIz70MZUWq3EgK3CesDbo8upS2Vm9/P3FtgI+Jk=
 github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d/go.mod h1:3eOhrUMpNV+6aFIbp5/iudMxNCF27Vw2OZgy4xEx0Fg=
 github.com/denisbrodbeck/machineid v1.0.1 h1:geKr9qtkB876mXguW2X6TU4ZynleN6ezuMSRhl4D7AQ=

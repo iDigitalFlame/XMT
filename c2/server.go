@@ -6,22 +6,28 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/iDigitalFlame/xmt/com/wc2"
-
-	"github.com/iDigitalFlame/logx/logx"
+	"github.com/PurpleSec/logx"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/com/limits"
+	"github.com/iDigitalFlame/xmt/com/wc2"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util"
 )
 
+const (
+	flagOpen uint32 = 0
+	flagLast uint32 = iota
+	flagClose
+	flagOption
+	flagFinished
+)
+
 var (
-	// ErrNoConnector is a error returned by the Connect and Listen functions when
-	// the Connector is nil and the provided Profile is also nil or does not inherit
-	// the Connector interface.
+	// ErrNoConnector is a error returned by the Connect and Listen functions when the Connector is nil and the
+	// provided Profile is also nil or does not contain a connection hint.
 	ErrNoConnector = errors.New("invalid or missing connector")
-	// ErrEmptyPacket is a error returned by the Connect function when
-	// the expected return result from the server was invalid or not expected.
+	// ErrEmptyPacket is a error returned by the Connect function when the expected return result from the
+	// server was invalid or not expected.
 	ErrEmptyPacket = errors.New("server sent an invalid response")
 )
 
@@ -31,6 +37,7 @@ type Server struct {
 	Log       logx.Log
 	Scheduler *Scheduler
 
+	ch     chan waker
 	ctx    context.Context
 	new    chan *Listener
 	close  chan string
@@ -41,7 +48,7 @@ type Server struct {
 
 // Wait will block until the current Server is closed and shutdown.
 func (s *Server) Wait() {
-	<-s.ctx.Done()
+	<-s.ch
 }
 func (s *Server) listen() {
 	s.Log.Debug("Server processing thread started!")
@@ -61,22 +68,28 @@ func (s *Server) listen() {
 }
 func (s *Server) shutdown() {
 	if s.Log == nil {
-		s.Log = logx.Nop
+		s.Log = logx.NOP
 	}
-	s.Log.Debug("Stopping Server...")
-	for n, v := range s.active {
+	s.cancel()
+	for _, v := range s.active {
 		v.Close()
-		delete(s.active, n)
 	}
+	for len(s.active) > 0 {
+		delete(s.active, <-s.close)
+	}
+	s.Log.Debug("Stopping Server.")
 	s.active = nil
+	close(s.new)
 	close(s.close)
 	close(s.events)
+	close(s.ch)
 }
 
 // Close stops the processing thread from this Server and releases all associated resources. This will
 // signal the shutdown of all attached Listeners and Sessions.
 func (s *Server) Close() error {
 	s.cancel()
+	s.Wait()
 	return nil
 }
 
@@ -89,6 +102,15 @@ func (s *Server) IsActive() bool {
 // nil, the 'logx.NOP' log will be used.
 func NewServer(l logx.Log) *Server {
 	return NewServerContext(context.Background(), l)
+}
+
+// Connected returns an array of all the current Sessions connected to Listeners connected to this Server.
+func (s *Server) Connected() []*Session {
+	var l []*Session
+	for _, v := range s.active {
+		l = append(l, v.Connected()...)
+	}
+	return l
 }
 func convertHintConnect(s Setting) serverClient {
 	if len(s) == 0 {
@@ -156,6 +178,7 @@ func convertHintListen(s Setting) serverListener {
 // nil, the 'logx.NOP' log will be used. This function will use the supplied Context as the base context for cancelation.
 func NewServerContext(x context.Context, l logx.Log) *Server {
 	s := &Server{
+		ch:        make(chan waker, 1),
 		Log:       l,
 		new:       make(chan *Listener, 16),
 		close:     make(chan string, 16),
@@ -165,7 +188,7 @@ func NewServerContext(x context.Context, l logx.Log) *Server {
 	}
 	s.ctx, s.cancel = context.WithCancel(x)
 	if s.Log == nil {
-		s.Log = logx.Nop
+		s.Log = logx.NOP
 	}
 	go s.listen()
 	return s
@@ -244,9 +267,10 @@ func (s *Server) Listen(n, b string, c serverListener, p *Profile) (*Listener, e
 		return nil, fmt.Errorf("unable to listen on %q", b)
 	}
 	if s.Log == nil {
-		s.Log = logx.Nop
+		s.Log = logx.NOP
 	}
 	l := &Listener{
+		ch:         make(chan waker, 1),
 		name:       x,
 		close:      make(chan uint32, 64),
 		sessions:   make(map[uint32]*Session),
@@ -314,17 +338,17 @@ func (s *Server) ConnectWith(a string, c serverClient, p *Profile, d *com.Packet
 		return nil, ErrEmptyPacket
 	}
 	if s.Log == nil {
-		s.Log = logx.Nop
+		s.Log = logx.NOP
 	}
 	s.Log.Debug("[%s] Client connected to %q!", l.ID, a)
 	if x == 0 {
 		x = uint(limits.MediumLimit())
 	}
 	l.socket = c.Connect
-	l.wake = make(chan waker, 1)
 	l.frags = make(map[uint16]*cluster)
 	l.ctx, l.cancel = context.WithCancel(s.ctx)
 	l.log, l.s, l.Mux = s.Log, s, DefaultClientMux
+	l.wake, l.ch = make(chan waker, 1), make(chan waker, 1)
 	l.send, l.recv = make(chan *com.Packet, x), make(chan *com.Packet, x)
 	go l.listen()
 	return l, nil

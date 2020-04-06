@@ -171,20 +171,15 @@ func (f fileHandler) Open(_ string) (http.File, error) {
 // Listen returns a new C2 listener for this Web instance. This function creates a separate server, but still
 // shares the handler for the base Web instance that it's created from.
 func (s *Server) Listen(a string) (net.Listener, error) {
-	var (
-		err error
-		c   net.Listener
-	)
-	if s.tls != nil {
-		if len(s.tls.Certificates) == 0 || s.tls.GetCertificate == nil {
-			return nil, com.ErrInvalidTLSConfig
-		}
-		c, err = tls.Listen(netWeb, a, s.tls)
-	} else {
-		c, err = net.Listen(netWeb, a)
+	if s.tls != nil && (len(s.tls.Certificates) == 0 || s.tls.GetCertificate == nil) {
+		return nil, com.ErrInvalidTLSConfig
 	}
+	c, err := com.ListenConfig.Listen(context.Background(), netWeb, a)
 	if err != nil {
 		return nil, err
+	}
+	if s.tls != nil {
+		c = tls.NewListener(c, s.tls)
 	}
 	l := &listener{
 		new:    make(chan *conn, limits.SmallLimit()),

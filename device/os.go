@@ -59,7 +59,7 @@ var (
 	// ErrInvalidID is returned by the 'IDFromString' function when the returned ID value is invalid or nil.
 	ErrInvalidID = errors.New("id format is invalid or empty")
 
-	envRegexp = regexp.MustCompile("(%([\\w\\d()-_]+)%|\\$([[\\w\\d-_]+))")
+	envRegexp = regexp.MustCompile(`(%([\w\d()-_]+)%|\$([[\w\d-_]+))`)
 )
 
 // ID is an alias for a byte array that represents a 48 byte client identification number. This is used for

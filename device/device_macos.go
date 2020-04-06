@@ -39,9 +39,9 @@ func getVersion() string {
 				m[strings.ToUpper(i[0])] = strings.Replace(i[1], "\"", "", -1)
 			}
 		}
-		n, _ = m["PRODUCTNAME"]
-		b, _ = m["BUILDVERSION"]
-		v, _ = m["PRODUCTVERSION"]
+		n = m["PRODUCTNAME"]
+		b = m["BUILDVERSION"]
+		v = m["PRODUCTVERSION"]
 	}
 	if len(v) == 0 {
 		if o, err := exec.Command("uname", "-r").CombinedOutput(); err == nil {

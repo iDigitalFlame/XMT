@@ -23,18 +23,19 @@ var (
 	// when creating the Cipher.
 	ErrBlockSize = errors.New("block size must be between 16 and 128 and a power of two")
 
-	chains = &sync.Pool{
+	chains = sync.Pool{
 		New: func() interface{} {
-			return make([]byte, size+1)
+			b := make([]byte, size+1)
+			return &b
 		},
 	}
-	tables = &sync.Pool{
+	tables = sync.Pool{
 		New: func() interface{} {
 			b := make([][]byte, size+1)
 			for i := 0; i < len(b); i++ {
 				b[i] = make([]byte, 256)
 			}
-			return b
+			return &b
 		},
 	}
 )
@@ -96,9 +97,9 @@ func (e CBK) Shuffle(b []byte) {
 		}
 	}
 }
-func clear(b []byte, z [][]byte) {
-	for i := 0; i < len(b); i++ {
-		b[i] = 0
+func clear(b *[]byte, z *[][]byte) {
+	for i := 0; i < len(*b); i++ {
+		(*b)[i] = 0
 	}
 	chains.Put(b)
 	if z != nil {
@@ -172,40 +173,9 @@ func (e *CBK) Flush(w io.Writer) error {
 	_, err := e.flushOutput(w)
 	return err
 }
-func switchHalf(r bool, a, b byte) byte {
-	if r {
-		return byte((((b & 0xF) & 0xF) << 4) | ((a >> 4) & 0xF))
-	}
-	return byte(((((b >> 4) & 0xF) & 0xF) << 4) | (a & 0xF))
-}
-func (e *CBK) readIndex(b []byte) error {
-	if b == nil || len(b) < 3 {
-		return ErrSize
-	}
-	a := byte(uint16(b[0]) - uint16(e.D) - (uint16(e.D) / 2) - (uint16(e.D) - (2 + e.adjust(uint16(e.D)))))
-	c := byte(uint16(b[1]) - e.adjust(uint16(e.D)) - (uint16(e.D) / 3) - ((1 + e.adjust(uint16(e.D))) * (uint16(e.D) + 1) * 2) - (uint16(e.D) + 5))
-	if e.D%2 == 0 {
-		e.A = switchHalf(true, c, a)
-		e.B = switchHalf(true, a, c)
-	} else {
-		e.A = switchHalf(false, a, c)
-		e.B = switchHalf(false, c, a)
-	}
-	e.C = byte(uint16(b[2]) - (uint16(e.D) / 5) - 7 - ((uint16(e.D)+1)*3 + e.adjust(uint16(e.D)) + 8 + uint16(e.D)))
-	return nil
-}
-func (e *CBK) writeIndex(b []byte) error {
-	if b == nil || len(b) < 3 {
-		return ErrSize
-	}
-	b[0] = byte(uint16(switchHalf(e.D%2 == 0, e.A, e.B)) + uint16(e.D) + (uint16(e.D) / 2) + (uint16(e.D) - (2 + e.adjust(uint16(e.D)))))
-	b[1] = byte(uint16(switchHalf(e.D%2 == 0, e.B, e.A)) + e.adjust(uint16(e.D)) + (uint16(e.D) / 3) + ((1 + e.adjust(uint16(e.D))) * (uint16(e.D) + 1) * 2) + (uint16(e.D) + 5))
-	b[2] = byte(uint16(e.C) + (uint16(e.D) / 5) + 7 + ((uint16(e.D)+1)*3 + e.adjust(uint16(e.D)) + 8 + uint16(e.D)))
-	return nil
-}
 func (e *CBK) scramble(b []byte, d bool) {
 	var (
-		o    = chains.Get().([]byte)
+		o    = *chains.Get().(*[]byte)
 		x    = e.adjust(uint16(e.A*e.B) + uint16(e.D))
 		y    = e.adjust(uint16((e.C-e.D)*e.A) + x + e.adjust(uint16(e.index)))
 		z    = e.adjust(uint16(byte(x*y) + e.B - byte(e.D*e.index)))
@@ -219,9 +189,23 @@ func (e *CBK) scramble(b []byte, d bool) {
 		g = byte(math.Abs(float64((byte(z*y) + e.blockIndex(true, uint16(uint16(e.D*e.A)+uint16(i)+x), uint16(uint16(e.D)+uint16(e.index)))) % 8)))
 		h = byte(math.Abs(float64((byte(y) - e.blockIndex(false, uint16(y+uint16(e.D)+uint16(e.index*uint8(i+1))), uint16(uint16(e.D)+x+uint16(byte(uint16(i)*z)*e.A)))) % 8)))
 		if g != h {
+			if !d {
+				b[h], b[g] = byte(((((b[h]>>4)&0xF)&0xF)<<4)|(b[g]&0xF)), byte(((((b[g]>>4)&0xF)&0xF)<<4)|(b[h]&0xF))
+				b[g+1], b[h+1] = byte(((((b[g+1]>>4)&0xF)&0xF)<<4)|(b[h+1]&0xF)), byte(((((b[h+1]>>4)&0xF)&0xF)<<4)|(b[g+1]&0xF))
+			} else {
+				b[h], b[g] = byte(((((b[h]>>4)&0xF)&0xF)<<4)|(b[g]&0xF)), byte(((((b[g]>>4)&0xF)&0xF)<<4)|(b[h]&0xF))
+				b[g+1], b[h+1] = byte(((((b[g+1]>>4)&0xF)&0xF)<<4)|(b[h+1]&0xF)), byte(((((b[h+1]>>4)&0xF)&0xF)<<4)|(b[g+1]&0xF))
+			}
 			copy(o[0:2], b[g*2:g*2+2])
 			copy(b[g*2:], b[h*2:h*2+2])
 			copy(b[h*2:], o[0:2])
+			if d {
+				b[h], b[g] = byte(((((b[h]>>4)&0xF)&0xF)<<4)|(b[g]&0xF)), byte(((((b[g]>>4)&0xF)&0xF)<<4)|(b[h]&0xF))
+				b[g+1], b[h+1] = byte(((((b[g+1]>>4)&0xF)&0xF)<<4)|(b[h+1]&0xF)), byte(((((b[h+1]>>4)&0xF)&0xF)<<4)|(b[g+1]&0xF))
+			} else {
+				b[h], b[g] = byte(((((b[h]>>4)&0xF)&0xF)<<4)|(b[g]&0xF)), byte(((((b[g]>>4)&0xF)&0xF)<<4)|(b[h]&0xF))
+				b[g+1], b[h+1] = byte(((((b[g+1]>>4)&0xF)&0xF)<<4)|(b[h+1]&0xF)), byte(((((b[h+1]>>4)&0xF)&0xF)<<4)|(b[g+1]&0xF))
+			}
 		}
 		if d {
 			i--
@@ -229,7 +213,7 @@ func (e *CBK) scramble(b []byte, d bool) {
 			i++
 		}
 	}
-	clear(o, nil)
+	clear(&o, nil)
 }
 func (e *CBK) readInput(r io.Reader) (int, error) {
 	n, err := r.Read(e.buf)
@@ -246,8 +230,8 @@ func (e *CBK) readInput(r io.Reader) (int, error) {
 		e.index = 0
 	}
 	var (
-		t = chains.Get().([]byte)
-		c = tables.Get().([][]byte)
+		t = *chains.Get().(*[]byte)
+		c = *tables.Get().(*[][]byte)
 	)
 	e.cipherTable(t)
 	e.Deshuffle(e.buf)
@@ -263,7 +247,7 @@ func (e *CBK) readInput(r io.Reader) (int, error) {
 	}
 	e.total = int(e.buf[len(e.buf)-1])
 	e.pos = 0
-	clear(t, c)
+	clear(&t, &c)
 	if e.total == 0 {
 		return 0, io.EOF
 	}
@@ -316,8 +300,8 @@ func (e *CBK) flushOutput(w io.Writer) (int, error) {
 	}
 	e.buf[e.total] = byte(e.pos)
 	var (
-		t = chains.Get().([]byte)
-		c = tables.Get().([][]byte)
+		t = *chains.Get().(*[]byte)
+		c = *tables.Get().(*[][]byte)
 	)
 	e.cipherTable(t)
 	for x := 0; x < len(c); x++ {
@@ -332,7 +316,7 @@ func (e *CBK) flushOutput(w io.Writer) (int, error) {
 	e.scramble(e.buf, false)
 	e.Shuffle(e.buf)
 	n, err := w.Write(e.buf)
-	clear(t, c)
+	clear(&t, &c)
 	if err != nil {
 		return 0, err
 	}
@@ -384,35 +368,32 @@ func (e *CBK) Write(w io.Writer, b []byte) (int, error) {
 	var n, i int
 	for n < len(b) {
 		if e.pos >= e.total {
-			x, err := e.flushOutput(w)
-			n += x
+			_, err := e.flushOutput(w)
 			if err != nil {
 				return n, err
 			}
 		}
 		i = copy(e.buf[e.pos:e.total], b[n:])
 		e.pos += i
+		n += i
 	}
-	if e.pos >= e.total {
-		if o, err := e.flushOutput(w); err != nil {
-			return o, err
-		}
+	if e.pos < e.total {
+		return n, nil
 	}
-	return n, nil
+	o, err := e.flushOutput(w)
+	if o < e.total {
+		return n - (e.total - o), err
+	}
+	return n, err
 }
 
 // NewCBKEx returns a new CBK Cipher with the D value, BlockSize and Entropy source specified. The other
 // A, B and C values are randomally generated at runtime.
 func NewCBKEx(d int, size int, source rand.Source) (*CBK, error) {
-	if size < size || size > sizeMax || math.Floor(math.Log2(float64(size))) != math.Ceil(math.Log2(float64(size))) {
+	if size < 0 || size > sizeMax || math.Floor(math.Log2(float64(size))) != math.Ceil(math.Log2(float64(size))) {
 		return nil, ErrBlockSize
 	}
-	c := &CBK{
-		D:      byte(d),
-		buf:    make([]byte, size+1),
-		total:  -1,
-		Source: source,
-	}
+	c := &CBK{D: byte(d), buf: make([]byte, size+1), total: -1, Source: source}
 	c.Reset()
 	return c, nil
 }

@@ -9,11 +9,11 @@ import (
 
 const (
 	// Hex is the Hex encoding Wrapper. This wraps the binary data as hex values.
-	Hex = simpleWrapper(0x91)
+	Hex = simpleWrapper(0x1)
 
 	// Base64 is the Base64 Wrapper. This wraps the binary data as a Base64 byte string. This may be
 	// combined with the Base64 transfrom.
-	Base64 = simpleWrapper(0x92)
+	Base64 = simpleWrapper(0x2)
 )
 
 // Value is an interface that wraps the binary streams into separate stream types. This allows for using

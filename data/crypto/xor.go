@@ -9,9 +9,10 @@ import (
 
 const smallBuf = 512
 
-var bufs = &sync.Pool{
+var bufs = sync.Pool{
 	New: func() interface{} {
-		return make([]byte, smallBuf)
+		b := make([]byte, smallBuf)
+		return &b
 	},
 }
 
@@ -60,8 +61,8 @@ func (x XOR) Write(w io.Writer, b []byte) (int, error) {
 	n := len(b)
 	var o []byte
 	if n < smallBuf {
-		o = bufs.Get().([]byte)
-		defer bufs.Put(o)
+		o = *bufs.Get().(*[]byte)
+		defer bufs.Put(&o)
 	} else {
 		o = make([]byte, n)
 	}

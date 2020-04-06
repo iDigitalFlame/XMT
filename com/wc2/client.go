@@ -5,10 +5,10 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"sync"
 	"time"
 
+	"github.com/PurpleSec/parseurl"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/com/limits"
 )
@@ -122,7 +122,7 @@ func (c *client) request() (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	if i, err := url.Parse(c.host); err == nil {
+	if i, err := parseurl.Parse(c.host); err == nil {
 		r.URL = i
 	}
 	if len(r.URL.Host) == 0 {

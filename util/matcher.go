@@ -10,34 +10,34 @@ import (
 )
 
 const (
-	matchNum         = "([%c0-9]+)"
-	matchHex         = "([%ca-f0-9]+)"
-	matchLower       = "([%ca-z]+)"
-	matchUpper       = "([%cA-Z]+)"
-	matchChars       = "([%ca-zA-Z]+)"
-	matchString      = "([%ca-zA-Z0-9]+)"
-	matchSingle      = "^(%s)$"
-	matchNumFixed    = "([%c0-9]{%d})"
-	matchNumRange    = "([%c0-9]{1,%d})"
-	matchCharsFixed  = "([%ca-zA-Z]{%d})"
-	matchLowerFixed  = "([%ca-z]{%d})"
-	matchUpperFixed  = "([%cA-Z]{%d})"
-	matchCharsRange  = "([%ca-zA-Z]{1,%d})"
-	matchLowerRange  = "([%ca-z]{1,%d})"
-	matchUpperRange  = "([%cA-Z]{1,%d})"
-	matchStringRange = "([%ca-zA-Z0-9]{1,%d})"
-	matchStringFixed = "([%ca-zA-Z0-9]{%d})"
+	matchNum         = `([%c0-9]+)`
+	matchHex         = `([%ca-f0-9]+)`
+	matchLower       = `([%ca-z]+)`
+	matchUpper       = `([%cA-Z]+)`
+	matchChars       = `([%ca-zA-Z]+)`
+	matchString      = `([%ca-zA-Z0-9]+)`
+	matchSingle      = `^(%s)$`
+	matchNumFixed    = `([%c0-9]{%d})`
+	matchNumRange    = `([%c0-9]{1,%d})`
+	matchCharsFixed  = `([%ca-zA-Z]{%d})`
+	matchLowerFixed  = `([%ca-z]{%d})`
+	matchUpperFixed  = `([%cA-Z]{%d})`
+	matchCharsRange  = `([%ca-zA-Z]{1,%d})`
+	matchLowerRange  = `([%ca-z]{1,%d})`
+	matchUpperRange  = `([%cA-Z]{1,%d})`
+	matchStringRange = `([%ca-zA-Z0-9]{1,%d})`
+	matchStringFixed = `([%ca-zA-Z0-9]{%d})`
 )
 
 var (
-	builders = &sync.Pool{
+	builders = sync.Pool{
 		New: func() interface{} {
 			return new(strings.Builder)
 		},
 	}
 
 	regxFalse = falseRegexp(false)
-	regxBuild = regexp.MustCompile("(\\%(\\d+f?)?[dhcsuln])")
+	regxBuild = regexp.MustCompile(`(\%(\d+f?)?[dhcsuln])`)
 )
 
 // String is a wrapper for strings to support the fmt.Stringer interface.

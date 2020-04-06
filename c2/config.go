@@ -20,40 +20,26 @@ const (
 	// DefaultJitter is the default Jitter value when the provided jitter value is negative.
 	DefaultJitter uint8 = 5
 
-	hexID      byte = 0xD1
-	dnsID      byte = 0xB2
-	aesID      byte = 0xE0
-	desID      byte = 0xE1
-	cbkID      byte = 0xE3
-	xorID      byte = 0xE4
-	sizeID     byte = 0xC0
-	desTID     byte = 0xE2
-	zlibID     byte = 0xD2
-	gzipID     byte = 0xD4
-	sleepID    byte = 0xC2
-	zlibLID    byte = 0xD3
-	gzipLID    byte = 0xD5
-	jitterID   byte = 0xC1
-	base64ID   byte = 0xD0
-	base64TID  byte = 0xB0
-	base64TsID byte = 0xB1
-
-	tcpID byte = 0xA0
-	udpID byte = 0xA1
-	ipID  byte = 0xA2
-	wc2ID byte = 0xA4
-	tlsID byte = 0xA5
+	ipID  byte = 0xA0
+	tcpID byte = iota
+	udpID
+	wc2ID
+	tlsID
+	hexID
+	dnsID
+	aesID
+	desID
+	cbkID
+	xorID
+	sizeID
+	desTID
+	zlibID
+	gzipID
+	sleepID
+	jitterID
+	base64ID
+	base64TID
 )
-
-func (s Setting) String() string {
-	if len(s) == 0 {
-		return "Invalid"
-	}
-	switch s[0] {
-
-	}
-	return "Invalid"
-}
 
 var (
 	// WrapHex is a Setting that enables the Hex Wrapper for the generated Profile.
@@ -165,21 +151,97 @@ func WrapXOR(k []byte) Setting {
 
 // String returns a string representation of this Config.
 func (c Config) String() string {
-	return fmt.Sprintf("Config: %d Settings", len(c))
+	return fmt.Sprintf("Config[%d settings]", len(c))
+}
+
+// String returns a string representation of this Setting.
+func (s Setting) String() string {
+	if len(s) == 0 {
+		return "Empty Setting"
+	}
+	switch s[0] {
+	case ipID:
+		if len(s) == 2 {
+			return fmt.Sprintf("IP Connection (Proto 0x%X)", s[1])
+		}
+	case tcpID:
+		return "TCP Connection"
+	case udpID:
+		return "UDP Connection"
+	case wc2ID:
+		return "WC2 Connection"
+	case tlsID:
+		if len(s) == 2 && s[1] == 1 {
+			return "TLS Connection (No Verify)"
+		}
+		return "TLS Connection"
+	case hexID:
+		return "Hex Wrapper"
+	case dnsID:
+		return "DNS Transform"
+	case aesID:
+		return "AES Wrapper"
+	case desID:
+		return "DES Wrapper"
+	case cbkID:
+		return "CBK Wrapper"
+	case xorID:
+		return "XOR Wrapper"
+	case sizeID:
+		if len(s) == 9 {
+			_ = s[8]
+			return fmt.Sprintf("Size %d",
+				uint64(s[8])|uint64(s[7])<<8|uint64(s[6])<<16|uint64(s[5])<<24|
+					uint64(s[4])<<32|uint64(s[3])<<40|uint64(s[2])<<48|uint64(s[1])<<56,
+			)
+		}
+	case desTID:
+		return "DES Wrapper"
+	case zlibID:
+		if len(s) == 2 {
+			return fmt.Sprintf("Zlib Wrapper (Level %d)", s[1])
+		}
+		return "Zlib Wrapper"
+	case gzipID:
+		if len(s) == 2 {
+			return fmt.Sprintf("Gzip Wrapper (Level %d)", s[1])
+		}
+		return "Gzip Wrapper"
+	case sleepID:
+		if len(s) == 9 {
+			_ = s[8]
+			return fmt.Sprintf("Sleep %s", time.Duration(
+				uint64(s[8])|uint64(s[7])<<8|uint64(s[6])<<16|uint64(s[5])<<24|
+					uint64(s[4])<<32|uint64(s[3])<<40|uint64(s[2])<<48|uint64(s[1])<<56,
+			).String())
+		}
+	case jitterID:
+		if len(s) == 2 {
+			return fmt.Sprintf("Jitter %d%%", s[1])
+		}
+	case base64ID:
+		return "Base64 Wrapper"
+	case base64TID:
+		if len(s) == 2 {
+			return fmt.Sprintf("Base64 Transform (Shifted %d)", s[1])
+		}
+		return "Base64 Transform"
+	}
+	return fmt.Sprintf("Invalid Setting 0x%X", s[0])
 }
 
 // WrapGzipLevel returns a Setting that will apply the Gzip Wrapper to the generated Profile. The specified level will
 // determine the compression level. The 'Profile' function will return an 'ErrInvalidSetting' error if the compression
 // level is invalid.
 func WrapGzipLevel(l int) Setting {
-	return Setting{gzipLID, byte(l)}
+	return Setting{gzipID, byte(l)}
 }
 
 // WrapZlibLevel returns a Setting that will apply the Zlib Wrapper to the generated Profile. The specified level will
 // determine the compression level. The 'Profile' function will return an 'ErrInvalidSetting' error if the compression
 // level is invalid.
 func WrapZlibLevel(l int) Setting {
-	return Setting{zlibLID, byte(l)}
+	return Setting{zlibID, byte(l)}
 }
 
 // WrapAES returns a Setting that will apply the AES Wrapper to the generated Profile. The specified key and IV
@@ -280,7 +342,7 @@ func (c Config) Write(w io.Writer) error {
 // The specified number will be the shift index of the Transform. If a Transform Setting is already contained
 // in the parent Config, a 'ErrMultipleTransforms' error will be returned when the 'Profile' function is called.
 func TransformBase64Shift(s int) Setting {
-	return Setting{base64TsID, byte(s)}
+	return Setting{base64TID, byte(s)}
 }
 func (s Setting) write(w io.Writer) error {
 	if _, err := w.Write([]byte{byte(len(s) >> 8), byte(len(s))}); err != nil {
@@ -311,7 +373,7 @@ func (c Config) Profile() (*Profile, error) {
 		switch c[i][0] {
 		case wc2ID:
 			if len(c[i]) < 4 {
-				return nil, fmt.Errorf("WebC2 hint requires two values: %w", ErrInvalidSetting)
+				return nil, fmt.Errorf("WebC2 hint requires rule values: %w", ErrInvalidSetting)
 			}
 			fallthrough
 		case ipID:
@@ -425,8 +487,24 @@ func (c Config) Profile() (*Profile, error) {
 			}
 			w = append(w, y)
 		case zlibID:
+			if len(c[i]) == 2 {
+				z, err := wrapper.NewZlib(int(c[i][1]))
+				if err != nil {
+					return nil, fmt.Errorf("%s: %w", err.Error(), ErrInvalidSetting)
+				}
+				w = append(w, z)
+				continue
+			}
 			w = append(w, wrapper.Zlib)
 		case gzipID:
+			if len(c[i]) == 2 {
+				g, err := wrapper.NewGzip(int(c[i][1]))
+				if err != nil {
+					return nil, fmt.Errorf("%s: %w", err.Error(), ErrInvalidSetting)
+				}
+				w = append(w, g)
+				continue
+			}
 			w = append(w, wrapper.Gzip)
 		case sleepID:
 			if len(c[i]) != 9 {
@@ -437,24 +515,6 @@ func (c Config) Profile() (*Profile, error) {
 				uint64(c[i][8]) | uint64(c[i][7])<<8 | uint64(c[i][6])<<16 | uint64(c[i][5])<<24 |
 					uint64(c[i][4])<<32 | uint64(c[i][3])<<40 | uint64(c[i][2])<<48 | uint64(c[i][1])<<56,
 			)
-		case zlibLID:
-			if len(c[i]) != 2 {
-				return nil, fmt.Errorf("zlib level requires two values: %w", ErrInvalidSetting)
-			}
-			z, err := wrapper.NewZlib(int(c[i][1]))
-			if err != nil {
-				return nil, fmt.Errorf("%s: %w", err.Error(), ErrInvalidSetting)
-			}
-			w = append(w, z)
-		case gzipLID:
-			if len(c[i]) != 2 {
-				return nil, fmt.Errorf("gzip level requires two values: %w", ErrInvalidSetting)
-			}
-			g, err := wrapper.NewGzip(int(c[i][1]))
-			if err != nil {
-				return nil, fmt.Errorf("%s: %w", err.Error(), ErrInvalidSetting)
-			}
-			w = append(w, g)
 		case jitterID:
 			if len(c[i]) != 2 {
 				return nil, fmt.Errorf("jitter requires two values: %w", ErrInvalidSetting)
@@ -466,15 +526,11 @@ func (c Config) Profile() (*Profile, error) {
 			if p.Transform != nil {
 				return nil, ErrMultipleTransforms
 			}
+			if len(c[i]) == 2 {
+				p.Transform = transform.Base64Shift(int(c[i][1]))
+				continue
+			}
 			p.Transform = transform.Base64
-		case base64TsID:
-			if p.Transform != nil {
-				return nil, ErrMultipleTransforms
-			}
-			if len(c[i]) != 2 {
-				return nil, fmt.Errorf("base64 shift requires two values: %w", ErrInvalidSetting)
-			}
-			p.Transform = transform.Base64Shift(int(c[i][1]))
 		default:
 			return nil, fmt.Errorf("0x%X: %w", c[i][0], ErrInvalidSetting)
 		}

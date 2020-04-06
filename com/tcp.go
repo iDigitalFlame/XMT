@@ -1,6 +1,7 @@
 package com
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -57,6 +58,9 @@ func (t *TCPConn) Write(b []byte) (int, error) {
 // Accept will block and listen for a connection to it's current listening port. This function will return only
 // when a connection is made or it is closed. The return error will most likely be nil unless the listener is closed.
 func (t TCPListener) Accept() (net.Conn, error) {
+	if d, ok := t.Listener.(deadline); ok {
+		d.SetDeadline(time.Now().Add(t.timeout))
+	}
 	c, err := t.Listener.Accept()
 	if err != nil {
 		return nil, err
@@ -98,13 +102,18 @@ func (t TCPConnector) Listen(s string) (net.Listener, error) {
 	return &TCPListener{timeout: t.dialer.Timeout, Listener: c}, nil
 }
 func newListener(n, s string, t TCPConnector) (net.Listener, error) {
-	if t.tls != nil {
-		if len(t.tls.Certificates) == 0 || t.tls.GetCertificate == nil {
-			return nil, ErrInvalidTLSConfig
-		}
-		return tls.Listen(n, s, t.tls)
+	if t.tls != nil && (len(t.tls.Certificates) == 0 || t.tls.GetCertificate == nil) {
+		return nil, ErrInvalidTLSConfig
 	}
-	return net.Listen(n, s)
+	l, err := ListenConfig.Listen(context.Background(), n, s)
+	if err != nil {
+		return nil, err
+	}
+	if t.tls == nil {
+		return l, nil
+	}
+	return tls.NewListener(l, t.tls), nil
+
 }
 
 // NewSecureTCP creates a new simple TLS wrapped TCP based connector with the supplied timeout.
