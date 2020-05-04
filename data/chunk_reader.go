@@ -127,7 +127,7 @@ func (c *Chunk) Bytes() ([]byte, error) {
 	}
 	b := make([]byte, l)
 	n, err := ReadFully(c, b)
-	if err != nil && (err != io.EOF || err != ErrLimit || n != l) {
+	if err != nil && ((err != io.EOF && err != ErrLimit) || n != l) {
 		return nil, err
 	}
 	if n != l {

@@ -19,28 +19,24 @@ import (
 
 // Packet Message Constats
 const (
-	MsgPing       = 0xFE00
-	MsgSleep      = 0xFE01
-	MsgHello      = 0xFE02
-	MsgResult     = 0xFE13
-	MsgProfile    = 0xFE15
-	MsgRegister   = 0xFE05
-	MsgMultiple   = 0xFE03
-	MsgShutdown   = 0xFE04
-	MsgRegistered = 0xFE06
+	MsgPing     = 0xFE00
+	MsgSleep    = 0xFE01
+	MsgMultiple = 0xFE02
 
-	// Actions
-	/*
-		MsgUpload    = uint16(control.Upload)
-		MsgRefresh   = uint16(control.Refresh)
-		MsgExecute   = uint16(control.Execute)
-		MsgDownload  = uint16(control.Download)
-		MsgProcesses = uint16(control.ProcessList)*/
+	MsgError      = 0xFEEF
+	MsgHello      = 0xFA00
+	MsgProfile    = 0xFA04
+	MsgRegister   = 0xFA01
+	MsgShutdown   = 0xFA03
+	MsgRegistered = 0xFA02
 
-	MsgProxy = 0xFE11 // registry required
-	MsgSpawn = 0xFE12 // registry required
-
-	MsgError = 0xFEEF
+	MsgSpawn    = 0xBA04
+	MsgProxy    = 0xBA05
+	MsgResult   = 0xBB00
+	MsgUpload   = 0xB001
+	MsgRefresh  = 0xB000
+	MsgExecute  = 0xB003
+	MsgDownload = 0xB002
 )
 
 var (
@@ -98,20 +94,20 @@ func returnBuffer(c *data.Chunk) {
 	c.Reset()
 	buffers.Put(c)
 }
-func (e event) process(l logx.Log) {
+func (e *event) process(l logx.Log) {
 	defer func(x logx.Log) {
 		if err := recover(); err != nil && x != nil {
 			x.Error("Server event processing function recovered from a panic: %s!", err)
 		}
 	}(l)
 	switch {
-	case e.jFunc != nil && e.j != nil:
-		e.jFunc(e.j)
 	case e.pFunc != nil && e.p != nil && e.s != nil:
 		e.pFunc(e.s, e.p)
-	case e.nFunc != nil && e.p != nil && e.s == nil:
+	case e.jFunc != nil && e.j != nil:
+		e.jFunc(e.j)
+	case e.nFunc != nil && e.p != nil:
 		e.nFunc(e.p)
-	case e.sFunc != nil && e.s != nil && e.p == nil:
+	case e.sFunc != nil && e.s != nil:
 		e.sFunc(e.s)
 	}
 	e.p, e.s, e.j = nil, nil, nil
@@ -172,7 +168,6 @@ func notify(l *Listener, s *Session, p *com.Packet) error {
 		return nil
 	case p.Flags&com.FlagFrag != 0 && p.Flags&com.FlagMulti == 0:
 		if p.Flags.Len() == 0 {
-			// wrapped frags getting reset
 			return ErrInvalidPacketCount
 		}
 		if p.Flags.Len() == 1 {
@@ -185,12 +180,14 @@ func notify(l *Listener, s *Session, p *com.Packet) error {
 			c, ok = s.frags[g]
 		)
 		if !ok {
-			s.frags[g] = new(cluster)
+			c = new(cluster)
+			s.frags[g] = c
 		}
 		if err := c.add(p); err != nil {
 			return err
 		}
-		if n := c.done(); n != nil {
+		n := c.done()
+		if n != nil {
 			notify(l, s, n)
 			delete(s.frags, g)
 		}
@@ -216,7 +213,7 @@ func notifyClient(l *Listener, s *Session, p *com.Packet) {
 		case MsgShutdown:
 			if s.parent != nil {
 				s.log.Debug("[%s] Client indicated shutdown, acknowledging and closing Session.", s.ID)
-				s.WritePacket(&com.Packet{ID: MsgShutdown, Job: 1})
+				s.Write(&com.Packet{ID: MsgShutdown, Job: 1})
 			} else {
 				if s.done > flagOpen {
 					return
@@ -226,10 +223,18 @@ func notifyClient(l *Listener, s *Session, p *com.Packet) {
 			s.Close()
 			return
 		case MsgRegister:
+			if s.swarm != nil {
+				for _, v := range s.swarm.clients {
+					v.send <- &com.Packet{ID: MsgRegister, Job: uint16(util.Rand.Uint32())}
+				}
+			}
 			n := &com.Packet{ID: MsgHello, Job: uint16(util.Rand.Uint32())}
 			device.Local.MarshalStream(n)
 			n.Close()
 			s.send <- n
+			if len(s.send) == 1 {
+				s.Wake()
+			}
 			if p.Flags&com.FlagData == 0 {
 				return
 			}
@@ -270,8 +275,7 @@ func readPacket(c io.Reader, w Wrapper, t Transform) (*com.Packet, error) {
 			i   = buffers.Get().(*data.Chunk)
 			err = t.Read(i, b.Payload())
 		)
-		returnBuffer(b)
-		if err != nil {
+		if returnBuffer(b); err != nil {
 			returnBuffer(i)
 			return nil, fmt.Errorf("unable to transform reader: %w", err)
 		}
@@ -287,11 +291,10 @@ func readPacket(c io.Reader, w Wrapper, t Transform) (*com.Packet, error) {
 		r = data.NewReader(u)
 	}
 	var (
-		p   = &com.Packet{}
+		p   = new(com.Packet)
 		err = p.UnmarshalStream(r)
 	)
-	returnBuffer(b)
-	if err != nil && err != io.EOF {
+	if returnBuffer(b); err != nil && err != io.EOF {
 		return nil, fmt.Errorf("unable to read from cache reader: %w", err)
 	}
 	if err := r.Close(); err != nil {
@@ -328,70 +331,89 @@ func writePacket(c io.Writer, w Wrapper, t Transform, p *com.Packet) error {
 			i   = buffers.Get().(*data.Chunk)
 			err = t.Write(i, b.Payload())
 		)
-		returnBuffer(b)
-		if err != nil {
+		if returnBuffer(b); err != nil {
 			returnBuffer(i)
 			return fmt.Errorf("unable to transform writer: %w", err)
 		}
 		b = i
 	}
 	_, err := b.WriteTo(c)
-	returnBuffer(b)
-	if err != nil {
+	if returnBuffer(b); err != nil {
 		return fmt.Errorf("unable to write to stream writer: %w", err)
 	}
 	return nil
 }
 func nextPacket(c chan *com.Packet, p *com.Packet, i device.ID) (*com.Packet, *com.Packet, error) {
-	var (
-		n    = &com.Packet{ID: MsgMultiple, Device: i, Flags: com.FlagMulti}
-		t    int
-		x    *com.Packet
-		m, a bool
-	)
-	if p != nil {
-		m, t = true, 1
-		if p.Flags&com.FlagChannel != 0 {
-			n.Flags |= com.FlagChannel
+	if limits.SmallLimit() <= 1 {
+		if p != nil {
+			return p, nil, nil
 		}
-		if err := p.MarshalStream(n); err != nil {
-			n.Clear()
-			return nil, nil, err
+		if len(c) > 0 {
+			return <-c, nil, nil
 		}
-		p.Clear()
-		p = nil
+		return nil, nil, nil
 	}
-	for len(c) > 0 && t < limits.SmallLimit() && n.Size() < limits.FragLimit() {
-		p = <-c
-		if p.Size()+n.Size() > limits.FragLimit() {
-			x = p
-			break
+	var (
+		t, s int
+		m, a bool
+		x, w *com.Packet
+	)
+	for t < limits.SmallLimit() {
+		if p == nil {
+			if len(c) == 0 {
+				if t == 1 && a && !m {
+					return x, nil, nil
+				}
+				break
+			}
+			p = <-c
 		}
 		if p.Verify(i) {
 			a = true
 		} else {
 			m = true
 		}
-		if p.Flags&com.FlagChannel != 0 {
-			n.Flags |= com.FlagChannel
+		if s += p.Size(); s >= limits.FragLimit() {
+			if a && !m && t == 0 {
+				return p, x, nil
+			}
+			if a && !m && t == 1 {
+				return x, p, nil
+			}
+			if w != nil {
+				break
+			}
 		}
-		if err := p.MarshalStream(n); err != nil {
-			return nil, x, err
+		if t++; t == 1 && !m && a {
+			x, p = p, nil
+			continue
 		}
-		t++
+		if w == nil {
+			w = &com.Packet{ID: MsgMultiple, Device: i, Flags: com.FlagMulti}
+			if x != nil {
+				w.Tags, x.Tags = x.Tags, nil
+				if x.MarshalStream(w); x.Flags&com.FlagChannel != 0 {
+					w.Flags |= com.FlagChannel
+				}
+				x.Clear()
+				x = nil
+			}
+		}
+		w.Tags, p.Tags = append(w.Tags, p.Tags...), nil
+		if p.MarshalStream(w); p.Flags&com.FlagChannel != 0 {
+			w.Flags |= com.FlagChannel
+		}
 		p.Clear()
 		p = nil
 	}
 	if !a {
 		m, t = true, t+1
-		if err := (&com.Packet{ID: MsgPing, Device: i}).MarshalStream(n); err != nil {
-			return nil, x, err
-		}
+		(&com.Packet{ID: MsgPing, Device: i}).MarshalStream(w)
 	}
-	n.Close()
+	w.Close()
 	if m {
-		n.Flags |= com.FlagMultiDevice
+		w.Flags |= com.FlagMultiDevice
 	}
-	n.Flags.SetLen(uint16(t))
-	return n, x, nil
+	w.Flags.SetLen(uint16(t))
+	return w, x, nil
 }

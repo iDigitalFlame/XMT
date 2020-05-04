@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-var complete = finished{}
+var complete finished
 
 type addr string
 type conn struct {

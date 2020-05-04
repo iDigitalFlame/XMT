@@ -17,13 +17,15 @@ const exitStopped uint32 = 0x1337
 var (
 	// ErrEmptyCommand is an error returned when attempting to start a Process that has an empty 'Args' array.
 	ErrEmptyCommand = errors.New("process arguments are empty")
-	// ErrNotCompleted is returned when attempting to access the exit code on a running process or wait on a non-stared proess.
+	// ErrNotCompleted is returned when attempting to access the exit code on a running process or wait on a
+	// non-stared proess.
 	ErrNotCompleted = errors.New("the process has not yet completed or was not started")
-	// ErrAlreadyStarted is an error returned by the 'Start' or 'Run' functions when attempting to start a process that has
-	// already been started via a 'Start' or 'Run' function call.
+	// ErrAlreadyStarted is an error returned by the 'Start' or 'Run' functions when attempting to start a process
+	// that has already been started via a 'Start' or 'Run' function call.
 	ErrAlreadyStarted = errors.New("process has already been started")
-	// ErrNotSupportedOS is an error that is returned when a non-Windows device attempts a Windows only function.
-	ErrNotSupportedOS = errors.New("function is avaliable on Windows only")
+	// ErrNotSupportedOS is an error that is returned when a device attempts to call a function that cannot be run on
+	// it's OS type
+	ErrNotSupportedOS = errors.New("function is not avaliable on the current device OS")
 	// ErrNoProcessFound is returned by the SetParent* functions on Windows devices when a specified parent process
 	// could not be found.
 	ErrNoProcessFound = errors.New("could not find a suitable parent process")
@@ -44,15 +46,14 @@ type Process struct {
 	Stderr  io.Writer
 	Timeout time.Duration
 
-	ctx    context.Context
-	err    error
-	opts   *options
-	exit   uint32
-	once   uint32
-	flags  uint32
-	reader *os.File
-	cancel context.CancelFunc
-	//parent  *container
+	ctx     context.Context
+	err     error
+	opts    *options
+	exit    uint32
+	once    uint32
+	flags   uint32
+	reader  *os.File
+	cancel  context.CancelFunc
 	closers []*os.File
 	container
 }
@@ -72,6 +73,61 @@ func (p *Process) Run() error {
 	return p.Wait()
 }
 
+// Split will attempt to split the specified string based on the escape characters and spaces while attempting
+// to preserve anything that is not a splitting space. This will automatically detect quotes and backslashes. The
+// return result is a string array that can be used as args,
+func Split(s string) []string {
+	var (
+		b       []rune
+		r       []string
+		l, e, i rune
+	)
+	for _, c := range s {
+		switch {
+		case c == ' ' && i == 0 && e == 0 && len(b) > 0:
+			r, b = append(r, string(b)), nil
+		case c == '"' && i == 0 && e == 0:
+			fallthrough
+		case c == '\'' && i == 0 && e == 0:
+			i = c
+		case c == '"' && i == c && e == 0:
+			fallthrough
+		case c == '\'' && i == c && e == 0:
+			if len(b) > 0 {
+				r, b = append(r, string(b)), nil
+			}
+			i = 0
+		case c == ' ' && i == 0 && e > 0:
+			fallthrough
+		case c == '"' && i == 0 && e > 0:
+			fallthrough
+		case c == '\'' && i == 0 && e > 0:
+			b, e = append(b, c), 0
+		case c == '\\' && e > 0:
+			e = 0
+		case c == '\\' && e == 0:
+			e = c
+		case c == i && e > 0:
+			e = 0
+			fallthrough
+		default:
+			if e > 0 {
+				b = append(b, e)
+				e = 0
+			}
+			b = append(b, c)
+		}
+		l = c
+	}
+	if i > 0 && (l == '"' || l == '\'') {
+		b = append(b, l)
+	}
+	if len(b) > 0 {
+		r = append(r, string(b))
+	}
+	return r
+}
+
 // Wait will block until the Process completes or is terminated by a call to Stop. This function will return
 // 'ErrNotCompleted' if the Process has not been started.
 func (p *Process) Wait() error {
@@ -82,6 +138,15 @@ func (p *Process) Wait() error {
 		<-p.ctx.Done()
 	}
 	return p.err
+}
+
+// Stop will attempt to terminate the currently running Process instance. Stopping a Process may prevent the
+// ability to read the Stdout/Stderr and any proper exit codes.
+func (p *Process) Stop() error {
+	if !p.isStarted() || !p.Running() {
+		return nil
+	}
+	return p.stopWith(p.kill())
 }
 
 // Error returns any errors that may have occurred during Process operation.
@@ -109,6 +174,7 @@ func (p *Process) Start() error {
 			p.ctx, p.cancel = context.WithCancel(p.ctx)
 		}
 	}
+	atomic.StoreUint32(&p.once, 0)
 	if p.reader != nil {
 		p.reader.Close()
 		p.reader = nil
@@ -133,9 +199,18 @@ func (p Process) String() string {
 func (e ExitError) Error() string {
 	return fmt.Sprintf("process exit: %d", e.Exit)
 }
+
+// NewProcess creates a new process instance that uses the supplied string vardict as the command line arguments.
+// Similar to '&Process{Args: s}'.
+func NewProcess(s ...string) *Process {
+	return &Process{Args: s}
+}
 func (p *Process) stopWith(e error) error {
 	if atomic.LoadUint32(&p.once) == 0 {
 		atomic.StoreUint32(&p.once, 1)
+		if p.Running() {
+			p.kill()
+		}
 		if p.opts != nil {
 			p.opts.close()
 		}
@@ -260,4 +335,10 @@ func (p *Process) StderrPipe() (io.ReadCloser, error) {
 	p.Stderr = w
 	p.closers = append(p.closers, w)
 	return r, nil
+}
+
+// NewProcessContext creates a new process instance that uses the supplied string vardict as the command line
+// arguments. This function accepts a context that can be used to control the cancelation of this process.
+func NewProcessContext(x context.Context, s ...string) *Process {
+	return &Process{Args: s, ctx: x}
 }

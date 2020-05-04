@@ -41,12 +41,12 @@ type Listener struct {
 
 // Wait will block until the current socket associated with this Listener is closed and shutdown.
 func (l *Listener) Wait() {
-	<-l.ctx.Done()
+	<-l.ch
 }
 func (l *Listener) listen() {
 	l.log.Debug("[%s] Starting Listener %q...", l.name, l.listener)
 	for atomic.LoadUint32(&l.done) == flagOpen {
-		if len(l.close) > 0 {
+		for len(l.close) > 0 {
 			var (
 				i     = <-l.close
 				s, ok = l.sessions[i]
@@ -180,17 +180,29 @@ func (l *Listener) handlePacket(c net.Conn, o bool) bool {
 		return false
 	}
 	l.log.Trace("[%s:%s] Received Packet %q.", l.name, c.RemoteAddr().String(), p)
+	z := l.resolveTags(c.RemoteAddr().String(), p.Device, o, p.Tags)
 	if p.Flags&com.FlagMultiDevice == 0 && p.Flags&com.FlagProxy == 0 {
 		if s := l.client(c, p, o); s != nil {
-			n, err := s.next()
+			n, err := s.next(false)
 			if err != nil {
 				l.log.Warning("[%s:%s] %s: Received an error retriving Packet data: %s!", l.name, s.Device.ID, s.host, err.Error())
-			} else {
-				l.log.Trace("[%s:%s] %s: Sending Packet %q to client...", l.name, s.Device.ID, s.host, n.String())
-				if err = writePacket(c, s.w, s.t, n); err != nil {
-					l.log.Warning("[%s:%s] %s: Received an error writing data to client: %s!", l.name, s.Device.ID, s.host, err.Error())
-					return o
+				return p.Flags&com.FlagChannel != 0
+			}
+			if len(z) > 0 {
+				l.log.Trace("[%s:%s] %s: Resolved Tags added %d Packets!", l.name, s.Device.ID, s.host, len(z))
+				u := &com.Packet{ID: MsgMultiple, Flags: com.FlagMulti | com.FlagMultiDevice}
+				n.MarshalStream(u)
+				for i := 0; i < len(z); i++ {
+					z[i].MarshalStream(u)
 				}
+				u.Flags.SetLen(uint16(len(z) + 1))
+				u.Close()
+				n = u
+			}
+			l.log.Trace("[%s:%s] %s: Sending Packet %q to client...", l.name, s.Device.ID, s.host, n.String())
+			if err = writePacket(c, s.w, s.t, n); err != nil {
+				l.log.Warning("[%s:%s] %s: Received an error writing data to client: %s!", l.name, s.Device.ID, s.host, err.Error())
+				return o
 			}
 		}
 		return p.Flags&com.FlagChannel != 0
@@ -220,17 +232,20 @@ func (l *Listener) handlePacket(c net.Conn, o bool) bool {
 		if s == nil {
 			continue
 		}
-		if r, err := s.next(); err != nil {
+		if r, err := s.next(false); err != nil {
 			l.log.Warning("[%s:%s] %s: Received an error retriving Packet data: %s!", l.name, s.Device.ID, s.host, err.Error())
 		} else {
-			if err := r.MarshalStream(m); err != nil {
-				l.log.Warning("[%s:%s] %s: Received an error writing data to client buffer: %s!", l.name, s.Device.ID, s.host, err.Error())
-				return p.Flags&com.FlagChannel != 0
-			}
+			r.MarshalStream(m)
 		}
-		n.Clear()
 		n = nil
 		t++
+	}
+	if len(z) > 0 {
+		l.log.Trace("[%s:%s] %s: Resolved Tags added %d Packets!", l.name, p.Device, c.RemoteAddr().String(), len(z))
+		for i := 0; i < len(z); i++ {
+			z[i].MarshalStream(m)
+		}
+		t += uint16(len(z))
 	}
 	m.Flags.SetLen(t)
 	m.Close()
@@ -301,4 +316,29 @@ func (l *Listener) client(c net.Conn, p *com.Packet, o bool) *Session {
 		return nil
 	}
 	return s
+}
+func (l *Listener) resolveTags(a string, i device.ID, o bool, t []uint32) []*com.Packet {
+	var p []*com.Packet
+	for x := 0; x < len(t); x++ {
+		l.log.Trace("[%s:%s] %s: Received a Tag 0x%X...", l.name, i, a, t[x])
+		s, ok := l.sessions[t[x]]
+		if !ok {
+			l.log.Warning("[%s:%s] %s: Received an invalid Tag 0x%X!", l.name, i, a, t[x])
+			continue
+		}
+		s.host, s.Last = a, time.Now()
+		if l.Connect != nil && !o {
+			l.s.events <- event{s: s, sFunc: l.Connect}
+		}
+		n, err := s.next(true)
+		if err != nil {
+			l.log.Warning("[%s:%s] %s: Received an error retriving Packet data: %s!", l.name, i, a, err.Error())
+			continue
+		}
+		if n == nil {
+			continue
+		}
+		p = append(p, n)
+	}
+	return p
 }

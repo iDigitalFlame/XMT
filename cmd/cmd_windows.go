@@ -53,7 +53,7 @@ const (
 	flagNewConsole  = 0x00000010
 	flagDisplayMode = 0x00000001
 
-	secStandard uintptr = 0x0001 | 0x00100000 | 0x0400 | 0x0040 | 0x0080
+	secStandard uintptr = 0x0001 | 0x0010 | 0x0400 | 0x0040 | 0x0080
 )
 
 // ErrNoStartupInfo is an error that is returned when there is no StartupInfo structs passed to the
@@ -77,17 +77,19 @@ type container struct {
 	choices []string
 }
 
-// Stop will attempt to terminate the currently running Process instance. Stopping a Process may prevent the
-// ability to read the Stdout/Stderr and any proper exit codes.
-func (p *Process) Stop() error {
-	if !p.isStarted() || !p.Running() {
-		return nil
+// Pid returns the current process PID. This function returns zero if the process has not been started.
+func (p Process) Pid() uint64 {
+	if !p.isStarted() {
+		return 0
 	}
+	return uint64(p.opts.info.ProcessId)
+}
+func (p *Process) kill() error {
 	p.exit = exitStopped
 	if r, _, err := funcTerminateProcess.Call(uintptr(p.opts.info.Process), uintptr(exitStopped)); r == 0 {
-		return p.stopWith(err)
+		return err
 	}
-	return p.stopWith(nil)
+	return nil
 }
 func (c container) empty() bool {
 	return c.pid == 0 && len(c.name) == 0 && len(c.choices) == 0
@@ -134,8 +136,10 @@ func startProcess(p *Process) error {
 	if s.StdInput > 0 || s.StdOutput > 0 || s.StdErr > 0 {
 		s.Flags |= syscall.STARTF_USESTDHANDLES
 	}
-	var a string
-	var e *startupInfoEx
+	var (
+		a string
+		e *startupInfoEx
+	)
 	if p.opts.parent > 0 {
 		if e, err = newParentEx(p.opts.parent, s); err != nil {
 			return err
@@ -149,6 +153,33 @@ func startProcess(p *Process) error {
 	}
 	go p.wait()
 	return nil
+}
+
+// SetFlags will set the startup Flag values used for Windows programs. This function overrites many
+// of the 'Set*' functions.
+func (p *Process) SetFlags(f uint32) {
+	p.flags = f
+}
+
+// SetUID will set the process UID at runtime. This function takes the numerical UID value. Use '-1' to disable this
+// setting. The UID value is validated at runtime. This function has no effect on Windows devices and will return
+// 'ErrNotSupportedOS'.
+func (*Process) SetUID(_ int32) error {
+	return ErrNotSupportedOS
+}
+
+// SetGID will set the process GID at runtime. This function takes the numerical GID value. Use '-1' to disable this
+// setting. The GID value is validated at runtime. This function has no effect on Windows devices and will return
+// 'ErrNotSupportedOS'.
+func (*Process) SetGID(_ int32) error {
+	return ErrNotSupportedOS
+}
+
+// SetChroot will set the process Chroot directory at runtime. This function takes the directory path as a string
+// value. Use an empty string "" to disable this setting. The specified Path value is validated at runtime. This
+// function has no effect on Windows devices and will return 'ErrNotSupportedOS'.
+func (*Process) SetChroot(_ string) error {
+	return ErrNotSupportedOS
 }
 
 // SetParent will instruct the Process to choose a parent with the supplied process name. If this string is empty,

@@ -186,6 +186,7 @@ func NewServerContext(x context.Context, l logx.Log) *Server {
 		events:    make(chan event, limits.SmallLimit()),
 		Scheduler: new(Scheduler),
 	}
+	s.Scheduler.s = s
 	s.ctx, s.cancel = context.WithCancel(x)
 	if s.Log == nil {
 		s.Log = logx.NOP

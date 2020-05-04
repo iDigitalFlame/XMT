@@ -11,7 +11,7 @@ import (
 )
 
 // PacketHeaderSize is the length of the Packet header in bytes.
-const PacketHeaderSize = 45
+const PacketHeaderSize = 46
 
 // ErrMismatchedID is an error that occurs when attempting to combine a Packet with a Packet that does
 // not match the ID of the parent Packet.
@@ -22,6 +22,7 @@ var ErrMismatchedID = errors.New("packet ID does not match combining packet ID")
 type Packet struct {
 	ID     uint16
 	Job    uint16
+	Tags   []uint32
 	Flags  Flag
 	Device device.ID
 	data.Chunk
@@ -32,7 +33,7 @@ func (p Packet) Size() int {
 	if p.Empty() {
 		return PacketHeaderSize
 	}
-	s := p.Chunk.Size() + PacketHeaderSize
+	s := p.Chunk.Size() + PacketHeaderSize + (4 * len(p.Tags))
 	switch {
 	case s < data.DataLimitSmall:
 		return s + 1
@@ -111,11 +112,19 @@ func (p Packet) MarshalStream(w data.Writer) error {
 	if err := w.WriteUint16(p.Job); err != nil {
 		return err
 	}
+	if err := w.WriteUint8(uint8(len(p.Tags))); err != nil {
+		return err
+	}
 	if err := p.Flags.MarshalStream(w); err != nil {
 		return err
 	}
 	if err := p.Device.MarshalStream(w); err != nil {
 		return err
+	}
+	for i := 0; i < len(p.Tags) && i < 256; i++ {
+		if err := w.WriteUint32(p.Tags[i]); err != nil {
+			return err
+		}
 	}
 	if err := p.Chunk.MarshalStream(w); err != nil {
 		return err
@@ -131,11 +140,23 @@ func (p *Packet) UnmarshalStream(r data.Reader) error {
 	if err := r.ReadUint16(&p.Job); err != nil {
 		return err
 	}
+	t, err := r.Uint8()
+	if err != nil {
+		return err
+	}
 	if err := p.Flags.UnmarshalStream(r); err != nil {
 		return err
 	}
 	if err := p.Device.UnmarshalStream(r); err != nil {
 		return err
+	}
+	if t > 0 {
+		p.Tags = make([]uint32, t)
+		for i := uint8(0); i < t; i++ {
+			if err := r.ReadUint32(&p.Tags[i]); err != nil {
+				return err
+			}
+		}
 	}
 	if err := p.Chunk.UnmarshalStream(r); err != nil {
 		return err

@@ -9,9 +9,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/iDigitalFlame/xmt/c2/task"
+
 	"github.com/PurpleSec/logx"
 
 	"github.com/iDigitalFlame/xmt/c2"
+	"github.com/iDigitalFlame/xmt/com"
 )
 
 func main() {
@@ -23,8 +26,8 @@ func main() {
 			c2.Sleep(time.Second * 5),
 			c2.Jitter(10),
 			c2.ConnectTCP,
-			//c2.WrapBase64,
-			//c2.WrapGzip,
+			c2.WrapBase64,
+			c2.WrapZlib,
 		}
 	)
 
@@ -83,10 +86,13 @@ func client(s *c2.Server, p *c2.Profile) {
 	}
 	fmt.Printf("New Session [%s]\n", c)
 
-	//time.Sleep(15 * time.Second)
-	//if err := c.WritePacket(&com.Packet{ID: 0xDEED}); err != nil {
-	//	panic(err)
-	//}
+	time.Sleep(5 * time.Second)
+	if err := c.Write(&com.Packet{ID: 0xDEED}); err != nil {
+		panic(err)
+	}
+	/*if err := c.Write(&com.Packet{ID: 0xDEEF}); err != nil {
+		panic(err)
+	}*/
 
 	c.Wait()
 }
@@ -103,17 +109,31 @@ func server(s *c2.Server, p *c2.Profile) {
 	}
 	fmt.Printf("New Listener [%s]\n", l)
 
-	go func() {
-		for {
-			fmt.Printf("%-10s%-8s%-20s\n", "ID", "PID", "OS")
-			for _, v := range s.Connected() {
-				fmt.Printf(
-					"%-10s%-8d%-20s\n", v.ID, v.Device.PID, v.Device.Version,
-				)
+	l.New = func(v *c2.Session) {
+
+		var (
+			pf = &task.Process{
+				Dir:     "/tmp",
+				Args:    []string{"ping", "-c", "2", "google.com"},
+				Wait:    true,
+				Timeout: time.Second * 10,
 			}
-			time.Sleep(time.Second * 5)
+			df = &com.Packet{ID: c2.MsgExecute}
+		)
+		pf.MarshalStream(df)
+
+		j, err := v.Schedule(df)
+		if err != nil {
+			panic(err)
 		}
-	}()
+
+		fmt.Printf("%s JOB ID %d submitted!\n", v.ID, j.ID)
+
+		j.Done = func(ii *c2.Job) {
+			fmt.Printf("JOB ID %d done!\n", ii.ID)
+			fmt.Printf("%s:\n[%s]\n", ii.Result.String(), ii.Result.Payload())
+		}
+	}
 
 	l.Wait()
 }

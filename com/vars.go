@@ -34,7 +34,7 @@ var (
 	// TLS is the TCP over TLS connector client. This client uses TCP wrapped in TLS encryption
 	// using certificates. This client is only valid for clients that connect to servers with properly
 	// signed and trusted certificates.
-	TLS = &tcpClient{c: TCPConnector{tls: &tls.Config{}, dialer: TCP.dialer}}
+	TLS = &tcpClient{c: TCPConnector{tls: new(tls.Config), dialer: TCP.dialer}}
 	// TLSNoCheck is the TCP over TLS connector profile. This client uses TCP wrapped in TLS encryption
 	// using certificates. This instance DOES NOT check the server certificate for validity.
 	TLSNoCheck = &tcpClient{c: TCPConnector{tls: &tls.Config{InsecureSkipVerify: true}, dialer: TCP.dialer}}

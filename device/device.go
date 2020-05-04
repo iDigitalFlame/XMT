@@ -32,7 +32,7 @@ var Local = (&local{&Machine{
 	Arch:     Arch,
 	User:     "Unknown",
 	Version:  Version,
-	Network:  Network{},
+	Network:  make(Network, 0),
 	Hostname: "Unknown",
 	Elevated: isElevated(),
 }}).init()

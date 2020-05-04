@@ -18,12 +18,13 @@ import (
 	ps "github.com/shirou/gopsutil/process"
 )
 
+const waitForever uint32 = 0xFFFFFFFF
+
 var (
 	dllKernel32 = windows.NewLazySystemDLL("kernel32.dll")
 
 	funcOpenProcess                       = dllKernel32.NewProc("OpenProcess")
 	funcCreateProcessW                    = dllKernel32.NewProc("CreateProcessW")
-	funcTerminateThread                   = dllKernel32.NewProc("TerminateThread")
 	funcTerminateProcess                  = dllKernel32.NewProc("TerminateProcess")
 	funcGetExitCodeProcess                = dllKernel32.NewProc("GetExitCodeProcess")
 	funcWaitForSingleObject               = dllKernel32.NewProc("WaitForSingleObject")
@@ -44,11 +45,21 @@ type startupInfoEx struct {
 }
 
 func (p *Process) wait() {
-	if err := wait(p.opts.info.Process, 0xFFFFFFFF); err != nil {
+	var (
+		x   = make(chan error)
+		err error
+	)
+	go waitFunc(p.opts.info.Process, waitForever, x)
+	select {
+	case err = <-x:
+	case <-p.ctx.Done():
+	}
+	if err != nil {
 		p.stopWith(err)
 		return
 	}
 	if p.ctx.Err() != nil {
+		p.stopWith(p.ctx.Err())
 		return
 	}
 	if r, _, err := funcGetExitCodeProcess.Call(uintptr(p.opts.info.Process), uintptr(unsafe.Pointer(&p.exit))); r == 0 {
@@ -166,17 +177,20 @@ func readFunc(r io.ReadCloser, w io.Writer) {
 	io.Copy(w, r)
 	r.Close()
 }
-func writeFunc(r io.Reader, w io.WriteCloser) {
-	io.Copy(w, r)
-	w.Close()
-}
-func wait(proc windows.Handle, d uint32) error {
-	switch r, _, err := funcWaitForSingleObject.Call(uintptr(proc), uintptr(d)); {
+func wait(h windows.Handle, d uint32) error {
+	switch r, _, err := funcWaitForSingleObject.Call(uintptr(h), uintptr(d)); {
 	case r == 0x00000000:
 		return nil
 	default:
 		return err
 	}
+}
+func writeFunc(r io.Reader, w io.WriteCloser) {
+	io.Copy(w, r)
+	w.Close()
+}
+func waitFunc(h windows.Handle, d uint32, c chan<- error) {
+	c <- wait(h, d)
 }
 func (o *options) startInfo() (*windows.StartupInfo, error) {
 	s := &windows.StartupInfo{X: o.X, Y: o.Y, XSize: o.W, YSize: o.H, Flags: o.Flags, ShowWindow: o.Mode}
@@ -284,8 +298,7 @@ func newParentEx(p windows.Handle, start *windows.StartupInfo) (*startupInfoEx, 
 		s uint64
 		x startupInfoEx
 	)
-	_, _, err := funcInitializeProcThreadAttributeList.Call(0, 1, 0, uintptr(unsafe.Pointer(&s)))
-	if s < 48 {
+	if _, _, err := funcInitializeProcThreadAttributeList.Call(0, 1, 0, uintptr(unsafe.Pointer(&s))); s < 48 {
 		return nil, fmt.Errorf("winapi InitializeProcThreadAttributeList error: %w", err)
 	}
 	x.AttributeList = new(startupAttrs)

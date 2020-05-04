@@ -1,8 +1,10 @@
 package data
 
 import (
+	"context"
 	"errors"
 	"io"
+	"io/ioutil"
 )
 
 const (
@@ -79,6 +81,11 @@ type Writer interface {
 	io.WriteCloser
 	Flusher
 }
+type ctxReader struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+	io.ReadCloser
+}
 
 // Flusher is an interface that supports Flushing the stream output to the underlying Writer.
 type Flusher interface {
@@ -93,6 +100,22 @@ type Writeable interface {
 // Readable is an interface that supports reading the target struct data from a Reader.
 type Readable interface {
 	UnmarshalStream(Reader) error
+}
+
+func (r *ctxReader) Close() error {
+	r.cancel()
+	return r.ReadCloser.Close()
+}
+func (r *ctxReader) Read(b []byte) (int, error) {
+	select {
+	case <-r.ctx.Done():
+		if err := r.ReadCloser.Close(); err != nil {
+			return 0, err
+		}
+		return 0, r.ctx.Err()
+	default:
+		return r.ReadCloser.Read(b)
+	}
 }
 
 // ReadStringList attempts to read a string list written using the 'WriteStringList' function from the supplied
@@ -192,9 +215,23 @@ func ReadFully(r io.Reader, b []byte) (int, error) {
 	var n int
 	for n < len(b) {
 		i, err := r.Read(b[n:])
-		if n += i; err != nil && (err != io.EOF || err != ErrLimit || n != len(b)) {
+		if n += i; err != nil && ((err != io.EOF && err != ErrLimit) || n != len(b)) {
 			return n, err
 		}
 	}
 	return n, nil
+}
+
+// NewCtxReader creates a reader backed by the supplied Reader and Context. This reader will automatically close
+// when the parent context is canceled. This is useful in situations when direct copies using 'io.Copy' on threads
+// or timed operations are required.
+func NewCtxReader(x context.Context, r io.Reader) io.ReadCloser {
+	i := new(ctxReader)
+	if c, ok := r.(io.ReadCloser); ok {
+		i.ReadCloser = c
+	} else {
+		i.ReadCloser = ioutil.NopCloser(r)
+	}
+	i.ctx, i.cancel = context.WithCancel(x)
+	return i
 }

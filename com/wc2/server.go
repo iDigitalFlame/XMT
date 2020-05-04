@@ -135,9 +135,8 @@ func (s *Server) ServeDirectory(p, f string) error {
 func NewTLS(t time.Duration, c *tls.Config) *Server {
 	w := &Server{
 		tls:     c,
-		lock:    sync.RWMutex{},
 		dialer:  &net.Dialer{Timeout: t, KeepAlive: t, DualStack: true},
-		handler: &http.ServeMux{},
+		handler: new(http.ServeMux),
 	}
 	w.ctx, w.cancel = context.WithCancel(context.Background())
 	w.Client = &http.Client{
@@ -187,7 +186,7 @@ func (s *Server) Listen(a string) (net.Listener, error) {
 		socket: c,
 		Server: &http.Server{
 			TLSConfig:         s.tls,
-			Handler:           &http.ServeMux{},
+			Handler:           new(http.ServeMux),
 			ReadTimeout:       s.dialer.Timeout,
 			IdleTimeout:       s.dialer.Timeout,
 			WriteTimeout:      s.dialer.Timeout,

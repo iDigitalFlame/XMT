@@ -19,6 +19,9 @@ import (
 const maxErrors = 2
 
 var (
+	// ErrUnable is an error returned for a generic action if there is some condition that prevents the action
+	// from running.
+	ErrUnable = errors.New("cannot preform this action")
 	// ErrFullBuffer is returned from the WritePacket function when the send buffer for Session is full.
 	ErrFullBuffer = errors.New("cannot add a Packet to a full send buffer")
 	// ErrClosedSession is an error returned when attempting to write a Packet to a closed Session.
@@ -108,7 +111,7 @@ func (s *Session) listen() {
 	}
 	s.wait()
 	for ; atomic.LoadUint32(&s.done) <= flagLast; s.wait() {
-		if s.done == flagLast {
+		if s.done == flagLast && s.parent == nil {
 			if s.parent != nil {
 				break
 			}
@@ -184,6 +187,9 @@ func (s Session) IsProxy() bool {
 
 // Close stops the listening thread from this Session and releases all associated resources.
 func (s *Session) Close() error {
+	if atomic.LoadUint32(&s.done) == flagFinished {
+		return nil
+	}
 	atomic.StoreUint32(&s.done, flagLast)
 	s.cancel()
 	if s.parent == nil {
@@ -197,6 +203,8 @@ func (s *Session) Close() error {
 // String returns the details of this Session as a string.
 func (s Session) String() string {
 	switch {
+	case s.parent == nil && s.sleep == 0:
+		return fmt.Sprintf("[%s] -> %s %s", s.ID.String(), s.host, s.Last.Format(time.RFC1123))
 	case s.parent == nil && (s.jitter == 0 || s.jitter > 100):
 		return fmt.Sprintf("[%s] %s -> %s", s.ID.String(), s.sleep.String(), s.host)
 	case s.parent == nil:
@@ -231,6 +239,14 @@ func (s Session) IsChannel() bool {
 func (s *Session) SetJitter(j int) {
 	s.SetDuration(s.sleep, j)
 }
+
+// Read attempts to grab a Packet from the receiving buffer. This function returns nil if the buffer is empty.
+func (s *Session) Read() *com.Packet {
+	if len(s.recv) > 0 {
+		return <-s.recv
+	}
+	return nil
+}
 func (c *cluster) done() *com.Packet {
 	if uint16(len(c.data)) >= c.max {
 		n := c.data[0]
@@ -246,9 +262,9 @@ func (c *cluster) done() *com.Packet {
 	return nil
 }
 
-// Read attempts to grab a Packet from the receiving buffer. This function will wait for a Packet while the
+// Next attempts to grab a Packet from the receiving buffer. This function will wait for a Packet while the
 // buffer is empty.
-func (s *Session) Read() *com.Packet {
+func (s *Session) Next() *com.Packet {
 	return <-s.recv
 }
 
@@ -274,10 +290,9 @@ func (s Session) Time() time.Duration {
 	return s.sleep
 }
 
-// Write adds the supplied Packet into the stack to be sent to the server on next wake. This call is
-// asynchronous and returns immediately. Unlike 'WritePacket' this function does NOT return an error and will wait
-// for the buffer to have open spots.
-func (s *Session) Write(p *com.Packet) {
+// Send adds the supplied Packet into the stack to be sent to the server on next wake. This call is asynchronous
+// and returns immediately. Unlike 'Write' this function does NOT return an error and will wait if the send buffer is full.
+func (s *Session) Send(p *com.Packet) {
 	s.write(true, p)
 }
 func (c *cluster) add(p *com.Packet) error {
@@ -288,17 +303,9 @@ func (c *cluster) add(p *com.Packet) error {
 		return com.ErrMismatchedID
 	}
 	if p.Flags.Len() > c.max {
-		c.max = p.Flags.Group()
+		c.max = p.Flags.Len()
 	}
 	c.data = append(c.data, p)
-	return nil
-}
-
-// ReadPacket attempts to grab a Packet from the receiving buffer. This function returns nil if the buffer is empty.
-func (s *Session) ReadPacket() *com.Packet {
-	if len(s.recv) > 0 {
-		return <-s.recv
-	}
 	return nil
 }
 
@@ -314,41 +321,20 @@ func (s *Session) SetSleep(t time.Duration) {
 func (s *Session) Context() context.Context {
 	return s.ctx
 }
-func (s *Session) next() (*com.Packet, error) {
-	if s.peek == nil && len(s.send) == 0 {
-		if s.parent == nil {
-			if atomic.LoadUint32(&s.mode) == 1 {
-				s.wait()
-			}
-			return &com.Packet{ID: MsgPing, Device: s.ID}, nil
-		}
-		return &com.Packet{ID: MsgSleep, Device: s.ID}, nil
-	}
-	var (
-		p   *com.Packet
-		err error
-	)
-	if s.peek != nil {
-		p, s.peek = s.peek, nil
-	} else {
-		p = <-s.send
-	}
-	if len(s.send) == 0 && p.Verify(s.ID) {
-		return p, nil
-	}
-	if p, s.peek, err = nextPacket(s.send, p, s.ID); err != nil {
-		return nil, err
-	}
-	return p, nil
-}
 
-// WritePacket adds the supplied Packet into the stack to be sent to the server on next wake. This call is
-// asynchronous and returns immediately. The only error may be returned is 'ErrFullBuffer' if the send buffer is full.
-func (s *Session) WritePacket(p *com.Packet) error {
+// Write adds the supplied Packet into the stack to be sent to the server on next wake. This call is
+// asynchronous and returns immediately. 'ErrFullBuffer' will be returned if the send buffer is full.
+func (s *Session) Write(p *com.Packet) error {
 	return s.write(false, p)
 }
+
+// Packets returns a receive only channel that can be used in a for loop for acting on Packets when they arrive without
+// using the Receive function.
+func (s *Session) Packets() <-chan *com.Packet {
+	return s.recv
+}
 func (s *Session) session(c net.Conn, o bool) bool {
-	p, err := s.next()
+	p, err := s.next(false)
 	if err != nil {
 		s.log.Warning("[%s] Received an error retriving the next Packet to %q: %s!", s.ID, s.host, err.Error())
 		return false
@@ -398,6 +384,42 @@ func (s *Session) session(c net.Conn, o bool) bool {
 	}
 	s.errors = 0
 	return y
+}
+func (s *Session) next(i bool) (*com.Packet, error) {
+	var t []uint32
+	if s.swarm != nil && len(s.swarm.clients) > 0 {
+		t = s.swarm.tags()
+	}
+	if s.peek == nil && len(s.send) == 0 {
+		if s.parent == nil {
+			if atomic.LoadUint32(&s.mode) == 1 {
+				s.wait()
+			}
+			return &com.Packet{ID: MsgPing, Device: s.ID, Tags: t}, nil
+		}
+		if i {
+			return nil, nil
+		}
+		return &com.Packet{ID: MsgSleep, Device: s.ID, Tags: t}, nil
+	}
+	var (
+		p   *com.Packet
+		err error
+	)
+	if s.peek != nil {
+		p, s.peek = s.peek, nil
+	} else {
+		p = <-s.send
+	}
+	if len(s.send) == 0 && p.Verify(s.ID) {
+		p.Tags = t
+		return p, nil
+	}
+	if p, s.peek, err = nextPacket(s.send, p, s.ID); err != nil {
+		return nil, err
+	}
+	p.Tags = t
+	return p, nil
 }
 func (s *Session) write(w bool, p *com.Packet) error {
 	if atomic.LoadUint32(&s.done) > flagOpen {
@@ -466,4 +488,13 @@ func (s *Session) SetDuration(t time.Duration, j int) {
 		n.Close()
 		s.send <- n
 	}
+}
+
+// Schedule is a quick alias for the 'Server.Scheduler.Schedule' function that uses this current Session in the
+// Session parameter. This function will return a wrapped 'ErrUnable' error if this is a client Session.
+func (s *Session) Schedule(p *com.Packet) (*Job, error) {
+	if s.parent == nil {
+		return nil, fmt.Errorf("cannot be a client session: %w", ErrUnable)
+	}
+	return s.s.Scheduler.Schedule(s, p)
 }
