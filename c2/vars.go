@@ -186,8 +186,7 @@ func notify(l *Listener, s *Session, p *com.Packet) error {
 		if err := c.add(p); err != nil {
 			return err
 		}
-		n := c.done()
-		if n != nil {
+		if n := c.done(); n != nil {
 			notify(l, s, n)
 			delete(s.frags, g)
 		}
@@ -269,8 +268,7 @@ func readPacket(c io.Reader, w Wrapper, t Transform) (*com.Packet, error) {
 		returnBuffer(b)
 		return nil, fmt.Errorf("unable to read from stream reader: %w", err)
 	}
-	b.Close()
-	if t != nil {
+	if b.Close(); t != nil {
 		var (
 			i   = buffers.Get().(*data.Chunk)
 			err = t.Read(i, b.Payload())
@@ -410,8 +408,7 @@ func nextPacket(c chan *com.Packet, p *com.Packet, i device.ID) (*com.Packet, *c
 		m, t = true, t+1
 		(&com.Packet{ID: MsgPing, Device: i}).MarshalStream(w)
 	}
-	w.Close()
-	if m {
+	if w.Close(); m {
 		w.Flags |= com.FlagMultiDevice
 	}
 	w.Flags.SetLen(uint16(t))

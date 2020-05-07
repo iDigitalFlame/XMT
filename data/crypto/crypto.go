@@ -3,7 +3,6 @@ package crypto
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/des"
 	"io"
 
 	"github.com/iDigitalFlame/xmt/data"
@@ -48,12 +47,6 @@ func (w *writer) Close() error {
 	return nil
 }
 
-// NewDes attempts to create a new DES block Cipher from the provided key data. Errors will be returned
-// if the key length is invalid.
-func NewDes(k []byte) (cipher.Block, error) {
-	return des.NewCipher(k)
-}
-
 // NewAes attempts to create a new AES block Cipher from the provided key data. Errors will be returned
 // if the key length is invalid.
 func NewAes(k []byte) (cipher.Block, error) {
@@ -80,12 +73,6 @@ func NewWriter(c Writer, w io.Writer) data.Writer {
 		return data.NewWriter(w)
 	}
 	return data.NewWriter(&writer{c: c, w: w})
-}
-
-// NewTrippleDes attempts to create a new Tripple DES block Cipher from the provided key data. Errors
-// will be returned if the key length is invalid.
-func NewTrippleDes(k []byte) (cipher.Block, error) {
-	return des.NewTripleDESCipher(k)
 }
 
 // BlockDecryptReader creates a data.Reader type from the specified block Cipher, IV and Reader.

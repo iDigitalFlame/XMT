@@ -3,5 +3,15 @@
 		{
 			"path": "."
 		}
-	]
+    ],
+    "settings": {
+        "files.associations": {
+            "*.sh": "shellscript",
+            "*.run": "shellscript",
+            "array": "c",
+            "string_view": "c",
+            "initializer_list": "c",
+            "utility": "c"
+        }
+    }
 }

@@ -28,11 +28,9 @@ const (
 	hexID
 	dnsID
 	aesID
-	desID
 	cbkID
 	xorID
 	sizeID
-	desTID
 	zlibID
 	gzipID
 	sleepID
@@ -181,8 +179,6 @@ func (s Setting) String() string {
 		return "DNS Transform"
 	case aesID:
 		return "AES Wrapper"
-	case desID:
-		return "DES Wrapper"
 	case cbkID:
 		return "CBK Wrapper"
 	case xorID:
@@ -195,8 +191,6 @@ func (s Setting) String() string {
 					uint64(s[4])<<32|uint64(s[3])<<40|uint64(s[2])<<48|uint64(s[1])<<56,
 			)
 		}
-	case desTID:
-		return "DES Wrapper"
 	case zlibID:
 		if len(s) == 2 {
 			return fmt.Sprintf("Zlib Wrapper (Level %d)", s[1])
@@ -247,13 +241,20 @@ func WrapZlibLevel(l int) Setting {
 // WrapAES returns a Setting that will apply the AES Wrapper to the generated Profile. The specified key and IV
 // will be the AES Key and IV used.
 func WrapAES(k, iv []byte) Setting {
-	return wrapBlock(aesID, k, iv)
-}
-
-// WrapDES returns a Setting that will apply the DES Wrapper to the generated Profile. The specified key and IV
-// will be the DES Key and IV used.
-func WrapDES(k, iv []byte) Setting {
-	return wrapBlock(desID, k, iv)
+	s := []byte{aesID, 0}
+	if len(k) > 255 {
+		s[1] = 255
+		s = append(s, k[:255]...)
+	} else {
+		s[1] = byte(len(k))
+		s = append(s, k...)
+	}
+	if len(iv) > 255 {
+		s = append(s, iv[:255]...)
+	} else {
+		s = append(s, iv...)
+	}
+	return Setting(s)
 }
 
 // Sleep returns a Setting that will specify the Sleep timeout setting of the generated Profile. Values
@@ -352,12 +353,6 @@ func (s Setting) write(w io.Writer) error {
 	return err
 }
 
-// WrapTrippleDES returns a Setting that will apply the TrippleDES Wrapper to the generated Profile. The specified
-// key and IV will be the DES Key and IV used.
-func WrapTrippleDES(k, iv []byte) Setting {
-	return wrapBlock(desTID, k, iv)
-}
-
 // Profile attempts to build a C2 Profile based on the Settings contained in this Config. This function will return
 // 'ErrInvalidSetting' if any of the Settings contain invalid values, 'ErrMultipleTransforms' if multiple Transforms
 // are contained in this Config or 'ErrMultipleHints' if multiple connection hints are contained in this Config.
@@ -421,23 +416,6 @@ func (c Config) Profile() (*Profile, error) {
 				return nil, fmt.Errorf("%s: %w", err.Error(), ErrInvalidSetting)
 			}
 			w = append(w, y)
-		case desID:
-			if len(c[i]) < 2 {
-				return nil, fmt.Errorf("DES requires a key: %w", ErrInvalidSetting)
-			}
-			var (
-				l = c[i][1]
-				k = c[i][2 : 2+l]
-			)
-			x, err := crypto.NewDes(k)
-			if err != nil {
-				return nil, fmt.Errorf("%s: %w", err.Error(), ErrInvalidSetting)
-			}
-			y, err := wrapper.NewBlock(x, c[i][2+l:])
-			if err != nil {
-				return nil, fmt.Errorf("%s: %w", err.Error(), ErrInvalidSetting)
-			}
-			w = append(w, y)
 		case cbkID:
 			if len(c[i]) != 6 {
 				return nil, fmt.Errorf("CBK requires a key: %w", ErrInvalidSetting)
@@ -469,23 +447,6 @@ func (c Config) Profile() (*Profile, error) {
 				uint64(c[i][8]) | uint64(c[i][7])<<8 | uint64(c[i][6])<<16 | uint64(c[i][5])<<24 |
 					uint64(c[i][4])<<32 | uint64(c[i][3])<<40 | uint64(c[i][2])<<48 | uint64(c[i][1])<<56,
 			)
-		case desTID:
-			if len(c[i]) < 2 {
-				return nil, fmt.Errorf("tripple DES requires a key: %w", ErrInvalidSetting)
-			}
-			var (
-				l = c[i][1]
-				k = c[i][2 : 2+l]
-			)
-			x, err := crypto.NewTrippleDes(k)
-			if err != nil {
-				return nil, fmt.Errorf("%s: %w", err.Error(), ErrInvalidSetting)
-			}
-			y, err := wrapper.NewBlock(x, c[i][2+l:])
-			if err != nil {
-				return nil, fmt.Errorf("%s: %w", err.Error(), ErrInvalidSetting)
-			}
-			w = append(w, y)
 		case zlibID:
 			if len(c[i]) == 2 {
 				z, err := wrapper.NewZlib(int(c[i][1]))
@@ -541,22 +502,6 @@ func (c Config) Profile() (*Profile, error) {
 		p.Wrapper = w[0]
 	}
 	return &p, nil
-}
-func wrapBlock(i byte, k, v []byte) Setting {
-	s := []byte{i, 0}
-	if len(k) > 255 {
-		s[1] = 255
-		s = append(s, k[:255]...)
-	} else {
-		s[1] = byte(len(k))
-		s = append(s, k...)
-	}
-	if len(v) > 255 {
-		s = append(s, v[:255]...)
-	} else {
-		s = append(s, v...)
-	}
-	return Setting(s)
 }
 
 // WrapCBKSize returns a Setting that will apply the CBK Wrapper to the generated Profile. The specified size, ABC
