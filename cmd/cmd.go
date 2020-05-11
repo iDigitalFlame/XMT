@@ -23,9 +23,6 @@ var (
 	// ErrAlreadyStarted is an error returned by the 'Start' or 'Run' functions when attempting to start a process
 	// that has already been started via a 'Start' or 'Run' function call.
 	ErrAlreadyStarted = errors.New("process has already been started")
-	// ErrNotSupportedOS is an error that is returned when a device attempts to call a function that cannot be run on
-	// it's OS type
-	ErrNotSupportedOS = errors.New("function is not avaliable on the current device OS")
 	// ErrNoProcessFound is returned by the SetParent* functions on Windows devices when a specified parent process
 	// could not be found.
 	ErrNoProcessFound = errors.New("could not find a suitable parent process")
@@ -46,11 +43,13 @@ type Process struct {
 	Stderr  io.Writer
 	Timeout time.Duration
 
+	ch      chan finished
 	ctx     context.Context
 	err     error
 	opts    *options
 	exit    uint32
 	once    uint32
+	split   bool
 	flags   uint32
 	reader  *os.File
 	cancel  context.CancelFunc
@@ -63,6 +62,7 @@ type Process struct {
 type ExitError struct {
 	Exit uint32
 }
+type finished interface{}
 
 // Run will start the process and wait until it completes. This function will return the same errors as the 'Start'
 // function if they occur or the 'Wait' function if any errors occur during Process runtime.
@@ -134,9 +134,7 @@ func (p *Process) Wait() error {
 	if !p.isStarted() {
 		return ErrNotCompleted
 	}
-	if p.ctx.Err() == nil {
-		<-p.ctx.Done()
-	}
+	<-p.ch
 	return p.err
 }
 
@@ -179,6 +177,7 @@ func (p *Process) Start() error {
 		p.reader.Close()
 		p.reader = nil
 	}
+	p.ch = make(chan finished)
 	if err := startProcess(p); err != nil {
 		return p.stopWith(err)
 	}
@@ -186,8 +185,16 @@ func (p *Process) Start() error {
 }
 
 // Running returns true if the current Process is running, false otherwise.
-func (p Process) Running() bool {
-	return p.isStarted() && p.ctx != nil && p.ctx.Err() == nil
+func (p *Process) Running() bool {
+	if !p.isStarted() {
+		return false
+	}
+	select {
+	case <-p.ch:
+		return false
+	default:
+		return true
+	}
 }
 
 // String returns the command and arguments that this Process will execute.
@@ -205,10 +212,18 @@ func (e ExitError) Error() string {
 func NewProcess(s ...string) *Process {
 	return &Process{Args: s}
 }
+
+// SetInheritEnv will change the behavior of the Environment variable inheritance on startup. If true (the default),
+// the current Environment variables will be filled in, even if 'Env' is not empty. If set to false, the current
+// Environment variables will not be added into the Process's starting Environment.
+func (p *Process) SetInheritEnv(i bool) {
+	p.split = !i
+}
 func (p *Process) stopWith(e error) error {
-	if atomic.LoadUint32(&p.once) == 0 {
+	if atomic.LoadUint32(&p.once) != 1 {
+		s := p.once
 		atomic.StoreUint32(&p.once, 1)
-		if p.Running() {
+		if p.Running() && s != 2 {
 			p.kill()
 		}
 		if p.opts != nil {
@@ -221,10 +236,11 @@ func (p *Process) stopWith(e error) error {
 			}
 			p.closers = nil
 		}
-		if p.ctx.Err() != nil && p.exit == 0 {
+		if s != 2 && p.ctx.Err() != nil && p.exit == 0 {
 			p.err = p.ctx.Err()
 			p.exit = exitStopped
 		}
+		close(p.ch)
 	}
 	p.cancel()
 	if p.err == nil && p.ctx.Err() != nil {

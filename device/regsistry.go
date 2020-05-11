@@ -2,7 +2,6 @@ package device
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -14,9 +13,6 @@ const (
 	modeDir  = os.ModeDir | os.ModeExclusive | os.ModeIrregular
 	modeFile = os.ModeExclusive | os.ModeIrregular
 )
-
-// ErrNoRegistry is an error that is returned when a non-Windows device attempts a registry function.
-var ErrNoRegistry = errors.New("registry is not supported on non-windows devices")
 
 // RegistryFile is a struct that is returned from a Registry function call on Windows devices.
 // This interface is a combinaton of the io.Reader and os.FileInfo interfaces.

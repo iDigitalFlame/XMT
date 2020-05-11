@@ -13,6 +13,7 @@ import (
 	"time"
 	"unsafe"
 
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
 
@@ -29,7 +30,15 @@ var (
 	Shell = shell()
 	// ShellArgs is the default machine specific command shell arguments to run commands.
 	ShellArgs = []string{"/c"}
+
+	dllAdvapi32               = windows.NewLazySystemDLL("advapi32.dll")
+	funcAdjustTokenPrivileges = dllAdvapi32.NewProc("AdjustTokenPrivileges")
 )
+
+type privileges struct {
+	PrivilegeCount uint32
+	Privileges     [5]windows.LUIDAndAttributes
+}
 
 func shell() string {
 	if s, ok := os.LookupEnv("ComSpec"); ok {
@@ -91,8 +100,48 @@ func getVersion() string {
 	return "Windows (?)"
 }
 
+// AdjustPrivileges will attempt to enable the supplied Windows privilege values on the current process's Token.
+// Errors during encoding, lookup or assignment will be returned and not all privileges will be assigned, if they
+// occur. Always returns 'ErrNoWindows' on non-Windows devices.
+func AdjustPrivileges(s ...string) error {
+	var t windows.Token
+	if err := windows.OpenProcessToken(windows.CurrentProcess(), windows.TOKEN_WRITE|windows.TOKEN_QUERY, &t); err != nil {
+		return fmt.Errorf("cannot get current token: %w", err)
+	}
+	err := AdjustTokenPrivileges(uintptr(t), s...)
+	t.Close()
+	return err
+}
+func adjust(h uintptr, s []string) error {
+	var (
+		n   *uint16
+		p   privileges
+		err error
+	)
+	for i := range s {
+		if n, err = windows.UTF16PtrFromString(s[i]); err != nil {
+			return fmt.Errorf("cannot convert %q: %w", s[i], err)
+		}
+		if err := windows.LookupPrivilegeValue(nil, n, &p.Privileges[i].Luid); err != nil {
+			return fmt.Errorf("cannot lookup privilege %q: %w", s[i], err)
+		}
+		p.Privileges[i].Attributes = windows.SE_PRIVILEGE_ENABLED
+	}
+	p.PrivilegeCount = uint32(len(s))
+	_, _, err = funcAdjustTokenPrivileges.Call(
+		uintptr(h), 0,
+		uintptr(unsafe.Pointer(&p)),
+		uintptr(unsafe.Sizeof(p)),
+		0, 0,
+	)
+	if e, ok := err.(syscall.Errno); ok && e == 0 {
+		return nil
+	}
+	return fmt.Errorf("cannot assign all privileges: %w", err)
+}
+
 // Registry attempts to open a registry value or key, value pair on Windows devices. Returns err if the system is
-// not a Windows device or an error occurred during the open.
+// not a Windows device or an error occurred during the open. Always returns 'ErrNoWindows' on non-windows devices.
 func Registry(key, value string) (*RegistryFile, error) {
 	var k registry.Key
 	switch p := strings.ToUpper(key); {
@@ -140,9 +189,26 @@ func Registry(key, value string) (*RegistryFile, error) {
 	}
 	var o io.Reader
 	if t == registry.SZ || t == registry.EXPAND_SZ || t == registry.MULTI_SZ {
-		o = strings.NewReader(syscall.UTF16ToString((*[1 << 29]uint16)(unsafe.Pointer(&b[0]))[: len(b)/2 : len(b)/2]))
+		o = strings.NewReader(windows.UTF16ToString((*[1 << 29]uint16)(unsafe.Pointer(&b[0]))[: len(b)/2 : len(b)/2]))
 	} else {
 		o = bytes.NewReader(b)
 	}
 	return &RegistryFile{k: key, v: value, m: y, r: o}, nil
+}
+
+// AdjustTokenPrivileges will attempt to enable the supplied Windows privilege values on the supplied process Token.
+// Errors during encoding, lookup or assignment will be returned and not all privileges will be assigned, if they
+// occur. Always returns 'ErrNoWindows' on non-Windows devices.
+func AdjustTokenPrivileges(h uintptr, s ...string) error {
+	for x, w := 0, 0; x < len(s); {
+		w = 5
+		if x+w > len(s) {
+			w = len(s) - x
+		}
+		if err := adjust(h, s[x:x+w]); err != nil {
+			return err
+		}
+		x += w
+	}
+	return nil
 }

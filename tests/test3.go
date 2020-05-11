@@ -6,7 +6,7 @@ import (
 	"github.com/iDigitalFlame/xmt/device"
 )
 
-func main3() {
+func test3Main() {
 	fmt.Printf(
 		"ID:\t\t%s\nOS:\t\t%s\nPID:\t\t%d\nPPID:\t\t%d\nArch:\t\t%s\nUser:\t\t%s\nVersion:\t%s\nHostname:\t%s\nElevated:\t%t\n",
 		device.Local.ID, device.Local.OS, device.Local.PID, device.Local.PPID, device.Local.Arch, device.Local.User,

@@ -3,62 +3,22 @@
 package cmd
 
 import (
-	"errors"
+	"fmt"
 	"io"
 	"os/exec"
 	"strings"
-	"syscall"
+
+	"github.com/iDigitalFlame/xmt/device"
 
 	"golang.org/x/sys/windows"
 )
 
 const (
-	// ModeNone resets the window display mode to default.
-	ModeNone = 0
-	// ModeHide hides the window and activates another window.
-	ModeHide = 0
-	// ModeShow activates the window and displays it in its current size and position.
-	ModeShow = 5
-	// ModeDefault activates and displays a window. If the window is minimized or maximized, the system restores it to its original size and position.
-	// An application should specify this flag when displaying the window for the first time.
-	ModeDefault = 1
-	// ModeRestore activates and displays the window. If the window is minimized or maximized, the system restores it to its
-	// original size and position. An application should specify this flag when restoring a minimized window.
-	ModeRestore = 9
-	// ModeMaximize maximizes the specified window.
-	ModeMaximize = 3
-	// ModeMinimize minimizes the specified window and activates the next top-level window in the Z order.
-	ModeMinimize = 6
-	// ModeShowNoActive displays the window in its current size and position. This value is similar to SW_SHOW, except that the window is not activated.
-	ModeShowNoActive = 8
-	// ModeForceMinimize minimizes a window, even if the thread that owns the window is not responding.
-	// This flag should only be used when minimizing windows from a different thread.
-	ModeForceMinimize = 11
-	// ModeShowMaximized activates the window and displays it as a maximized window.
-	ModeShowMaximized = 3
-	// ModeShowMinimized activates the window and displays it as a minimized window.
-	ModeShowMinimized = 2
-	// ModeRestoreNoActive displays a window in its most recent size and position. This value is similar to SW_SHOWNORMAL, except that the window is not activated.
-	ModeRestoreNoActive = 4
-	// ModeMinimizeNoActive displays the window as a minimized window. This value is similar to SW_SHOWMINIMIZED, except the window is not activated.
-	ModeMinimizeNoActive = 7
+	flagSize       = 0x00000002
+	flagTitle      = 0x00001000
+	flagPosition   = 0x00000004
+	flagFullscreen = 0x00000020
 )
-const (
-	flagSize        = 0x00000002
-	flagTitle       = 0x00001000
-	flagPosition    = 0x00000004
-	flagDetached    = 0x00000008
-	flagSuspended   = 0x00000004
-	flagFullscreen  = 0x00000020
-	flagNewConsole  = 0x00000010
-	flagDisplayMode = 0x00000001
-
-	secStandard uintptr = 0x0001 | 0x0010 | 0x0400 | 0x0040 | 0x0080
-)
-
-// ErrNoStartupInfo is an error that is returned when there is no StartupInfo structs passed to the
-// startProcess function.
-var ErrNoStartupInfo = errors.New("startup info is missing")
 
 type options struct {
 	X, Y  uint32
@@ -86,7 +46,7 @@ func (p Process) Pid() uint64 {
 }
 func (p *Process) kill() error {
 	p.exit = exitStopped
-	if r, _, err := funcTerminateProcess.Call(uintptr(p.opts.info.Process), uintptr(exitStopped)); r == 0 {
+	if err := windows.TerminateProcess(p.opts.info.Process, exitStopped); err != nil {
 		return err
 	}
 	return nil
@@ -94,6 +54,15 @@ func (p *Process) kill() error {
 func (c container) empty() bool {
 	return c.pid == 0 && len(c.name) == 0 && len(c.choices) == 0
 }
+
+// SetUID will set the process UID at runtime. This function takes the numerical UID value. Use '-1' to disable this
+// setting. The UID value is validated at runtime. This function has no effect on Windows devices.
+func (*Process) SetUID(_ int32) {}
+
+// SetGID will set the process GID at runtime. This function takes the numerical GID value. Use '-1' to disable this
+// setting. The GID value is validated at runtime. This function has no effect on Windows devices.
+func (*Process) SetGID(_ int32) {}
+
 func (p Process) isStarted() bool {
 	return p.opts != nil && p.opts.info.Process > 0
 }
@@ -109,51 +78,74 @@ func startProcess(p *Process) error {
 	if err != nil {
 		return err
 	}
-	v, err := createEnv(p.Env)
+	var v *uint16
+	if len(p.Env) == 0 && !p.split {
+		v, err = createEnv(windows.Environ()[4:])
+	} else {
+		var (
+			f bool
+			e = p.Env
+		)
+		if !p.split {
+			for k, n := range device.Environment {
+				if !f && strings.ToLower(k) == "systemroot" {
+					f = true
+				}
+				e = append(e, fmt.Sprintf("%s=%s", k, n))
+			}
+		}
+		for i := 0; !f && i < len(e); i++ {
+			if strings.HasPrefix(strings.ToLower(e[i]), "systemroot=") {
+				f = true
+				break
+			}
+		}
+		if !f {
+			v, err = createEnv(append(e, fmt.Sprintf("SYSTEMROOT=%s", device.Environment["systemroot"])))
+		} else {
+			v, err = createEnv(e)
+		}
+	}
 	if err != nil {
 		return err
 	}
 	if !p.container.empty() {
-		i, err := p.container.getPid()
-		if err != nil {
-			return err
-		}
-		if p.opts.parent, err = openProcess(i, secStandard); err != nil {
+		if p.opts.parent, err = p.getParent(secStandard); err != nil {
 			return err
 		}
 	}
-	if s.StdInput, err = p.opts.readHandle(p.Stdin); err != nil {
+	m := p.Stderr != nil || p.Stdout != nil || p.Stdin != nil
+	if s.StdInput, err = p.opts.readHandle(p.Stdin, m); err != nil {
 		return err
 	}
-	if s.StdOutput, err = p.opts.writeHandle(p.Stdout); err != nil {
+	if s.StdOutput, err = p.opts.writeHandle(p.Stdout, m); err != nil {
 		return err
 	}
 	if p.Stdout == p.Stderr {
 		s.StdErr = s.StdOutput
-	} else if s.StdErr, err = p.opts.writeHandle(p.Stderr); err != nil {
+	} else if s.StdErr, err = p.opts.writeHandle(p.Stderr, m); err != nil {
 		return err
 	}
-	if s.StdInput > 0 || s.StdOutput > 0 || s.StdErr > 0 {
-		s.Flags |= syscall.STARTF_USESTDHANDLES
+	if m {
+		s.Flags |= windows.STARTF_USESTDHANDLES
 	}
-	var (
-		a string
-		e *startupInfoEx
-	)
+	var e *startupInfoEx
 	if p.opts.parent > 0 {
 		if e, err = newParentEx(p.opts.parent, s); err != nil {
 			return err
 		}
 	}
-	if len(p.Args) > 1 {
-		a = strings.Join(p.Args[1:], " ")
-	}
-	if err = run(x, a, p.Dir, nil, nil, p.flags, v, s, e, nil, &p.opts.info); err != nil {
+	if err = run(x, strings.Join(p.Args, " "), p.Dir, nil, nil, p.flags, v, s, e, nil, &p.opts.info); err != nil {
 		return err
 	}
 	go p.wait()
 	return nil
 }
+
+// SetChroot will set the process Chroot directory at runtime. This function takes the directory path as a string
+// value. Use an empty string "" to disable this setting. The specified Path value is validated at runtime. This
+// function has no effect on Windows devices.
+func (*Process) SetChroot(_ string) {}
 
 // SetFlags will set the startup Flag values used for Windows programs. This function overrites many
 // of the 'Set*' functions.
@@ -161,99 +153,74 @@ func (p *Process) SetFlags(f uint32) {
 	p.flags = f
 }
 
-// SetUID will set the process UID at runtime. This function takes the numerical UID value. Use '-1' to disable this
-// setting. The UID value is validated at runtime. This function has no effect on Windows devices and will return
-// 'ErrNotSupportedOS'.
-func (*Process) SetUID(_ int32) error {
-	return ErrNotSupportedOS
-}
-
-// SetGID will set the process GID at runtime. This function takes the numerical GID value. Use '-1' to disable this
-// setting. The GID value is validated at runtime. This function has no effect on Windows devices and will return
-// 'ErrNotSupportedOS'.
-func (*Process) SetGID(_ int32) error {
-	return ErrNotSupportedOS
-}
-
-// SetChroot will set the process Chroot directory at runtime. This function takes the directory path as a string
-// value. Use an empty string "" to disable this setting. The specified Path value is validated at runtime. This
-// function has no effect on Windows devices and will return 'ErrNotSupportedOS'.
-func (*Process) SetChroot(_ string) error {
-	return ErrNotSupportedOS
-}
-
 // SetParent will instruct the Process to choose a parent with the supplied process name. If this string is empty,
-// this will use the current process (default). Always returns 'ErrNotSupportedOS' if the device is not running Windows.
-func (p *Process) SetParent(n string) error {
+// this will use the current process (default). This function has no effect if the device is not running Windows.
+// Setting the Parent process will automatically set 'SetNewConsole' to true.
+func (p *Process) SetParent(n string) {
 	p.container.clear()
-	if len(n) == 0 {
-		return nil
+	if len(n) > 0 {
+		p.container.name = n
+		p.SetNewConsole(true)
 	}
-	p.container.name = n
-	return nil
 }
 
 // SetNoWindow will hide or show the window of the newly spawned process. This function has no effect
-// on commands that do not generate windows. Always returns 'ErrNotSupportedOS' if the device is not running Windows.
-func (p *Process) SetNoWindow(h bool) error {
+// on commands that do not generate windows. This function has no effect if the device is not running Windows.
+func (p *Process) SetNoWindow(h bool) {
 	if h {
-		p.flags |= syscall.STARTF_USESHOWWINDOW
+		p.flags |= windows.CREATE_NO_WINDOW
 	} else {
-		p.flags = p.flags &^ syscall.STARTF_USESHOWWINDOW
+		p.flags = p.flags &^ windows.CREATE_NO_WINDOW
 	}
-	return nil
 }
 
 // SetDetached will detach or detach the console of the newly spawned process from the parent. This function
-// has no effect on non-console commands. Setting this to true disables SetNewConsole. Always returns 'ErrNotSupportedOS'
+// has no effect on non-console commands. Setting this to true disables SetNewConsole. This function has no effect
 // if the device is not running Windows.
-func (p *Process) SetDetached(d bool) error {
+func (p *Process) SetDetached(d bool) {
 	if d {
-		p.flags |= flagDetached
+		p.flags |= windows.DETACHED_PROCESS
 		p.SetNewConsole(false)
 	} else {
-		p.flags = p.flags &^ flagDetached
+		p.flags = p.flags &^ windows.DETACHED_PROCESS
 	}
-	return nil
 }
 
 // SetSuspended will delay the execution of this Process and will put the process in a suspended state until it
-// is resumed using a Resume call. Always returns 'ErrNotSupportedOS' if the device is not running Windows.
-func (p *Process) SetSuspended(s bool) error {
+// is resumed using a Resume call. This function has no effect if the device is not running Windows.
+func (p *Process) SetSuspended(s bool) {
 	if s {
-		p.flags |= flagSuspended
+		p.flags |= windows.CREATE_SUSPENDED
 	} else {
-		p.flags = p.flags &^ flagSuspended
+		p.flags = p.flags &^ windows.CREATE_SUSPENDED
 	}
-	return nil
 }
 
 // SetNewConsole will allocate a new console for the newly spawned process. This console output will be
-// independent of the parent process. Always returns 'ErrNotSupportedOS' if the device is not running Windows.
-func (p *Process) SetNewConsole(c bool) error {
+// independent of the parent process. This function has no effect if the device is not running Windows.
+func (p *Process) SetNewConsole(c bool) {
 	if c {
-		p.flags |= flagNewConsole
+		p.flags |= windows.CREATE_NEW_CONSOLE
 	} else {
-		p.flags = p.flags &^ flagNewConsole
+		p.flags = p.flags &^ windows.CREATE_NEW_CONSOLE
 	}
-	return nil
 }
 
 // SetParentPID will instruct the Process to choose a parent with the supplied process ID. If this number is
 // zero, this will use the current process (default) and if < 0 this Process will choose a parent from a list
-// of writable processes. Always returns 'ErrNotSupportedOS' if the device is not running Windows.
-func (p *Process) SetParentPID(i int32) error {
+// of writable processes. This function has no effect if the device is not running Windows. Setting the Parent
+// process will automatically set 'SetNewConsole' to true.
+func (p *Process) SetParentPID(i int32) {
 	p.container.clear()
-	if i == 0 {
-		return nil
+	if i > 0 {
+		p.container.pid = i
+		p.SetNewConsole(true)
 	}
-	p.container.pid = i
-	return nil
 }
 
 // SetFullscreen will set the window fullscreen state of the newly spawned process. This function has no effect
-// on commands that do not generate windows. Always returns 'ErrNotSupportedOS' if the device is not running Windows.
-func (p *Process) SetFullscreen(f bool) error {
+// on commands that do not generate windows. This function has no effect if the device is not running Windows.
+func (p *Process) SetFullscreen(f bool) {
 	if p.opts == nil {
 		p.opts = new(options)
 	}
@@ -262,66 +229,77 @@ func (p *Process) SetFullscreen(f bool) error {
 	} else {
 		p.opts.Flags = p.opts.Flags &^ flagFullscreen
 	}
-	return nil
 }
 
 // SetWindowDisplay will set the window display mode of the newly spawned process. This function has no effect
-// on commands that do not generate windows. Always returns 'ErrNotSupportedOS' if the device is not running Windows.
-func (p *Process) SetWindowDisplay(m int) error {
+// on commands that do not generate windows. This function has no effect if the device is not running Windows.
+// See the 'SW_*' values in winuser.h or the Golang windows package documentation for more details.
+func (p *Process) SetWindowDisplay(m int) {
 	if p.opts == nil {
 		p.opts = new(options)
 	}
-	if m > 0 {
-		p.opts.Flags |= flagDisplayMode
+	if m < 0 {
+		p.opts.Flags = p.opts.Flags &^ windows.STARTF_USESHOWWINDOW
 	} else {
-		p.opts.Flags = p.opts.Flags &^ flagDisplayMode
+		p.opts.Flags |= windows.STARTF_USESHOWWINDOW
+		p.opts.Mode = uint16(m)
 	}
-	p.opts.Mode = uint16(m)
-	return nil
 }
 
 // SetWindowTitle will set the title of the new spawned window to the the specified string. This function
-// has no effect on commands that do not generate windows. Always returns 'ErrNotSupportedOS' if the device is not running Windows.
-func (p *Process) SetWindowTitle(s string) error {
+// has no effect on commands that do not generate windows. This function has no effect if the device is not
+// running Windows.
+func (p *Process) SetWindowTitle(s string) {
 	if p.opts == nil {
 		p.opts = new(options)
 	}
-	p.opts.Title = s
-	p.opts.Flags |= flagTitle
-	return nil
+	if len(s) > 0 {
+		p.opts.Flags |= flagTitle
+		p.opts.Title = s
+	} else {
+		p.opts.Flags, p.opts.Title = p.opts.Flags&^flagTitle, ""
+	}
+}
+
+// Handle returns the handle of the current running Process. The return is a uintptr that can converted into a Handle.
+// This function returns an error if the Process was not started. The handle is not expected to be valid after the
+// Process exits or is terminated. This function always returns 'ErrNoWindows' on non-Windows devices.
+func (p Process) Handle() (uintptr, error) {
+	if !p.isStarted() || p.opts == nil {
+		return 0, ErrNotCompleted
+	}
+	return uintptr(p.opts.info.Process), nil
 }
 
 // SetWindowSize will set the window display size of the newly spawned process. This function has no effect
-// on commands that do not generate windows. Always returns 'ErrNotSupportedOS' if the device is not running Windows.
-func (p *Process) SetWindowSize(w, h uint32) error {
+// on commands that do not generate windows. This function has no effect if the device is not running Windows.
+func (p *Process) SetWindowSize(w, h uint32) {
 	if p.opts == nil {
 		p.opts = new(options)
 	}
-	p.opts.W, p.opts.H = w, h
 	p.opts.Flags |= flagSize
-	return nil
+	p.opts.W, p.opts.H = w, h
 }
 
 // SetParentRandom will set instruct the Process to choose a parent from the supplied string list on runtime. If this
-// list is empty or nil, there is no limit to the name of the chosen process. Always returns 'ErrNotSupportedOS' if
-// the device is not running Windows.
-func (p *Process) SetParentRandom(c []string) error {
-	if len(c) == 0 {
-		return p.SetParentPID(-1)
+// list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if the
+// device is not running Windows. Setting the Parent process will automatically set 'SetNewConsole' to true.
+func (p *Process) SetParentRandom(c []string) {
+	if len(c) > 0 {
+		p.container.clear()
+		p.container.choices = c
+		p.SetNewConsole(true)
+	} else {
+		p.SetParentPID(-1)
 	}
-	p.container.clear()
-	p.container.choices = c
-	return nil
 }
 
 // SetWindowPosition will set the window postion of the newly spawned process. This function has no effect
-// on commands that do not generate windows.
-func (p *Process) SetWindowPosition(x, y uint32) error {
+// on commands that do not generate windows. This function has no effect if the device is not running Windows.
+func (p *Process) SetWindowPosition(x, y uint32) {
 	if p.opts == nil {
 		p.opts = new(options)
 	}
 	p.opts.Flags |= flagPosition
-	p.opts.X = x
-	p.opts.Y = y
-	return nil
+	p.opts.X, p.opts.Y = x, y
 }

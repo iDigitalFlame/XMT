@@ -56,8 +56,12 @@ const (
 )
 
 var (
+	// ErrWindows is an error that is returned when a Windows device attempts a non-Windows specific function.
+	ErrWindows = errors.New("not supported on windows devices")
 	// ErrInvalidID is returned by the 'IDFromString' function when the returned ID value is invalid or nil.
 	ErrInvalidID = errors.New("id format is invalid or empty")
+	// ErrNoWindows is an error that is returned when a non-Windows device attempts a Windows specific function.
+	ErrNoWindows = errors.New("not supported on non-windows devices")
 
 	envRegexp = regexp.MustCompile(`(%([\w\d()-_]+)%|\$([[\w\d-_]+))`)
 )

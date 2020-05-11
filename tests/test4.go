@@ -17,7 +17,7 @@ import (
 	"github.com/iDigitalFlame/xmt/com"
 )
 
-func main() {
+func test4Main() {
 	logx.Global.SetLevel(logx.Debug)
 
 	var (
