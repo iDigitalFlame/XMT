@@ -22,6 +22,9 @@ const secStandard uint32 = windows.PROCESS_TERMINATE | windows.SYNCHRONIZE |
 var (
 	dllKernel32 = windows.NewLazySystemDLL("kernel32.dll")
 
+	funcRtlCloneUserProcess = dllNtdll.NewProc("RtlCloneUserProcess")
+
+	funcAllocConsole                      = dllKernel32.NewProc("AllocConsole")
 	funcCreateProcess                     = dllKernel32.NewProc("CreateProcessW")
 	funcCreateProcessAsUser               = dllKernel32.NewProc("CreateProcessAsUserA")
 	funcUpdateProcThreadAttribute         = dllKernel32.NewProc("UpdateProcThreadAttribute")
@@ -30,6 +33,30 @@ var (
 
 type file interface {
 	File() (*os.File, error)
+}
+type clientID struct {
+	UniqueProcess uintptr
+	UniqueThread  uintptr
+}
+type imageInfo struct {
+	_       uintptr
+	_       uint32
+	_, _    uint64
+	_       uint32
+	_, _    uint16
+	_       uint32
+	_, _    uint16
+	_       uint32
+	_, _, _ uint16
+	_, _, _ uint8
+	_, _, _ uint32
+}
+type processInfo struct {
+	Length   uint32
+	Process  uintptr
+	Thread   uintptr
+	ClientID clientID
+	_        imageInfo
 }
 type closer windows.Handle
 type startupAttrs struct {

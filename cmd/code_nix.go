@@ -2,9 +2,7 @@
 
 package cmd
 
-import (
-	"github.com/iDigitalFlame/xmt/device"
-)
+import "github.com/iDigitalFlame/xmt/device"
 
 type base struct{}
 

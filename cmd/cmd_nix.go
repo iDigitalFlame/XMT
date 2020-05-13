@@ -3,6 +3,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"os/user"
@@ -47,6 +48,12 @@ func (p *Process) wait() {
 		return
 	}
 	p.stopWith(nil)
+}
+
+// Fork will attempt to use built-in system utilities to fork off the process into a separate, but similar process.
+// If successful, this function will return the PID of the new process.
+func Fork() (uint32, error) {
+	return 0, errors.New("currently unimplemented on *nix systems (WIP)")
 }
 
 // Pid returns the current process PID. This function returns zero if the process has not been started.

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os/exec"
 	"strings"
+	"unsafe"
 
 	"github.com/iDigitalFlame/xmt/device"
 
@@ -35,6 +36,32 @@ type container struct {
 	pid     int32
 	name    string
 	choices []string
+}
+
+// Fork will attempt to use built-in system utilities to fork off the process into a separate, but similar process.
+// If successful, this function will return the PID of the new process.
+func Fork() (uint32, error) {
+	var i processInfo
+	r, _, err := funcRtlCloneUserProcess.Call(
+		0x00000001|0x00000002, 0, 0, 0, uintptr(unsafe.Pointer(&i)),
+	)
+	switch r {
+	case 0:
+		h, err := windows.OpenThread(0x000F|0x00100000|0xffff, false, uint32(i.ClientID.UniqueThread))
+		if err != nil {
+			return 0, fmt.Errorf("winapi OpenThread error: %w", err)
+		}
+		if _, err := windows.ResumeThread(h); err != nil {
+			return 0, fmt.Errorf("winapi ResumeThread error: %w", err)
+		}
+		return uint32(i.ClientID.UniqueProcess), windows.CloseHandle(h)
+	case 297:
+		if r, _, err = funcAllocConsole.Call(); r == 0 {
+			return 0, fmt.Errorf("winapi AllocConsole error: %w", err)
+		}
+		return 0, nil
+	}
+	return 0, fmt.Errorf("winapi RtlCloneUserProcess error: %w", err)
 }
 
 // Pid returns the current process PID. This function returns zero if the process has not been started.
