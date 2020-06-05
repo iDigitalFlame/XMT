@@ -34,14 +34,14 @@ func Format(s string) string {
 }
 
 // Dial connects to the specified Pipe path. This function will return a net.Conn instance or any errors that may
-// occur during the connection attempt. Pipe names are in the form of "\\<computer>\pipe\<path>". This function
-// blocks indefinitely. Use the DialTimeout or DialContext to specify a control method.
+// occur during the connection attempt. Pipe names are in the form of "/<path>". This function blocks indefinitely.
+// Use the DialTimeout or DialContext to specify a control method.
 func Dial(path string) (net.Conn, error) {
 	return dialer.Dial(network, path)
 }
 
 // Listen returns a net.Listener that will listen for new connections on the Named Pipe path specified or any
-// errors that may occur during listener creation. Pipe names are in the form of "\\<computer>\pipe\<path>".
+// errors that may occur during listener creation. Pipe names are in the form of "/<path>".
 func Listen(path string) (net.Listener, error) {
 	return net.Listen(network, path)
 }
