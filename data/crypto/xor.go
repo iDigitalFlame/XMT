@@ -20,6 +20,11 @@ var bufs = sync.Pool{
 // key data buffer.
 type XOR []byte
 
+// BlockSize returns the cipher's block size.
+func (x XOR) BlockSize() int {
+	return len(x)
+}
+
 // Operate preforms the XOR operation on the specified byte
 // array using the cipher as the key.
 func (x XOR) Operate(b []byte) {
@@ -31,22 +36,24 @@ func (x XOR) Operate(b []byte) {
 	}
 }
 
-// Decrypt preforms the XOR operation on the specified byte array using the cipher as the key.
-func (x XOR) Decrypt(b []byte) {
-	x.Operate(b)
-}
-
-// Encrypt preforms the XOR operation on the specified byte array using the cipher as the key.
-func (x XOR) Encrypt(b []byte) {
-	x.Operate(b)
-}
-
 // Flush satisfies the crypto.Writer interface.
 func (XOR) Flush(w io.Writer) error {
 	if f, ok := w.(data.Flusher); ok {
 		return f.Flush()
 	}
 	return nil
+}
+
+// Decrypt preforms the XOR operation on the specified byte array using the cipher as the key.
+func (x XOR) Decrypt(dst, src []byte) {
+	copy(dst, src)
+	x.Operate(dst)
+}
+
+// Encrypt preforms the XOR operation on the specified byte array using the cipher as the key.
+func (x XOR) Encrypt(dst, src []byte) {
+	copy(dst, src)
+	x.Operate(dst)
 }
 
 // Read satisfies the crypto.Reader interface.

@@ -31,7 +31,8 @@ var (
 	// ShellArgs is the default machine specific command shell arguments to run commands.
 	ShellArgs = []string{"/c"}
 
-	dllAdvapi32               = windows.NewLazySystemDLL("advapi32.dll")
+	dllAdvapi32 = windows.NewLazySystemDLL("advapi32.dll")
+
 	funcAdjustTokenPrivileges = dllAdvapi32.NewProc("AdjustTokenPrivileges")
 )
 
@@ -45,22 +46,22 @@ func shell() string {
 		return s
 	}
 	if d, ok := os.LookupEnv("WinDir"); ok {
-		p := fmt.Sprintf("%s\\system32\\cmd.exe", d)
+		p := fmt.Sprintf(`%s\system32\cmd.exe`, d)
 		if s, err := os.Stat(p); err == nil && !s.IsDir() {
 			return p
 		}
 	}
-	return "%WinDir%\\system32\\cmd.exe"
+	return `%WinDir%\\system32\\cmd.exe`
 }
 func isElevated() bool {
-	if p, err := os.Open("\\\\.\\PHYSICALDRIVE0"); err == nil {
+	if p, err := os.Open(`\\.\PHYSICALDRIVE0`); err == nil {
 		p.Close()
 		return true
 	}
 	return false
 }
 func getVersion() string {
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", registry.QUERY_VALUE)
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\Microsoft\Windows NT\CurrentVersion`, registry.QUERY_VALUE)
 	if err != nil {
 		return Windows.String()
 	}
@@ -178,14 +179,14 @@ func Registry(key, value string) (*RegistryFile, error) {
 	defer h.Close()
 	r, t, err := h.GetValue(value, nil)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read registry path \"%s:%s\": %w", key, value, err)
+		return nil, fmt.Errorf(`unable to read registry path "%s:%s": %w`, key, value, err)
 	}
 	if r <= 0 {
-		return nil, fmt.Errorf("registry path \"%s:%s\" returned a zero size", key, value)
+		return nil, fmt.Errorf(`registry path "%s:%s" returned a zero size`, key, value)
 	}
 	b := make([]byte, r)
 	if _, _, err := h.GetValue(value, b); err != nil {
-		return nil, fmt.Errorf("unable to read registry path \"%s:%s\": %w", key, value, err)
+		return nil, fmt.Errorf(`unable to read registry path "%s:%s": %w`, key, value, err)
 	}
 	var o io.Reader
 	if t == registry.SZ || t == registry.EXPAND_SZ || t == registry.MULTI_SZ {

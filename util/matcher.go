@@ -247,12 +247,12 @@ func (s Matcher) MatchEx(o bool) Regexp {
 		case s[m[x][1]-1] == 's':
 			c = fmt.Sprintf(matchString, d)
 		}
-		b.WriteString(strings.Replace(regexp.QuoteMeta(string(s[l:m[x][0]])), "/", "\\/", -1))
+		b.WriteString(strings.ReplaceAll(regexp.QuoteMeta(string(s[l:m[x][0]])), "/", "\\/"))
 		b.WriteString(c)
 		l = m[x][1]
 	}
 	if l < len(s) {
-		b.WriteString(strings.Replace(regexp.QuoteMeta(string(s[l:])), "/", "\\/", -1))
+		b.WriteString(strings.ReplaceAll(regexp.QuoteMeta(string(s[l:])), "/", "\\/"))
 	}
 	b.WriteString(")$")
 	r, err := regexp.Compile(b.String())

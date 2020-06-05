@@ -97,6 +97,9 @@ func (d *DNSClient) Read(w io.Writer, b []byte) error {
 }
 
 // Write satisfies the Transform interface requirements.
+//
+// TODO: Write a checksum function to calculate the valid DNS checksum of the packet (structure is OK, but wireshark
+// shows no checksum code). -idf
 func (d *DNSClient) Write(w io.Writer, b []byte) error {
 	if len(b) == 0 {
 		return ErrInvalidLength

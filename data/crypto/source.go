@@ -3,7 +3,9 @@ package crypto
 import (
 	"crypto/sha512"
 	"fmt"
+	"hash"
 	"math/rand"
+	"sync"
 	"time"
 )
 
@@ -14,6 +16,12 @@ const (
 	// during creation.
 	DefaultSource int64 = 0x123456789F
 )
+
+var hashers = sync.Pool{
+	New: func() interface{} {
+		return sha512.New()
+	},
+}
 
 // Source is an interface that supports seed assistance in Ciphers and other cryptographic functions.
 type Source interface {
@@ -27,6 +35,16 @@ type MultiSource struct {
 	s    []rand.Source
 	rng  *rand.Rand
 	seed int64
+}
+
+// SHA512 returns the SHA512 value of the provided byte array. This function is not recommended for big arrays.
+func SHA512(b []byte) []byte {
+	h := hashers.Get().(hash.Hash)
+	h.Write(b)
+	r := h.Sum(nil)
+	h.Reset()
+	hashers.Put(h)
+	return r
 }
 
 // Int63 returns a int64 number between zero and the max value.
@@ -117,12 +135,9 @@ func NewSourceEx(rounds int, seed interface{}) rand.Source {
 		default:
 			b = []byte(fmt.Sprintf("%s", seed))
 		}
-		v := sha512.Sum512(b)
-		_ = v[7]
-		s += int64(
-			uint64(v[7]) | uint64(v[6])<<8 | uint64(v[5])<<16 | uint64(v[4])<<24 |
-				uint64(v[3])<<32 | uint64(v[2])<<40 | uint64(v[1])<<48 | uint64(v[0])<<56,
-		)
+		for _, v := range SHA512(b) {
+			s += int64(v)
+		}
 	}
 	for x := 0; x < rounds; x++ {
 		s = s + (s * 2)

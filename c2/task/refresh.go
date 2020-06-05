@@ -5,11 +5,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/iDigitalFlame/xmt/data"
-
-	"github.com/iDigitalFlame/xmt/device"
-
 	"github.com/iDigitalFlame/xmt/com"
+	"github.com/iDigitalFlame/xmt/data"
+	"github.com/iDigitalFlame/xmt/device"
 )
 
 const (
@@ -24,6 +22,12 @@ const (
 
 type simpleTask uint16
 
+// Upload returns a Packet that will instruct a Client to upload the specified local file to the server.
+func Upload(s string) *com.Packet {
+	p := &com.Packet{ID: uint16(TaskUpload)}
+	p.WriteString(s)
+	return p
+}
 func (t simpleTask) Thread() bool {
 	return t != TaskRefresh
 }
@@ -115,6 +119,8 @@ func taskDownload(x context.Context, p *com.Packet) (*com.Packet, error) {
 }
 func (t simpleTask) Do(x context.Context, p *com.Packet) (*com.Packet, error) {
 	switch t {
+	case TaskCode:
+		return taskCode(x, p)
 	case TaskUpload:
 		return taskUpload(x, p)
 	case TaskRefresh:
@@ -124,16 +130,10 @@ func (t simpleTask) Do(x context.Context, p *com.Packet) (*com.Packet, error) {
 		n := new(com.Packet)
 		device.Local.MarshalStream(n)
 		return n, nil
-	case TaskExecute:
+	case TaskProcess:
 		return taskProcess(x, p)
 	case TaskDownload:
 		return taskDownload(x, p)
 	}
 	return nil, nil
-}
-
-func Upload(s string) *com.Packet {
-	p := &com.Packet{ID: uint16(TaskUpload)}
-	p.WriteString(s)
-	return p
 }

@@ -55,11 +55,11 @@ func (c *Chunk) WriteBytes(b []byte) error {
 	if !c.Avaliable(1) {
 		return ErrLimit
 	}
-	switch l := len(b); {
+	switch l := uint64(len(b)); {
 	case l == 0:
 		return c.small(0)
 	case l < DataLimitSmall:
-		if !c.Avaliable(2 + l) {
+		if !c.Avaliable(2 + int(l)) {
 			return ErrLimit
 		}
 		if err := c.WriteUint8(1); err != nil {
@@ -69,7 +69,7 @@ func (c *Chunk) WriteBytes(b []byte) error {
 			return err
 		}
 	case l < DataLimitMedium:
-		if !c.Avaliable(3 + l) {
+		if !c.Avaliable(3 + int(l)) {
 			return ErrLimit
 		}
 		if err := c.WriteUint8(3); err != nil {
@@ -79,7 +79,7 @@ func (c *Chunk) WriteBytes(b []byte) error {
 			return err
 		}
 	case l < DataLimitLarge:
-		if !c.Avaliable(5 + l) {
+		if !c.Avaliable(5 + int(l)) {
 			return ErrLimit
 		}
 		if err := c.WriteUint8(5); err != nil {
@@ -89,7 +89,7 @@ func (c *Chunk) WriteBytes(b []byte) error {
 			return err
 		}
 	default:
-		if !c.Avaliable(9 + l) {
+		if !c.Avaliable(9 + int(l)) {
 			return ErrLimit
 		}
 		if err := c.WriteUint8(7); err != nil {

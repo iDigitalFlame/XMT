@@ -3,16 +3,19 @@ package crypto
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"fmt"
 	"io"
 
 	"github.com/iDigitalFlame/xmt/data"
 )
 
 type reader struct {
+	_ [0]func()
 	r io.Reader
 	c Reader
 }
 type writer struct {
+	_ [0]func()
 	w io.Writer
 	c Writer
 }
@@ -75,38 +78,54 @@ func NewWriter(c Writer, w io.Writer) data.Writer {
 	return data.NewWriter(&writer{c: c, w: w})
 }
 
-// BlockDecryptReader creates a data.Reader type from the specified block Cipher, IV and Reader.
-// This is used to Decrypt data.
-func BlockDecryptReader(b cipher.Block, iv []byte, r io.Reader) data.Reader {
+// DecryptReader creates a data.Reader type from the specified block Cipher, IV and Reader.
+// This is used to Decrypt data. This function returns an error if the blocksize of the Block does not equal
+// the length of the supplied IV.
+func DecryptReader(b cipher.Block, iv []byte, r io.Reader) (data.Reader, error) {
+	if len(iv) != b.BlockSize() {
+		return nil, fmt.Errorf("blocksize (%d) must equal IV size (%d)", b.BlockSize(), len(iv))
+	}
 	return data.NewReader(&cipher.StreamReader{
 		R: r,
 		S: cipher.NewCFBDecrypter(b, iv),
-	})
+	}), nil
 }
 
-// BlockDecryptWriter creates a data.Writer type from the specified block Cipher, IV and Writer.
-// This is used to Decrypt data.
-func BlockDecryptWriter(b cipher.Block, iv []byte, w io.Writer) data.Writer {
+// DecryptWriter creates a data.Writer type from the specified block Cipher, IV and Writer.
+// This is used to Decrypt data. This function returns an error if the blocksize of the Block does not equal
+// the length of the supplied IV.
+func DecryptWriter(b cipher.Block, iv []byte, w io.Writer) (data.Writer, error) {
+	if len(iv) != b.BlockSize() {
+		return nil, fmt.Errorf("blocksize (%d) must equal IV size (%d)", b.BlockSize(), len(iv))
+	}
 	return data.NewWriter(&cipher.StreamWriter{
 		W: w,
 		S: cipher.NewCFBDecrypter(b, iv),
-	})
+	}), nil
 }
 
-// BlockEncryptReader creates a data.Reader type from the specified block Cipher, IV and Reader.
-// This is used to Encrypt data.
-func BlockEncryptReader(b cipher.Block, iv []byte, r io.Reader) data.Reader {
+// EncryptReader creates a data.Reader type from the specified block Cipher, IV and Reader.
+// This is used to Encrypt data. This function returns an error if the blocksize of the Block does not equal
+// the length of the supplied IV.
+func EncryptReader(b cipher.Block, iv []byte, r io.Reader) (data.Reader, error) {
+	if len(iv) != b.BlockSize() {
+		return nil, fmt.Errorf("blocksize (%d) must equal IV size (%d)", b.BlockSize(), len(iv))
+	}
 	return data.NewReader(&cipher.StreamReader{
 		R: r,
 		S: cipher.NewCFBEncrypter(b, iv),
-	})
+	}), nil
 }
 
-// BlockEncryptWriter creates a data.Reader type from the specified block Cipher, IV and Writer.
-// This is used to Encrypt data.
-func BlockEncryptWriter(b cipher.Block, iv []byte, w io.Writer) data.Writer {
+// EncryptWriter creates a data.Reader type from the specified block Cipher, IV and Writer.
+// This is used to Encrypt data. This function returns an error if the blocksize of the Block does not equal
+// the length of the supplied IV.
+func EncryptWriter(b cipher.Block, iv []byte, w io.Writer) (data.Writer, error) {
+	if len(iv) != b.BlockSize() {
+		return nil, fmt.Errorf("blocksize (%d) must equal IV size (%d)", b.BlockSize(), len(iv))
+	}
 	return data.NewWriter(&cipher.StreamWriter{
 		W: w,
 		S: cipher.NewCFBEncrypter(b, iv),
-	})
+	}), nil
 }

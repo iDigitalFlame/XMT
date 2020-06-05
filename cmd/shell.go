@@ -17,5 +17,5 @@ const (
 	VerbExplore = Verb("explore")
 )
 
-// Verb is the equivalent to the Windows ShellExecute Verb type string. This is used in the ShellExecute function.
+// Verb is the equivalent to the Windows ShellExecute verb type string. This is used in the ShellExecute function.
 type Verb string

@@ -29,9 +29,10 @@ var (
 // Limit is a struct that defines the default values for buffer and channel sizes. The
 // built-in values can be customized for petter performance.
 type Limit struct {
+	_      [0]func()
 	Frag   uint32
-	Small  uint16
 	Large  uint32
+	Small  uint16
 	Medium uint16
 }
 

@@ -10,7 +10,6 @@ import (
 	"unsafe"
 
 	"github.com/iDigitalFlame/xmt/device"
-
 	"golang.org/x/sys/windows"
 )
 
@@ -33,17 +32,20 @@ type options struct {
 	closers []io.Closer
 }
 type container struct {
-	pid     int32
-	name    string
-	choices []string
+	pid      int32
+	name     string
+	choices  []string
+	elevated bool
 }
 
 // Fork will attempt to use built-in system utilities to fork off the process into a separate, but similar process.
 // If successful, this function will return the PID of the new process.
 func Fork() (uint32, error) {
-	var i processInfo
-	r, _, err := funcRtlCloneUserProcess.Call(
-		0x00000001|0x00000002, 0, 0, 0, uintptr(unsafe.Pointer(&i)),
+	var (
+		i         processInfo
+		r, _, err = funcRtlCloneUserProcess.Call(
+			0x00000001|0x00000002, 0, 0, 0, uintptr(unsafe.Pointer(&i)),
+		)
 	)
 	switch r {
 	case 0:
@@ -239,7 +241,7 @@ func (p *Process) SetNewConsole(c bool) {
 // process will automatically set 'SetNewConsole' to true.
 func (p *Process) SetParentPID(i int32) {
 	p.container.clear()
-	if i > 0 {
+	if i != 0 {
 		p.container.pid = i
 		p.SetNewConsole(true)
 	}
@@ -321,6 +323,17 @@ func (p *Process) SetParentRandom(c []string) {
 	}
 }
 
+// SetParentEx will instruct the Process to choose a parent with the supplied process name. If this string
+// is empty, this will use the current process (default). This function has no effect if the device is not running
+// Windows. Setting the Parent process will automatically set 'SetNewConsole' to true.
+//
+// If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
+// none can be opened or found.
+func (p *Process) SetParentEx(n string, e bool) {
+	p.container.elevated = e
+	p.SetParent(n)
+}
+
 // SetWindowPosition will set the window postion of the newly spawned process. This function has no effect
 // on commands that do not generate windows. This function has no effect if the device is not running Windows.
 func (p *Process) SetWindowPosition(x, y uint32) {
@@ -329,4 +342,15 @@ func (p *Process) SetWindowPosition(x, y uint32) {
 	}
 	p.opts.Flags |= flagPosition
 	p.opts.X, p.opts.Y = x, y
+}
+
+// SetParentRandomEx will set instruct the Process to choose a parent from the supplied string list on runtime.
+// If this list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if
+// the device is not running Windows. Setting the Parent process will automatically set 'SetNewConsole' to true.
+//
+// If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
+// none can be opened or found.
+func (p *Process) SetParentRandomEx(s []string, e bool) {
+	p.container.elevated = e
+	p.SetParentRandom(s)
 }

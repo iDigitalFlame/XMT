@@ -13,6 +13,7 @@ var complete finished
 
 type addr string
 type conn struct {
+	_    [0]func()
 	w    io.Writer
 	in   *http.Request
 	done chan finished

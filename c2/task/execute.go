@@ -4,17 +4,17 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"io/ioutil"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/cmd"
-
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
 )
 
-// TaskExecute is a Task that instructs the Client to run the supplied command and return the output
-// if the 'Wait' flag is true.
-const TaskExecute simpleTask = 0xB005
+// TaskProcess is a Task that instructs the Client to run the supplied command and return the output if the 'Wait'
+// flag is true.
+const TaskProcess simpleTask = 0xB004
 
 // Process is a struct that is similar to the 'cmd.Process' struct. This is used to Task a Client with running
 // a specified command.
@@ -27,39 +27,56 @@ type Process struct {
 	Flags   uint32
 	Timeout time.Duration
 
-	pPID     int32
-	pName    string
-	pChoices []string
+	pPID      int32
+	pName     string
+	pChoices  []string
+	pElevated bool
 }
 
 // SetFlags will set the startup Flag values used for Windows programs. This function overrites many
 // of the 'Set*' functions. Has no effect if the device is not running Windows.
-func (p *Process) SetFlags(f uint32) error {
+func (p *Process) SetFlags(f uint32) {
 	p.Flags = f
-	return nil
 }
 
 // SetParent will instruct the Process to choose a parent with the supplied process name. If this string is empty,
-// this will use the current process (default). Has no effect if the device is not running Windows.
-func (p *Process) SetParent(n string) error {
-	p.pName = n
-	return nil
+// this will use the current process (default). This function has no effect if the device is not running Windows.
+// Setting the Parent process will automatically set 'SetNewConsole' to true.
+func (p *Process) SetParent(n string) {
+	p.pName, p.pPID, p.pChoices = n, -1, nil
 }
 
 // SetParentPID will instruct the Process to choose a parent with the supplied process ID. If this number is
 // zero, this will use the current process (default) and if < 0 this Process will choose a parent from a list
-// of writable processes.
-func (p *Process) SetParentPID(i int32) error {
-	p.pPID = i
-	return nil
+// of writable processes. This function has no effect if the device is not running Windows. Setting the Parent
+// process will automatically set 'SetNewConsole' to true.
+func (p *Process) SetParentPID(i int32) {
+	p.pName, p.pPID, p.pChoices = "", i, nil
 }
 
 // SetParentRandom will set instruct the Process to choose a parent from the supplied string list on runtime. If this
-// list is empty or nil, there is no limit to the name of the chosen process. Has no effect if the device is not
-// running Windows.
-func (p *Process) SetParentRandom(c []string) error {
-	p.pChoices = c
-	return nil
+// list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if the
+// device is not running Windows. Setting the Parent process will automatically set 'SetNewConsole' to true.
+func (p *Process) SetParentRandom(c []string) {
+	p.pName, p.pPID, p.pChoices = "", -1, c
+}
+
+// SetStdin wil attempt to read all the data from the supplied reader to fill the Stdin byte array for this Process
+// struct. This function will return an error if any occurs during reading.
+func (p *Process) SetStdin(r io.Reader) error {
+	var err error
+	p.Stdin, err = ioutil.ReadAll(r)
+	return err
+}
+
+// SetParentEx will instruct the Process to choose a parent with the supplied process name. If this string
+// is empty, this will use the current process (default). This function has no effect if the device is not running
+// Windows. Setting the Parent process will automatically set 'SetNewConsole' to true.
+//
+// If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
+// none can be opened or found.
+func (p *Process) SetParentEx(n string, e bool) {
+	p.pName, p.pPID, p.pChoices, p.pElevated = n, -1, nil, e
 }
 
 // MarshalStream writes the data for this Process to the supplied Writer.
@@ -86,6 +103,9 @@ func (p Process) MarshalStream(w data.Writer) error {
 		return err
 	}
 	if err := w.WriteString(p.pName); err != nil {
+		return err
+	}
+	if err := w.WriteBool(p.pElevated); err != nil {
 		return err
 	}
 	if err := data.WriteStringList(w, p.pChoices); err != nil {
@@ -125,6 +145,9 @@ func (p *Process) UnmarshalStream(r data.Reader) error {
 	if err = r.ReadString(&p.pName); err != nil {
 		return err
 	}
+	if err = r.ReadBool(&p.pElevated); err != nil {
+		return err
+	}
 	if err = data.ReadStringList(r, &p.pChoices); err != nil {
 		return err
 	}
@@ -132,6 +155,16 @@ func (p *Process) UnmarshalStream(r data.Reader) error {
 		return err
 	}
 	return nil
+}
+
+// SetParentRandomEx will set instruct the Process to choose a parent from the supplied string list on runtime.
+// If this list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if
+// the device is not running Windows. Setting the Parent process will automatically set 'SetNewConsole' to true.
+//
+// If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
+// none can be opened or found.
+func (p *Process) SetParentRandomEx(c []string, e bool) {
+	p.pName, p.pPID, p.pChoices, p.pElevated = "", -1, c, e
 }
 func (p Process) convert(x context.Context) *cmd.Process {
 	e := cmd.NewProcessContext(x, p.Args...)
@@ -142,9 +175,9 @@ func (p Process) convert(x context.Context) *cmd.Process {
 	case p.pPID != 0:
 		e.SetParentPID(p.pPID)
 	case len(p.pName) > 0:
-		e.SetParent(p.pName)
+		e.SetParentEx(p.pName, p.pElevated)
 	case len(p.pChoices) > 0:
-		e.SetParentRandom(p.pChoices)
+		e.SetParentRandomEx(p.pChoices, p.pElevated)
 	}
 	if len(p.Stdin) > 0 {
 		e.Stdin = bytes.NewReader(p.Stdin)

@@ -17,6 +17,7 @@ const (
 // RegistryFile is a struct that is returned from a Registry function call on Windows devices.
 // This interface is a combinaton of the io.Reader and os.FileInfo interfaces.
 type RegistryFile struct {
+	_    [0]func()
 	r    io.Reader
 	m    time.Time
 	k, v string

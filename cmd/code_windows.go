@@ -136,7 +136,7 @@ func (b base) String() string {
 	return fmt.Sprintf("0x%X -> 0x%X", b.owner, b.loc)
 }
 
-// SetParent will instruct the Process to choose a parent with the supplied process name. If this string is empty,
+// SetParent will instruct the Code thread to choose a parent with the supplied process name. If this string is empty,
 // this will use the current process (default). This function has no effect if the device is not running Windows.
 func (c *Code) SetParent(n string) {
 	c.container.clear()
@@ -145,7 +145,7 @@ func (c *Code) SetParent(n string) {
 	}
 }
 
-// SetParentPID will instruct the Process to choose a parent with the supplied process ID. If this number is
+// SetParentPID will instruct the Code thread to choose a parent with the supplied process ID. If this number is
 // zero, this will use the current process (default) and if < 0 this Process will choose a parent from a list
 // of writable processes. This function has no effect if the device is not running Windows.
 func (c *Code) SetParentPID(i int32) {
@@ -179,8 +179,8 @@ func (c *Code) stopWith(e error) error {
 	return c.err
 }
 
-// SetParentRandom will set instruct the Process to choose a parent from the supplied string list on runtime. If this
-// list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if the
+// SetParentRandom will set instruct the Code thread to choose a parent from the supplied string list on runtime.
+// If this list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if the
 // device is not running Windows.
 func (c *Code) SetParentRandom(s []string) {
 	if len(s) == 0 {
@@ -189,6 +189,17 @@ func (c *Code) SetParentRandom(s []string) {
 		c.container.clear()
 		c.container.choices = s
 	}
+}
+
+// SetParentEx will instruct the Code thread to choose a parent with the supplied process name. If this string
+// is empty, this will use the current process (default). This function has no effect if the device is not running
+// Windows.
+//
+// If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
+// none can be opened or found.
+func (c *Code) SetParentEx(n string, e bool) {
+	c.container.elevated = e
+	c.SetParent(n)
 }
 func freeMemory(h windows.Handle, a uintptr) error {
 	var (
@@ -202,6 +213,17 @@ func freeMemory(h windows.Handle, a uintptr) error {
 		return fmt.Errorf("winapi NtFreeVirtualMemory error: %w", err)
 	}
 	return nil
+}
+
+// SetParentRandomEx will set instruct the Code thread to choose a parent from the supplied string list on runtime.
+// If this list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if
+// the device is not running Windows.
+//
+// If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
+// none can be opened or found.
+func (c *Code) SetParentRandomEx(s []string, e bool) {
+	c.container.elevated = e
+	c.SetParentRandom(s)
 }
 func createThread(h windows.Handle, a uintptr) (uintptr, error) {
 	var (

@@ -60,6 +60,11 @@ func (l *Listener) listen() {
 			delete(l.sessions, i)
 			l.log.Debug("[%s] Removed closed Session 0x%X.", l.name, i)
 		}
+		select {
+		case <-l.ctx.Done():
+			atomic.StoreUint32(&l.done, flagClose)
+		default:
+		}
 		c, err := l.listener.Accept()
 		if err != nil {
 			if l.done > flagOpen {

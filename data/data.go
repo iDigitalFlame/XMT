@@ -9,11 +9,11 @@ import (
 
 const (
 	// DataLimitSmall is the size value allowed for small strings using the WriteString and WriteBytes functions.
-	DataLimitSmall = 2 << 7
+	DataLimitSmall uint64 = 2 << 7
 	// DataLimitLarge is the size value allowed for large strings using the WriteString and WriteBytes functions.
-	DataLimitLarge = 2 << 31
+	DataLimitLarge uint64 = 2 << 31
 	// DataLimitMedium is the size value allowed for medium strings using the WriteString and WriteBytes functions.
-	DataLimitMedium = 2 << 15
+	DataLimitMedium uint64 = 2 << 15
 )
 
 var (
@@ -170,7 +170,7 @@ func ReadStringList(r Reader, s *[]string) error {
 // WriteStringList will attempt to write the supplied string list to the writer. If the string list is nil or
 // empty, it will write a zero byte to the Writer. The resulting data can be read using the 'ReadStringList' function.
 func WriteStringList(w Writer, s []string) error {
-	switch l := len(s); {
+	switch l := uint64(len(s)); {
 	case l == 0:
 		return w.WriteUint8(0)
 	case l < DataLimitSmall:

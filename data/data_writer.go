@@ -6,6 +6,7 @@ import (
 )
 
 type writer struct {
+	_ [0]func()
 	w io.Writer
 }
 
@@ -58,7 +59,7 @@ func (w *writer) WriteUint8(n uint8) error {
 	return w.small(byte(n))
 }
 func (w *writer) WriteBytes(b []byte) error {
-	switch l := len(b); {
+	switch l := uint64(len(b)); {
 	case l == 0:
 		return w.small(0)
 	case l < DataLimitSmall:

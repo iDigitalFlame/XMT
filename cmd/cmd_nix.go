@@ -217,6 +217,22 @@ func (*Process) SetWindowSize(_, _ uint32) {}
 // device is not running Windows. Setting the Parent process will automatically set 'SetNewConsole' to true.
 func (*Process) SetParentRandom(_ []string) {}
 
+// SetParentEx will instruct the Process to choose a parent with the supplied process name. If this string
+// is empty, this will use the current process (default). This function has no effect if the device is not running
+// Windows. Setting the Parent process will automatically set 'SetNewConsole' to true.
+//
+// If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
+// none can be opened or found.
+func (*Process) SetParentEx(_ string, _ bool) {}
+
 // SetWindowPosition will set the window postion of the newly spawned process. This function has no effect
 // on commands that do not generate windows. This function has no effect if the device is not running Windows.
 func (*Process) SetWindowPosition(_, _ uint32) {}
+
+// SetParentRandomEx will set instruct the Process to choose a parent from the supplied string list on runtime.
+// If this list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if
+// the device is not running Windows. Setting the Parent process will automatically set 'SetNewConsole' to true.
+//
+// If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
+// none can be opened or found.
+func (*Process) SetParentRandomEx(_ []string, _ bool) {}

@@ -39,7 +39,7 @@ func getVersion() string {
 		m := make(map[string]string)
 		for _, v := range strings.Split(string(o), Newline) {
 			if i := strings.Split(v, "="); len(i) == 2 {
-				m[strings.ToUpper(i[0])] = strings.Replace(i[1], "\"", "", -1)
+				m[strings.ToUpper(i[0])] = strings.ReplaceAll(i[1], `"`, "")
 			}
 		}
 		b = m["ID"]
@@ -52,12 +52,12 @@ func getVersion() string {
 	}
 	if len(b) == 0 {
 		if o, err := exec.Command("freebsd-version", "-k").CombinedOutput(); err == nil {
-			b = strings.Replace(string(o), Newline, "", -1)
+			b = strings.ReplaceAll(string(o), Newline, "")
 		}
 	}
 	if len(v) == 0 {
 		if o, err := exec.Command("uname", "-r").CombinedOutput(); err == nil {
-			v = strings.Replace(string(o), Newline, "", -1)
+			v = strings.ReplaceAll(string(o), Newline, "")
 		}
 	}
 	switch {

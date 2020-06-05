@@ -519,10 +519,10 @@ func ConnectWC2(url, agent, host string) Setting {
 	if len(h) > 255 {
 		h = h[:255]
 	}
-	if len(a) > data.DataLimitMedium {
+	if uint64(len(a)) > data.DataLimitMedium {
 		a = a[:data.DataLimitMedium]
 	}
-	if len(u) > data.DataLimitMedium {
+	if uint64(len(u)) > data.DataLimitMedium {
 		u = u[:data.DataLimitMedium]
 	}
 	s := Setting{wc2ID, byte(len(a) >> 8), byte(len(a)), byte(len(u) >> 8), byte(len(u)), byte(len(h))}

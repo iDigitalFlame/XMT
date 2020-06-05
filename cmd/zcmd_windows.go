@@ -11,6 +11,7 @@ import (
 	"unicode/utf16"
 	"unsafe"
 
+	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util"
 	"golang.org/x/sys/windows"
 )
@@ -106,7 +107,7 @@ func (o *options) close() {
 	o.parent, o.closers = 0, nil
 }
 func (c container) clear() {
-	c.pid, c.name, c.choices = 0, "", nil
+	c.pid, c.name, c.choices, c.elevated = 0, "", nil, false
 }
 func (c closer) Close() error {
 	return windows.CloseHandle(windows.Handle(c))
@@ -171,7 +172,7 @@ func (c container) getParent(a uint32) (windows.Handle, error) {
 		}
 		return h, nil
 	}
-	h, err := getProcessByName(a, c.name, c.choices, c.pid < 0)
+	h, err := getProcessByName(a, c.name, c.choices, c.pid < 0, c.elevated)
 	if err != nil {
 		if c.pid < 0 {
 			return 0, err
@@ -312,18 +313,22 @@ func newParentEx(p windows.Handle, i *windows.StartupInfo) (*startupInfoEx, erro
 	}
 	return &x, nil
 }
-func getProcessByName(a uint32, n string, x []string, v bool) (windows.Handle, error) {
+func getProcessByName(a uint32, n string, x []string, v, y bool) (windows.Handle, error) {
 	h, err := windows.CreateToolhelp32Snapshot(0x00000002, 0)
 	if err != nil {
 		return 0, fmt.Errorf("winapi CreateToolhelp32Snapshot error: %w", err)
+	}
+	if y {
+		device.AdjustPrivileges("SeDebugPrivilege")
 	}
 	var (
 		e    windows.ProcessEntry32
 		q    []string
 		c    []windows.Handle
 		p    = uint32(os.Getpid())
-		f    bool
+		z    windows.Token
 		o    windows.Handle
+		f, j bool
 		s, m = "", strings.ToLower(n)
 	)
 	if e.Size = uint32(unsafe.Sizeof(e)); len(x) > 0 {
@@ -350,6 +355,17 @@ func getProcessByName(a uint32, n string, x []string, v bool) (windows.Handle, e
 		}
 		if o, err = windows.OpenProcess(a, true, e.ProcessID); err != nil || o == 0 {
 			continue
+		}
+		if y {
+			if err := windows.OpenProcessToken(o, windows.TOKEN_QUERY, &z); err != nil {
+				windows.CloseHandle(o)
+				continue
+			}
+			j = z.IsElevated()
+			if z.Close(); !j {
+				windows.CloseHandle(o)
+				continue
+			}
 		}
 		if v {
 			c = append(c, o)
@@ -422,7 +438,7 @@ func run(name, cmd, dir string, p, t *windows.SecurityAttributes, f uint32, e *u
 		)
 	}
 	if r == 0 {
-		return fmt.Errorf("winapi CreateProcessW error: %w", err)
+		return fmt.Errorf("winapi CreateProcess error: %w", err)
 	}
 	return nil
 }

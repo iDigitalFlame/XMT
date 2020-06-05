@@ -33,16 +33,16 @@ func (p Packet) Size() int {
 	if p.Empty() {
 		return PacketHeaderSize
 	}
-	s := p.Chunk.Size() + PacketHeaderSize + (4 * len(p.Tags))
+	s := uint64(p.Chunk.Size() + PacketHeaderSize + (4 * len(p.Tags)))
 	switch {
 	case s < data.DataLimitSmall:
-		return s + 1
+		return int(s) + 1
 	case s < data.DataLimitMedium:
-		return s + 2
+		return int(s) + 2
 	case s < data.DataLimitLarge:
-		return s + 4
+		return int(s) + 4
 	default:
-		return s + 8
+		return int(s) + 8
 	}
 }
 

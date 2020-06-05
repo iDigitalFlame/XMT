@@ -13,6 +13,7 @@ import (
 // UDPConn is a struct that represents a UDP based network connection. This struct can
 // be used to control and manage the current connection.
 type UDPConn struct {
+	_      [0]func()
 	buf    chan byte
 	addr   net.Addr
 	parent *UDPListener
@@ -21,6 +22,7 @@ type UDPConn struct {
 // UDPStream is a struct that represents a UDP stream (direct) based network connection. This struct
 // can be used to control and manage the current connection.
 type UDPStream struct {
+	_       [0]func()
 	timeout time.Duration
 	net.Conn
 }

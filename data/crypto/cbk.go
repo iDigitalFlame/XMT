@@ -16,11 +16,7 @@ const (
 )
 
 var (
-	// ErrSize is returned when an array is read that does not contain enough slots for keys
-	// which is three.
-	ErrSize = errors.New("byte array size must be greather than or equal to three (3)")
-	// ErrBlockSize is an error returned when an invalid value for the block size is given
-	// when creating the Cipher.
+	// ErrBlockSize is an error returned when an invalid value for the block size is given when creating the Cipher.
 	ErrBlockSize = errors.New("block size must be between 16 and 128 and a power of two")
 
 	chains = sync.Pool{
@@ -72,7 +68,7 @@ func (e *CBK) Reset() error {
 
 // BlockSize returns the cipher's block BlockSize.
 func (e CBK) BlockSize() int {
-	return e.total
+	return len(e.buf) - 1
 }
 
 // Shuffle will switch around the bytes in the array based on the Cipher bytes.

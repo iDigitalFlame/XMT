@@ -64,6 +64,22 @@ type ExitError struct {
 }
 type finished interface{}
 
+// Runnable is an interface that helps support the type of structs that can be used for execution, such as Code and
+// Process, which share the same methods as this interface.
+type Runnable interface {
+	Run() error
+	Wait() error
+	Stop() error
+	Start() error
+	Running() bool
+	SetParent(string)
+	SetParentPID(int32)
+	ExitCode() (int32, error)
+	SetParentRandom([]string)
+	SetParentEx(string, bool)
+	SetParentRandomEx([]string, bool)
+}
+
 // Run will start the process and wait until it completes. This function will return the same errors as the 'Start'
 // function if they occur or the 'Wait' function if any errors occur during Process runtime.
 func (p *Process) Run() error {

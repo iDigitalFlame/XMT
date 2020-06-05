@@ -138,7 +138,7 @@ func Expand(s string) string {
 			n = i[3]
 		}
 		if d, ok := Environment[strings.ToLower(n)]; ok {
-			s = strings.Replace(s, i[0], d, -1)
+			s = strings.ReplaceAll(s, i[0], d)
 		}
 	}
 	return s
@@ -158,6 +158,37 @@ func getEnv() map[string]string {
 	t := os.TempDir()
 	m["tmp"], m["temp"], m["tmpdir"], m["tempdir"] = t, t, t, t
 	return m
+}
+
+// LoadSession will attempt to load the Session UUID from the specified file. This function will return an
+// error if the file cannot be read or not found.
+func LoadSession(s string) error {
+	r, err := os.Open(s)
+	if err != nil {
+		return err
+	}
+	n, err := data.ReadFully(r, UUID)
+	if r.Close(); err != nil {
+		return err
+	}
+	if n != IDSize {
+		return io.EOF
+	}
+	return nil
+}
+
+// SaveSession will attempt to save the Session UUID to the specified file. This function will return an
+// error if the file cannot be written to or created.
+func SaveSession(s string) error {
+	w, err := os.Create(s)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(UUID)
+	if w.Close(); err != nil {
+		return err
+	}
+	return nil
 }
 func (d deviceOS) String() string {
 	switch d {

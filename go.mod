@@ -11,5 +11,6 @@ require (
 	github.com/iDigitalFlame/logx/logx v0.0.0-20191005045951-4408902ea8e6
 	github.com/mitchellh/go-ps v1.0.0
 	github.com/shirou/gopsutil v2.19.12+incompatible
-	golang.org/x/sys v0.0.0-20200116001909-b77594299b42
+	golang.org/x/sys v0.0.0-20200523222454-059865788121
+	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
 )

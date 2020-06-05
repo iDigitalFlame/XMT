@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/PurpleSec/logx"
+	"github.com/iDigitalFlame/xmt/c2/task"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/com/limits"
 	"github.com/iDigitalFlame/xmt/data"
@@ -17,26 +18,33 @@ import (
 	"github.com/iDigitalFlame/xmt/util"
 )
 
-// Packet Message Constats
+// Packet Message Constants for Handeling and Management.
 const (
 	MsgPing     = 0xFE00
 	MsgSleep    = 0xFE01
 	MsgMultiple = 0xFE02
+)
 
+// Packet Message Constants for Error Message and Sessions.
+const (
 	MsgError      = 0xFEEF
 	MsgHello      = 0xFA00
 	MsgProfile    = 0xFA04
 	MsgRegister   = 0xFA01
 	MsgShutdown   = 0xFA03
 	MsgRegistered = 0xFA02
+)
 
+// Packet Message Constants for Tasking and Actions.
+const (
+	MsgCode     = uint16(task.TaskCode)
 	MsgSpawn    = 0xBA04
 	MsgProxy    = 0xBA05
 	MsgResult   = 0xBB00
-	MsgUpload   = 0xB001
-	MsgRefresh  = 0xB000
-	MsgExecute  = 0xB003
-	MsgDownload = 0xB002
+	MsgUpload   = uint16(task.TaskUpload)
+	MsgRefresh  = uint16(task.TaskRefresh)
+	MsgProcess  = uint16(task.TaskProcess)
+	MsgDownload = uint16(task.TaskDownload)
 )
 
 var (

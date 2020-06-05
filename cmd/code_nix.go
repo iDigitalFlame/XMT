@@ -36,3 +36,19 @@ func (*Code) SetParentPID(_ int32) {}
 // list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if the
 // device is not running Windows.
 func (*Code) SetParentRandom(_ []string) {}
+
+// SetParentEx will instruct the Code thread to choose a parent with the supplied process name. If this string
+// is empty, this will use the current process (default). This function has no effect if the device is not running
+// Windows.
+//
+// If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
+// none can be opened or found.
+func (*Code) SetParentEx(_ string, _ bool) {}
+
+// SetParentRandomEx will set instruct the Code thread to choose a parent from the supplied string list on runtime.
+// If this list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if
+// the device is not running Windows.
+//
+// If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
+// none can be opened or found.
+func (*Code) SetParentRandomEx(_ []string, _ bool) {}

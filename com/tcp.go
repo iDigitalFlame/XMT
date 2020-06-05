@@ -11,16 +11,19 @@ import (
 // TCPConn is a struct that represents a TCP based network connection. This struct can be used
 // to control and manage the current connection.
 type TCPConn struct {
+	_       [0]func()
 	timeout time.Duration
 	net.Conn
 }
 type tcpClient struct {
+	_ [0]func()
 	c TCPConnector
 }
 
 // TCPListener is a struct that represents a TCP based network connection listener. This struct can be
 // used to accept and create new TCP connections.
 type TCPListener struct {
+	_       [0]func()
 	timeout time.Duration
 	net.Listener
 }
@@ -28,6 +31,7 @@ type TCPListener struct {
 // TCPConnector is a struct that represents a TCP based network connection handler. This struct can
 // be used to create new TCP listeners.
 type TCPConnector struct {
+	_      [0]func()
 	tls    *tls.Config
 	dialer *net.Dialer
 }

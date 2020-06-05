@@ -44,10 +44,12 @@ var (
 // Client is a simple struct that supports the C2 client connector interface. This can be used by
 // clients to connect to a Web instance. By default, this struct will use the DefaultClient struct.
 type Client struct {
+	_         [0]func()
 	Generator Generator
 	*http.Client
 }
 type client struct {
+	_      [0]func()
 	in     *http.Response
 	gen    Generator
 	out    *bytes.Buffer

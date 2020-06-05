@@ -149,6 +149,11 @@ func (s *Session) listen() {
 		if s.errors > maxErrors {
 			break
 		}
+		select {
+		case <-s.ctx.Done():
+			atomic.StoreUint32(&s.done, flagLast)
+		default:
+		}
 	}
 	s.log.Trace("[%s] Stopping transaction thread...", s.ID)
 	s.shutdown()

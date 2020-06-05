@@ -17,6 +17,7 @@ type block struct {
 	cipher.Block
 }
 type writer struct {
+	_ [0]func()
 	w crypto.Writer
 	r crypto.Reader
 }
@@ -29,10 +30,10 @@ func NewBlock(b cipher.Block, v []byte) (Value, error) {
 	return &block{v: v, Block: b}, nil
 }
 func (b *block) Wrap(w io.WriteCloser) (io.WriteCloser, error) {
-	return crypto.BlockEncryptWriter(b.Block, b.v, w), nil
+	return crypto.EncryptWriter(b.Block, b.v, w)
 }
 func (b *block) Unwrap(r io.ReadCloser) (io.ReadCloser, error) {
-	return crypto.BlockDecryptReader(b.Block, b.v, r), nil
+	return crypto.DecryptReader(b.Block, b.v, r)
 }
 func (c *writer) Wrap(w io.WriteCloser) (io.WriteCloser, error) {
 	return crypto.NewWriter(c.w, w), nil
