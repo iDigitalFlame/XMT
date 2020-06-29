@@ -22,30 +22,30 @@ type Code struct {
 	Wait    bool
 	Timeout time.Duration
 
-	pPID      int32
-	pName     string
-	pChoices  []string
-	pElevated bool
+	pid      int32
+	name     string
+	choices  []string
+	elevated bool
 }
 
 // SetParent will instruct the Process to choose a parent with the supplied process name. If this string is empty,
 // this will use the current process (default). This function has no effect if the device is not running Windows.
 func (c *Code) SetParent(n string) {
-	c.pName, c.pPID, c.pChoices = n, -1, nil
+	c.name, c.pid, c.choices = n, -1, nil
 }
 
 // SetParentPID will instruct the Process to choose a parent with the supplied process ID. If this number is
 // zero, this will use the current process (default) and if < 0 this Process will choose a parent from a list
 // of writable processes. This function has no effect if the device is not running Windows.
 func (c *Code) SetParentPID(i int32) {
-	c.pName, c.pPID, c.pChoices = "", i, nil
+	c.name, c.pid, c.choices = "", i, nil
 }
 
 // SetParentRandom will set instruct the Process to choose a parent from the supplied string list on runtime. If this
 // list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if the
 // device is not running Windows.
 func (c *Code) SetParentRandom(n []string) {
-	c.pName, c.pPID, c.pChoices = "", -1, n
+	c.name, c.pid, c.choices = "", -1, n
 }
 
 // SetParentEx will instruct the Code thread to choose a parent with the supplied process name. If this string
@@ -55,7 +55,7 @@ func (c *Code) SetParentRandom(n []string) {
 // If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
 // none can be opened or found.
 func (c *Code) SetParentEx(n string, e bool) {
-	c.pName, c.pPID, c.pChoices, c.pElevated = n, -1, nil, e
+	c.name, c.pid, c.choices, c.elevated = n, -1, nil, e
 }
 
 // MarshalStream writes the data for this Code thread to the supplied Writer.
@@ -69,16 +69,16 @@ func (c Code) MarshalStream(w data.Writer) error {
 	if err := w.WriteBytes(c.Data); err != nil {
 		return err
 	}
-	if err := w.WriteInt32(c.pPID); err != nil {
+	if err := w.WriteInt32(c.pid); err != nil {
 		return err
 	}
-	if err := w.WriteString(c.pName); err != nil {
+	if err := w.WriteString(c.name); err != nil {
 		return err
 	}
-	if err := w.WriteBool(c.pElevated); err != nil {
+	if err := w.WriteBool(c.elevated); err != nil {
 		return err
 	}
-	if err := data.WriteStringList(w, c.pChoices); err != nil {
+	if err := data.WriteStringList(w, c.choices); err != nil {
 		return err
 	}
 	return nil
@@ -97,16 +97,16 @@ func (c *Code) UnmarshalStream(r data.Reader) error {
 	if c.Data, err = r.Bytes(); err != nil {
 		return err
 	}
-	if err = r.ReadInt32(&c.pPID); err != nil {
+	if err = r.ReadInt32(&c.pid); err != nil {
 		return err
 	}
-	if err = r.ReadString(&c.pName); err != nil {
+	if err = r.ReadString(&c.name); err != nil {
 		return err
 	}
-	if err = r.ReadBool(&c.pElevated); err != nil {
+	if err = r.ReadBool(&c.elevated); err != nil {
 		return err
 	}
-	if err = data.ReadStringList(r, &c.pChoices); err != nil {
+	if err = data.ReadStringList(r, &c.choices); err != nil {
 		return err
 	}
 
@@ -120,7 +120,7 @@ func (c *Code) UnmarshalStream(r data.Reader) error {
 // If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
 // none can be opened or found.
 func (c *Code) SetParentRandomEx(n []string, e bool) {
-	c.pName, c.pPID, c.pChoices, c.pElevated = "", -1, n, e
+	c.name, c.pid, c.choices, c.elevated = "", -1, n, e
 }
 func taskCode(x context.Context, p *com.Packet) (*com.Packet, error) {
 	var c Code

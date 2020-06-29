@@ -126,12 +126,12 @@ func NewSecureTCP(t time.Duration, c *tls.Config) (*TCPConnector, error) {
 }
 func newConnector(n string, t time.Duration, c *tls.Config) (*TCPConnector, error) {
 	if t < 0 {
-		return nil, fmt.Errorf("%d: %w", t, ErrInvalidTimeout)
+		return nil, fmt.Errorf("invalid timeout value %d", t)
 	}
 	switch n {
 	case "tcp", "tcp4", "tcp6", "unix", "unixpacket":
 	default:
-		return nil, fmt.Errorf("%s: %w", n, ErrInvalidNetwork)
+		return nil, fmt.Errorf("invalid network type %q", n)
 	}
 	return &TCPConnector{tls: c, dialer: &net.Dialer{Timeout: t, KeepAlive: t, DualStack: true}}, nil
 }

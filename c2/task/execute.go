@@ -27,10 +27,10 @@ type Process struct {
 	Flags   uint32
 	Timeout time.Duration
 
-	pPID      int32
-	pName     string
-	pChoices  []string
-	pElevated bool
+	pid      int32
+	name     string
+	choices  []string
+	elevated bool
 }
 
 // SetFlags will set the startup Flag values used for Windows programs. This function overrites many
@@ -43,7 +43,7 @@ func (p *Process) SetFlags(f uint32) {
 // this will use the current process (default). This function has no effect if the device is not running Windows.
 // Setting the Parent process will automatically set 'SetNewConsole' to true.
 func (p *Process) SetParent(n string) {
-	p.pName, p.pPID, p.pChoices = n, -1, nil
+	p.name, p.pid, p.choices = n, -1, nil
 }
 
 // SetParentPID will instruct the Process to choose a parent with the supplied process ID. If this number is
@@ -51,14 +51,14 @@ func (p *Process) SetParent(n string) {
 // of writable processes. This function has no effect if the device is not running Windows. Setting the Parent
 // process will automatically set 'SetNewConsole' to true.
 func (p *Process) SetParentPID(i int32) {
-	p.pName, p.pPID, p.pChoices = "", i, nil
+	p.name, p.pid, p.choices = "", i, nil
 }
 
 // SetParentRandom will set instruct the Process to choose a parent from the supplied string list on runtime. If this
 // list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if the
 // device is not running Windows. Setting the Parent process will automatically set 'SetNewConsole' to true.
 func (p *Process) SetParentRandom(c []string) {
-	p.pName, p.pPID, p.pChoices = "", -1, c
+	p.name, p.pid, p.choices = "", -1, c
 }
 
 // SetStdin wil attempt to read all the data from the supplied reader to fill the Stdin byte array for this Process
@@ -76,7 +76,7 @@ func (p *Process) SetStdin(r io.Reader) error {
 // If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
 // none can be opened or found.
 func (p *Process) SetParentEx(n string, e bool) {
-	p.pName, p.pPID, p.pChoices, p.pElevated = n, -1, nil, e
+	p.name, p.pid, p.choices, p.elevated = n, -1, nil, e
 }
 
 // MarshalStream writes the data for this Process to the supplied Writer.
@@ -99,16 +99,16 @@ func (p Process) MarshalStream(w data.Writer) error {
 	if err := w.WriteUint64(uint64(p.Timeout)); err != nil {
 		return err
 	}
-	if err := w.WriteInt32(p.pPID); err != nil {
+	if err := w.WriteInt32(p.pid); err != nil {
 		return err
 	}
-	if err := w.WriteString(p.pName); err != nil {
+	if err := w.WriteString(p.name); err != nil {
 		return err
 	}
-	if err := w.WriteBool(p.pElevated); err != nil {
+	if err := w.WriteBool(p.elevated); err != nil {
 		return err
 	}
-	if err := data.WriteStringList(w, p.pChoices); err != nil {
+	if err := data.WriteStringList(w, p.choices); err != nil {
 		return err
 	}
 	if err := w.WriteBytes(p.Stdin); err != nil {
@@ -139,16 +139,16 @@ func (p *Process) UnmarshalStream(r data.Reader) error {
 		return err
 	}
 	p.Timeout = time.Duration(t)
-	if err = r.ReadInt32(&p.pPID); err != nil {
+	if err = r.ReadInt32(&p.pid); err != nil {
 		return err
 	}
-	if err = r.ReadString(&p.pName); err != nil {
+	if err = r.ReadString(&p.name); err != nil {
 		return err
 	}
-	if err = r.ReadBool(&p.pElevated); err != nil {
+	if err = r.ReadBool(&p.elevated); err != nil {
 		return err
 	}
-	if err = data.ReadStringList(r, &p.pChoices); err != nil {
+	if err = data.ReadStringList(r, &p.choices); err != nil {
 		return err
 	}
 	if p.Stdin, err = r.Bytes(); err != nil {
@@ -164,7 +164,7 @@ func (p *Process) UnmarshalStream(r data.Reader) error {
 // If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
 // none can be opened or found.
 func (p *Process) SetParentRandomEx(c []string, e bool) {
-	p.pName, p.pPID, p.pChoices, p.pElevated = "", -1, c, e
+	p.name, p.pid, p.choices, p.elevated = "", -1, c, e
 }
 func (p Process) convert(x context.Context) *cmd.Process {
 	e := cmd.NewProcessContext(x, p.Args...)
@@ -172,12 +172,12 @@ func (p Process) convert(x context.Context) *cmd.Process {
 	e.Dir, e.Env = p.Dir, p.Env
 	e.SetFlags(p.Flags)
 	switch {
-	case p.pPID != 0:
-		e.SetParentPID(p.pPID)
-	case len(p.pName) > 0:
-		e.SetParentEx(p.pName, p.pElevated)
-	case len(p.pChoices) > 0:
-		e.SetParentRandomEx(p.pChoices, p.pElevated)
+	case p.pid != 0:
+		e.SetParentPID(p.pid)
+	case len(p.name) > 0:
+		e.SetParentEx(p.name, p.elevated)
+	case len(p.choices) > 0:
+		e.SetParentRandomEx(p.choices, p.elevated)
 	}
 	if len(p.Stdin) > 0 {
 		e.Stdin = bytes.NewReader(p.Stdin)

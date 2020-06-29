@@ -1,8 +1,11 @@
 {
 	"folders": [
-		{
-			"path": "."
-		}
+        {
+            "path": "."
+        },
+        {
+            "path": "../ThunderStorm"
+        }
     ],
     "settings": {
         "files.associations": {

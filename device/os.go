@@ -56,12 +56,8 @@ const (
 )
 
 var (
-	// ErrWindows is an error that is returned when a Windows device attempts a non-Windows specific function.
-	ErrWindows = errors.New("not supported on windows devices")
-	// ErrInvalidID is returned by the 'IDFromString' function when the returned ID value is invalid or nil.
-	ErrInvalidID = errors.New("id format is invalid or empty")
 	// ErrNoWindows is an error that is returned when a non-Windows device attempts a Windows specific function.
-	ErrNoWindows = errors.New("not supported on non-windows devices")
+	ErrNoWindows = errors.New("not supported on non-Windows devices")
 
 	envRegexp = regexp.MustCompile(`(%([\w\d()-_]+)%|\$([[\w\d-_]+))`)
 )
@@ -73,8 +69,10 @@ type deviceOS uint8
 type deviceArch uint8
 
 func getID() ID {
-	i := ID(make([]byte, IDSize))
-	s, err := machineid.ProtectedID(xmtID)
+	var (
+		i      = ID(make([]byte, IDSize))
+		s, err = machineid.ProtectedID(xmtID)
+	)
 	if err == nil {
 		copy(i, s)
 	} else {
@@ -226,13 +224,13 @@ func IDFromString(s string) (ID, error) {
 		return nil, err
 	}
 	if len(i) == 0 {
-		return nil, ErrInvalidID
+		return nil, fmt.Errorf("invalid ID value %q", s)
 	}
 	switch len(i) {
 	case 4, MachineIDSize, IDSize:
 		break
 	default:
-		return nil, fmt.Errorf("id size %d is invalid", len(i))
+		return nil, fmt.Errorf("ID size %d is invalid", len(i))
 	}
 	return ID(i), nil
 }

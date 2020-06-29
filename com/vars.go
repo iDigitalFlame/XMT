@@ -40,17 +40,9 @@ var (
 	TLSNoCheck = &tcpClient{c: TCPConnector{tls: &tls.Config{InsecureSkipVerify: true}, dialer: TCP.dialer}}
 )
 
-var (
-	// ErrInvalidTimeout is an error returned on client or connector creation when a negative timeout
-	// is supplied.
-	ErrInvalidTimeout = errors.New("invalid timeout value")
-	// ErrInvalidNetwork is an error returned from the New* functions when an improper network is used
-	// that is not compatible with the New function return type.
-	ErrInvalidNetwork = errors.New("invalid network type")
-	// ErrInvalidTLSConfig is returned when attempting to use the default TLS Connector as a listener. This error
-	// is also returned when attemtping to use a TLS configuration that does not have a valid server certificates.
-	ErrInvalidTLSConfig = errors.New("tls configuration is missing certificates")
-)
+// ErrInvalidTLSConfig is returned when attempting to use the default TLS Connector as a listener. This error
+// is also returned when attemtping to use a TLS configuration that does not have a valid server certificates.
+var ErrInvalidTLSConfig = errors.New("TLS configuration is missing certificates")
 
 type deadline interface {
 	SetDeadline(time.Time) error

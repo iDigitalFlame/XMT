@@ -19,10 +19,8 @@ const (
 	Newline = "\n"
 )
 
-var (
-	// ShellArgs is the default machine specific command shell arguments to run commands.
-	ShellArgs = []string{"-c"}
-)
+// ShellArgs is the default machine specific command shell arguments to run commands.
+var ShellArgs = []string{"-c"}
 
 func isElevated() bool {
 	if a, err := user.Current(); err == nil && a.Uid == "0" {

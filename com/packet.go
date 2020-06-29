@@ -2,7 +2,6 @@ package com
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 
 	"github.com/iDigitalFlame/xmt/data"
@@ -12,10 +11,6 @@ import (
 
 // PacketHeaderSize is the length of the Packet header in bytes.
 const PacketHeaderSize = 46
-
-// ErrMismatchedID is an error that occurs when attempting to combine a Packet with a Packet that does
-// not match the ID of the parent Packet.
-var ErrMismatchedID = errors.New("packet ID does not match combining packet ID")
 
 // Packet is a struct that is a Reader and Writer that can
 // be generated to be sent, or received from a Connection.
@@ -74,7 +69,7 @@ func (p *Packet) Add(n *Packet) error {
 		return nil
 	}
 	if p.ID != n.ID {
-		return ErrMismatchedID
+		return fmt.Errorf("Packet ID %d does not match combining Packet ID %d", n.ID, p.ID)
 	}
 	if _, err := n.WriteTo(p); err != nil {
 		return fmt.Errorf("unable to write to Packet: %w", err)

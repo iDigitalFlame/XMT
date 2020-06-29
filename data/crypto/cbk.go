@@ -2,7 +2,6 @@ package crypto
 
 import (
 	crypto "crypto/rand"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -16,9 +15,6 @@ const (
 )
 
 var (
-	// ErrBlockSize is an error returned when an invalid value for the block size is given when creating the Cipher.
-	ErrBlockSize = errors.New("block size must be between 16 and 128 and a power of two")
-
 	chains = sync.Pool{
 		New: func() interface{} {
 			b := make([]byte, size+1)
@@ -387,7 +383,7 @@ func (e *CBK) Write(w io.Writer, b []byte) (int, error) {
 // A, B and C values are randomally generated at runtime.
 func NewCBKEx(d int, size int, source rand.Source) (*CBK, error) {
 	if size < 0 || size > sizeMax || math.Floor(math.Log2(float64(size))) != math.Ceil(math.Log2(float64(size))) {
-		return nil, ErrBlockSize
+		return nil, fmt.Errorf("block size %d must be between 16 and 128 and a power of two", size)
 	}
 	c := &CBK{D: byte(d), buf: make([]byte, size+1), total: -1, Source: source}
 	c.Reset()

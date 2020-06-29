@@ -9,28 +9,26 @@ import (
 
 const (
 	// Hex is the Hex encoding Wrapper. This wraps the binary data as hex values.
-	Hex = simpleWrapper(0x1)
+	Hex = Simple(0x1)
 
 	// Base64 is the Base64 Wrapper. This wraps the binary data as a Base64 byte string. This may be
 	// combined with the Base64 transfrom.
-	Base64 = simpleWrapper(0x2)
+	Base64 = Simple(0x2)
 )
 
-// Value is an interface that wraps the binary streams into separate stream types. This allows for using
-// encryption or compression (or both!). This is just a compatibility interface to prevent import dependency cycles.
-type Value interface {
-	Wrap(io.WriteCloser) (io.WriteCloser, error)
-	Unwrap(io.ReadCloser) (io.ReadCloser, error)
-}
+// Simple is an alias that allows for wrapping multiple types of simple mathmatic-based Wrappers. This alias
+// implements the 'c2.Wrapper' interface.
+type Simple uint8
 type nopCloser struct {
 	io.Writer
 }
-type simpleWrapper uint8
 
 func (nopCloser) Close() error {
 	return nil
 }
-func (s simpleWrapper) Wrap(w io.WriteCloser) (io.WriteCloser, error) {
+
+// Wrap satisfies the Wrapper interface.
+func (s Simple) Wrap(w io.WriteCloser) (io.WriteCloser, error) {
 	switch s {
 	case Hex:
 		return &nopCloser{hex.NewEncoder(w)}, nil
@@ -39,7 +37,9 @@ func (s simpleWrapper) Wrap(w io.WriteCloser) (io.WriteCloser, error) {
 	}
 	return nil, nil
 }
-func (s simpleWrapper) Unwrap(r io.ReadCloser) (io.ReadCloser, error) {
+
+// Unwrap satisfies the Wrapper interface.
+func (s Simple) Unwrap(r io.ReadCloser) (io.ReadCloser, error) {
 	switch s {
 	case Hex:
 		return ioutil.NopCloser(hex.NewDecoder(r)), nil

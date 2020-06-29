@@ -140,10 +140,12 @@ func (s Matcher) String() string {
 			c = strconv.Itoa(Rand.Int())
 		case s[m[x][1]-1] == 'h':
 			c = fmt.Sprintf("%x", Rand.Int())
+		default:
+			c = string(s[m[x][0]:m[x][1]])
 		}
 		b.WriteString(string(s[l:m[x][0]]))
 		b.WriteString(c)
-		l = m[x][1]
+		c, l = "", m[x][1]
 	}
 	if l < len(s) {
 		b.WriteString(string(s[l:]))
@@ -236,16 +238,18 @@ func (s Matcher) MatchEx(o bool) Regexp {
 			c = fmt.Sprintf(matchLowerRange, d, v)
 		case s[m[x][1]-1] == 's' && v > 0:
 			c = fmt.Sprintf(matchStringRange, d, v)
-		case s[m[x][1]-1] == 'n':
+		case s[m[x][1]-1] == 'n' && v > 0:
 			c = fmt.Sprintf(matchNum, d)
-		case s[m[x][1]-1] == 'c':
+		case s[m[x][1]-1] == 'c' && v > 0:
 			c = fmt.Sprintf(matchChars, d)
-		case s[m[x][1]-1] == 'u':
+		case s[m[x][1]-1] == 'u' && v > 0:
 			c = fmt.Sprintf(matchUpper, d)
-		case s[m[x][1]-1] == 'l':
+		case s[m[x][1]-1] == 'l' && v > 0:
 			c = fmt.Sprintf(matchLower, d)
-		case s[m[x][1]-1] == 's':
+		case s[m[x][1]-1] == 's' && v > 0:
 			c = fmt.Sprintf(matchString, d)
+		default:
+			c = string(s[m[x][0]:m[x][1]])
 		}
 		b.WriteString(strings.ReplaceAll(regexp.QuoteMeta(string(s[l:m[x][0]])), "/", "\\/"))
 		b.WriteString(c)

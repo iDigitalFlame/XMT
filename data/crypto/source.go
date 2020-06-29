@@ -9,13 +9,7 @@ import (
 	"time"
 )
 
-const (
-	// DefaultRounds is the amount of rounds that the hash is passed through when using the NewSource function.
-	DefaultRounds = 4
-	// DefaultSource is the default Source Seed used for MultiSource struct data if a source is not provided
-	// during creation.
-	DefaultSource int64 = 0x123456789F
-)
+const defaultSource int64 = 0x123456789F
 
 var hashers = sync.Pool{
 	New: func() interface{} {
@@ -76,12 +70,12 @@ func (m *MultiSource) Add(s ...rand.Source) {
 // NewSource creates a random Source from the provided interface.
 // This function supports all types of Golang primitives.
 func NewSource(seed interface{}) rand.Source {
-	return NewSourceEx(DefaultRounds, seed)
+	return NewSourceEx(4, seed)
 }
 
 // NewMultiSource creates a new MultiSource struct instance.
 func NewMultiSource(s ...rand.Source) *MultiSource {
-	m := &MultiSource{rng: rand.New(rand.NewSource(DefaultSource))}
+	m := &MultiSource{rng: rand.New(rand.NewSource(defaultSource))}
 	if len(s) > 0 {
 		m.Add(s...)
 	}
@@ -90,7 +84,7 @@ func NewMultiSource(s ...rand.Source) *MultiSource {
 
 // NewSourceEx creates a random Source from the provided interface.
 // This function supports all types of Golang primitives. This function
-// allows for supplying the rounds value, which defaults to the value of DefaultRounds.
+// allows for supplying the rounds value, which defaults to the value of 4.
 func NewSourceEx(rounds int, seed interface{}) rand.Source {
 	var s int64
 	if rounds <= 0 {

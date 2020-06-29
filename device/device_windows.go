@@ -28,6 +28,7 @@ const (
 var (
 	// Shell is the default machine specific command shell.
 	Shell = shell()
+
 	// ShellArgs is the default machine specific command shell arguments to run commands.
 	ShellArgs = []string{"/c"}
 
@@ -63,10 +64,12 @@ func isElevated() bool {
 func getVersion() string {
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\Microsoft\Windows NT\CurrentVersion`, registry.QUERY_VALUE)
 	if err != nil {
-		return Windows.String()
+		return "Windows (?)"
 	}
-	var b, v string
-	n, _, _ := k.GetStringValue("ProductName")
+	var (
+		b, v    string
+		n, _, _ = k.GetStringValue("ProductName")
+	)
 	if s, _, err := k.GetStringValue("CurrentBuild"); err == nil {
 		b = s
 	} else if s, _, err := k.GetStringValue("ReleaseId"); err == nil {
@@ -81,8 +84,7 @@ func getVersion() string {
 	} else {
 		v, _, _ = k.GetStringValue("CurrentVersion")
 	}
-	k.Close()
-	switch {
+	switch k.Close(); {
 	case len(n) == 0 && len(b) == 0 && len(v) == 0:
 		return "Windows (?)"
 	case len(n) == 0 && len(b) > 0 && len(v) > 0:

@@ -24,8 +24,6 @@ var (
 	ErrUnable = errors.New("cannot preform this action")
 	// ErrFullBuffer is returned from the WritePacket function when the send buffer for Session is full.
 	ErrFullBuffer = errors.New("cannot add a Packet to a full send buffer")
-	// ErrClosedSession is an error returned when attempting to write a Packet to a closed Session.
-	ErrClosedSession = fmt.Errorf("cannot write a Packet to a closed Session: %w", io.ErrClosedPipe)
 )
 
 // Session is a struct that represents a connection between the client and the Listener. This struct does some
@@ -305,7 +303,7 @@ func (c *cluster) add(p *com.Packet) error {
 		return nil
 	}
 	if len(c.data) > 0 && !c.data[0].Belongs(p) {
-		return com.ErrMismatchedID
+		return fmt.Errorf("packet ID %d does not match combining Packet ID", p.ID)
 	}
 	if p.Flags.Len() > c.max {
 		c.max = p.Flags.Len()
@@ -428,7 +426,7 @@ func (s *Session) next(i bool) (*com.Packet, error) {
 }
 func (s *Session) write(w bool, p *com.Packet) error {
 	if atomic.LoadUint32(&s.done) > flagOpen {
-		return ErrClosedSession
+		return io.ErrClosedPipe
 	}
 	if p.Len() <= limits.FragLimit() {
 		if !w && len(s.send)+1 >= cap(s.send) {

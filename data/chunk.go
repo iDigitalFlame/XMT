@@ -23,8 +23,6 @@ var (
 	// ErrInvalidIndex is raised if a specified Grow or index function is supplied with an
 	// negative or out of bounds number or when a Seek index is not valid.
 	ErrInvalidIndex = errors.New("buffer index provided is not valid")
-	// ErrInvalidWhence is returned when the provided seek whence is not a valid whence value.
-	ErrInvalidWhence = errors.New("buffer seek whence is invalid")
 
 	bufs = sync.Pool{
 		New: func() interface{} {
@@ -129,6 +127,7 @@ func (c Chunk) Payload() []byte {
 	if c.buf == nil {
 		return nil
 	}
+	_ = c.buf[c.wpos] // BCE ?
 	return c.buf[c.wpos:]
 }
 
@@ -281,14 +280,14 @@ func (c *Chunk) Seek(o int64, w int) (int64, error) {
 	switch w {
 	case io.SeekStart:
 		if o < 0 {
-			return 0, ErrInvalidWhence
+			return 0, ErrInvalidIndex
 		}
 	case io.SeekCurrent:
 		o += int64(c.rpos)
 	case io.SeekEnd:
 		o += int64(c.Size())
 	default:
-		return 0, ErrInvalidWhence
+		return 0, fmt.Errorf("buffer seek %d whence is invalid", w)
 	}
 	if o < 0 || int(o) > c.Size() {
 		return 0, ErrInvalidIndex

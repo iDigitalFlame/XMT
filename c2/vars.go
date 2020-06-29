@@ -132,7 +132,7 @@ func notify(l *Listener, s *Session, p *com.Packet) error {
 		if p.ID == MsgRegister {
 			p.Device = s.Device.ID
 		} else {
-			return ErrInvalidPacketID
+			return fmt.Errorf("received a Packet ID %q that does not match our own ID %q", p.ID, s.ID)
 		}
 	}
 	if l != nil && p.Flags&com.FlagOneshot != 0 {
