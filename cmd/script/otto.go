@@ -1,0 +1,168 @@
+package script
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/iDigitalFlame/xmt/cmd"
+	"github.com/robertkrimen/otto"
+)
+
+// Otto is mapping for the Otto (github.com/robertkrimen/otto) JavaScript engine. This can be used to run JavaScript
+// directly and can be registered by the 'task.RegisterScript' function to include the engine in the XMT task runtime.
+const Otto ottoEngine = 0xD0
+
+var (
+	ottoPool = sync.Pool{
+		New: func() interface{} {
+			return newOtto()
+		},
+	}
+	ottoError = new(otto.Error)
+	ottoEmpty otto.Value
+)
+
+type ottoEngine uint8
+type ottoScript struct {
+	c strings.Builder
+	*otto.Otto
+}
+
+func newOtto() *ottoScript {
+	i := &ottoScript{Otto: otto.New()}
+	i.Otto.Interrupt = make(chan func(), 1)
+	if c, err := i.Get("console"); err == nil {
+		c.Object().Set("log", i.log)
+	}
+	i.Set("print", i.log)
+	i.Set("exec", ottoExec)
+	i.Set("sleep", ottoSleep)
+	return i
+}
+
+// InvokeOtto will use the Otto (github.com/robertkrimen/otto) JavaScript engine to run active JavaScript. This can be
+// used to run code not built in at compile time. The only argument is the script that is to be run. The results are
+// the output of the console (all console.log together) and any errors that may occur or syntax errors.
+//
+// This will capture the output of all the console writes and adds a 'print' statement as a shortcut to be used.
+// Another additional function 'exec' can be used to run commands natively. This function can take a vardict of strings
+// to be the command line arguments.
+func InvokeOtto(s string) (string, error) {
+	return InvokeOttoEx(context.Background(), nil, s)
+}
+func ottoExec(v otto.FunctionCall) otto.Value {
+	var p cmd.Process
+	if len(v.ArgumentList) == 1 {
+		s, err := v.Argument(0).ToString()
+		if err != nil {
+			i, _ := v.Otto.ToValue(err.Error())
+			return i
+		}
+		p.Args = cmd.Split(s)
+	} else {
+		for i := range v.ArgumentList {
+			s, err := v.Argument(i).ToString()
+			if err != nil {
+				i, _ := v.Otto.ToValue(err.Error())
+				return i
+			}
+			p.Args = append(p.Args, s)
+		}
+	}
+	b, err := p.CombinedOutput()
+	if err != nil {
+		i, _ := v.Otto.ToValue(err.Error())
+		return i
+	}
+	if len(b) > 0 && b[len(b)-1] == 10 {
+		b = b[:len(b)-1]
+	}
+	i, _ := v.Otto.ToValue(string(b))
+	return i
+}
+func ottoSleep(v otto.FunctionCall) otto.Value {
+	if len(v.ArgumentList) == 0 {
+		return ottoEmpty
+	}
+	n, err := v.Argument(0).ToFloat()
+	if err != nil {
+		return ottoEmpty
+	}
+	time.Sleep(time.Duration(n) * time.Second)
+	return ottoEmpty
+}
+func (o *ottoScript) run(c chan<- error, s string) {
+	_, err := o.Run(s)
+	if err != nil && len(err.Error()) == 0 {
+		return
+	}
+	c <- err
+}
+func (o *ottoScript) log(v otto.FunctionCall) otto.Value {
+	for i := range v.ArgumentList {
+		if i > 0 {
+			o.c.WriteByte(32)
+		}
+		o.c.WriteString(fmt.Sprintf("%v", v.Argument(i)))
+	}
+	o.c.WriteByte(10)
+	return ottoEmpty
+}
+
+// InvokeOttoContext will use the Otto (github.com/robertkrimen/otto) JavaScript engine to run active JavaScript. This can be
+// used to run code not built in at compile time. A context is required to timeout the script execution and the script
+// to be run, as a string. The results are the output of the console (all console.log together) and any errors that may
+// occur or syntax errors.
+//
+// This will capture the output of all the console writes and adds a 'print' statement as a shortcut to be used.
+// Another additional function 'exec' can be used to run commands natively. This function can take a vardict of strings
+// to be the command line arguments.
+func InvokeOttoContext(x context.Context, s string) (string, error) {
+	return InvokeOttoEx(x, nil, s)
+}
+
+// InvokeOttoEx will use the Otto (github.com/robertkrimen/otto) JavaScript engine to run active JavaScript. This can be
+// used to run code not built in at compile time. A context is required to timeout the script execution and the script
+// to be run, as a string. The results are the output of the console (all console.log together) and any errors that may
+// occur or syntax errors.
+//
+// This will capture the output of all the console writes and adds a 'print' statement as a shortcut to be used.
+// Another additional function 'exec' can be used to run commands natively. This function can take a vardict of strings
+// to be the command line arguments.
+//
+// This Ex function allows to specify a map that contains any starting variables to be supplied at runtime.
+func InvokeOttoEx(x context.Context, m map[string]interface{}, s string) (string, error) {
+	var (
+		c   = make(chan error, 1)
+		h   = ottoPool.Get().(*ottoScript)
+		err error
+	)
+	for k, v := range m {
+		h.Set(k, v)
+	}
+	go h.run(c, s)
+	select {
+	case <-x.Done():
+		h.Interrupt <- func() {
+			panic(ottoError)
+		}
+	case err = <-c:
+	}
+	close(c)
+	o := h.c.String()
+	h.c.Reset()
+	for k := range m {
+		h.Set(k, nil)
+	}
+	ottoPool.Put(h)
+	if len(o) > 1 && o[len(o)-1] == '\n' {
+		return o[:len(o)-1], err
+	}
+	return o, err
+}
+func (ottoEngine) Invoke(x context.Context, m map[string]interface{}, s string) (string, error) {
+	return InvokeOttoEx(x, m, s)
+}

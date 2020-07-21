@@ -50,7 +50,6 @@ const (
 )
 
 const (
-	xmtID              = "xmtFramework"
 	xmtIDPrime  uint32 = 16777619
 	xmtIDOffset uint32 = 2166136261
 )
@@ -71,7 +70,7 @@ type deviceArch uint8
 func getID() ID {
 	var (
 		i      = ID(make([]byte, IDSize))
-		s, err = machineid.ProtectedID(xmtID)
+		s, err = machineid.ProtectedID("xmtFramework-v2")
 	)
 	if err == nil {
 		copy(i, s)
@@ -230,7 +229,7 @@ func IDFromString(s string) (ID, error) {
 	case 4, MachineIDSize, IDSize:
 		break
 	default:
-		return nil, fmt.Errorf("ID size %d is invalid", len(i))
+		return nil, fmt.Errorf("invalid ID size %d", len(i))
 	}
 	return ID(i), nil
 }

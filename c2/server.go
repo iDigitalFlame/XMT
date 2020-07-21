@@ -236,7 +236,7 @@ func (s *Server) Oneshot(a string, c serverClient, p *Profile, d *com.Packet) er
 		return fmt.Errorf("unable to connect to %q: %w", a, err)
 	}
 	if d == nil {
-		d = &com.Packet{ID: MsgPing}
+		d = &com.Packet{ID: MvNop}
 	}
 	d.Flags |= com.FlagOneshot
 	err = writePacket(n, w, t, d)
@@ -310,7 +310,7 @@ func (s *Server) ConnectWith(a string, c serverClient, p *Profile, d *com.Packet
 	var (
 		x uint
 		l = &Session{ID: device.UUID, host: a, Device: *device.Local.Machine}
-		v = &com.Packet{ID: MsgHello, Device: l.ID, Job: uint16(util.Rand.Uint32())}
+		v = &com.Packet{ID: MvHello, Device: l.ID, Job: uint16(util.Rand.Uint32())}
 	)
 	if p != nil {
 		l.sleep, l.jitter = p.Sleep, uint8(p.Jitter)
@@ -335,7 +335,7 @@ func (s *Server) ConnectWith(a string, c serverClient, p *Profile, d *com.Packet
 	if err != nil {
 		return nil, fmt.Errorf("unable to read Packet: %w", err)
 	}
-	if r == nil || r.ID != MsgRegistered {
+	if r == nil || r.ID != MvComplete {
 		return nil, ErrEmptyPacket
 	}
 	if s.Log == nil {

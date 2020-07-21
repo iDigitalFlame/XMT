@@ -10,31 +10,16 @@ import (
 	"github.com/iDigitalFlame/xmt/device"
 )
 
-const (
-	// TaskUpload is a Task that instructs the Client to retrieve a file from the host.
-	TaskUpload simpleTask = 0xB001
-	// TaskRefresh is a Task that instructs the Client to redo the setup step for device discover and
-	// return the resulting device data.
-	TaskRefresh simpleTask = 0xB000
-	// TaskDownload is a Task that instructs the Client to write data to a file on the host.
-	TaskDownload simpleTask = 0xB003
-)
-
-type simpleTask uint16
-
 // Upload returns a Packet that will instruct a Client to upload the specified local file to the server.
 func Upload(s string) *com.Packet {
-	p := &com.Packet{ID: uint16(TaskUpload)}
+	p := &com.Packet{ID: TvUpload}
 	p.WriteString(s)
 	return p
-}
-func (t simpleTask) Thread() bool {
-	return t != TaskRefresh
 }
 
 // Download returns a Packet that will instruct a Client to save the specified bytes to the local file location.
 func Download(s string, b []byte) *com.Packet {
-	p := &com.Packet{ID: uint16(TaskDownload)}
+	p := &com.Packet{ID: TvDownload}
 	p.WriteString(s)
 	p.Write(b)
 	return p
@@ -55,12 +40,12 @@ func DownloadFile(s, r string) (*com.Packet, error) {
 // DownloadReader returns a Packet that will instruct a Client to save the contents of the supplied reader to
 // the remote file location. This will return an error if any errors occur during reading.
 func DownloadReader(s string, r io.Reader) (*com.Packet, error) {
-	p := &com.Packet{ID: uint16(TaskDownload)}
+	p := &com.Packet{ID: TvDownload}
 	p.WriteString(s)
 	_, err := io.Copy(p, r)
 	return p, err
 }
-func taskUpload(x context.Context, p *com.Packet) (*com.Packet, error) {
+func upload(x context.Context, p *com.Packet) (*com.Packet, error) {
 	var (
 		s   string
 		err error
@@ -94,7 +79,7 @@ func taskUpload(x context.Context, p *com.Packet) (*com.Packet, error) {
 	r.Close()
 	return w, err
 }
-func taskDownload(x context.Context, p *com.Packet) (*com.Packet, error) {
+func download(x context.Context, p *com.Packet) (*com.Packet, error) {
 	s, err := p.StringVal()
 	if err != nil {
 		return nil, err
@@ -116,24 +101,4 @@ func taskDownload(x context.Context, p *com.Packet) (*com.Packet, error) {
 	w.WriteString(h)
 	w.WriteInt64(n)
 	return w, err
-}
-func (t simpleTask) Do(x context.Context, p *com.Packet) (*com.Packet, error) {
-	switch t {
-	case TaskCode:
-		return taskCode(x, p)
-	case TaskUpload:
-		return taskUpload(x, p)
-	case TaskRefresh:
-		if err := device.Local.Refresh(); err != nil {
-			return nil, err
-		}
-		n := new(com.Packet)
-		device.Local.MarshalStream(n)
-		return n, nil
-	case TaskProcess:
-		return taskProcess(x, p)
-	case TaskDownload:
-		return taskDownload(x, p)
-	}
-	return nil, nil
 }

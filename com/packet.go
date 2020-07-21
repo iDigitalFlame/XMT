@@ -10,12 +10,12 @@ import (
 )
 
 // PacketHeaderSize is the length of the Packet header in bytes.
-const PacketHeaderSize = 46
+const PacketHeaderSize = 45
 
 // Packet is a struct that is a Reader and Writer that can
 // be generated to be sent, or received from a Connection.
 type Packet struct {
-	ID     uint16
+	ID     uint8
 	Job    uint16
 	Tags   []uint32
 	Flags  Flag
@@ -101,7 +101,7 @@ func (p Packet) MarshalStream(w data.Writer) error {
 	if p.Device == nil {
 		p.Device = device.Local.ID
 	}
-	if err := w.WriteUint16(p.ID); err != nil {
+	if err := w.WriteUint8(p.ID); err != nil {
 		return err
 	}
 	if err := w.WriteUint16(p.Job); err != nil {
@@ -129,7 +129,7 @@ func (p Packet) MarshalStream(w data.Writer) error {
 
 // UnmarshalStream reads the data of this Packet from the supplied Reader.
 func (p *Packet) UnmarshalStream(r data.Reader) error {
-	if err := r.ReadUint16(&p.ID); err != nil {
+	if err := r.ReadUint8(&p.ID); err != nil {
 		return err
 	}
 	if err := r.ReadUint16(&p.Job); err != nil {

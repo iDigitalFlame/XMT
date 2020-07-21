@@ -190,7 +190,7 @@ func (l *Listener) handlePacket(c net.Conn, o bool) bool {
 			}
 			if len(z) > 0 {
 				l.log.Trace("[%s:%s] %s: Resolved Tags added %d Packets!", l.name, s.Device.ID, s.host, len(z))
-				u := &com.Packet{ID: MsgMultiple, Flags: com.FlagMulti | com.FlagMultiDevice}
+				u := &com.Packet{ID: MvMultiple, Flags: com.FlagMulti | com.FlagMultiDevice}
 				n.MarshalStream(u)
 				for i := 0; i < len(z); i++ {
 					z[i].MarshalStream(u)
@@ -215,7 +215,7 @@ func (l *Listener) handlePacket(c net.Conn, o bool) bool {
 	var (
 		i, t uint16
 		n    *com.Packet
-		m    = &com.Packet{ID: MsgMultiple, Flags: com.FlagMulti | com.FlagMultiDevice}
+		m    = &com.Packet{ID: MvMultiple, Flags: com.FlagMulti | com.FlagMultiDevice}
 	)
 	for ; i < x; i++ {
 		n = new(com.Packet)
@@ -262,9 +262,9 @@ func (l *Listener) client(c net.Conn, p *com.Packet, o bool) *Session {
 		s, ok = l.sessions[i]
 	)
 	if !ok {
-		if p.ID != MsgHello {
+		if p.ID != MvHello {
 			l.log.Warning("[%s:%s] %s: Received a non-hello Packet from a unregistered client!", l.name, p.Device, c.RemoteAddr().String())
-			if err := writePacket(c, l.w, l.t, &com.Packet{ID: MsgRegister}); err != nil {
+			if err := writePacket(c, l.w, l.t, &com.Packet{ID: MvRegister}); err != nil {
 				l.log.Warning("[%s:%s] %s: Received an error writing data to client: %s!", l.name, p.Device, c.RemoteAddr().String(), err.Error())
 			}
 			return nil
@@ -291,14 +291,14 @@ func (l *Listener) client(c net.Conn, p *com.Packet, o bool) *Session {
 	}
 	s.Last = time.Now()
 	s.host = c.RemoteAddr().String()
-	if p.ID == MsgHello {
+	if p.ID == MvHello {
 		if err := s.Device.UnmarshalStream(p); err != nil {
 			l.log.Warning("[%s:%s] %s: Received an error reading data from client: %s!", l.name, s.ID, s.host, err.Error())
 			return nil
 		}
 		l.log.Trace("[%s:%s] %s: Received client device info: (OS: %s, %s).", l.name, s.ID, s.host, s.Device.OS.String(), s.Device.Version)
 		if p.Flags&com.FlagProxy == 0 {
-			s.send <- &com.Packet{ID: MsgRegistered, Device: p.Device, Job: p.Job}
+			s.send <- &com.Packet{ID: MvComplete, Device: p.Device, Job: p.Job}
 		}
 		if l.New != nil {
 			l.s.events <- event{s: s, sFunc: l.New}

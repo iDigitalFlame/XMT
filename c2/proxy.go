@@ -177,7 +177,7 @@ func (c *proxyClient) next(i bool) (*com.Packet, error) {
 		if i {
 			return nil, nil
 		}
-		return &com.Packet{ID: MsgSleep, Device: c.ID}, nil
+		return &com.Packet{ID: MvNop, Device: c.ID}, nil
 	}
 	var (
 		p   *com.Packet
@@ -189,7 +189,7 @@ func (c *proxyClient) next(i bool) (*com.Packet, error) {
 		p = <-c.send
 	}
 	if len(c.send) == 0 && p.Verify(c.ID) {
-		if p.ID != MsgSleep {
+		if p.ID != MvNop {
 			atomic.StoreUint32(&c.ready, 1)
 		}
 		return p, nil
@@ -216,7 +216,7 @@ func (p *Proxy) handlePacket(c net.Conn, o bool) bool {
 			}
 			if len(z) > 0 {
 				p.log.Trace("[%s:Proxy:%s] %s: Resolved Tags added %d Packets!", p.parent.ID, s.ID, c.RemoteAddr().String(), len(z))
-				u := &com.Packet{ID: MsgMultiple, Flags: com.FlagMulti | com.FlagMultiDevice}
+				u := &com.Packet{ID: MvMultiple, Flags: com.FlagMulti | com.FlagMultiDevice}
 				n.MarshalStream(u)
 				for i := 0; i < len(z); i++ {
 					z[i].MarshalStream(u)
@@ -241,7 +241,7 @@ func (p *Proxy) handlePacket(c net.Conn, o bool) bool {
 	var (
 		i, t uint16
 		n    *com.Packet
-		m    = &com.Packet{ID: MsgMultiple, Flags: com.FlagMulti | com.FlagMultiDevice}
+		m    = &com.Packet{ID: MvMultiple, Flags: com.FlagMulti | com.FlagMultiDevice}
 	)
 	for ; i < x && p.parent.done == 0; i++ {
 		n = new(com.Packet)
@@ -287,10 +287,10 @@ func (p *Proxy) client(c net.Conn, d *com.Packet) *proxyClient {
 		s, ok = p.parent.swarm.clients[i]
 	)
 	if !ok {
-		if d.ID != MsgHello {
+		if d.ID != MvHello {
 			if len(p.parent.swarm.new) == 0 {
 				p.log.Warning("[%s:Proxy:%s] %s: Received a non-hello Packet from a unregistered client!", p.parent.ID, d.Device, c.RemoteAddr().String())
-				if err := writePacket(c, p.w, p.t, &com.Packet{ID: MsgRegister}); err != nil {
+				if err := writePacket(c, p.w, p.t, &com.Packet{ID: MvRegister}); err != nil {
 					p.log.Warning("[%s:Proxy:%s] %s: Received an error writing data to client: %s!", p.parent.ID, d.Device, c.RemoteAddr().String(), err.Error())
 				}
 			}
@@ -304,21 +304,21 @@ func (p *Proxy) client(c net.Conn, d *com.Packet) *proxyClient {
 		p.parent.send <- d
 		p.parent.swarm.new <- s
 		p.clients = append(p.clients, d.Device.Hash())
-		if err := writePacket(c, p.w, p.t, &com.Packet{ID: MsgRegistered, Device: d.Device, Job: d.Job}); err != nil {
+		if err := writePacket(c, p.w, p.t, &com.Packet{ID: MvComplete, Device: d.Device, Job: d.Job}); err != nil {
 			p.log.Warning("[%s:Proxy:%s] %s: Received an error writing data to client: %s!", p.parent.ID, d.Device, c.RemoteAddr().String(), err.Error())
 		}
 		p.log.Debug("[%s:Proxy:%s] %s: New client registered as %q hash 0x%X.", p.parent.ID, s.ID, c.RemoteAddr().String(), s.ID, i)
 		return nil
 	}
 	switch {
-	case d.ID == MsgShutdown:
+	case d.ID == MvShutdown:
 		p.parent.swarm.close <- i
 		p.parent.send <- d
-		if err := writePacket(c, p.w, p.t, &com.Packet{ID: MsgShutdown, Device: d.Device, Job: d.Job}); err != nil {
+		if err := writePacket(c, p.w, p.t, &com.Packet{ID: MvShutdown, Device: d.Device, Job: d.Job}); err != nil {
 			p.log.Warning("[%s:Proxy:%s] %s: Received an error writing data to client: %s!", p.parent.ID, d.Device, c.RemoteAddr().String(), err.Error())
 		}
 		return nil
-	case d.ID != MsgPing || d.Flags&com.FlagMultiDevice != 0:
+	case d.ID != MvNop || d.Flags&com.FlagMultiDevice != 0:
 		atomic.StoreUint32(&s.ready, 1)
 		p.parent.send <- d
 	}

@@ -10,7 +10,9 @@ require (
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/iDigitalFlame/logx/logx v0.0.0-20191005045951-4408902ea8e6
 	github.com/mitchellh/go-ps v1.0.0
+	github.com/robertkrimen/otto v0.0.0-20191219234010-c382bd3c16ff
 	github.com/shirou/gopsutil v2.19.12+incompatible
 	golang.org/x/sys v0.0.0-20200523222454-059865788121
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
+	gopkg.in/sourcemap.v1 v1.0.5 // indirect
 )

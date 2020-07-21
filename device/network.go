@@ -46,11 +46,7 @@ func (n *Network) Refresh() error {
 		if err != nil || len(a) == 0 {
 			continue
 		}
-		c := device{
-			Name:     l[i].Name,
-			Address:  make([]net.IP, 0),
-			Hardware: l[i].HardwareAddr,
-		}
+		c := device{Name: l[i].Name, Address: make([]net.IP, 0), Hardware: l[i].HardwareAddr}
 		for o := range a {
 			if o > maxNetworks {
 				break

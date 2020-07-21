@@ -2,7 +2,9 @@ package util
 
 import (
 	"math/rand"
-	"time"
+
+	// Import unsafe to use faster "cputicks" function instead of "time.Now().UnixNano()"
+	_ "unsafe"
 )
 
 const (
@@ -16,7 +18,7 @@ const (
 )
 
 // Rand is the custom Random number generator, based on the current time as a seed.
-var Rand = &random{Rand: rand.New(rand.NewSource(time.Now().UnixNano()))}
+var Rand = &random{Rand: rand.New(rand.NewSource(cputicks()))}
 
 var (
 	// All represents the string instruction set that contains all alpha-numeric characters.
@@ -25,8 +27,8 @@ var (
 	Upper set = [2]int{26, 52}
 	// Lower represents the string instruction set that contains only lowercase non-numeric characters.
 	Lower set = [2]int{0, 26}
-	// Number represents the string instruction set that contains only numeric characters.
-	Number set = [2]int{52, 62}
+	// Numbers represents the string instruction set that contains only numeric characters.
+	Numbers set = [2]int{52, 62}
 	// Characters represents the string instruction set that contains mixed case non-numeric characters.
 	Characters set = [2]int{0, 52}
 )
@@ -35,6 +37,9 @@ type set [2]int
 type random struct {
 	*rand.Rand
 }
+
+//go:linkname cputicks runtime.cputicks
+func cputicks() int64
 
 func (r *random) String(n int) string {
 	return r.StringEx(All, n, n)
@@ -46,7 +51,7 @@ func (r *random) StringUpper(n int) string {
 	return r.StringEx(Upper, n, n)
 }
 func (r *random) StringNumber(n int) string {
-	return r.StringEx(Number, n, n)
+	return r.StringEx(Numbers, n, n)
 }
 func (r *random) StringRange(m, x int) string {
 	return r.StringEx(All, m, x)
@@ -85,7 +90,7 @@ func (r *random) StringUpperRange(m, x int) string {
 	return r.StringEx(Upper, m, x)
 }
 func (r *random) StringNumberRange(m, x int) string {
-	return r.StringEx(Number, m, x)
+	return r.StringEx(Numbers, m, x)
 }
 func (r *random) StringCharactersRange(m, x int) string {
 	return r.StringEx(Characters, m, x)
