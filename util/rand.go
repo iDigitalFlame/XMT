@@ -41,6 +41,17 @@ type random struct {
 //go:linkname cputicks runtime.cputicks
 func cputicks() int64
 
+// FastRand is a fast thread local random function. This should be used in place instead of 'Rand.Uint32()'.
+//
+// Taken from https://github.com/dgraph-io/ristretto/blob/master/z/rtutil.go Thanks!
+//go:linkname FastRand runtime.fastrand
+func FastRand() uint32
+
+// FastRandN is a fast thread local random function. This should be used in place instead of 'Rand.Uint32n()'.
+// This function will take a max value to specify.
+func FastRandN(n int) uint32 {
+	return FastRand() % uint32(n)
+}
 func (r *random) String(n int) string {
 	return r.StringEx(All, n, n)
 }

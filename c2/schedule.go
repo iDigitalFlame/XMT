@@ -66,7 +66,7 @@ func (x *Scheduler) newJobID() uint16 {
 		i, c uint16
 	)
 	for ; c < 256; c++ {
-		i = uint16(util.Rand.Uint32())
+		i = uint16(util.FastRand())
 		if _, ok = x.jobs[i]; !ok {
 			return i
 		}

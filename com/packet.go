@@ -87,7 +87,7 @@ func (p Packet) Belongs(n *Packet) bool {
 // the Device is nil or matches the specified host ID, false if otherwise.
 func (p *Packet) Verify(i device.ID) bool {
 	if p.Job == 0 && p.Flags&FlagProxy == 0 {
-		p.Job = uint16(util.Rand.Uint32())
+		p.Job = uint16(util.FastRand())
 	}
 	if p.Device == nil {
 		p.Device = i

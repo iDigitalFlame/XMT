@@ -69,9 +69,9 @@ func (s *Session) wait() {
 	}
 	w := s.sleep
 	if s.jitter > 0 && s.jitter <= 100 {
-		if (s.jitter == 100 || uint8(util.Rand.Int31n(100)) < s.jitter) && w > time.Millisecond {
+		if (s.jitter == 100 || uint8(util.FastRandN(100)) < s.jitter) && w > time.Millisecond {
 			d := util.Rand.Int63n(int64(w / time.Millisecond))
-			if util.Rand.Int31n(2) == 1 {
+			if util.FastRandN(2) == 1 {
 				d = d * -1
 			}
 			w += (time.Duration(d) * time.Millisecond)
@@ -441,7 +441,7 @@ func (s *Session) write(w bool, p *com.Packet) error {
 	}
 	var (
 		x    = int64(p.Len())
-		g    = uint16(util.Rand.Uint32())
+		g    = uint16(util.FastRand())
 		f    = atomic.LoadUint32(&s.mode) == 1
 		err  error
 		t, n int64

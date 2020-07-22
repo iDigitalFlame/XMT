@@ -112,7 +112,7 @@ func (d *DNSClient) Write(w io.Writer, b []byte) error {
 		g[0], g[1] = d.lastA, d.lastB
 		d.lastA, d.lastB = 0, 0
 	} else {
-		d.lastA, d.lastB = byte(util.Rand.Int()), byte(util.Rand.Int())
+		d.lastA, d.lastB = byte(util.FastRand()), byte(util.FastRand())
 		g[0], g[1] = d.lastA, d.lastB
 	}
 	g[2], g[3] = 1, 32

@@ -251,10 +251,10 @@ func notifyClient(l *Listener, s *Session, p *com.Packet) {
 		case MvRegister:
 			if s.swarm != nil {
 				for _, v := range s.swarm.clients {
-					v.send <- &com.Packet{ID: MvRegister, Job: uint16(util.Rand.Uint32())}
+					v.send <- &com.Packet{ID: MvRegister, Job: uint16(util.FastRand())}
 				}
 			}
-			n := &com.Packet{ID: MvHello, Job: uint16(util.Rand.Uint32())}
+			n := &com.Packet{ID: MvHello, Job: uint16(util.FastRand())}
 			device.Local.MarshalStream(n)
 			n.Close()
 			s.send <- n

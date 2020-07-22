@@ -310,7 +310,7 @@ func (s *Server) ConnectWith(a string, c serverClient, p *Profile, d *com.Packet
 	var (
 		x uint
 		l = &Session{ID: device.UUID, host: a, Device: *device.Local.Machine}
-		v = &com.Packet{ID: MvHello, Device: l.ID, Job: uint16(util.Rand.Uint32())}
+		v = &com.Packet{ID: MvHello, Device: l.ID, Job: uint16(util.FastRand())}
 	)
 	if p != nil {
 		l.sleep, l.jitter = p.Sleep, uint8(p.Jitter)
