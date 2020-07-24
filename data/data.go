@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
-	"io/ioutil"
+	"unsafe"
 )
 
 const (
@@ -60,6 +60,9 @@ type Reader interface {
 	ReadFloat64(*float64) error
 	io.ReadCloser
 }
+type nopCloser struct {
+	io.Reader
+}
 
 // Writer is a basic interface that supports writing of all core Golang builtin types.
 type Writer interface {
@@ -102,9 +105,24 @@ type Readable interface {
 	UnmarshalStream(Reader) error
 }
 
+func (nopCloser) Close() error {
+	return nil
+}
 func (r *ctxReader) Close() error {
 	r.cancel()
 	return r.ReadCloser.Close()
+}
+func float32ToInt(f float32) uint32 {
+	return *(*uint32)(unsafe.Pointer(&f))
+}
+func float64ToInt(f float64) uint64 {
+	return *(*uint64)(unsafe.Pointer(&f))
+}
+func float32FromInt(i uint32) float32 {
+	return *(*float32)(unsafe.Pointer(&i))
+}
+func float64FromInt(i uint64) float64 {
+	return *(*float64)(unsafe.Pointer(&i))
 }
 func (r *ctxReader) Read(b []byte) (int, error) {
 	select {
@@ -230,7 +248,7 @@ func NewCtxReader(x context.Context, r io.Reader) io.ReadCloser {
 	if c, ok := r.(io.ReadCloser); ok {
 		i.ReadCloser = c
 	} else {
-		i.ReadCloser = ioutil.NopCloser(r)
+		i.ReadCloser = &nopCloser{r}
 	}
 	i.ctx, i.cancel = context.WithCancel(x)
 	return i

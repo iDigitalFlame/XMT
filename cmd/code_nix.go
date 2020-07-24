@@ -2,7 +2,7 @@
 
 package cmd
 
-import "github.com/iDigitalFlame/xmt/device"
+import "github.com/iDigitalFlame/xmt/device/devtools"
 
 type base struct{}
 
@@ -17,7 +17,7 @@ func (*Code) Stop() error {
 // if attempting to start a Code thread that already has been started previously. Always returns 'ErrNoWindows'
 // on non-Windows devices.
 func (*Code) Start() error {
-	return device.ErrNoWindows
+	return devtools.ErrNoWindows
 }
 func (base) String() string {
 	return ""

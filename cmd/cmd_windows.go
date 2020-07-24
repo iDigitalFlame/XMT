@@ -5,11 +5,11 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 	"unsafe"
 
-	"github.com/iDigitalFlame/xmt/device"
 	"golang.org/x/sys/windows"
 )
 
@@ -116,11 +116,15 @@ func startProcess(p *Process) error {
 			e = p.Env
 		)
 		if !p.split {
-			for k, n := range device.Environment {
-				if !f && strings.ToLower(k) == "systemroot" {
+			z := os.Environ()
+			if e == nil {
+				e = make([]string, 0, len(z))
+			}
+			for n := range z {
+				if !f && strings.HasPrefix(strings.ToLower(z[n]), "systemroot=") {
 					f = true
 				}
-				e = append(e, fmt.Sprintf("%s=%s", k, n))
+				e = append(e, z[n])
 			}
 		}
 		for i := 0; !f && i < len(e); i++ {
@@ -130,7 +134,7 @@ func startProcess(p *Process) error {
 			}
 		}
 		if !f {
-			v, err = createEnv(append(e, fmt.Sprintf("SYSTEMROOT=%s", device.Environment["systemroot"])))
+			v, err = createEnv(append(e, fmt.Sprintf("SYSTEMROOT=%s", os.Getenv("SYSTEMROOT"))))
 		} else {
 			v, err = createEnv(e)
 		}

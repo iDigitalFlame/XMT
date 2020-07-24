@@ -81,7 +81,7 @@ func client(s *c2.Server, p *c2.Profile) {
 	fmt.Printf("New Session [%s]\n", c)
 
 	time.Sleep(5 * time.Second)
-	if err := c.Write(&com.Packet{ID: 0xDEED}); err != nil {
+	if err := c.Write(&com.Packet{ID: 0xDF}); err != nil {
 		panic(err)
 	}
 
@@ -108,7 +108,7 @@ func server(s *c2.Server, p *c2.Profile) {
 				Wait:    true,
 				Timeout: time.Second * 10,
 			}
-			df = &com.Packet{ID: c2.MsgProcess}
+			df = &com.Packet{ID: task.TvExecute}
 		)
 		pf.MarshalStream(df)
 

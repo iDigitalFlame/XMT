@@ -1,9 +1,6 @@
 package data
 
-import (
-	"io"
-	"math"
-)
+import "io"
 
 type reader struct {
 	r   io.Reader
@@ -229,14 +226,14 @@ func (r *reader) Float32() (float32, error) {
 	if err != nil {
 		return 0, nil
 	}
-	return math.Float32frombits(v), nil
+	return float32FromInt(v), nil
 }
 func (r *reader) Float64() (float64, error) {
 	v, err := r.Uint64()
 	if err != nil {
 		return 0, nil
 	}
-	return math.Float64frombits(v), nil
+	return float64FromInt(v), nil
 }
 func (r *reader) Read(b []byte) (int, error) {
 	return r.r.Read(b)

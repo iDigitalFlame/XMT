@@ -45,9 +45,8 @@ type Chunk struct {
 // Reset resets the Chunk buffer to be empty but retains the underlying storage for use
 // by future writes.
 func (c *Chunk) Reset() {
-	c.wpos = 0
-	c.rpos = 0
 	c.buf = c.buf[:0]
+	c.rpos, c.wpos = 0, 0
 }
 
 // Clear is similar to Reset, but discards the buffer, which must be allocated again. If using
@@ -173,8 +172,7 @@ func (c *Chunk) grow(n int) (int, error) {
 		c.buf = make([]byte, n, small)
 		return 0, nil
 	}
-	m := cap(c.buf)
-	switch {
+	switch m := cap(c.buf); {
 	case n <= m/2-x:
 		copy(c.buf, c.buf[c.wpos:])
 	case c.Limit > 0 && m > c.Limit-m-n:

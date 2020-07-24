@@ -1,9 +1,6 @@
 package data
 
-import (
-	"io"
-	"math"
-)
+import "io"
 
 type writer struct {
 	_ [0]func()
@@ -113,8 +110,8 @@ func (w *writer) Write(b []byte) (int, error) {
 	return w.w.Write(b)
 }
 func (w *writer) WriteFloat32(f float32) error {
-	return w.WriteUint32(math.Float32bits(f))
+	return w.WriteUint32(float32ToInt(f))
 }
 func (w *writer) WriteFloat64(f float64) error {
-	return w.WriteUint64(math.Float64bits(f))
+	return w.WriteUint64(float64ToInt(f))
 }

@@ -57,12 +57,12 @@ type DNSClient struct {
 
 func (d DNSClient) domain() string {
 	if len(d.Domains) == 0 {
-		return DefaultDomains[util.Rand.Intn(len(DefaultDomains))]
+		return DefaultDomains[util.FastRandN(len(DefaultDomains))]
 	}
 	if len(d.Domains) == 1 {
 		return d.Domains[0]
 	}
-	return d.Domains[util.Rand.Intn(len(d.Domains))]
+	return d.Domains[util.FastRandN(len(d.Domains))]
 }
 
 // Read satisfies the Transform interface requirements.

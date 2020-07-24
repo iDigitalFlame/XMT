@@ -99,7 +99,7 @@ func (p *Packet) Verify(i device.ID) bool {
 // MarshalStream writes the data of this Packet to the supplied Writer.
 func (p Packet) MarshalStream(w data.Writer) error {
 	if p.Device == nil {
-		p.Device = device.Local.ID
+		p.Device = device.UUID
 	}
 	if err := w.WriteUint8(p.ID); err != nil {
 		return err

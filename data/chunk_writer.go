@@ -1,9 +1,5 @@
 package data
 
-import (
-	"math"
-)
-
 // WriteInt writes the supplied value to the Chunk payload buffer.
 func (c *Chunk) WriteInt(n int) error {
 	return c.WriteUint64(uint64(n))
@@ -140,7 +136,7 @@ func (c *Chunk) WriteFloat32(f float32) error {
 	if !c.Avaliable(4) {
 		return ErrLimit
 	}
-	return c.WriteUint32(math.Float32bits(f))
+	return c.WriteUint32(float32ToInt(f))
 }
 
 // WriteFloat64 writes the supplied value to the Chunk payload buffer.
@@ -148,5 +144,5 @@ func (c *Chunk) WriteFloat64(f float64) error {
 	if !c.Avaliable(8) {
 		return ErrLimit
 	}
-	return c.WriteUint64(math.Float64bits(f))
+	return c.WriteUint64(float64ToInt(f))
 }

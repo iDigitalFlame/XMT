@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/iDigitalFlame/xmt/util"
+	"github.com/iDigitalFlame/xmt/util/text"
 )
 
 // DefaultGenerator is the generator used if no generator is provided when a client attempts a
 // connection. The default values are a URL for an news post, Windows host and a Firefox version 70 user agent.
 var DefaultGenerator = Generator{
-	URL:   util.Matcher("/news/post/%d/"),
-	Agent: util.Matcher("Mozilla/5.0 (Windows NT 10; WOW64; rv:79.0) Gecko/20101%100d Firefox/79.0"),
+	URL:   text.Matcher("/news/post/%d/"),
+	Agent: text.Matcher("Mozilla/5.0 (Windows NT 10; WOW64; rv:79.0) Gecko/20101%100d Firefox/79.0"),
 }
 
 // Rule is a struct that represents a rule set used by the Web server to determine
@@ -22,7 +22,7 @@ type Rule struct {
 
 // Generator is a struct that is composed of three separate fmt.Stringer interfaces. These are called
 // via their 'String' function to specify the User-Agent, URL and Host string values. They can be set to
-// static strings using the 'util.String' wrapper. This struct can be used as a C2 client connector. If
+// static strings using the 'text.String' wrapper. This struct can be used as a C2 client connector. If
 // the Client property is not set, the DefaultClient value will be used.
 type Generator struct {
 	URL, Host, Agent fmt.Stringer
@@ -44,28 +44,28 @@ func (g Generator) Rule() Rule {
 	if g.URL != nil {
 		if m, ok := g.URL.(matcher); ok {
 			r.URL = m
-		} else if m, ok := g.URL.(util.Matcher); ok {
+		} else if m, ok := g.URL.(text.Matcher); ok {
 			r.URL = m.Match()
 		} else {
-			r.URL = util.Matcher(g.URL.String()).Match()
+			r.URL = text.Matcher(g.URL.String()).Match()
 		}
 	}
 	if g.Host != nil {
 		if m, ok := g.Host.(matcher); ok {
 			r.Host = m
-		} else if m, ok := g.Host.(util.Matcher); ok {
+		} else if m, ok := g.Host.(text.Matcher); ok {
 			r.Host = m.Match()
 		} else {
-			r.Host = util.Matcher(g.Host.String()).Match()
+			r.Host = text.Matcher(g.Host.String()).Match()
 		}
 	}
 	if g.Agent != nil {
 		if m, ok := g.Agent.(matcher); ok {
 			r.Agent = m
-		} else if m, ok := g.Agent.(util.Matcher); ok {
+		} else if m, ok := g.Agent.(text.Matcher); ok {
 			r.Agent = m.Match()
 		} else {
-			r.Agent = util.Matcher(g.Agent.String()).Match()
+			r.Agent = text.Matcher(g.Agent.String()).Match()
 		}
 	}
 	return r

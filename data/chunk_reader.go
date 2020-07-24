@@ -1,9 +1,6 @@
 package data
 
-import (
-	"io"
-	"math"
-)
+import "io"
 
 // Int reads the value from the Chunk payload buffer.
 func (c *Chunk) Int() (int, error) {
@@ -246,7 +243,7 @@ func (c *Chunk) Float32() (float32, error) {
 	if err != nil {
 		return 0, nil
 	}
-	return math.Float32frombits(v), nil
+	return float32FromInt(v), nil
 }
 
 // Float64 reads the value from the Chunk payload buffer.
@@ -255,7 +252,7 @@ func (c *Chunk) Float64() (float64, error) {
 	if err != nil {
 		return 0, nil
 	}
-	return math.Float64frombits(v), nil
+	return float64FromInt(v), nil
 }
 
 // StringVal reads the value from the Chunk payload buffer.

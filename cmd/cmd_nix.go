@@ -4,14 +4,12 @@ package cmd
 
 import (
 	"errors"
-	"fmt"
+	"os"
 	"os/exec"
-	"os/user"
-	"strconv"
 	"sync/atomic"
 	"syscall"
 
-	"github.com/iDigitalFlame/xmt/device"
+	"github.com/iDigitalFlame/xmt/device/devtools"
 )
 
 const (
@@ -108,30 +106,23 @@ func startProcess(p *Process) error {
 	p.opts.Dir, p.opts.Env = p.Dir, p.Env
 	p.opts.Stdin, p.opts.Stdout, p.opts.Stderr = p.Stdin, p.Stdout, p.Stderr
 	if !p.split {
-		for k, n := range device.Environment {
-			p.opts.Env = append(p.opts.Env, fmt.Sprintf("%s=%s", k, n))
+		z := os.Environ()
+		if p.opts.Env == nil {
+			p.opts.Env = make([]string, 0, len(z))
+		}
+		for n := range z {
+			p.opts.Env = append(p.opts.Env, z[n])
 		}
 	}
 	if p.flags > 0 {
 		p.opts.Cmd.SysProcAttr = &syscall.SysProcAttr{Chroot: p.root}
-		if p.flags&flagSetUID != 0 && p.flags&flagSetGID != 0 {
+		switch {
+		case p.flags&flagSetUID != 0 && p.flags&flagSetGID != 0:
 			p.opts.Cmd.SysProcAttr.Credential = &syscall.Credential{Uid: p.uid, Gid: p.gid}
-		} else {
-			c, err := user.Current()
-			if err != nil {
-				return err
-			}
-			var (
-				u, _ = strconv.Atoi(c.Uid)
-				g, _ = strconv.Atoi(c.Gid)
-			)
-			p.opts.Cmd.SysProcAttr.Credential = new(syscall.Credential)
-			if p.flags&flagSetUID != 0 {
-				p.opts.Cmd.SysProcAttr.Credential.Uid = uint32(u)
-			}
-			if p.flags&flagSetGID != 0 {
-				p.opts.Cmd.SysProcAttr.Credential.Gid = uint32(g)
-			}
+		case p.flags&flagSetUID != 0 && p.flags&flagSetGID == 0:
+			p.opts.Cmd.SysProcAttr.Credential = &syscall.Credential{Uid: p.uid, Gid: uint32(os.Getgid())}
+		case p.flags&flagSetUID == 0 && p.flags&flagSetGID != 0:
+			p.opts.Cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(os.Getuid()), Gid: p.gid}
 		}
 	}
 	if err := p.opts.Start(); err != nil {
@@ -205,7 +196,7 @@ func (*Process) SetWindowTitle(_ string) {}
 // This function returns an error if the Process was not started. The handle is not expected to be valid after the
 // Process exits or is terminated. This function always returns 'ErrNoWindows' on non-Windows devices.
 func (Process) Handle() (uintptr, error) {
-	return 0, device.ErrNoWindows
+	return 0, devtools.ErrNoWindows
 }
 
 // SetWindowSize will set the window display size of the newly spawned process. This function has no effect

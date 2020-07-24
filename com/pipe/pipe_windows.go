@@ -320,7 +320,6 @@ func DialContext(x context.Context, path string) (net.Conn, error) {
 		}
 		return nil, &errno{m: err.Error(), e: err}
 	}
-	return nil, nil
 }
 func complete(h windows.Handle, o *windows.Overlapped) (uint32, error) {
 	if _, err := windows.WaitForSingleObject(o.HEvent, windows.INFINITE); err != nil {

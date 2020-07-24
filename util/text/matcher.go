@@ -1,4 +1,4 @@
-package util
+package text
 
 import (
 	"bytes"
@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/iDigitalFlame/xmt/util"
 )
 
 const (
@@ -85,7 +87,6 @@ func (s Matcher) String() string {
 	}
 	var (
 		l   int
-		i   int64
 		err error
 		b   = builders.Get().(*strings.Builder)
 	)
@@ -95,13 +96,11 @@ func (s Matcher) String() string {
 		}
 		if m[x][4] > 0 && m[x][5] > m[x][4] {
 			if s[m[x][5]-1] == 'f' {
-				i, err = strconv.ParseInt(string(s[m[x][4]:m[x][5]-1]), 10, 32)
+				v, err = strconv.Atoi(string(s[m[x][4] : m[x][5]-1]))
 			} else {
-				i, err = strconv.ParseInt(string(s[m[x][4]:m[x][5]]), 10, 32)
+				v, err = strconv.Atoi(string(s[m[x][4]:m[x][5]]))
 			}
-			if err == nil {
-				v = int(i)
-			} else {
+			if err != nil {
 				v = -1
 			}
 		} else {
@@ -109,37 +108,37 @@ func (s Matcher) String() string {
 		}
 		switch {
 		case s[m[x][1]-1] == 'n' && s[m[x][1]-2] == 'f' && v > 0:
-			c = Rand.StringNumber(v)
+			c = util.Rand.StringNumber(v)
 		case s[m[x][1]-1] == 'c' && s[m[x][1]-2] == 'f' && v > 0:
-			c = Rand.StringCharacters(v)
+			c = util.Rand.StringCharacters(v)
 		case s[m[x][1]-1] == 'u' && s[m[x][1]-2] == 'f' && v > 0:
-			c = Rand.StringUpper(v)
+			c = util.Rand.StringUpper(v)
 		case s[m[x][1]-1] == 'l' && s[m[x][1]-2] == 'f' && v > 0:
-			c = Rand.StringLower(v)
+			c = util.Rand.StringLower(v)
 		case s[m[x][1]-1] == 's' && s[m[x][1]-2] == 'f' && v > 0:
-			c = Rand.String(v)
+			c = util.Rand.String(v)
 		case s[m[x][1]-1] == 'd' && s[m[x][1]-2] == 'f' && v >= 0:
 			c = strconv.Itoa(v)
 		case s[m[x][1]-1] == 'h' && s[m[x][1]-2] == 'f' && v >= 0:
 			c = fmt.Sprintf("%x", v)
 		case s[m[x][1]-1] == 'd' && v >= 0:
-			c = strconv.Itoa(Rand.Intn(v))
+			c = strconv.Itoa(int(util.FastRandN(v)))
 		case s[m[x][1]-1] == 'h' && v >= 0:
-			c = fmt.Sprintf("%x", Rand.Intn(v))
+			c = fmt.Sprintf("%x", util.FastRandN(v))
 		case s[m[x][1]-1] == 'n' && v > 0:
-			c = Rand.StringNumberRange(1, v)
+			c = util.Rand.StringNumberRange(1, v)
 		case s[m[x][1]-1] == 'c' && v > 0:
-			c = Rand.StringCharactersRange(1, v)
+			c = util.Rand.StringCharactersRange(1, v)
 		case s[m[x][1]-1] == 'u' && v > 0:
-			c = Rand.StringUpperRange(1, v)
+			c = util.Rand.StringUpperRange(1, v)
 		case s[m[x][1]-1] == 'l' && v > 0:
-			c = Rand.StringLowerRange(1, v)
+			c = util.Rand.StringLowerRange(1, v)
 		case s[m[x][1]-1] == 's' && v > 0:
-			c = Rand.StringRange(1, v)
+			c = util.Rand.StringRange(1, v)
 		case s[m[x][1]-1] == 'd':
-			c = strconv.Itoa(Rand.Int())
+			c = strconv.Itoa(int(util.FastRand()))
 		case s[m[x][1]-1] == 'h':
-			c = fmt.Sprintf("%x", Rand.Int())
+			c = fmt.Sprintf("%x", util.FastRand())
 		default:
 			c = string(s[m[x][0]:m[x][1]])
 		}
@@ -187,27 +186,23 @@ func (s Matcher) MatchEx(o bool) Regexp {
 	var (
 		l   int
 		d   rune
-		i   int64
 		err error
 		b   = builders.Get().(*strings.Builder)
 	)
-	if !o {
+	if b.WriteString("^("); !o {
 		d = '^'
 	}
-	b.WriteString("^(")
 	for x, v, c := 0, 0, ""; x < len(m); x++ {
 		if m[x][0] < 0 || m[x][1] < m[x][0] {
 			continue
 		}
 		if m[x][4] > 0 && m[x][5] > m[x][4] {
 			if s[m[x][5]-1] == 'f' {
-				i, err = strconv.ParseInt(string(s[m[x][4]:m[x][5]-1]), 10, 32)
+				v, err = strconv.Atoi(string(s[m[x][4] : m[x][5]-1]))
 			} else {
-				i, err = strconv.ParseInt(string(s[m[x][4]:m[x][5]]), 10, 32)
+				v, err = strconv.Atoi(string(s[m[x][4]:m[x][5]]))
 			}
-			if err == nil {
-				v = int(i)
-			} else {
+			if err != nil {
 				v = -1
 			}
 		} else {
@@ -261,8 +256,7 @@ func (s Matcher) MatchEx(o bool) Regexp {
 	b.WriteString(")$")
 	r, err := regexp.Compile(b.String())
 	b.Reset()
-	builders.Put(b)
-	if err != nil {
+	if builders.Put(b); err != nil {
 		return regxFalse
 	}
 	return r

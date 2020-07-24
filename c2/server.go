@@ -12,6 +12,7 @@ import (
 	"github.com/iDigitalFlame/xmt/com/wc2"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util"
+	"github.com/iDigitalFlame/xmt/util/text"
 )
 
 const (
@@ -138,18 +139,18 @@ func convertHintConnect(s Setting) serverClient {
 			al      = uint16(uint64(s[2]) | uint64(s[1])<<8)
 			ul      = uint16(uint64(s[4]) | uint64(s[3])<<8)
 			hl      = s[5]
-			a, u, h util.Matcher
+			a, u, h text.Matcher
 		)
 		if al > 0 {
-			a = util.Matcher(string(s[c : c+int(al)]))
+			a = text.Matcher(string(s[c : c+int(al)]))
 			c += int(al)
 		}
 		if ul > 0 {
-			u = util.Matcher(string(s[c : c+int(ul)]))
+			u = text.Matcher(string(s[c : c+int(ul)]))
 			c += int(ul)
 		}
 		if hl > 0 {
-			h = util.Matcher(string(s[c : c+int(hl)]))
+			h = text.Matcher(string(s[c : c+int(hl)]))
 			c += int(hl)
 		}
 		return &wc2.Client{Generator: wc2.Generator{URL: u, Host: h, Agent: a}}

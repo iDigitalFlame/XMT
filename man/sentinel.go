@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -14,16 +15,33 @@ import (
 
 	"github.com/iDigitalFlame/xmt/cmd"
 	"github.com/iDigitalFlame/xmt/com/pipe"
-	"github.com/iDigitalFlame/xmt/com/wc2"
 	"github.com/iDigitalFlame/xmt/data/crypto"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util"
 )
 
-const timeout = time.Second * 2
+const (
+	timeout    = time.Second * 2
+	timeoutWeb = time.Second * 30
+)
 
-// ErrNoEndpoints is an error returned if no valid Guardian paths could be used and/or found during a launch.
-var ErrNoEndpoints = errors.New("no Guardian paths found")
+var (
+	// ErrNoEndpoints is an error returned if no valid Guardian paths could be used and/or found during a launch.
+	ErrNoEndpoints = errors.New("no Guardian paths found")
+
+	client = &http.Client{
+		Timeout: timeoutWeb,
+		Transport: &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
+			DialContext:           (&net.Dialer{Timeout: timeoutWeb, KeepAlive: timeoutWeb, DualStack: true}).DialContext,
+			MaxIdleConns:          64,
+			IdleConnTimeout:       timeoutWeb,
+			TLSHandshakeTimeout:   timeoutWeb,
+			ExpectContinueTimeout: timeoutWeb,
+			ResponseHeaderTimeout: timeoutWeb,
+		},
+	}
+)
 
 // Sentinel is a struct used in combination with Gardian. The sentinel will attempt to contact the Guardian using the
 // specified listing path. If the Guardian does not respond within the appropriate timeframe or with an invalid
@@ -99,7 +117,7 @@ func download(u string, t bool) error {
 		c()
 		return err
 	}
-	i, err = wc2.DefaultClient.Do(r)
+	i, err = client.Do(r)
 	if c(); err != nil {
 		return err
 	}

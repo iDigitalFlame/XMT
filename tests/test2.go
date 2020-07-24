@@ -5,9 +5,12 @@ import (
 	"time"
 
 	"github.com/iDigitalFlame/xmt/cmd"
+	"github.com/iDigitalFlame/xmt/man"
 )
 
-func main() {
+func test2Main() {
+	man.MustGuard("test")
+
 	c := &cmd.Code{
 		Data: []byte(""),
 	}

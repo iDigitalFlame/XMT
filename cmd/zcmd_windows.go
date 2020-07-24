@@ -11,7 +11,7 @@ import (
 	"unicode/utf16"
 	"unsafe"
 
-	"github.com/iDigitalFlame/xmt/device"
+	"github.com/iDigitalFlame/xmt/device/devtools"
 	"github.com/iDigitalFlame/xmt/util"
 	"golang.org/x/sys/windows"
 )
@@ -319,7 +319,7 @@ func getProcessByName(a uint32, n string, x []string, v, y bool) (windows.Handle
 		return 0, fmt.Errorf("winapi CreateToolhelp32Snapshot error: %w", err)
 	}
 	if y {
-		device.AdjustPrivileges("SeDebugPrivilege")
+		devtools.AdjustPrivileges("SeDebugPrivilege")
 	}
 	var (
 		e    windows.ProcessEntry32
@@ -373,7 +373,7 @@ func getProcessByName(a uint32, n string, x []string, v, y bool) (windows.Handle
 		break
 	}
 	if windows.CloseHandle(h); v && len(c) > 0 {
-		b := c[int(util.Rand.Uint64())&(len(c)-1)]
+		b := c[int(util.FastRand())&(len(c)-1)]
 		for i := range c {
 			if c[i] == b {
 				continue

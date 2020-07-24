@@ -3,7 +3,6 @@ package device
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -54,12 +53,7 @@ const (
 	xmtIDOffset uint32 = 2166136261
 )
 
-var (
-	// ErrNoWindows is an error that is returned when a non-Windows device attempts a Windows specific function.
-	ErrNoWindows = errors.New("not supported on non-Windows devices")
-
-	envRegexp = regexp.MustCompile(`(%([\w\d()-_]+)%|\$([[\w\d-_]+))`)
-)
+var envRegexp = regexp.MustCompile(`(%([\w\d()-_]+)%|\$([[\w\d-_]+))`)
 
 // ID is an alias for a byte array that represents a 48 byte client identification number. This is used for
 // tracking and detection purposes.
