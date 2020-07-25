@@ -142,7 +142,7 @@ func (i ID) FullString() string {
 func getEnv() map[string]string {
 	m := make(map[string]string)
 	for _, v := range os.Environ() {
-		if i := strings.IndexRune(v, '='); i > 0 {
+		if i := strings.IndexByte(v, 61); i > 0 {
 			m[strings.ToLower(v[:i])] = v[i+1:]
 		}
 	}

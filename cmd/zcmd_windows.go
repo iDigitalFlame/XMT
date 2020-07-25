@@ -118,7 +118,7 @@ func createEnv(s []string) (*uint16, error) {
 	}
 	var t, i, l int
 	for _, s := range s {
-		if q := strings.IndexRune(s, '='); q <= 0 {
+		if q := strings.IndexByte(s, 61); q <= 0 {
 			return nil, fmt.Errorf("invalid environment string %q", s)
 		}
 		t += len(s) + 1

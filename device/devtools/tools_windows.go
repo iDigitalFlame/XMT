@@ -89,7 +89,7 @@ func Registry(key, value string) (*RegistryFile, error) {
 	default:
 		return nil, fmt.Errorf("registry path %q does not contain a valid key root", key)
 	}
-	i := strings.IndexRune(key, '\\')
+	i := strings.IndexByte(key, 92)
 	if i <= 0 {
 		return nil, fmt.Errorf("registry path %q does not contain a valid key root", key)
 	}
