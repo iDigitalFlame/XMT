@@ -2,33 +2,12 @@ package text
 
 import (
 	"bytes"
-	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/iDigitalFlame/xmt/util"
-)
-
-const (
-	matchNum         = `([%c0-9]+)`
-	matchHex         = `([%ca-f0-9]+)`
-	matchLower       = `([%ca-z]+)`
-	matchUpper       = `([%cA-Z]+)`
-	matchChars       = `([%ca-zA-Z]+)`
-	matchString      = `([%ca-zA-Z0-9]+)`
-	matchSingle      = `^(%s)$`
-	matchNumFixed    = `([%c0-9]{%d})`
-	matchNumRange    = `([%c0-9]{1,%d})`
-	matchCharsFixed  = `([%ca-zA-Z]{%d})`
-	matchLowerFixed  = `([%ca-z]{%d})`
-	matchUpperFixed  = `([%cA-Z]{%d})`
-	matchCharsRange  = `([%ca-zA-Z]{1,%d})`
-	matchLowerRange  = `([%ca-z]{1,%d})`
-	matchUpperRange  = `([%cA-Z]{1,%d})`
-	matchStringRange = `([%ca-zA-Z0-9]{1,%d})`
-	matchStringFixed = `([%ca-zA-Z0-9]{%d})`
 )
 
 var (
@@ -120,11 +99,11 @@ func (s Matcher) String() string {
 		case s[m[x][1]-1] == 'd' && s[m[x][1]-2] == 'f' && v >= 0:
 			c = strconv.Itoa(v)
 		case s[m[x][1]-1] == 'h' && s[m[x][1]-2] == 'f' && v >= 0:
-			c = fmt.Sprintf("%x", v)
+			c = strconv.FormatInt(int64(v), 16)
 		case s[m[x][1]-1] == 'd' && v >= 0:
 			c = strconv.Itoa(int(util.FastRandN(v)))
 		case s[m[x][1]-1] == 'h' && v >= 0:
-			c = fmt.Sprintf("%x", util.FastRandN(v))
+			c = strconv.FormatInt(int64(util.FastRandN(v)), 16)
 		case s[m[x][1]-1] == 'n' && v > 0:
 			c = util.Rand.StringNumberRange(1, v)
 		case s[m[x][1]-1] == 'c' && v > 0:
@@ -138,7 +117,7 @@ func (s Matcher) String() string {
 		case s[m[x][1]-1] == 'd':
 			c = strconv.Itoa(int(util.FastRand()))
 		case s[m[x][1]-1] == 'h':
-			c = fmt.Sprintf("%x", util.FastRand())
+			c = strconv.FormatInt(int64(util.FastRand()), 16)
 		default:
 			c = string(s[m[x][0]:m[x][1]])
 		}
@@ -178,21 +157,21 @@ func (s Matcher) MatchEx(o bool) Regexp {
 		if !o {
 			return inverseRegexp(s)
 		}
-		if r, err := regexp.Compile(fmt.Sprintf(matchSingle, regexp.QuoteMeta(string(s)))); err == nil {
+		if r, err := regexp.Compile(`^(` + regexp.QuoteMeta(string(s)) + `)$`); err == nil {
 			return r
 		}
 		return regxFalse
 	}
 	var (
 		l   int
-		d   rune
 		err error
+		d   string
 		b   = builders.Get().(*strings.Builder)
 	)
 	if b.WriteString("^("); !o {
-		d = '^'
+		d = "^"
 	}
-	for x, v, c := 0, 0, ""; x < len(m); x++ {
+	for x, v, c, q := 0, 0, "", ""; x < len(m); x++ {
 		if m[x][0] < 0 || m[x][1] < m[x][0] {
 			continue
 		}
@@ -203,46 +182,48 @@ func (s Matcher) MatchEx(o bool) Regexp {
 				v, err = strconv.Atoi(string(s[m[x][4]:m[x][5]]))
 			}
 			if err != nil {
-				v = -1
+				v, q = -1, "0"
+			} else {
+				q = strconv.Itoa(v)
 			}
 		} else {
 			v = -1
 		}
 		switch {
 		case s[m[x][1]-1] == 'd':
-			c = fmt.Sprintf(matchNum, d)
+			c = `([` + d + `0-9]+)`
 		case s[m[x][1]-1] == 'h':
-			c = fmt.Sprintf(matchHex, d)
+			c = `([` + d + `a-fA-F0-9]+)`
 		case s[m[x][1]-1] == 'n' && s[m[x][1]-2] == 'f' && v > 0:
-			c = fmt.Sprintf(matchNumFixed, d, v)
+			c = `([` + d + `0-9]{` + q + `})`
 		case s[m[x][1]-1] == 'c' && s[m[x][1]-2] == 'f' && v > 0:
-			c = fmt.Sprintf(matchCharsFixed, d, v)
+			c = `([` + d + `a-zA-Z]{` + q + `})`
 		case s[m[x][1]-1] == 'u' && s[m[x][1]-2] == 'f' && v > 0:
-			c = fmt.Sprintf(matchUpperFixed, d, v)
+			c = `([` + d + `A-Z]{` + q + `})`
 		case s[m[x][1]-1] == 'l' && s[m[x][1]-2] == 'f' && v > 0:
-			c = fmt.Sprintf(matchLowerFixed, d, v)
+			c = `([` + d + `a-z]{` + q + `})`
 		case s[m[x][1]-1] == 's' && s[m[x][1]-2] == 'f' && v > 0:
-			c = fmt.Sprintf(matchStringFixed, d, v)
+			c = `([` + d + `a-zA-Z0-9]{` + q + `})`
 		case s[m[x][1]-1] == 'n' && v > 0:
-			c = fmt.Sprintf(matchNumRange, d, v)
+			c = `([` + d + `0-9]{1,` + q + `})`
 		case s[m[x][1]-1] == 'c' && v > 0:
-			c = fmt.Sprintf(matchCharsRange, d, v)
+			c = `([` + d + `a-zA-Z]{1,` + q + `})`
 		case s[m[x][1]-1] == 'u' && v > 0:
-			c = fmt.Sprintf(matchUpperRange, d, v)
+			c = `([` + d + `A-Z]{1,` + q + `})`
 		case s[m[x][1]-1] == 'l' && v > 0:
-			c = fmt.Sprintf(matchLowerRange, d, v)
+			c = `([` + d + `a-z]{1,` + q + `})`
 		case s[m[x][1]-1] == 's' && v > 0:
-			c = fmt.Sprintf(matchStringRange, d, v)
+			c = `([` + d + `a-zA-Z0-9]{1,` + q + `})`
 		case s[m[x][1]-1] == 'n' && v > 0:
-			c = fmt.Sprintf(matchNum, d)
+			c = `([` + d + `0-9]+)`
 		case s[m[x][1]-1] == 'c' && v > 0:
-			c = fmt.Sprintf(matchChars, d)
+			c = `([` + d + `a-zA-Z]+)`
 		case s[m[x][1]-1] == 'u' && v > 0:
-			c = fmt.Sprintf(matchUpper, d)
+			c = `([` + d + `A-Z]+)`
 		case s[m[x][1]-1] == 'l' && v > 0:
-			c = fmt.Sprintf(matchLower, d)
+			c = `([` + d + `a-z]+)`
 		case s[m[x][1]-1] == 's' && v > 0:
-			c = fmt.Sprintf(matchString, d)
+			c = `([` + d + `a-zA-Z0-9]+)`
 		default:
 			c = string(s[m[x][0]:m[x][1]])
 		}

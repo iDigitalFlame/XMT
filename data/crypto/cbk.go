@@ -2,11 +2,14 @@ package crypto
 
 import (
 	crypto "crypto/rand"
-	"fmt"
+	"errors"
 	"io"
 	"math"
 	"math/rand"
+	"strconv"
 	"sync"
+
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 const (
@@ -53,7 +56,7 @@ func NewCBK(d int) *CBK {
 // Reset resets the encryption keys and sets them to new random bytes.
 func (e *CBK) Reset() error {
 	if _, err := crypto.Read(e.buf[0:3]); err != nil {
-		return fmt.Errorf("unable to generate random values: %w", err)
+		return xerr.Wrap("unable to generate random values", err)
 	}
 	e.A = e.buf[0]
 	e.B = e.buf[1]
@@ -383,7 +386,7 @@ func (e *CBK) Write(w io.Writer, b []byte) (int, error) {
 // A, B and C values are randomally generated at runtime.
 func NewCBKEx(d int, size int, source rand.Source) (*CBK, error) {
 	if size < 0 || size > sizeMax || math.Floor(math.Log2(float64(size))) != math.Ceil(math.Log2(float64(size))) {
-		return nil, fmt.Errorf("block size %d must be between 16 and 128 and a power of two", size)
+		return nil, errors.New("block size " + strconv.Itoa(size) + " must be between 16 and 128 and a power of two")
 	}
 	c := &CBK{D: byte(d), buf: make([]byte, size+1), total: -1, Source: source}
 	c.Reset()

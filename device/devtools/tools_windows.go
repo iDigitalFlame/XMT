@@ -4,13 +4,14 @@ package devtools
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"io"
 	"strings"
 	"syscall"
 	"time"
 	"unsafe"
 
+	"github.com/iDigitalFlame/xmt/util/xerr"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
@@ -32,7 +33,7 @@ type privileges struct {
 func AdjustPrivileges(s ...string) error {
 	var t windows.Token
 	if err := windows.OpenProcessToken(windows.CurrentProcess(), windows.TOKEN_WRITE|windows.TOKEN_QUERY, &t); err != nil {
-		return fmt.Errorf("cannot get current token: %w", err)
+		return xerr.Wrap("cannot get current token", err)
 	}
 	err := AdjustTokenPrivileges(uintptr(t), s...)
 	t.Close()
@@ -49,10 +50,10 @@ func adjust(h uintptr, s []string) error {
 			break
 		}
 		if n, err = windows.UTF16PtrFromString(s[i]); err != nil {
-			return fmt.Errorf("cannot convert %q: %w", s[i], err)
+			return xerr.Wrap(`cannot convert "`+s[i]+`"`, err)
 		}
 		if err := windows.LookupPrivilegeValue(nil, n, &p.Privileges[i].Luid); err != nil {
-			return fmt.Errorf("cannot lookup privilege %q: %w", s[i], err)
+			return xerr.Wrap(`cannot lookup privilege "`+s[i]+`"`, err)
 		}
 		p.Privileges[i].Attributes = windows.SE_PRIVILEGE_ENABLED
 	}
@@ -66,7 +67,7 @@ func adjust(h uintptr, s []string) error {
 	if e, ok := err.(syscall.Errno); ok && e == 0 {
 		return nil
 	}
-	return fmt.Errorf("cannot assign all privileges: %w", err)
+	return xerr.Wrap("cannot assign all privileges", err)
 }
 
 // Registry attempts to open a registry value or key, value pair on Windows devices. Returns err if the system is
@@ -87,11 +88,11 @@ func Registry(key, value string) (*RegistryFile, error) {
 	case strings.HasPrefix(p, "HKEY_PERFORMANCE_DATA") || strings.HasPrefix(p, "HKPD"):
 		k = registry.PERFORMANCE_DATA
 	default:
-		return nil, fmt.Errorf("registry path %q does not contain a valid key root", key)
+		return nil, errors.New(`registry path "` + key + `" does not contain a valid key root`)
 	}
 	i := strings.IndexByte(key, 92)
 	if i <= 0 {
-		return nil, fmt.Errorf("registry path %q does not contain a valid key root", key)
+		return nil, errors.New(`registry path "` + key + `" does not contain a valid key root`)
 	}
 	h, err := registry.OpenKey(k, key[i+1:], registry.QUERY_VALUE)
 	if err != nil {
@@ -107,14 +108,14 @@ func Registry(key, value string) (*RegistryFile, error) {
 	defer h.Close()
 	r, t, err := h.GetValue(value, nil)
 	if err != nil {
-		return nil, fmt.Errorf(`unable to read registry path "%s:%s": %w`, key, value, err)
+		return nil, xerr.Wrap(`unable to read registry path "`+key+`:`+value+`"`, err)
 	}
 	if r <= 0 {
-		return nil, fmt.Errorf(`registry path "%s:%s" returned a zero size`, key, value)
+		return nil, errors.New(`registry path "` + key + `:` + value + `" returned a zero size`)
 	}
 	b := make([]byte, r)
 	if _, _, err := h.GetValue(value, b); err != nil {
-		return nil, fmt.Errorf(`unable to read registry path "%s:%s": %w`, key, value, err)
+		return nil, xerr.Wrap(`unable to read registry path "`+key+`:`+value+`"`, err)
 	}
 	var o io.Reader
 	if t == registry.SZ || t == registry.EXPAND_SZ || t == registry.MULTI_SZ {

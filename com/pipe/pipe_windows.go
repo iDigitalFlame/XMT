@@ -4,7 +4,6 @@ package pipe
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net"
 	"sync/atomic"
@@ -72,7 +71,7 @@ func Format(s string) string {
 	if len(s) > 2 && s[0] == '\\' && s[1] == '\\' {
 		return s
 	}
-	return fmt.Sprintf(`\\.\pipe\%s`, s)
+	return `\\.\pipe\` + s
 }
 func (e errno) Cause() error {
 	return e.e
@@ -202,7 +201,7 @@ func (l *listener) Accept() (net.Conn, error) {
 	}
 	if r == 0 && err != nil && err != windows.ERROR_PIPE_CONNECTED {
 		windows.CloseHandle(h)
-		return nil, &errno{m: fmt.Sprintf("could not connect pipe: %s", err.Error()), e: err}
+		return nil, &errno{m: "could not connect pipe: " + err.Error(), e: err}
 	}
 	return &conn{addr: l.addr, handle: h}, nil
 
@@ -276,7 +275,7 @@ func DialTimeout(path string, t time.Duration) (net.Conn, error) {
 			return c, nil
 		}
 		if err == windows.ERROR_BAD_PATHNAME {
-			return nil, &errno{m: fmt.Sprintf("invalid pipe path %q", path), e: err}
+			return nil, &errno{m: `invalid pipe path "` + path + `"`, e: err}
 		}
 		if err == windows.ERROR_SEM_TIMEOUT {
 			return nil, ErrTimeout
@@ -312,7 +311,7 @@ func DialContext(x context.Context, path string) (net.Conn, error) {
 			return c, nil
 		}
 		if err == windows.ERROR_BAD_PATHNAME {
-			return nil, &errno{m: fmt.Sprintf("invalid pipe path %q", path), e: err}
+			return nil, &errno{m: `invalid pipe path "` + path + `"`, e: err}
 		}
 		if err == windows.ERROR_FILE_NOT_FOUND || err == windows.ERROR_PIPE_BUSY {
 			time.Sleep(retry)
@@ -346,7 +345,7 @@ func ListenSecurity(path string, p *windows.SecurityAttributes) (net.Listener, e
 	)
 	if err != nil {
 		if err == windows.ERROR_INVALID_NAME {
-			return nil, &errno{m: fmt.Sprintf("invalid pipe path %q", path), e: err}
+			return nil, &errno{m: `invalid pipe path "` + path + `"`, e: err}
 		}
 		return nil, &errno{m: err.Error(), e: err}
 	}

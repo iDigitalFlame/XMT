@@ -4,13 +4,15 @@ package pipe
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 const (
@@ -28,7 +30,7 @@ var dialer = new(net.Dialer)
 // returned without any changes.
 func Format(s string) string {
 	if !filepath.IsAbs(s) {
-		return fmt.Sprintf("/tmp/%s", s)
+		return "/tmp/" + s
 	}
 	return s
 }
@@ -78,7 +80,7 @@ func stringToDec(s string) (os.FileMode, error) {
 			p |= 0001
 		case c == '-' || c == ' ':
 		case c != 'r' && c != 'x' && c != 'w':
-			return 0, fmt.Errorf("invalid permission string %q", s)
+			return 0, errors.New(`invalid permission string "` + s + `"`)
 		}
 	}
 	return p, nil
@@ -90,7 +92,7 @@ func getPerms(s string) (os.FileMode, int, int, error) {
 	}
 	v := strings.Split(s, ";")
 	if len(v) > 3 {
-		return 0, -1, -1, fmt.Errorf("invalid permission size %d: %q", len(v), s)
+		return 0, -1, -1, errors.New(`invalid permission "` + s + `" size ` + strconv.Itoa(len(v)))
 	}
 	var (
 		u, g   = -1, -1
@@ -101,12 +103,12 @@ func getPerms(s string) (os.FileMode, int, int, error) {
 	}
 	if len(v) == 3 {
 		if g, err = strconv.Atoi(v[2]); err != nil {
-			return 0, -1, -1, fmt.Errorf("invalid GID: %q: %w", v[2], err)
+			return 0, -1, -1, xerr.Wrap(`invalid GID "`+v[2]+`"`, err)
 		}
 	}
 	if len(v) == 2 {
 		if u, err = strconv.Atoi(v[1]); err != nil {
-			return 0, -1, -1, fmt.Errorf("invalid UID: %q: %w", v[1], err)
+			return 0, -1, -1, xerr.Wrap(`invalid UID "`+v[1]+`"`, err)
 		}
 	}
 	return p, u, g, nil
@@ -131,12 +133,12 @@ func ListenPerms(path, perms string) (net.Listener, error) {
 	if m > 0 {
 		if err := os.Chmod(path, m); err != nil {
 			l.Close()
-			return nil, fmt.Errorf("unable to set permissions on %q: %w", path, err)
+			return nil, xerr.Wrap(`unable to set permissions on "`+path+`"`, err)
 		}
 	}
 	if err := os.Chown(path, u, g); err != nil {
 		l.Close()
-		return nil, fmt.Errorf("unable to set ownership on %q: %w", path, err)
+		return nil, xerr.Wrap(`unable to set ownership on "`+path+`"`, err)
 	}
 	return l, nil
 }

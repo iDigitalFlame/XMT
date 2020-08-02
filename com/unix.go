@@ -2,7 +2,6 @@ package com
 
 import (
 	"crypto/tls"
-	"fmt"
 	"net"
 	"time"
 )
@@ -21,7 +20,7 @@ type UNIXConnector struct {
 
 // String returns a string representation of this UNIXListener.
 func (u UNIXListener) String() string {
-	return fmt.Sprintf("UNIX[%s]", u.Addr().String())
+	return "UNIX[" + u.Addr().String() + "]"
 }
 
 // NewUNIX creates a new simple UNIX socket based connector with the supplied timeout.

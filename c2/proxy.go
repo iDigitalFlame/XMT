@@ -2,13 +2,14 @@ package c2
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net"
 	"sync/atomic"
 
 	"github.com/PurpleSec/logx"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/device"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 // Proxy is a struct that controls a Proxied connection between a client and a server and allows for packets to be
@@ -330,7 +331,7 @@ func (p *Proxy) client(c net.Conn, d *com.Packet) *proxyClient {
 // back and forth on this Session. This function will return a wrapped 'ErrUnable' if this is not a client Session.
 func (s *Session) Proxy(b string, c serverListener, p *Profile) (*Proxy, error) {
 	if s.parent != nil {
-		return nil, fmt.Errorf("must be a client session: %w", ErrUnable)
+		return nil, xerr.Wrap("must be a client session", ErrUnable)
 	}
 	if c == nil && p != nil {
 		c = convertHintListen(p.hint)
@@ -340,10 +341,10 @@ func (s *Session) Proxy(b string, c serverListener, p *Profile) (*Proxy, error) 
 	}
 	h, err := c.Listen(b)
 	if err != nil {
-		return nil, fmt.Errorf("unable to listen on %q: %w", b, err)
+		return nil, xerr.Wrap("unable to listen on "+b, err)
 	}
 	if h == nil {
-		return nil, fmt.Errorf("unable to listen on %q", b)
+		return nil, errors.New("unable to listen on " + b)
 	}
 	if s.log == nil {
 		s.log = logx.NOP

@@ -1,10 +1,6 @@
 package device
 
-import (
-	"fmt"
-
-	"github.com/iDigitalFlame/xmt/data"
-)
+import "github.com/iDigitalFlame/xmt/data"
 
 // Machine is a struct that contains information about a specific device. This struct contains generic Operating
 // System Information such as Version, Arch and network information.
@@ -27,7 +23,7 @@ func (m Machine) String() string {
 	if m.Elevated {
 		e = "*"
 	}
-	return fmt.Sprintf("[%s] %s (%s) %s%s", m.ID.String(), m.Hostname, m.Version, e, m.User)
+	return "[" + m.ID.String() + "] " + m.Hostname + " (" + m.Version + ") " + e + m.User
 }
 
 // MarshalStream transforms this struct into a binary format and writes to the supplied data.Writer.

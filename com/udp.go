@@ -2,7 +2,6 @@ package com
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net"
 	"time"
@@ -70,7 +69,7 @@ func (u *UDPListener) Close() error {
 
 // String returns a string representation of this UDPListener.
 func (u UDPListener) String() string {
-	return fmt.Sprintf("UDP[%s]", u.socket.LocalAddr().String())
+	return "UDP[" + u.socket.LocalAddr().String() + "]"
 }
 
 // Addr returns the listener's current bound network address.

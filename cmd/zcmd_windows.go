@@ -3,9 +3,11 @@
 package cmd
 
 import (
-	"fmt"
+	"errors"
 	"io"
 	"os"
+	"reflect"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"unicode/utf16"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/iDigitalFlame/xmt/device/devtools"
 	"github.com/iDigitalFlame/xmt/util"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 	"golang.org/x/sys/windows"
 )
 
@@ -119,7 +122,7 @@ func createEnv(s []string) (*uint16, error) {
 	var t, i, l int
 	for _, s := range s {
 		if q := strings.IndexByte(s, 61); q <= 0 {
-			return nil, fmt.Errorf("invalid environment string %q", s)
+			return nil, errors.New(`invalid environment string "` + s + `"`)
 		}
 		t += len(s) + 1
 	}
@@ -158,7 +161,7 @@ func (o *options) startInfo() (*windows.StartupInfo, error) {
 	if len(o.Title) > 0 {
 		var err error
 		if s.Title, err = windows.UTF16PtrFromString(o.Title); err != nil {
-			return nil, fmt.Errorf("cannot convert title %q: %w", o.Title, err)
+			return nil, xerr.Wrap(`cannot convert title "`+o.Title+`"`, err)
 		}
 	}
 	o.parent, o.closers = 0, nil
@@ -168,7 +171,7 @@ func (c container) getParent(a uint32) (windows.Handle, error) {
 	if c.pid > 0 {
 		h, err := windows.OpenProcess(a, true, uint32(c.pid))
 		if h == 0 {
-			return 0, fmt.Errorf("winapi OpenProcess PID %d error: %w", c.pid, err)
+			return 0, xerr.Wrap("winapi OpenProcess PID "+strconv.Itoa(int(c.pid))+" error", err)
 		}
 		return h, nil
 	}
@@ -178,9 +181,9 @@ func (c container) getParent(a uint32) (windows.Handle, error) {
 			return 0, err
 		}
 		if len(c.name) > 0 {
-			return 0, fmt.Errorf("%s: %w", c.name, err)
+			return 0, xerr.Wrap(c.name, err)
 		}
-		return 0, fmt.Errorf("[%s]: %w", strings.Join(c.choices, ", "), err)
+		return 0, xerr.Wrap("["+strings.Join(c.choices, ", ")+"]", err)
 	}
 	return h, nil
 }
@@ -196,13 +199,13 @@ func (o *options) readHandle(r io.Reader, m bool) (windows.Handle, error) {
 		case file:
 			f, err := i.File()
 			if err != nil {
-				return 0, fmt.Errorf("cannot obtain file handle for %T: %w", r, err)
+				return 0, xerr.Wrap("cannot obtain file handle for "+reflect.TypeOf(r).String(), err)
 			}
 			h = f.Fd()
 		default:
 			x, y, err := os.Pipe()
 			if err != nil {
-				return 0, fmt.Errorf("cannot open os pipe: %w", err)
+				return 0, xerr.Wrap("cannot open os pipe", err)
 			}
 			h = x.Fd()
 			o.closers = append(o.closers, x)
@@ -215,7 +218,7 @@ func (o *options) readHandle(r io.Reader, m bool) (windows.Handle, error) {
 	} else {
 		f, err := os.Open(os.DevNull)
 		if err != nil {
-			return 0, fmt.Errorf("cannot open null device: %w", err)
+			return 0, xerr.Wrap("cannot open null device", err)
 		}
 		o.closers = append(o.closers, f)
 		h = f.Fd()
@@ -229,7 +232,7 @@ func (o *options) readHandle(r io.Reader, m bool) (windows.Handle, error) {
 		v = o.parent
 	}
 	if err = windows.DuplicateHandle(windows.CurrentProcess(), windows.Handle(h), v, &n, 0, true, windows.DUPLICATE_SAME_ACCESS); err != nil {
-		return 0, fmt.Errorf("cannot duplicate handle 0x%X: %w", h, err)
+		return 0, xerr.Wrap("cannot duplicate handle 0x"+strconv.FormatUint(uint64(h), 16), err)
 	}
 	o.closers = append(o.closers, closer(n))
 	return n, nil
@@ -246,13 +249,13 @@ func (o *options) writeHandle(w io.Writer, m bool) (windows.Handle, error) {
 		case file:
 			f, err := i.File()
 			if err != nil {
-				return 0, fmt.Errorf("cannot obtain file handle for %T: %w", w, err)
+				return 0, xerr.Wrap("cannot obtain file handle for "+reflect.TypeOf(w).String(), err)
 			}
 			h = f.Fd()
 		default:
 			x, y, err := os.Pipe()
 			if err != nil {
-				return 0, fmt.Errorf("cannot open os pipe: %w", err)
+				return 0, xerr.Wrap("cannot open os pipe", err)
 			}
 			h = y.Fd()
 			o.closers = append(o.closers, x)
@@ -265,7 +268,7 @@ func (o *options) writeHandle(w io.Writer, m bool) (windows.Handle, error) {
 	} else {
 		f, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0644)
 		if err != nil {
-			return 0, fmt.Errorf("cannot open null device: %w", err)
+			return 0, xerr.Wrap("cannot open null device", err)
 		}
 		o.closers = append(o.closers, f)
 		h = f.Fd()
@@ -279,7 +282,7 @@ func (o *options) writeHandle(w io.Writer, m bool) (windows.Handle, error) {
 		v = o.parent
 	}
 	if err = windows.DuplicateHandle(windows.CurrentProcess(), windows.Handle(h), v, &n, 0, true, windows.DUPLICATE_SAME_ACCESS); err != nil {
-		return 0, fmt.Errorf("cannot duplicate handle 0x%X: %w", h, err)
+		return 0, xerr.Wrap("cannot duplicate handle 0x"+strconv.FormatUint(uint64(h), 16), err)
 	}
 	o.closers = append(o.closers, closer(n))
 	return n, nil
@@ -290,14 +293,14 @@ func newParentEx(p windows.Handle, i *windows.StartupInfo) (*startupInfoEx, erro
 		x startupInfoEx
 	)
 	if _, _, err := funcInitializeProcThreadAttributeList.Call(0, 1, 0, uintptr(unsafe.Pointer(&s))); s < 48 {
-		return nil, fmt.Errorf("winapi InitializeProcThreadAttributeList error: %w", err)
+		return nil, xerr.Wrap("winapi InitializeProcThreadAttributeList error", err)
 	}
 	x.AttributeList = new(startupAttrs)
 	r, _, err := funcInitializeProcThreadAttributeList.Call(
 		uintptr(unsafe.Pointer(x.AttributeList)), 1, 0, uintptr(unsafe.Pointer(&s)),
 	)
 	if r == 0 {
-		return nil, fmt.Errorf("winapi InitializeProcThreadAttributeList error: %w", err)
+		return nil, xerr.Wrap("winapi InitializeProcThreadAttributeList error", err)
 	}
 	if i != nil {
 		x.StartupInfo = *i
@@ -309,14 +312,14 @@ func newParentEx(p windows.Handle, i *windows.StartupInfo) (*startupInfoEx, erro
 		uintptr(unsafe.Pointer(nil)), uintptr(unsafe.Pointer(nil)),
 	)
 	if r == 0 {
-		return nil, fmt.Errorf("winapi UpdateProcThreadAttribute error: %w", err)
+		return nil, xerr.Wrap("winapi UpdateProcThreadAttribute error", err)
 	}
 	return &x, nil
 }
 func getProcessByName(a uint32, n string, x []string, v, y bool) (windows.Handle, error) {
 	h, err := windows.CreateToolhelp32Snapshot(0x00000002, 0)
 	if err != nil {
-		return 0, fmt.Errorf("winapi CreateToolhelp32Snapshot error: %w", err)
+		return 0, xerr.Wrap("winapi CreateToolhelp32Snapshot error", err)
 	}
 	if y {
 		devtools.AdjustPrivileges("SeDebugPrivilege")
@@ -369,11 +372,12 @@ func getProcessByName(a uint32, n string, x []string, v, y bool) (windows.Handle
 		}
 		if v {
 			c = append(c, o)
+			continue
 		}
 		break
 	}
 	if windows.CloseHandle(h); v && len(c) > 0 {
-		b := c[int(util.FastRand())&(len(c)-1)]
+		b := c[int(util.FastRandN(len(c)))]
 		for i := range c {
 			if c[i] == b {
 				continue
@@ -395,17 +399,17 @@ func run(name, cmd, dir string, p, t *windows.SecurityAttributes, f uint32, e *u
 	)
 	if len(name) > 0 {
 		if n, err = windows.UTF16PtrFromString(name); err != nil {
-			return fmt.Errorf("cannot convert %q: %w", name, err)
+			return xerr.Wrap(`cannot convert "`+name+`"`, err)
 		}
 	}
 	if len(cmd) > 0 {
 		if c, err = windows.UTF16PtrFromString(cmd); err != nil {
-			return fmt.Errorf("cannot convert %q: %w", cmd, err)
+			return xerr.Wrap(`cannot convert "`+cmd+`"`, err)
 		}
 	}
 	if len(dir) > 0 {
 		if d, err = windows.UTF16PtrFromString(dir); err != nil {
-			return fmt.Errorf("cannot convert %q: %w", dir, err)
+			return xerr.Wrap(`cannot convert "`+dir+`"`, err)
 		}
 	}
 	if e != nil {
@@ -438,7 +442,7 @@ func run(name, cmd, dir string, p, t *windows.SecurityAttributes, f uint32, e *u
 		)
 	}
 	if r == 0 {
-		return fmt.Errorf("winapi CreateProcess error: %w", err)
+		return xerr.Wrap("winapi CreateProcess error", err)
 	}
 	return nil
 }

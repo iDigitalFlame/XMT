@@ -106,7 +106,7 @@ func (o *ottoScript) log(v otto.FunctionCall) otto.Value {
 		if i > 0 {
 			o.c.WriteByte(32)
 		}
-		o.c.WriteString(fmt.Sprintf("%v", v.Argument(i)))
+		fmt.Fprintf(&o.c, "%v", v.Argument(i))
 	}
 	o.c.WriteByte(10)
 	return ottoEmpty

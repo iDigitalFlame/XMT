@@ -3,13 +3,13 @@
 package cmd
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"strings"
 	"unsafe"
 
+	"github.com/iDigitalFlame/xmt/util/xerr"
 	"golang.org/x/sys/windows"
 )
 
@@ -51,19 +51,19 @@ func Fork() (uint32, error) {
 	case 0:
 		h, err := windows.OpenThread(0x000F|0x00100000|0xffff, false, uint32(i.ClientID.UniqueThread))
 		if err != nil {
-			return 0, fmt.Errorf("winapi OpenThread error: %w", err)
+			return 0, xerr.Wrap("winapi OpenThread error", err)
 		}
 		if _, err := windows.ResumeThread(h); err != nil {
-			return 0, fmt.Errorf("winapi ResumeThread error: %w", err)
+			return 0, xerr.Wrap("winapi ResumeThread error", err)
 		}
 		return uint32(i.ClientID.UniqueProcess), windows.CloseHandle(h)
 	case 297:
 		if r, _, err = funcAllocConsole.Call(); r == 0 {
-			return 0, fmt.Errorf("winapi AllocConsole error: %w", err)
+			return 0, xerr.Wrap("winapi AllocConsole error", err)
 		}
 		return 0, nil
 	}
-	return 0, fmt.Errorf("winapi RtlCloneUserProcess error: %w", err)
+	return 0, xerr.Wrap("winapi RtlCloneUserProcess error", err)
 }
 
 // Pid returns the current process PID. This function returns zero if the process has not been started.
@@ -134,7 +134,7 @@ func startProcess(p *Process) error {
 			}
 		}
 		if !f {
-			v, err = createEnv(append(e, fmt.Sprintf("SYSTEMROOT=%s", os.Getenv("SYSTEMROOT"))))
+			v, err = createEnv(append(e, "SYSTEMROOT="+os.Getenv("SYSTEMROOT")))
 		} else {
 			v, err = createEnv(e)
 		}

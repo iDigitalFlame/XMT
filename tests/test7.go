@@ -43,7 +43,7 @@ func test7Main() {
 	c()
 }
 
-func test7main() {
+func main() {
 	k := man.MustGuard("testing12")
 	defer k.Close()
 

@@ -220,10 +220,10 @@ func (s Sentinel) Ping(n string) (bool, error) {
 	return true, nil
 }
 
-// To will attempt to write the data from this Sentinel to the specified file path. If the supplied Cipher block is
+// Save will attempt to write the data from this Sentinel to the specified file path. If the supplied Cipher block is
 // not nil, this will attempt to use the Cipher and append a randomized IV value to the beginning of the file. This
 // function returns an error if the write or file creation occurs.
-func (s Sentinel) To(c cipher.Block, file string) error {
+func (s Sentinel) Save(c cipher.Block, file string) error {
 	f, err := os.Create(file)
 	if err != nil {
 		return err
@@ -248,10 +248,10 @@ func (s Sentinel) To(c cipher.Block, file string) error {
 	return err
 }
 
-// From will attempt to read the data to this Sentinel from the specified file path. If the supplied Cipher block is
+// Load will attempt to read the data to this Sentinel from the specified file path. If the supplied Cipher block is
 // not nil, this will attempt to use the Cipher and attempt to read the IV value from the beginning of the file. This
 // function returns an error if the read or if the file does not exist.
-func (s *Sentinel) From(c cipher.Block, file string) error {
+func (s *Sentinel) Load(c cipher.Block, file string) error {
 	f, err := os.Open(file)
 	if err != nil {
 		return err
@@ -275,12 +275,12 @@ func (s *Sentinel) From(c cipher.Block, file string) error {
 	return err
 }
 
-// PingFrom will attempt to look for a Guardian using the following parameters specified. This includes a
+// PingWith will attempt to look for a Guardian using the following parameters specified. This includes a
 // local file path where the Gaurdian binaries may be located. This file is a file that was written using the 'To'
 // function. This function will return the same as the 'Ping' function.
-func PingFrom(name string, c cipher.Block, file string) (bool, error) {
+func PingWith(name string, c cipher.Block, file string) (bool, error) {
 	var s Sentinel
-	if err := s.From(c, file); err != nil {
+	if err := s.Load(c, file); err != nil {
 		return false, err
 	}
 	return s.Ping(name)

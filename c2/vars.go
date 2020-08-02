@@ -3,7 +3,7 @@ package c2
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"net"
 	"sync"
@@ -15,6 +15,7 @@ import (
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 // Message ID Values are a byte value from 0 to 255 (uint8).
@@ -154,7 +155,7 @@ func notify(l *Listener, s *Session, p *com.Packet) error {
 		if p.ID == MvRegister {
 			p.Device = s.Device.ID
 		} else {
-			return fmt.Errorf("received a Packet ID %q that does not match our own ID %q", p.ID, s.ID)
+			return errors.New(`received a Session ID "` + p.Device.String() + `"that does not match our own ID "` + s.ID.String() + `"`)
 		}
 	}
 	if l != nil && p.Flags&com.FlagOneshot != 0 {
@@ -293,7 +294,7 @@ func readPacket(c io.Reader, w Wrapper, t Transform) (*com.Packet, error) {
 	b := buffers.Get().(*data.Chunk)
 	if _, err := b.ReadFrom(c); err != nil && err != io.EOF {
 		returnBuffer(b)
-		return nil, fmt.Errorf("unable to read from stream reader: %w", err)
+		return nil, xerr.Wrap("unable to read from stream reader", err)
 	}
 	if b.Close(); t != nil {
 		var (
@@ -302,7 +303,7 @@ func readPacket(c io.Reader, w Wrapper, t Transform) (*com.Packet, error) {
 		)
 		if returnBuffer(b); err != nil {
 			returnBuffer(i)
-			return nil, fmt.Errorf("unable to transform reader: %w", err)
+			return nil, xerr.Wrap("unable to transform reader", err)
 		}
 		b = i
 	}
@@ -311,7 +312,7 @@ func readPacket(c io.Reader, w Wrapper, t Transform) (*com.Packet, error) {
 		u, err := w.Unwrap(b)
 		if err != nil {
 			returnBuffer(b)
-			return nil, fmt.Errorf("unable to wrap stream reader: %w", err)
+			return nil, xerr.Wrap("unable to wrap stream reader", err)
 		}
 		r = data.NewReader(u)
 	}
@@ -320,13 +321,13 @@ func readPacket(c io.Reader, w Wrapper, t Transform) (*com.Packet, error) {
 		err = p.UnmarshalStream(r)
 	)
 	if returnBuffer(b); err != nil && err != io.EOF {
-		return nil, fmt.Errorf("unable to read from cache reader: %w", err)
+		return nil, xerr.Wrap("unable to read from cache reader", err)
 	}
 	if err := r.Close(); err != nil {
-		return nil, fmt.Errorf("unable to close cache reader: %w", err)
+		return nil, xerr.Wrap("unable to close cache reader", err)
 	}
 	if len(p.Device) == 0 {
-		return nil, fmt.Errorf("unable to read from stream: %w", io.ErrNoProgress)
+		return nil, xerr.Wrap("unable to read from stream", io.ErrNoProgress)
 	}
 	return p, nil
 }
@@ -339,17 +340,17 @@ func writePacket(c io.Writer, w Wrapper, t Transform, p *com.Packet) error {
 		x, err := w.Wrap(b)
 		if err != nil {
 			returnBuffer(b)
-			return fmt.Errorf("unable to wrap writer: %w", err)
+			return xerr.Wrap("unable to wrap writer", err)
 		}
 		s = data.NewWriter(x)
 	}
 	if err := p.MarshalStream(s); err != nil {
 		returnBuffer(b)
-		return fmt.Errorf("unable to write to cache writer: %w", err)
+		return xerr.Wrap("unable to write to cache writer", err)
 	}
 	if err := s.Close(); err != nil {
 		returnBuffer(b)
-		return fmt.Errorf("unable to close cache writer: %w", err)
+		return xerr.Wrap("unable to close cache writer", err)
 	}
 	if t != nil {
 		var (
@@ -358,13 +359,13 @@ func writePacket(c io.Writer, w Wrapper, t Transform, p *com.Packet) error {
 		)
 		if returnBuffer(b); err != nil {
 			returnBuffer(i)
-			return fmt.Errorf("unable to transform writer: %w", err)
+			return xerr.Wrap("unable to transform writer:", err)
 		}
 		b = i
 	}
 	_, err := b.WriteTo(c)
 	if returnBuffer(b); err != nil {
-		return fmt.Errorf("unable to write to stream writer: %w", err)
+		return xerr.Wrap("unable to write to stream writer", err)
 	}
 	return nil
 }

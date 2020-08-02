@@ -2,7 +2,6 @@ package devtools
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -53,7 +52,7 @@ func (r RegistryFile) Name() string {
 	if r.r == nil {
 		return r.k
 	}
-	return fmt.Sprintf("%s:%s", r.k, r.v)
+	return r.k + ":" + r.v
 }
 
 // Similar to the Name function, this returns the full path of this RegistryFile.

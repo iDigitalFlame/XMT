@@ -3,7 +3,6 @@ package c2
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/PurpleSec/logx"
@@ -13,6 +12,7 @@ import (
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/text"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 const (
@@ -234,7 +234,7 @@ func (s *Server) Oneshot(a string, c serverClient, p *Profile, d *com.Packet) er
 	}
 	n, err := c.Connect(a)
 	if err != nil {
-		return fmt.Errorf("unable to connect to %q: %w", a, err)
+		return xerr.Wrap("unable to connect to "+a, err)
 	}
 	if d == nil {
 		d = &com.Packet{ID: MvNop}
@@ -243,7 +243,7 @@ func (s *Server) Oneshot(a string, c serverClient, p *Profile, d *com.Packet) er
 	err = writePacket(n, w, t, d)
 	n.Close()
 	if err != nil {
-		return fmt.Errorf("unable to write packet: %w", err)
+		return xerr.Wrap("unable to write packet", err)
 	}
 	return nil
 }
@@ -259,14 +259,14 @@ func (s *Server) Listen(n, b string, c serverListener, p *Profile) (*Listener, e
 	}
 	x := strings.ToLower(n)
 	if _, ok := s.active[x]; ok {
-		return nil, fmt.Errorf("listener %q is already active", x)
+		return nil, errors.New("listener " + x + " is already active")
 	}
 	h, err := c.Listen(b)
 	if err != nil {
-		return nil, fmt.Errorf("unable to listen on %q: %w", b, err)
+		return nil, xerr.Wrap("unable to listen on "+b, err)
 	}
 	if h == nil {
-		return nil, fmt.Errorf("unable to listen on %q", b)
+		return nil, errors.New("unable to listen on " + b)
 	}
 	if s.Log == nil {
 		s.Log = logx.NOP
@@ -305,7 +305,7 @@ func (s *Server) ConnectWith(a string, c serverClient, p *Profile, d *com.Packet
 	}
 	n, err := c.Connect(a)
 	if err != nil {
-		return nil, fmt.Errorf("unable to connect to %q: %w", a, err)
+		return nil, xerr.Wrap("unable to connect to "+a, err)
 	}
 	defer n.Close()
 	var (
@@ -330,11 +330,11 @@ func (s *Server) ConnectWith(a string, c serverClient, p *Profile, d *com.Packet
 	}
 	v.Close()
 	if err := writePacket(n, l.w, l.t, v); err != nil {
-		return nil, fmt.Errorf("unable to write Packet: %w", err)
+		return nil, xerr.Wrap("unable to write Packet", err)
 	}
 	r, err := readPacket(n, l.w, l.t)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read Packet: %w", err)
+		return nil, xerr.Wrap("unable to read Packet", err)
 	}
 	if r == nil || r.ID != MvComplete {
 		return nil, ErrEmptyPacket

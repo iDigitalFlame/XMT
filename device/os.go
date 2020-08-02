@@ -2,13 +2,12 @@ package device
 
 import (
 	"crypto/rand"
-	"encoding/hex"
-	"fmt"
 	"io"
 	"os"
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/denisbrodbeck/machineid"
 	"github.com/iDigitalFlame/xmt/data"
@@ -40,20 +39,26 @@ const (
 	// IDSize is the amount of bytes used to store the Host ID and
 	// SessionID values.  The ID is the (HostID + SessionID).
 	IDSize = 32
-	// SmallIDSize is the amount of bytes used for printing the Host ID
-	// value using the ID function.
-	SmallIDSize = MachineIDSize
 	// MachineIDSize is the amount of bytes that is used as the Host
 	// specific ID value that does not change when on the same host.
 	MachineIDSize = 28
 )
 
 const (
+	encTable = "0123456789ABCDEF"
+
 	xmtIDPrime  uint32 = 16777619
 	xmtIDOffset uint32 = 2166136261
 )
 
-var envRegexp = regexp.MustCompile(`(%([\w\d()-_]+)%|\$([[\w\d-_]+))`)
+var (
+	encPool = sync.Pool{
+		New: func() interface{} {
+			return new(strings.Builder)
+		},
+	}
+	envRegexp = regexp.MustCompile(`(%([\w\d()-_]+)%|\$([[\w\d-_]+))`)
+)
 
 // ID is an alias for a byte array that represents a 48 byte client identification number. This is used for
 // tracking and detection purposes.
@@ -90,11 +95,6 @@ func getArch() deviceArch {
 	return ArchUnknown
 }
 
-// Full returns the full string representation of this ID instance. Full is an alias of the 'FullString' function.
-func (i ID) Full() string {
-	return i.FullString()
-}
-
 // Hash returns the 32bit hash sum of this ID value. The hash mechanism used is similar to the hash/fnv mechanism.
 func (i ID) Hash() uint32 {
 	h := xmtIDOffset
@@ -107,10 +107,10 @@ func (i ID) Hash() uint32 {
 
 // String returns a representation of this ID instance.
 func (i ID) String() string {
-	if len(i) < SmallIDSize {
-		return strings.ToUpper(hex.EncodeToString(i))
+	if len(i) < MachineIDSize {
+		return i.string(0, len(i))
 	}
-	return strings.ToUpper(hex.EncodeToString(i[SmallIDSize:]))
+	return i.string(MachineIDSize, len(i))
 }
 
 // Expand attempts to determine environment variables from the current session and translate them from
@@ -135,9 +135,17 @@ func Expand(s string) string {
 	return s
 }
 
+// Signature returns the signature portion of the ID value. This value is constant and unique for each device.
+func (i ID) Signature() string {
+	if len(i) < MachineIDSize {
+		return i.string(0, len(i))
+	}
+	return i.string(0, MachineIDSize)
+}
+
 // FullString returns the full string representation of this ID instance.
 func (i ID) FullString() string {
-	return strings.ToUpper(hex.EncodeToString(i))
+	return i.string(0, len(i))
 }
 func getEnv() map[string]string {
 	m := make(map[string]string)
@@ -209,23 +217,16 @@ func (d deviceArch) String() string {
 	}
 	return "Unknown"
 }
-
-// IDFromString attempts to convert the hex string supplied into an ID value.
-func IDFromString(s string) (ID, error) {
-	i, err := hex.DecodeString(s)
-	if err != nil {
-		return nil, err
+func (i ID) string(start, end int) string {
+	s := encPool.Get().(*strings.Builder)
+	for x := start; x < end; x++ {
+		s.WriteByte(encTable[i[x]>>4])
+		s.WriteByte(encTable[i[x]&0x0F])
 	}
-	if len(i) == 0 {
-		return nil, fmt.Errorf("invalid ID value %q", s)
-	}
-	switch len(i) {
-	case 4, MachineIDSize, IDSize:
-		break
-	default:
-		return nil, fmt.Errorf("invalid ID size %d", len(i))
-	}
-	return ID(i), nil
+	r := s.String()
+	s.Reset()
+	encPool.Put(s)
+	return r
 }
 
 // MarshalStream transform this struct into a binary format and writes to the supplied data.Writer.

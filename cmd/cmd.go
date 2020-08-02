@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 const exitStopped uint32 = 0x1337
@@ -220,7 +222,7 @@ func (p Process) String() string {
 
 // Error fulfills the error interface and retruns a formatted string that specifies the Process Exit Code.
 func (e ExitError) Error() string {
-	return fmt.Sprintf("process exit: %d", e.Exit)
+	return "process exit: " + strconv.Itoa(int(e.Exit))
 }
 
 // NewProcess creates a new process instance that uses the supplied string vardict as the command line arguments.
@@ -316,7 +318,7 @@ func (p *Process) StdinPipe() (io.WriteCloser, error) {
 	}
 	var err error
 	if p.Stdin, p.reader, err = os.Pipe(); err != nil {
-		return nil, fmt.Errorf("unable to create Pipe: %w", err)
+		return nil, xerr.Wrap("unable to create Pipe", err)
 	}
 	return p.reader, nil
 }
@@ -338,7 +340,7 @@ func (p *Process) StdoutPipe() (io.ReadCloser, error) {
 	}
 	r, w, err := os.Pipe()
 	if err != nil {
-		return nil, fmt.Errorf("unable to create Pipe: %w", err)
+		return nil, xerr.Wrap("unable to create Pipe", err)
 	}
 	p.Stdout = w
 	p.closers = append(p.closers, w)
@@ -362,7 +364,7 @@ func (p *Process) StderrPipe() (io.ReadCloser, error) {
 	}
 	r, w, err := os.Pipe()
 	if err != nil {
-		return nil, fmt.Errorf("unable to create Pipe: %w", err)
+		return nil, xerr.Wrap("unable to create Pipe", err)
 	}
 	p.Stderr = w
 	p.closers = append(p.closers, w)

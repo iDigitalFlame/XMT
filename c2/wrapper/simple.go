@@ -16,7 +16,7 @@ const (
 	Base64 = Simple(0x2)
 )
 
-// Simple is an alias that allows for wrapping multiple types of simple mathmatic-based Wrappers. This alias
+// Simple is an alias that allows for wrapping multiple types of simple mathematic-based Wrappers. This alias
 // implements the 'c2.Wrapper' interface.
 type Simple uint8
 type nopCloser struct {

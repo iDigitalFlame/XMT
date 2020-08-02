@@ -2,8 +2,8 @@ package com
 
 import (
 	"context"
-	"fmt"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/com/limits"
@@ -32,7 +32,7 @@ type IPConnector struct {
 
 // String returns a string representation of this UNIXListener.
 func (i IPListener) String() string {
-	return fmt.Sprintf("IP:%d[%s]", i.proto, i.Addr().String())
+	return "IP:" + strconv.Itoa(int(i.proto)) + "[" + i.Addr().String() + "]"
 }
 
 // Read will attempt to read len(b) bytes from the current connection and fill the supplied buffer.
@@ -57,7 +57,7 @@ func NewIP(p byte, t time.Duration) *IPConnector {
 // Connect instructs the connector to create a connection to the supplied address. This function will
 // return a connection handle if successful. Otherwise the returned error will be non-nil.
 func (i IPConnector) Connect(s string) (net.Conn, error) {
-	c, err := i.dialer.Dial(fmt.Sprintf(netIP, i.proto), s)
+	c, err := i.dialer.Dial("ip:"+strconv.Itoa(int(i.proto)), s)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (i IPConnector) Connect(s string) (net.Conn, error) {
 // Listen instructs the connector to create a listener on the supplied listeneing address. This function
 // will return a handler to a listener and an error if there are any issues creating the listener.
 func (i IPConnector) Listen(s string) (net.Listener, error) {
-	c, err := ListenConfig.ListenPacket(context.Background(), fmt.Sprintf(netIP, i.proto), s)
+	c, err := ListenConfig.ListenPacket(context.Background(), "ip:"+strconv.Itoa(int(i.proto)), s)
 	if err != nil {
 		return nil, err
 	}

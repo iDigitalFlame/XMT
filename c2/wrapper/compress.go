@@ -3,8 +3,9 @@ package wrapper
 import (
 	"compress/gzip"
 	"compress/zlib"
-	"fmt"
+	"errors"
 	"io"
+	"strconv"
 )
 
 const (
@@ -27,7 +28,7 @@ type GzipWrap int8
 // is invalid.
 func NewZlib(level int) (ZlibWrap, error) {
 	if level < zlib.HuffmanOnly || level > zlib.BestCompression {
-		return 0, fmt.Errorf("invalid compression level: %d", level)
+		return 0, errors.New("invalid compression level " + strconv.Itoa(level))
 	}
 	return ZlibWrap(level), nil
 }
@@ -36,7 +37,7 @@ func NewZlib(level int) (ZlibWrap, error) {
 // is invalid.
 func NewGzip(level int) (GzipWrap, error) {
 	if level < gzip.HuffmanOnly || level > gzip.BestCompression {
-		return 0, fmt.Errorf("invalid compression level: %d", level)
+		return 0, errors.New("invalid compression level " + strconv.Itoa(level))
 	}
 	return GzipWrap(level), nil
 }

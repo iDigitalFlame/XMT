@@ -11,7 +11,6 @@ import (
 const DefaultTimeout = time.Duration(60) * time.Second
 
 const (
-	netIP   = "ip:%d"
 	netTCP  = "tcp"
 	netUDP  = "udp"
 	netUNIX = "unix"

@@ -2,7 +2,6 @@ package wc2
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -62,7 +61,7 @@ func (conn) LocalAddr() net.Addr {
 	return empty
 }
 func (l listener) String() string {
-	return fmt.Sprintf("WC2[%s]", l.socket.Addr().String())
+	return "WC2[" + l.socket.Addr().String() + "]"
 }
 func (l listener) Addr() net.Addr {
 	if l.socket == nil {

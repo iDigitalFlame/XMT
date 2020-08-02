@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"context"
-	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -68,9 +68,9 @@ func (c *Code) Running() bool {
 // String returns the formatted size of the Code thread data.
 func (c Code) String() string {
 	if c.handle > 0 {
-		return fmt.Sprintf("Code[0x%X, %s] %d bytes", c.handle, c.base.String(), len(c.Data))
+		return "Code[0x" + strconv.FormatUint(uint64(c.handle), 16) + ", " + c.base.String() + "] " + strconv.Itoa(len(c.Data)) + "B"
 	}
-	return fmt.Sprintf("Code %d bytes", len(c.Data))
+	return "Code " + strconv.Itoa(len(c.Data)) + "B"
 }
 
 // ExitCode returns the Exit Code of the process. If the Code thread is still running or has not been started, this

@@ -3,7 +3,6 @@
 package device
 
 import (
-	"fmt"
 	"os/exec"
 	"os/user"
 	"strings"
@@ -57,17 +56,17 @@ func getVersion() string {
 	case len(n) == 0 && len(b) == 0 && len(v) == 0:
 		return "Linux (?)"
 	case len(n) == 0 && len(b) > 0 && len(v) > 0:
-		return fmt.Sprintf("Linux (%s, %s)", v, b)
+		return "Linux (" + v + ", " + b + ")"
 	case len(n) == 0 && len(b) == 0 && len(v) > 0:
-		return fmt.Sprintf("Linux (%s)", v)
+		return "Linux (" + v + ")"
 	case len(n) == 0 && len(b) > 0 && len(v) == 0:
-		return fmt.Sprintf("Linux (%s)", b)
+		return "Linux (" + b + ")"
 	case len(n) > 0 && len(b) > 0 && len(v) > 0:
-		return fmt.Sprintf("%s (%s, %s)", n, v, b)
+		return n + " (" + v + ", " + b + ")"
 	case len(n) > 0 && len(b) == 0 && len(v) > 0:
-		return fmt.Sprintf("%s (%s)", n, v)
+		return n + " (" + v + ")"
 	case len(n) > 0 && len(b) > 0 && len(v) == 0:
-		return fmt.Sprintf("%s (%s)", n, b)
+		return n + " (" + b + ")"
 	}
 	return "Linux (?)"
 }

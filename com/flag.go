@@ -1,7 +1,7 @@
 package com
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -108,12 +108,12 @@ func (f Flag) String() string {
 		b.WriteRune('X')
 	}
 	if b.Len() == 0 {
-		b.WriteString(fmt.Sprintf("V%X", int64(f)))
+		b.WriteString("V" + strconv.FormatUint(uint64(f), 16))
 	}
 	if f&FlagMulti != 0 {
-		b.WriteString(fmt.Sprintf("[%d]", f.Len()))
+		b.WriteString("[" + strconv.Itoa(int(f.Len())) + "]")
 	} else if f&FlagFrag != 0 {
-		b.WriteString(fmt.Sprintf("[%X:%d/%d]", f.Group(), f.Position()+1, f.Len()))
+		b.WriteString("[" + strconv.FormatUint(uint64(f.Group()), 16) + ":" + strconv.Itoa(int(f.Position()+1)) + "/" + strconv.Itoa(int(f.Len()+1)) + "]")
 	}
 	s := b.String()
 	b.Reset()

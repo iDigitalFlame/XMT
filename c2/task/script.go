@@ -2,7 +2,9 @@ package task
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"reflect"
+	"strconv"
 
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/device"
@@ -55,10 +57,10 @@ func (s scriptTasker) Do(x context.Context, p *com.Packet) (*com.Packet, error) 
 // See the 'cmd/script' package for scripting engines.
 func RegisterEngine(i uint8, s Engine) error {
 	if i < 21 {
-		return fmt.Errorf("script mapping ID %d is invalid", i)
+		return errors.New("script mapping ID " + strconv.Itoa(int(i)) + " is invalid")
 	}
 	if Mappings[i] != nil {
-		return fmt.Errorf("script mapping ID %d is currently used by \"%T\"", i, Mappings[i])
+		return errors.New("script mapping ID " + strconv.Itoa(int(i)) + " is currently used by " + reflect.TypeOf(Mappings[i]).String())
 	}
 	Mappings[i] = scriptTasker{s}
 	return nil

@@ -3,7 +3,7 @@ package c2
 import (
 	"context"
 	"errors"
-	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/c2/task"
@@ -149,7 +149,7 @@ func (x *Scheduler) Schedule(s *Session, p *com.Packet) (*Job, error) {
 		p.Device = s.Device.ID
 	}
 	if _, ok := x.jobs[p.Job]; ok {
-		return nil, fmt.Errorf("job ID %d is already being tracked", p.Job)
+		return nil, errors.New("job ID " + strconv.Itoa(int(p.Job)) + " is already being tracked")
 	}
 	if err := s.Write(p); err != nil {
 		return nil, err

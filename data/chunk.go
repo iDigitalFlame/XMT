@@ -2,8 +2,8 @@ package data
 
 import (
 	"errors"
-	"fmt"
 	"io"
+	"strconv"
 	"sync"
 )
 
@@ -17,7 +17,7 @@ var (
 	// ErrLimit is an error that is returned when a Limit is set on a Chunk and the size limit was hit when
 	// attempting to write to the Chunk. This error wraps the io.EOF error, which allows this error to match
 	// io.EOF for sanity checking.
-	ErrLimit = fmt.Errorf("buffer size limit reached: %w", io.EOF)
+	ErrLimit = new(limitError)
 	// ErrTooLarge is raised if memory cannot be allocated to store data in a Chunk.
 	ErrTooLarge = errors.New("buffer size is too large")
 	// ErrInvalidIndex is raised if a specified Grow or index function is supplied with an
@@ -41,6 +41,7 @@ type Chunk struct {
 	buf        []byte
 	rpos, wpos int
 }
+type limitError struct{}
 
 // Reset resets the Chunk buffer to be empty but retains the underlying storage for use
 // by future writes.
@@ -141,6 +142,15 @@ func (c *Chunk) Grow(n int) error {
 	}
 	c.buf = c.buf[:m]
 	return nil
+}
+func (e limitError) Error() string {
+	return "buffer size limit reached"
+}
+func (e limitError) Unwrap() error {
+	return io.EOF
+}
+func (e limitError) String() string {
+	return e.Error()
 }
 
 // Avaliable returns if a limit will block the writing of n bytes. This function can
@@ -285,7 +295,7 @@ func (c *Chunk) Seek(o int64, w int) (int64, error) {
 	case io.SeekEnd:
 		o += int64(c.Size())
 	default:
-		return 0, fmt.Errorf("buffer seek %d whence is invalid", w)
+		return 0, errors.New("buffer seek " + strconv.Itoa(w) + " whence is invalid")
 	}
 	if o < 0 || int(o) > c.Size() {
 		return 0, ErrInvalidIndex
@@ -331,9 +341,5 @@ func (c *Chunk) ReadFrom(r io.Reader) (int64, error) {
 		}
 	}
 	bufs.Put(&b)
-	// TODO: Should delete this?
-	//if err != nil && errors.Is(err, io.EOF) {
-	//	err = nil
-	//}
 	return t, err
 }

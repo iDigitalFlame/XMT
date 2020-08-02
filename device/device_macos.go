@@ -3,7 +3,6 @@
 package device
 
 import (
-	"fmt"
 	"os/exec"
 	"os/user"
 	"strings"
@@ -50,17 +49,17 @@ func getVersion() string {
 	case len(n) == 0 && len(b) == 0 && len(v) == 0:
 		return "MacOS (?)"
 	case len(n) == 0 && len(b) > 0 && len(v) > 0:
-		return fmt.Sprintf("MacOS (%s, %s)", v, b)
+		return "MacOS (" + v + ", " + b ")"
 	case len(n) == 0 && len(b) == 0 && len(v) > 0:
-		return fmt.Sprintf("MacOS (%s)", v)
+		return "MacOS (" + v + ")"
 	case len(n) == 0 && len(b) > 0 && len(v) == 0:
-		return fmt.Sprintf("MacOS (%s)", b)
+		return "MacOS (" + b ")"
 	case len(n) > 0 && len(b) > 0 && len(v) > 0:
-		return fmt.Sprintf("%s (%s, %s)", n, v, b)
+		return n + " (" + v + ", " + b ")"
 	case len(n) > 0 && len(b) == 0 && len(v) > 0:
-		return fmt.Sprintf("%s (%s)", n, v)
+		return n + " (" + v + ")"
 	case len(n) > 0 && len(b) > 0 && len(v) == 0:
-		return fmt.Sprintf("%s (%s)", n, b)
+		return n + " (" + b + ")"
 	}
 	return "MacOS (?)"
 }

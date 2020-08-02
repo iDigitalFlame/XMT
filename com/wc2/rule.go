@@ -1,7 +1,6 @@
 package wc2
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/iDigitalFlame/xmt/util/text"
@@ -25,10 +24,13 @@ type Rule struct {
 // static strings using the 'text.String' wrapper. This struct can be used as a C2 client connector. If
 // the Client property is not set, the DefaultClient value will be used.
 type Generator struct {
-	URL, Host, Agent fmt.Stringer
+	URL, Host, Agent stringer
 }
 type matcher interface {
 	MatchString(string) bool
+}
+type stringer interface {
+	String() string
 }
 
 // Reset sets all the Generator values to nil. This allows for an empty Generator to be used.
@@ -92,7 +94,7 @@ func (g Generator) prepRequest(r *http.Request) {
 	if g.URL != nil {
 		s := g.URL.String()
 		if len(s) > 0 && s[0] != '/' {
-			r.URL.Path = fmt.Sprintf("/%s", s)
+			r.URL.Path = "/" + s
 		} else {
 			r.URL.Path = s
 		}

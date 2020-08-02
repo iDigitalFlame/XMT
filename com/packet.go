@@ -2,11 +2,13 @@ package com
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
+	"strconv"
 
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 // PacketHeaderSize is the length of the Packet header in bytes.
@@ -45,21 +47,21 @@ func (p Packet) Size() int {
 func (p Packet) String() string {
 	switch {
 	case p.Empty() && p.Flags == 0 && p.Job == 0:
-		return fmt.Sprintf("0x%X", p.ID)
+		return "0x" + strconv.FormatUint(uint64(p.ID), 16)
 	case p.Empty() && p.Flags == 0:
-		return fmt.Sprintf("0x%X/%d", p.ID, p.Job)
+		return "0x" + strconv.FormatUint(uint64(p.ID), 16) + "/" + strconv.Itoa(int(p.Job))
 	case p.Empty() && p.Job == 0:
-		return fmt.Sprintf("0x%X %s", p.ID, p.Flags)
+		return "0x" + strconv.FormatUint(uint64(p.ID), 16) + " " + p.Flags.String()
 	case p.Empty():
-		return fmt.Sprintf("0x%X/%d %s", p.ID, p.Job, p.Flags)
+		return "0x" + strconv.FormatUint(uint64(p.ID), 16) + "/" + strconv.Itoa(int(p.Job)) + " " + p.Flags.String()
 	case p.Flags == 0 && p.Job == 0:
-		return fmt.Sprintf("0x%X: %dB", p.ID, p.Size())
+		return "0x" + strconv.FormatUint(uint64(p.ID), 16) + ": " + strconv.Itoa(p.Size()) + "B"
 	case p.Flags == 0:
-		return fmt.Sprintf("0x%X/%d: %dB", p.ID, p.Job, p.Size())
+		return "0x" + strconv.FormatUint(uint64(p.ID), 16) + "/" + strconv.Itoa(int(p.Job)) + ": " + strconv.Itoa(p.Size()) + "B"
 	case p.Job == 0:
-		return fmt.Sprintf("0x%X %s: %dB", p.ID, p.Flags, p.Size())
+		return "0x" + strconv.FormatUint(uint64(p.ID), 16) + " " + p.Flags.String() + ": " + strconv.Itoa(p.Size()) + "B"
 	}
-	return fmt.Sprintf("0x%X/%d %s: %dB", p.ID, p.Job, p.Flags, p.Size())
+	return "0x" + strconv.FormatUint(uint64(p.ID), 16) + "/" + strconv.Itoa(int(p.Job)) + " " + p.Flags.String() + ": " + strconv.Itoa(p.Size()) + "B"
 }
 
 // Add attempts to combine the data and properties the supplied Packet with the existsing Packet. This
@@ -69,10 +71,10 @@ func (p *Packet) Add(n *Packet) error {
 		return nil
 	}
 	if p.ID != n.ID {
-		return fmt.Errorf("Packet ID %d does not match combining Packet ID %d", n.ID, p.ID)
+		return errors.New("Packet ID " + strconv.FormatUint(uint64(n.ID), 16) + " does not match combining Packet ID " + strconv.FormatUint(uint64(p.ID), 16))
 	}
 	if _, err := n.WriteTo(p); err != nil {
-		return fmt.Errorf("unable to write to Packet: %w", err)
+		return xerr.Wrap("unable to write to Packet", err)
 	}
 	return nil
 }

@@ -3,9 +3,9 @@ package c2
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -14,6 +14,7 @@ import (
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 const maxErrors = 2
@@ -204,15 +205,15 @@ func (s *Session) Close() error {
 func (s Session) String() string {
 	switch {
 	case s.parent == nil && s.sleep == 0:
-		return fmt.Sprintf("[%s] -> %s %s", s.ID.String(), s.host, s.Last.Format(time.RFC1123))
+		return "[" + s.ID.String() + "] -> " + s.host + " " + s.Last.Format(time.RFC1123)
 	case s.parent == nil && (s.jitter == 0 || s.jitter > 100):
-		return fmt.Sprintf("[%s] %s -> %s", s.ID.String(), s.sleep.String(), s.host)
+		return "[" + s.ID.String() + "] " + s.sleep.String() + " -> " + s.host
 	case s.parent == nil:
-		return fmt.Sprintf("[%s] %s/%d%%-> %s", s.ID.String(), s.sleep.String(), s.jitter, s.host)
+		return "[" + s.ID.String() + "] " + s.sleep.String() + "/" + strconv.Itoa(int(s.jitter)) + "% -> " + s.host
 	case s.parent != nil && (s.jitter == 0 || s.jitter > 100):
-		return fmt.Sprintf("[%s] %s -> %s %s", s.ID.String(), s.sleep.String(), s.host, s.Last.Format(time.RFC1123))
+		return "[" + s.ID.String() + "] " + s.sleep.String() + " -> " + s.host + " " + s.Last.Format(time.RFC1123)
 	}
-	return fmt.Sprintf("[%s] %s/%d%%-> %s %s", s.ID.String(), s.sleep.String(), s.jitter, s.host, s.Last.Format(time.RFC1123))
+	return "[" + s.ID.String() + "] " + s.sleep.String() + "/" + strconv.Itoa(int(s.jitter)) + "% -> " + s.host + " " + s.Last.Format(time.RFC1123)
 }
 
 // IsActive returns true if this Session is still able to send and receive Packets.
@@ -300,7 +301,7 @@ func (c *cluster) add(p *com.Packet) error {
 		return nil
 	}
 	if len(c.data) > 0 && !c.data[0].Belongs(p) {
-		return fmt.Errorf("packet ID %d does not match combining Packet ID", p.ID)
+		return errors.New("packet ID " + strconv.FormatUint(uint64(p.ID), 16) + " does not match combining Packet ID")
 	}
 	if p.Flags.Len() > c.max {
 		c.max = p.Flags.Len()
@@ -494,7 +495,7 @@ func (s *Session) SetDuration(t time.Duration, j int) {
 // Session parameter. This function will return a wrapped 'ErrUnable' error if this is a client Session.
 func (s *Session) Schedule(p *com.Packet) (*Job, error) {
 	if s.parent == nil {
-		return nil, fmt.Errorf("cannot be a client session: %w", ErrUnable)
+		return nil, xerr.Wrap("cannot be a client session", ErrUnable)
 	}
 	return s.s.Scheduler.Schedule(s, p)
 }

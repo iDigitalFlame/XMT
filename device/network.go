@@ -1,10 +1,10 @@
 package device
 
 import (
-	"fmt"
 	"net"
 
 	"github.com/iDigitalFlame/xmt/data"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 const maxNetworks = 255
@@ -23,9 +23,14 @@ func (n Network) Len() int {
 	return len(n)
 }
 func (d device) String() string {
-	return fmt.Sprintf(
-		"%s (%s): %s", d.Name, d.Hardware.String(), d.Address,
-	)
+	s := d.Name + "(" + d.Hardware.String() + "): ["
+	for i := range d.Address {
+		if i > 0 {
+			s += " "
+		}
+		s += d.Address[i].String()
+	}
+	return s + "]"
 }
 
 // Refresh collects the interfaces connected to this system and fills this Network object with the information.
@@ -36,7 +41,7 @@ func (n *Network) Refresh() error {
 	}
 	l, err := net.Interfaces()
 	if err != nil {
-		return fmt.Errorf("error retriving interfaces: %w", err)
+		return xerr.Wrap("error retriving interfaces", err)
 	}
 	for i := range l {
 		if l[i].Flags&net.FlagUp == 0 || l[i].Flags&net.FlagLoopback != 0 || l[i].Flags&net.FlagPointToPoint != 0 {

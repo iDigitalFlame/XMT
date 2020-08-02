@@ -3,7 +3,6 @@
 package device
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 
@@ -31,7 +30,7 @@ func shell() string {
 		return s
 	}
 	if d, ok := os.LookupEnv("WinDir"); ok {
-		p := fmt.Sprintf(`%s\system32\cmd.exe`, d)
+		p := d + `\system32\cmd.exe`
 		if s, err := os.Stat(p); err == nil && !s.IsDir() {
 			return p
 		}
@@ -61,7 +60,7 @@ func getVersion() string {
 	}
 	if i, _, err := k.GetIntegerValue("CurrentMajorVersionNumber"); err == nil {
 		if x, _, err := k.GetIntegerValue("CurrentMinorVersionNumber"); err == nil {
-			v = fmt.Sprintf("%d.%d", i, x)
+			v = strconv.Itoa(int(i)) + "." + strconv.Itoa(int(x))
 		} else {
 			v = strconv.Itoa(int(i))
 		}
@@ -72,17 +71,17 @@ func getVersion() string {
 	case len(n) == 0 && len(b) == 0 && len(v) == 0:
 		return "Windows (?)"
 	case len(n) == 0 && len(b) > 0 && len(v) > 0:
-		return fmt.Sprintf("Windows (%s, %s)", v, b)
+		return "Windows (" + v + ", " + b + ")"
 	case len(n) == 0 && len(b) == 0 && len(v) > 0:
-		return fmt.Sprintf("Windows (%s)", v)
+		return "Windows (" + v + ")"
 	case len(n) == 0 && len(b) > 0 && len(v) == 0:
-		return fmt.Sprintf("Windows (%s)", b)
+		return "Windows (" + b + ")"
 	case len(n) > 0 && len(b) > 0 && len(v) > 0:
-		return fmt.Sprintf("%s (%s, %s)", n, v, b)
+		return n + " (" + v + ", " + b + ")"
 	case len(n) > 0 && len(b) == 0 && len(v) > 0:
-		return fmt.Sprintf("%s (%s)", n, v)
+		return n + " (" + v + ")"
 	case len(n) > 0 && len(b) > 0 && len(v) == 0:
-		return fmt.Sprintf("%s (%s)", n, b)
+		return n + " (" + b + ")"
 	}
 	return "Windows (?)"
 }

@@ -2,8 +2,8 @@ package c2
 
 import (
 	"errors"
-	"fmt"
 	"io"
+	"strconv"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/c2/transform"
@@ -11,6 +11,7 @@ import (
 	"github.com/iDigitalFlame/xmt/com/limits"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/data/crypto"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 const (
@@ -149,7 +150,7 @@ func WrapXOR(k []byte) Setting {
 
 // String returns a string representation of this Config.
 func (c Config) String() string {
-	return fmt.Sprintf("Config[%d settings]", len(c))
+	return "Config[" + strconv.Itoa(len(c)) + " settings]"
 }
 
 // String returns a string representation of this Setting.
@@ -160,7 +161,7 @@ func (s Setting) String() string {
 	switch s[0] {
 	case ipID:
 		if len(s) == 2 {
-			return fmt.Sprintf("IP Connection (Proto 0x%X)", s[1])
+			return "IP Connection (Proto " + strconv.Itoa(int(s[1])) + ")"
 		}
 	case tcpID:
 		return "TCP Connection"
@@ -186,42 +187,42 @@ func (s Setting) String() string {
 	case sizeID:
 		if len(s) == 9 {
 			_ = s[8]
-			return fmt.Sprintf("Size %d",
+			return "Size " + strconv.Itoa(int(
 				uint64(s[8])|uint64(s[7])<<8|uint64(s[6])<<16|uint64(s[5])<<24|
 					uint64(s[4])<<32|uint64(s[3])<<40|uint64(s[2])<<48|uint64(s[1])<<56,
-			)
+			))
 		}
 	case zlibID:
 		if len(s) == 2 {
-			return fmt.Sprintf("Zlib Wrapper (Level %d)", s[1])
+			return "Zlib Wrapper (Level " + strconv.Itoa(int(s[1])) + ")"
 		}
 		return "Zlib Wrapper"
 	case gzipID:
 		if len(s) == 2 {
-			return fmt.Sprintf("Gzip Wrapper (Level %d)", s[1])
+			return "Gzip Wrapper (Level " + strconv.Itoa(int(s[1])) + ")"
 		}
 		return "Gzip Wrapper"
 	case sleepID:
 		if len(s) == 9 {
 			_ = s[8]
-			return fmt.Sprintf("Sleep %s", time.Duration(
+			return "Sleep " + time.Duration(
 				uint64(s[8])|uint64(s[7])<<8|uint64(s[6])<<16|uint64(s[5])<<24|
 					uint64(s[4])<<32|uint64(s[3])<<40|uint64(s[2])<<48|uint64(s[1])<<56,
-			).String())
+			).String()
 		}
 	case jitterID:
 		if len(s) == 2 {
-			return fmt.Sprintf("Jitter %d%%", s[1])
+			return "Jitter " + strconv.Itoa(int(s[1])) + "%"
 		}
 	case base64ID:
 		return "Base64 Wrapper"
 	case base64TID:
 		if len(s) == 2 {
-			return fmt.Sprintf("Base64 Transform (Shifted %d)", s[1])
+			return "Base64 Transform (Shifted " + strconv.Itoa(int(s[1])) + ")"
 		}
 		return "Base64 Transform"
 	}
-	return fmt.Sprintf("Invalid Setting 0x%X", s[0])
+	return "Invalid Setting 0x%X" + strconv.FormatUint(uint64(s[0]), 16)
 }
 
 // WrapGzipLevel returns a Setting that will apply the Gzip Wrapper to the generated Profile. The specified level will
@@ -368,12 +369,12 @@ func (c Config) Profile() (*Profile, error) {
 		switch c[i][0] {
 		case wc2ID:
 			if len(c[i]) < 4 {
-				return nil, fmt.Errorf("WebC2 hint requires rule values: %w", ErrInvalidSetting)
+				return nil, xerr.Wrap("WebC2 hint requires rule values", ErrInvalidSetting)
 			}
 			fallthrough
 		case ipID:
 			if len(c[i]) != 2 && c[i][0] == ipID {
-				return nil, fmt.Errorf("IP hint requires two values: %w", ErrInvalidSetting)
+				return nil, xerr.Wrap("IP hint requires two values", ErrInvalidSetting)
 			}
 			fallthrough
 		case tcpID, udpID, tlsID:
@@ -401,7 +402,7 @@ func (c Config) Profile() (*Profile, error) {
 			p.Transform = &transform.DNSClient{Domains: d}
 		case aesID:
 			if len(c[i]) < 2 {
-				return nil, fmt.Errorf("AES requires a key: %w", ErrInvalidSetting)
+				return nil, xerr.Wrap("AES requires a key", ErrInvalidSetting)
 			}
 			var (
 				l = c[i][1]
@@ -409,21 +410,21 @@ func (c Config) Profile() (*Profile, error) {
 			)
 			x, err := crypto.NewAes(k)
 			if err != nil {
-				return nil, fmt.Errorf("%s: %w", err.Error(), ErrInvalidSetting)
+				return nil, xerr.Wrap(err.Error(), ErrInvalidSetting)
 			}
 			y, err := wrapper.NewBlock(x, c[i][2+l:])
 			if err != nil {
-				return nil, fmt.Errorf("%s: %w", err.Error(), ErrInvalidSetting)
+				return nil, xerr.Wrap(err.Error(), ErrInvalidSetting)
 			}
 			w = append(w, y)
 		case cbkID:
 			if len(c[i]) != 6 {
-				return nil, fmt.Errorf("CBK requires a key: %w", ErrInvalidSetting)
+				return nil, xerr.Wrap("CBK requires a key", ErrInvalidSetting)
 			}
 			_ = c[i][5]
 			x, err := crypto.NewCBKEx(int(c[i][5]), int(c[i][1]), nil)
 			if err != nil {
-				return nil, fmt.Errorf("%s: %w", err.Error(), ErrInvalidSetting)
+				return nil, xerr.Wrap(err.Error(), ErrInvalidSetting)
 			}
 			y, _ := crypto.NewCBKEx(int(c[i][5]), int(c[i][1]), nil)
 			x.A, y.A = c[i][2], c[i][2]
@@ -433,14 +434,14 @@ func (c Config) Profile() (*Profile, error) {
 			w = append(w, z)
 		case xorID:
 			if len(c[i]) < 2 {
-				return nil, fmt.Errorf("XOR requires a key: %w", ErrInvalidSetting)
+				return nil, xerr.Wrap("XOR requires a key", ErrInvalidSetting)
 			}
 			x := crypto.XOR(c[i][1:])
 			z, _ := wrapper.NewCrypto(x, x)
 			w = append(w, z)
 		case sizeID:
 			if len(c[i]) != 9 {
-				return nil, fmt.Errorf("size requires two values: %w", ErrInvalidSetting)
+				return nil, xerr.Wrap("size requires two values", ErrInvalidSetting)
 			}
 			_ = c[i][8]
 			p.Size = uint(
@@ -451,7 +452,7 @@ func (c Config) Profile() (*Profile, error) {
 			if len(c[i]) == 2 {
 				z, err := wrapper.NewZlib(int(c[i][1]))
 				if err != nil {
-					return nil, fmt.Errorf("%s: %w", err.Error(), ErrInvalidSetting)
+					return nil, xerr.Wrap(err.Error(), ErrInvalidSetting)
 				}
 				w = append(w, z)
 				continue
@@ -461,7 +462,7 @@ func (c Config) Profile() (*Profile, error) {
 			if len(c[i]) == 2 {
 				g, err := wrapper.NewGzip(int(c[i][1]))
 				if err != nil {
-					return nil, fmt.Errorf("%s: %w", err.Error(), ErrInvalidSetting)
+					return nil, xerr.Wrap(err.Error(), ErrInvalidSetting)
 				}
 				w = append(w, g)
 				continue
@@ -469,7 +470,7 @@ func (c Config) Profile() (*Profile, error) {
 			w = append(w, wrapper.Gzip)
 		case sleepID:
 			if len(c[i]) != 9 {
-				return nil, fmt.Errorf("sleep requires two values: %w", ErrInvalidSetting)
+				return nil, xerr.Wrap("sleep requires two values", ErrInvalidSetting)
 			}
 			_ = c[i][8]
 			p.Sleep = time.Duration(
@@ -478,7 +479,7 @@ func (c Config) Profile() (*Profile, error) {
 			)
 		case jitterID:
 			if len(c[i]) != 2 {
-				return nil, fmt.Errorf("jitter requires two values: %w", ErrInvalidSetting)
+				return nil, xerr.Wrap("jitter requires two values", ErrInvalidSetting)
 			}
 			p.Jitter = uint(c[i][1])
 		case base64ID:
@@ -493,7 +494,7 @@ func (c Config) Profile() (*Profile, error) {
 			}
 			p.Transform = transform.Base64
 		default:
-			return nil, fmt.Errorf("0x%X: %w", c[i][0], ErrInvalidSetting)
+			return nil, xerr.Wrap("unknown setting value 0x"+strconv.FormatUint(uint64(c[i][0]), 16), ErrInvalidSetting)
 		}
 	}
 	if len(w) > 1 {

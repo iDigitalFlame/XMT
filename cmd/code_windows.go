@@ -4,10 +4,11 @@ package cmd
 
 import (
 	"context"
-	"fmt"
+	"strconv"
 	"sync/atomic"
 	"unsafe"
 
+	"github.com/iDigitalFlame/xmt/util/xerr"
 	"golang.org/x/sys/windows"
 )
 
@@ -133,7 +134,7 @@ func (c *Code) Start() error {
 	return nil
 }
 func (b base) String() string {
-	return fmt.Sprintf("0x%X -> 0x%X", b.owner, b.loc)
+	return "0x" + strconv.FormatUint(uint64(b.owner), 16) + " -> 0x" + strconv.FormatUint(uint64(b.loc), 16)
 }
 
 // SetParent will instruct the Code thread to choose a parent with the supplied process name. If this string is empty,
@@ -210,7 +211,7 @@ func freeMemory(h windows.Handle, a uintptr) error {
 		)
 	)
 	if r > 0 {
-		return fmt.Errorf("winapi NtFreeVirtualMemory error: %w", err)
+		return xerr.Wrap("winapi NtFreeVirtualMemory error", err)
 	}
 	return nil
 }
@@ -235,7 +236,7 @@ func createThread(h windows.Handle, a uintptr) (uintptr, error) {
 		)
 	)
 	if r > 0 {
-		return 0, fmt.Errorf("winapi NtCreateThreadEx error: %w", err)
+		return 0, xerr.Wrap("winapi NtCreateThreadEx error", err)
 	}
 	return t, nil
 }
@@ -250,7 +251,7 @@ func allocateMemory(h windows.Handle, s uint32) (uintptr, error) {
 		)
 	)
 	if r > 0 {
-		return 0, fmt.Errorf("winapi NtAllocateVirtualMemory error: %w", err)
+		return 0, xerr.Wrap("winapi NtAllocateVirtualMemory error", err)
 	}
 	return a, nil
 }
@@ -265,7 +266,7 @@ func writeMemory(h windows.Handle, a uintptr, b []byte) (uint32, error) {
 		)
 	)
 	if r > 0 {
-		return 0, fmt.Errorf("winapi NtWriteVirtualMemory error: %w", err)
+		return 0, xerr.Wrap("winapi NtWriteVirtualMemory error", err)
 	}
 	return s, nil
 }

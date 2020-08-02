@@ -2,8 +2,8 @@ package man
 
 import (
 	"context"
-	"fmt"
 	"net"
+	"strconv"
 	"sync"
 	"sync/atomic"
 
@@ -122,7 +122,7 @@ func GuardContext(x context.Context, n string) (*Guardian, error) {
 // return an error if the port is already being listened on. This function also takes a context.Context to be used for
 // resource control.
 func GuardContextTCP(x context.Context, p uint16) (*Guardian, error) {
-	l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", p))
+	l, err := net.Listen("tcp", "127.0.0.1"+strconv.Itoa(int(p)))
 	if err != nil {
 		return nil, err
 	}

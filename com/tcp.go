@@ -3,7 +3,7 @@ package com
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
+	"errors"
 	"net"
 	"time"
 )
@@ -38,7 +38,7 @@ type TCPConnector struct {
 
 // String returns a string representation of this TCPListener.
 func (t TCPListener) String() string {
-	return fmt.Sprintf("TCP[%s]", t.Addr().String())
+	return "TCP[" + t.Addr().String() + "]"
 }
 
 // Read will attempt to read len(b) bytes from the current connection and fill the supplied buffer.
@@ -126,12 +126,12 @@ func NewSecureTCP(t time.Duration, c *tls.Config) (*TCPConnector, error) {
 }
 func newConnector(n string, t time.Duration, c *tls.Config) (*TCPConnector, error) {
 	if t < 0 {
-		return nil, fmt.Errorf("invalid timeout value %d", t)
+		return nil, errors.New("invalid timeout value " + t.String())
 	}
 	switch n {
 	case "tcp", "tcp4", "tcp6", "unix", "unixpacket":
 	default:
-		return nil, fmt.Errorf("invalid network type %q", n)
+		return nil, errors.New("invalid network type " + n)
 	}
 	return &TCPConnector{tls: c, dialer: &net.Dialer{Timeout: t, KeepAlive: t, DualStack: true}}, nil
 }
