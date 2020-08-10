@@ -4,7 +4,6 @@ package devtools
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"strings"
 	"syscall"
@@ -88,11 +87,11 @@ func Registry(key, value string) (*RegistryFile, error) {
 	case strings.HasPrefix(p, "HKEY_PERFORMANCE_DATA") || strings.HasPrefix(p, "HKPD"):
 		k = registry.PERFORMANCE_DATA
 	default:
-		return nil, errors.New(`registry path "` + key + `" does not contain a valid key root`)
+		return nil, xerr.New(`registry path "` + key + `" does not contain a valid key root`)
 	}
 	i := strings.IndexByte(key, 92)
 	if i <= 0 {
-		return nil, errors.New(`registry path "` + key + `" does not contain a valid key root`)
+		return nil, xerr.New(`registry path "` + key + `" does not contain a valid key root`)
 	}
 	h, err := registry.OpenKey(k, key[i+1:], registry.QUERY_VALUE)
 	if err != nil {
@@ -111,7 +110,7 @@ func Registry(key, value string) (*RegistryFile, error) {
 		return nil, xerr.Wrap(`unable to read registry path "`+key+`:`+value+`"`, err)
 	}
 	if r <= 0 {
-		return nil, errors.New(`registry path "` + key + `:` + value + `" returned a zero size`)
+		return nil, xerr.New(`registry path "` + key + `:` + value + `" returned a zero size`)
 	}
 	b := make([]byte, r)
 	if _, _, err := h.GetValue(value, b); err != nil {

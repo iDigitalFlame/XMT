@@ -2,7 +2,6 @@ package c2
 
 import (
 	"context"
-	"errors"
 	"net"
 	"sync/atomic"
 
@@ -344,7 +343,7 @@ func (s *Session) Proxy(b string, c serverListener, p *Profile) (*Proxy, error) 
 		return nil, xerr.Wrap("unable to listen on "+b, err)
 	}
 	if h == nil {
-		return nil, errors.New("unable to listen on " + b)
+		return nil, xerr.New("unable to listen on " + b)
 	}
 	if s.log == nil {
 		s.log = logx.NOP

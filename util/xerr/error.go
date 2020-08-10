@@ -7,6 +7,13 @@ type Error struct {
 	e error
 	s string
 }
+type strError string
+
+// New creates a new string backed error struct and returns it. This error struct does not support Unwrapping.
+// The resulting structs created will be comparable.
+func New(s string) error {
+	return strError(s)
+}
 
 // Error returns the error message of this Error as a string value.
 func (e Error) Error() string {
@@ -21,6 +28,12 @@ func (e Error) Unwrap() error {
 // String returns the string value of this Error. Similar to the 'Error()' function.
 func (e Error) String() string {
 	return e.s
+}
+func (e strError) Error() string {
+	return string(e)
+}
+func (e strError) String() string {
+	return string(e)
 }
 
 // Wrap creates a new error that wraps the specified error. If not nil, this function will append ": " + 'Error()'

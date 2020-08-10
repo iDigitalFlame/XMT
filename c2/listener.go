@@ -2,18 +2,18 @@ package c2
 
 import (
 	"context"
-	"errors"
 	"net"
 	"sync/atomic"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/device"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 // ErrInvalidPacketCount is returned when attempting to read a packet marked
 // as multi or frag an the total count returned is zero.
-var ErrInvalidPacketCount = errors.New("frag total is zero on a multi or frag packet")
+var ErrInvalidPacketCount = xerr.New("frag total is zero on a multi or frag packet")
 
 // Listener is a struct that is passed back when a C2 Listener is added to the Server. The Listener struct
 // allows for controlling the Listener and setting callback functions to be used when a client connects,

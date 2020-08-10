@@ -4,7 +4,6 @@ package pipe
 
 import (
 	"context"
-	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -80,7 +79,7 @@ func stringToDec(s string) (os.FileMode, error) {
 			p |= 0001
 		case c == '-' || c == ' ':
 		case c != 'r' && c != 'x' && c != 'w':
-			return 0, errors.New(`invalid permission string "` + s + `"`)
+			return 0, xerr.New(`invalid permission string "` + s + `"`)
 		}
 	}
 	return p, nil
@@ -92,7 +91,7 @@ func getPerms(s string) (os.FileMode, int, int, error) {
 	}
 	v := strings.Split(s, ";")
 	if len(v) > 3 {
-		return 0, -1, -1, errors.New(`invalid permission "` + s + `" size ` + strconv.Itoa(len(v)))
+		return 0, -1, -1, xerr.New(`invalid permission "` + s + `" size ` + strconv.Itoa(len(v)))
 	}
 	var (
 		u, g   = -1, -1

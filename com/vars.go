@@ -2,9 +2,10 @@ package com
 
 import (
 	"crypto/tls"
-	"errors"
 	"net"
 	"time"
+
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 // DefaultTimeout is the default timeout used for the default connectors. The default is 60 seconds (one minute).
@@ -41,7 +42,7 @@ var (
 
 // ErrInvalidTLSConfig is returned when attempting to use the default TLS Connector as a listener. This error
 // is also returned when attemtping to use a TLS configuration that does not have a valid server certificates.
-var ErrInvalidTLSConfig = errors.New("TLS configuration is missing certificates")
+var ErrInvalidTLSConfig = xerr.New("TLS configuration is missing certificates")
 
 type deadline interface {
 	SetDeadline(time.Time) error

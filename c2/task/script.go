@@ -2,12 +2,12 @@ package task
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"strconv"
 
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/device"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 // Engine is an interface that allows for extending XMT with non-compiled code for easy deployability and flexibility.
@@ -57,10 +57,10 @@ func (s scriptTasker) Do(x context.Context, p *com.Packet) (*com.Packet, error) 
 // See the 'cmd/script' package for scripting engines.
 func RegisterEngine(i uint8, s Engine) error {
 	if i < 21 {
-		return errors.New("script mapping ID " + strconv.Itoa(int(i)) + " is invalid")
+		return xerr.New("script mapping ID " + strconv.Itoa(int(i)) + " is invalid")
 	}
 	if Mappings[i] != nil {
-		return errors.New("script mapping ID " + strconv.Itoa(int(i)) + " is currently used by " + reflect.TypeOf(Mappings[i]).String())
+		return xerr.New("script mapping ID " + strconv.Itoa(int(i)) + " is currently used by " + reflect.TypeOf(Mappings[i]).String())
 	}
 	Mappings[i] = scriptTasker{s}
 	return nil

@@ -2,9 +2,19 @@ package data
 
 import (
 	"context"
-	"errors"
 	"io"
 	"unsafe"
+)
+
+const (
+	// ErrTooLarge is raised if memory cannot be allocated to store data in a Chunk.
+	ErrTooLarge = dataError(3)
+	// ErrInvalidIndex is raised if a specified Grow or index function is supplied with an negative or out of
+	// bounds number or when a Seek index is not valid.
+	ErrInvalidIndex = dataError(2)
+	// ErrInvalidType is an error that occurs when the Bytes, ReadBytes, StringVal or ReadString functions could not
+	// propertly determine the underlying type of array from the Reader.
+	ErrInvalidType = dataError(1)
 )
 
 const (
@@ -14,15 +24,6 @@ const (
 	DataLimitLarge uint64 = 2 << 31
 	// DataLimitMedium is the size value allowed for medium strings using the WriteString and WriteBytes functions.
 	DataLimitMedium uint64 = 2 << 15
-)
-
-var (
-	// ErrInvalidBytes is an error that occurs when the Bytes function could not propertly determine
-	// the type of byte array from the Reader.
-	ErrInvalidBytes = errors.New("could not understand bytes type")
-	// ErrInvalidString is an error that occurs when the ReadString or String functions could not propertly
-	// determine the type of string from the Reader.
-	ErrInvalidString = errors.New("could not understand string type")
 )
 
 // Reader is a basic interface that supports all types of read functions of the core Golang builtin types.
@@ -172,7 +173,7 @@ func ReadStringList(r Reader, s *[]string) error {
 		}
 		l = int(n)
 	default:
-		return ErrInvalidString
+		return ErrInvalidType
 	}
 	if s == nil || len(*s) < l {
 		*s = make([]string, l)

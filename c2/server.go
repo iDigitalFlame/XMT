@@ -2,7 +2,6 @@ package c2
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"github.com/PurpleSec/logx"
@@ -26,10 +25,10 @@ const (
 var (
 	// ErrNoConnector is a error returned by the Connect and Listen functions when the Connector is nil and the
 	// provided Profile is also nil or does not contain a connection hint.
-	ErrNoConnector = errors.New("invalid or missing connector")
+	ErrNoConnector = xerr.New("invalid or missing connector")
 	// ErrEmptyPacket is a error returned by the Connect function when the expected return result from the
 	// server was invalid or not expected.
-	ErrEmptyPacket = errors.New("server sent an invalid response")
+	ErrEmptyPacket = xerr.New("server sent an invalid response")
 )
 
 // Server is the manager for all C2 Listener and Sessions connection and states. This struct also manages all
@@ -259,14 +258,14 @@ func (s *Server) Listen(n, b string, c serverListener, p *Profile) (*Listener, e
 	}
 	x := strings.ToLower(n)
 	if _, ok := s.active[x]; ok {
-		return nil, errors.New("listener " + x + " is already active")
+		return nil, xerr.New("listener " + x + " is already active")
 	}
 	h, err := c.Listen(b)
 	if err != nil {
 		return nil, xerr.Wrap("unable to listen on "+b, err)
 	}
 	if h == nil {
-		return nil, errors.New("unable to listen on " + b)
+		return nil, xerr.New("unable to listen on " + b)
 	}
 	if s.Log == nil {
 		s.Log = logx.NOP

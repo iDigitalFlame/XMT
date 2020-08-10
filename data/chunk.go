@@ -1,7 +1,6 @@
 package data
 
 import (
-	"errors"
 	"io"
 	"strconv"
 	"sync"
@@ -18,11 +17,6 @@ var (
 	// attempting to write to the Chunk. This error wraps the io.EOF error, which allows this error to match
 	// io.EOF for sanity checking.
 	ErrLimit = new(limitError)
-	// ErrTooLarge is raised if memory cannot be allocated to store data in a Chunk.
-	ErrTooLarge = errors.New("buffer size is too large")
-	// ErrInvalidIndex is raised if a specified Grow or index function is supplied with an
-	// negative or out of bounds number or when a Seek index is not valid.
-	ErrInvalidIndex = errors.New("buffer index provided is not valid")
 
 	bufs = sync.Pool{
 		New: func() interface{} {
@@ -41,6 +35,8 @@ type Chunk struct {
 	buf        []byte
 	rpos, wpos int
 }
+type dataError uint8
+type whenceError int
 type limitError struct{}
 
 // Reset resets the Chunk buffer to be empty but retains the underlying storage for use
@@ -143,14 +139,25 @@ func (c *Chunk) Grow(n int) error {
 	c.buf = c.buf[:m]
 	return nil
 }
+func (e dataError) Error() string {
+	switch e {
+	case ErrInvalidType:
+		return "could not find the buffer type"
+	case ErrInvalidIndex:
+		return "index provided is invalid"
+	case ErrTooLarge:
+		return "buffer size is too large"
+	}
+	return "unknown error"
+}
 func (e limitError) Error() string {
 	return "buffer size limit reached"
 }
 func (e limitError) Unwrap() error {
 	return io.EOF
 }
-func (e limitError) String() string {
-	return e.Error()
+func (e whenceError) Error() string {
+	return "seek " + strconv.Itoa(int(e)) + " whence is invalid"
 }
 
 // Avaliable returns if a limit will block the writing of n bytes. This function can
@@ -295,7 +302,7 @@ func (c *Chunk) Seek(o int64, w int) (int64, error) {
 	case io.SeekEnd:
 		o += int64(c.Size())
 	default:
-		return 0, errors.New("buffer seek " + strconv.Itoa(w) + " whence is invalid")
+		return 0, whenceError(w)
 	}
 	if o < 0 || int(o) > c.Size() {
 		return 0, ErrInvalidIndex

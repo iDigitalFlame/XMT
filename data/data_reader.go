@@ -119,7 +119,7 @@ func (r *reader) Bytes() ([]byte, error) {
 		}
 		l = int(n)
 	default:
-		return nil, ErrInvalidBytes
+		return nil, ErrInvalidType
 	}
 	b := make([]byte, l)
 	n, err := ReadFully(r.r, b)
@@ -273,9 +273,6 @@ func (r *reader) ReadString(p *string) error {
 func (r *reader) StringVal() (string, error) {
 	b, err := r.Bytes()
 	if err != nil {
-		if err == ErrInvalidBytes {
-			return "", ErrInvalidString
-		}
 		return "", err
 	}
 	return string(b), nil

@@ -3,7 +3,6 @@
 package cmd
 
 import (
-	"errors"
 	"io"
 	"os"
 	"reflect"
@@ -30,7 +29,7 @@ var (
 
 	funcAllocConsole                      = dllKernel32.NewProc("AllocConsole")
 	funcCreateProcess                     = dllKernel32.NewProc("CreateProcessW")
-	funcCreateProcessAsUser               = dllKernel32.NewProc("CreateProcessAsUserA")
+	funcCreateProcessAsUser               = dllKernel32.NewProc("CreateProcessAsUserW")
 	funcUpdateProcThreadAttribute         = dllKernel32.NewProc("UpdateProcThreadAttribute")
 	funcInitializeProcThreadAttributeList = dllKernel32.NewProc("InitializeProcThreadAttributeList")
 )
@@ -122,7 +121,7 @@ func createEnv(s []string) (*uint16, error) {
 	var t, i, l int
 	for _, s := range s {
 		if q := strings.IndexByte(s, 61); q <= 0 {
-			return nil, errors.New(`invalid environment string "` + s + `"`)
+			return nil, xerr.New(`invalid environment string "` + s + `"`)
 		}
 		t += len(s) + 1
 	}
@@ -308,8 +307,7 @@ func newParentEx(p windows.Handle, i *windows.StartupInfo) (*startupInfoEx, erro
 	x.StartupInfo.Cb = uint32(unsafe.Sizeof(x))
 	r, _, err = funcUpdateProcThreadAttribute.Call(
 		uintptr(unsafe.Pointer(x.AttributeList)), 0, 0x00020000,
-		uintptr(unsafe.Pointer(&p)), uintptr(unsafe.Sizeof(p)),
-		uintptr(unsafe.Pointer(nil)), uintptr(unsafe.Pointer(nil)),
+		uintptr(unsafe.Pointer(&p)), uintptr(unsafe.Sizeof(p)), 0, 0,
 	)
 	if r == 0 {
 		return nil, xerr.Wrap("winapi UpdateProcThreadAttribute error", err)

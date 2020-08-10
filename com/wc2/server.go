@@ -3,7 +3,6 @@ package wc2
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"net"
 	"net/http"
 	"os"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/com/limits"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 const (
@@ -92,7 +92,7 @@ func (s *Server) ServeFile(p, f string) error {
 		s.handler.Handle(p, http.FileServer(fileHandler(f)))
 		return nil
 	}
-	return errors.New(`path "` + f + `" is not a file`)
+	return xerr.New(`path "` + f + `" is not a file`)
 }
 
 // Handle registers the handler for the given pattern. If a handler already exists for pattern, Handle panics.
@@ -125,7 +125,7 @@ func (s *Server) ServeDirectory(p, f string) error {
 		s.handler.Handle(p, http.FileServer(http.Dir(f)))
 		return nil
 	}
-	return errors.New(`path "` + f + `" is not a directory`)
+	return xerr.New(`path "` + f + `" is not a directory`)
 }
 
 // NewTLS creates a new TLS wrapped Web C2 server instance. This can be passed to the Listen function of a Controller

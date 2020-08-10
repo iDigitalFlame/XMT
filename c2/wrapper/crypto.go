@@ -2,15 +2,15 @@ package wrapper
 
 import (
 	"crypto/cipher"
-	"errors"
 	"io"
 
 	"github.com/iDigitalFlame/xmt/data/crypto"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 // ErrInvalid is returned when the arguments provided to any of the New* functions when the
 // arguments are nil or empty.
-var ErrInvalid = errors.New("provided crypto arguments cannot be nil")
+var ErrInvalid = xerr.New("provided crypto arguments cannot be nil")
 
 // Block is a struct that contains an IV and Block-based Cipher that can be used to Wrap/Unwrap with the specified
 // encryption algorithm.

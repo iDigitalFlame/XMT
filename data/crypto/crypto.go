@@ -3,11 +3,11 @@ package crypto
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"errors"
 	"io"
 	"strconv"
 
 	"github.com/iDigitalFlame/xmt/data"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 type reader struct {
@@ -84,7 +84,7 @@ func NewWriter(c Writer, w io.Writer) data.Writer {
 // the length of the supplied IV.
 func DecryptReader(b cipher.Block, iv []byte, r io.Reader) (data.Reader, error) {
 	if len(iv) != b.BlockSize() {
-		return nil, errors.New("blocksize (" + strconv.Itoa(b.BlockSize()) + ") must equal IV size (" + strconv.Itoa(len(iv)) + ")")
+		return nil, xerr.New("blocksize (" + strconv.Itoa(b.BlockSize()) + ") must equal IV size (" + strconv.Itoa(len(iv)) + ")")
 	}
 	return data.NewReader(&cipher.StreamReader{R: r, S: cipher.NewCFBDecrypter(b, iv)}), nil
 }
@@ -94,7 +94,7 @@ func DecryptReader(b cipher.Block, iv []byte, r io.Reader) (data.Reader, error) 
 // the length of the supplied IV.
 func DecryptWriter(b cipher.Block, iv []byte, w io.Writer) (data.Writer, error) {
 	if len(iv) != b.BlockSize() {
-		return nil, errors.New("blocksize (" + strconv.Itoa(b.BlockSize()) + ") must equal IV size (" + strconv.Itoa(len(iv)) + ")")
+		return nil, xerr.New("blocksize (" + strconv.Itoa(b.BlockSize()) + ") must equal IV size (" + strconv.Itoa(len(iv)) + ")")
 	}
 	return data.NewWriter(&cipher.StreamWriter{W: w, S: cipher.NewCFBDecrypter(b, iv)}), nil
 }
@@ -104,7 +104,7 @@ func DecryptWriter(b cipher.Block, iv []byte, w io.Writer) (data.Writer, error) 
 // the length of the supplied IV.
 func EncryptReader(b cipher.Block, iv []byte, r io.Reader) (data.Reader, error) {
 	if len(iv) != b.BlockSize() {
-		return nil, errors.New("blocksize (" + strconv.Itoa(b.BlockSize()) + ") must equal IV size (" + strconv.Itoa(len(iv)) + ")")
+		return nil, xerr.New("blocksize (" + strconv.Itoa(b.BlockSize()) + ") must equal IV size (" + strconv.Itoa(len(iv)) + ")")
 	}
 	return data.NewReader(&cipher.StreamReader{R: r, S: cipher.NewCFBEncrypter(b, iv)}), nil
 }
@@ -114,7 +114,7 @@ func EncryptReader(b cipher.Block, iv []byte, r io.Reader) (data.Reader, error) 
 // the length of the supplied IV.
 func EncryptWriter(b cipher.Block, iv []byte, w io.Writer) (data.Writer, error) {
 	if len(iv) != b.BlockSize() {
-		return nil, errors.New("blocksize (" + strconv.Itoa(b.BlockSize()) + ") must equal IV size (" + strconv.Itoa(len(iv)) + ")")
+		return nil, xerr.New("blocksize (" + strconv.Itoa(b.BlockSize()) + ") must equal IV size (" + strconv.Itoa(len(iv)) + ")")
 	}
 	return data.NewWriter(&cipher.StreamWriter{W: w, S: cipher.NewCFBEncrypter(b, iv)}), nil
 }

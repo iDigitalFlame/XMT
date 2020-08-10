@@ -2,7 +2,6 @@ package c2
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net"
 	"strconv"
@@ -22,9 +21,9 @@ const maxErrors = 2
 var (
 	// ErrUnable is an error returned for a generic action if there is some condition that prevents the action
 	// from running.
-	ErrUnable = errors.New("cannot preform this action")
+	ErrUnable = xerr.New("cannot preform this action")
 	// ErrFullBuffer is returned from the WritePacket function when the send buffer for Session is full.
-	ErrFullBuffer = errors.New("cannot add a Packet to a full send buffer")
+	ErrFullBuffer = xerr.New("cannot add a Packet to a full send buffer")
 )
 
 // Session is a struct that represents a connection between the client and the Listener. This struct does some
@@ -301,7 +300,7 @@ func (c *cluster) add(p *com.Packet) error {
 		return nil
 	}
 	if len(c.data) > 0 && !c.data[0].Belongs(p) {
-		return errors.New("packet ID " + strconv.FormatUint(uint64(p.ID), 16) + " does not match combining Packet ID")
+		return xerr.New("packet ID " + strconv.FormatUint(uint64(p.ID), 16) + " does not match combining Packet ID")
 	}
 	if p.Flags.Len() > c.max {
 		c.max = p.Flags.Len()

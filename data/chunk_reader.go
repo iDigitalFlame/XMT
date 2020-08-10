@@ -120,7 +120,7 @@ func (c *Chunk) Bytes() ([]byte, error) {
 		}
 		l = int(n)
 	default:
-		return nil, ErrInvalidBytes
+		return nil, ErrInvalidType
 	}
 	b := make([]byte, l)
 	n, err := ReadFully(c, b)
@@ -259,9 +259,6 @@ func (c *Chunk) Float64() (float64, error) {
 func (c *Chunk) StringVal() (string, error) {
 	b, err := c.Bytes()
 	if err != nil {
-		if err == ErrInvalidBytes {
-			return "", ErrInvalidString
-		}
 		return "", err
 	}
 	return string(b), nil

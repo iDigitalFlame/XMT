@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/cipher"
-	"errors"
 	"io"
 	"io/ioutil"
 	"net"
@@ -18,6 +17,7 @@ import (
 	"github.com/iDigitalFlame/xmt/data/crypto"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 const (
@@ -27,7 +27,7 @@ const (
 
 var (
 	// ErrNoEndpoints is an error returned if no valid Guardian paths could be used and/or found during a launch.
-	ErrNoEndpoints = errors.New("no Guardian paths found")
+	ErrNoEndpoints = xerr.New("no Guardian paths found")
 
 	client = &http.Client{
 		Timeout: timeoutWeb,

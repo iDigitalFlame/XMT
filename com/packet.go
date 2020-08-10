@@ -2,7 +2,6 @@ package com
 
 import (
 	"bytes"
-	"errors"
 	"strconv"
 
 	"github.com/iDigitalFlame/xmt/data"
@@ -71,7 +70,7 @@ func (p *Packet) Add(n *Packet) error {
 		return nil
 	}
 	if p.ID != n.ID {
-		return errors.New("Packet ID " + strconv.FormatUint(uint64(n.ID), 16) + " does not match combining Packet ID " + strconv.FormatUint(uint64(p.ID), 16))
+		return xerr.New("Packet ID " + strconv.FormatUint(uint64(n.ID), 16) + " does not match combining Packet ID " + strconv.FormatUint(uint64(p.ID), 16))
 	}
 	if _, err := n.WriteTo(p); err != nil {
 		return xerr.Wrap("unable to write to Packet", err)

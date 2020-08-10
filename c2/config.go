@@ -1,7 +1,6 @@
 package c2
 
 import (
-	"errors"
 	"io"
 	"strconv"
 	"time"
@@ -82,13 +81,13 @@ var (
 
 	// ErrMultipleHints is an error returned by the 'Profile' function if more that one Connection Hint Setting is
 	// attempted to be applied by the Config.
-	ErrMultipleHints = errors.New("config attempted to add multiple transforms")
+	ErrMultipleHints = xerr.New("config attempted to add multiple transforms")
 	// ErrInvalidSetting is an error returned by the 'Profile' function if any of the specified Settings are invalid
 	// or do contain valid information. The error returned will be a wrapped version of this error.
-	ErrInvalidSetting = errors.New("config setting is invalid")
+	ErrInvalidSetting = xerr.New("config setting is invalid")
 	// ErrMultipleTransforms is an error returned by the 'Profile' function if more that one Transform Setting is
 	// attempted to be applied by the Config. Unlink Wrappers, Transforms cannot be stacked.
-	ErrMultipleTransforms = errors.New("config attempted to add multiple transforms")
+	ErrMultipleTransforms = xerr.New("config attempted to add multiple transforms")
 )
 
 // Setting is an alias for a byte array that represents a setting in binary form. This can be used inside a

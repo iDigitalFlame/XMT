@@ -3,7 +3,6 @@ package c2
 import (
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"net"
 	"sync"
@@ -155,7 +154,7 @@ func notify(l *Listener, s *Session, p *com.Packet) error {
 		if p.ID == MvRegister {
 			p.Device = s.Device.ID
 		} else {
-			return errors.New(`received a Session ID "` + p.Device.String() + `"that does not match our own ID "` + s.ID.String() + `"`)
+			return xerr.New(`received a Session ID "` + p.Device.String() + `"that does not match our own ID "` + s.ID.String() + `"`)
 		}
 	}
 	if l != nil && p.Flags&com.FlagOneshot != 0 {

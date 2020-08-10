@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"os"
 	"strconv"
@@ -18,20 +17,20 @@ const exitStopped uint32 = 0x1337
 
 var (
 	// ErrEmptyCommand is an error returned when attempting to start a Process that has an empty 'Args' array.
-	ErrEmptyCommand = errors.New("process arguments are empty")
+	ErrEmptyCommand = xerr.New("process arguments are empty")
 	// ErrNotCompleted is returned when attempting to access the exit code on a running process or wait on a
 	// non-stared proess.
-	ErrNotCompleted = errors.New("the process has not yet completed or was not started")
+	ErrNotCompleted = xerr.New("the process has not yet completed or was not started")
 	// ErrAlreadyStarted is an error returned by the 'Start' or 'Run' functions when attempting to start a process
 	// that has already been started via a 'Start' or 'Run' function call.
-	ErrAlreadyStarted = errors.New("process has already been started")
+	ErrAlreadyStarted = xerr.New("process has already been started")
 	// ErrNoProcessFound is returned by the SetParent* functions on Windows devices when a specified parent process
 	// could not be found.
-	ErrNoProcessFound = errors.New("could not find a suitable parent process")
+	ErrNoProcessFound = xerr.New("could not find a suitable parent process")
 
-	errStdinSet  = errors.New("process Stdin already set")
-	errStderrSet = errors.New("process Stderr already set")
-	errStdoutSet = errors.New("process Stdout already set")
+	errStdinSet  = xerr.New("process Stdin already set")
+	errStderrSet = xerr.New("process Stderr already set")
+	errStdoutSet = xerr.New("process Stdout already set")
 )
 
 // Process is a struct that represents an executable command and allows for setting

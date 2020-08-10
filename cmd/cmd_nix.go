@@ -3,13 +3,13 @@
 package cmd
 
 import (
-	"errors"
 	"os"
 	"os/exec"
 	"sync/atomic"
 	"syscall"
 
 	"github.com/iDigitalFlame/xmt/device/devtools"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 const (
@@ -51,7 +51,7 @@ func (p *Process) wait() {
 // Fork will attempt to use built-in system utilities to fork off the process into a separate, but similar process.
 // If successful, this function will return the PID of the new process.
 func Fork() (uint32, error) {
-	return 0, errors.New("currently unimplemented on *nix systems (WIP)")
+	return 0, xerr.New("currently unimplemented on *nix systems (WIP)")
 }
 
 // Pid returns the current process PID. This function returns zero if the process has not been started.

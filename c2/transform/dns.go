@@ -1,12 +1,12 @@
 package transform
 
 import (
-	"errors"
 	"io"
 	"strings"
 	"sync"
 
 	"github.com/iDigitalFlame/xmt/util"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 const (
@@ -38,7 +38,7 @@ var (
 	// ErrInvalidLength is an error raised by the Read and Write functions
 	// if the byte array supplied is smaller than the required byte size to
 	// Transform into a DNS packet.
-	ErrInvalidLength = errors.New("length of byte array is invalid")
+	ErrInvalidLength = xerr.New("length of byte array is invalid")
 
 	bufs = sync.Pool{
 		New: func() interface{} {

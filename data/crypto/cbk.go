@@ -2,7 +2,6 @@ package crypto
 
 import (
 	crypto "crypto/rand"
-	"errors"
 	"io"
 	"math"
 	"math/rand"
@@ -386,7 +385,7 @@ func (e *CBK) Write(w io.Writer, b []byte) (int, error) {
 // A, B and C values are randomally generated at runtime.
 func NewCBKEx(d int, size int, source rand.Source) (*CBK, error) {
 	if size < 0 || size > sizeMax || math.Floor(math.Log2(float64(size))) != math.Ceil(math.Log2(float64(size))) {
-		return nil, errors.New("block size " + strconv.Itoa(size) + " must be between 16 and 128 and a power of two")
+		return nil, xerr.New("block size " + strconv.Itoa(size) + " must be between 16 and 128 and a power of two")
 	}
 	c := &CBK{D: byte(d), buf: make([]byte, size+1), total: -1, Source: source}
 	c.Reset()

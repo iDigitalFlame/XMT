@@ -2,18 +2,18 @@ package c2
 
 import (
 	"context"
-	"errors"
 	"strconv"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/c2/task"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/util"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 // ErrCannotAssign is an error returned by the 'Schedule' function when the random loop cannot find a valid
 // JobID (unused). This may occur in random circumstances when the Scheduler is overused.
-var ErrCannotAssign = errors.New("unable to assign a unused JobID (is Scheduler full?)")
+var ErrCannotAssign = xerr.New("unable to assign a unused JobID (is Scheduler full?)")
 
 // Job is a struct that is used to track and manage Tasks given to Session Clients. This struct has function callbacks
 // that can be used to watch for completion and also offers a Wait function to pause execution until a response is received.
@@ -149,7 +149,7 @@ func (x *Scheduler) Schedule(s *Session, p *com.Packet) (*Job, error) {
 		p.Device = s.Device.ID
 	}
 	if _, ok := x.jobs[p.Job]; ok {
-		return nil, errors.New("job ID " + strconv.Itoa(int(p.Job)) + " is already being tracked")
+		return nil, xerr.New("job ID " + strconv.Itoa(int(p.Job)) + " is already being tracked")
 	}
 	if err := s.Write(p); err != nil {
 		return nil, err

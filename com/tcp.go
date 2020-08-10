@@ -3,9 +3,10 @@ package com
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"net"
 	"time"
+
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 // TCPConn is a struct that represents a TCP based network connection. This struct can be used
@@ -126,12 +127,12 @@ func NewSecureTCP(t time.Duration, c *tls.Config) (*TCPConnector, error) {
 }
 func newConnector(n string, t time.Duration, c *tls.Config) (*TCPConnector, error) {
 	if t < 0 {
-		return nil, errors.New("invalid timeout value " + t.String())
+		return nil, xerr.New("invalid timeout value " + t.String())
 	}
 	switch n {
 	case "tcp", "tcp4", "tcp6", "unix", "unixpacket":
 	default:
-		return nil, errors.New("invalid network type " + n)
+		return nil, xerr.New("invalid network type " + n)
 	}
 	return &TCPConnector{tls: c, dialer: &net.Dialer{Timeout: t, KeepAlive: t, DualStack: true}}, nil
 }
