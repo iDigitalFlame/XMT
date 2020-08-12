@@ -30,7 +30,7 @@ type container struct {
 func (options) close() {}
 func (p *Process) wait() {
 	err := p.opts.Wait()
-	if _, ok := err.(*exec.ExitError); !ok && err != nil {
+	if _, ok := err.(*exec.ExitError); err != nil && !ok {
 		p.stopWith(err)
 		return
 	}

@@ -9,7 +9,7 @@ import (
 const (
 	max   = int(^uint(0) >> 1)
 	small = 64
-	empty = "0xNULL"
+	empty = "<nil>"
 )
 
 var (
@@ -32,8 +32,8 @@ var (
 type Chunk struct {
 	Limit int
 
-	buf        []byte
-	rpos, wpos int
+	pos int
+	buf []byte
 }
 type dataError uint8
 type whenceError int
@@ -42,8 +42,7 @@ type limitError struct{}
 // Reset resets the Chunk buffer to be empty but retains the underlying storage for use
 // by future writes.
 func (c *Chunk) Reset() {
-	c.buf = c.buf[:0]
-	c.rpos, c.wpos = 0, 0
+	c.pos, c.buf = 0, c.buf[:0]
 }
 
 // Clear is similar to Reset, but discards the buffer, which must be allocated again. If using
@@ -56,7 +55,7 @@ func (c *Chunk) Clear() {
 // Rewind will seek the writing and reading positions back to zero. This function can be used
 // to 'reset' the Chunk without deleting any data.
 func (c *Chunk) Rewind() {
-	c.rpos, c.wpos = 0, 0
+	c.pos = 0
 }
 
 // Len returns the same result as Size. This function returns the amount of bytes written or
@@ -79,7 +78,7 @@ func (c Chunk) Size() int {
 	if c.buf == nil {
 		return 0
 	}
-	return len(c.buf) - c.wpos
+	return len(c.buf) - c.pos
 }
 
 // Flush does nothing for the Chunk struct. Just here for compatibility.
@@ -87,17 +86,14 @@ func (Chunk) Flush() error {
 	return nil
 }
 
-// Empty returns true if this Chunk's buffer is empty.
-func (c Chunk) Empty() bool {
-	return len(c.buf) == 0
+// Close allows Chunk to support the io.Closer interface.
+func (Chunk) Close() error {
+	return nil
 }
 
-// Close will truncate the writing buffer if this Chunk has been written to.
-func (c *Chunk) Close() error {
-	if c.wpos > 0 {
-		c.buf = c.buf[:c.wpos]
-	}
-	return nil
+// Empty returns true if this Chunk's buffer is empty.
+func (c Chunk) Empty() bool {
+	return len(c.buf) <= c.pos
 }
 
 // String returns a string representation of this Chunk's buffer.
@@ -105,26 +101,28 @@ func (c Chunk) String() string {
 	if len(c.buf) == 0 {
 		return empty
 	}
-	return string(c.buf[c.wpos:])
+	_ = c.buf[c.pos]
+	return string(c.buf[c.pos:])
 }
 
-// NewChunk creates a new Chunk struct and will use the provided byte array as the underlying
-// structure if is is not null.
+// NewChunk creates a new Chunk struct and will use the provided byte array as the underlying structure.
 func NewChunk(b []byte) *Chunk {
-	c := &Chunk{buf: b}
-	if b != nil {
-		c.wpos = len(b)
-	}
-	return c
+	return &Chunk{buf: b}
 }
 
 // Payload returns a copy of the underlying buffer contained in this Chunk.
 func (c Chunk) Payload() []byte {
-	if c.buf == nil {
+	if len(c.buf) == 0 {
 		return nil
 	}
-	_ = c.buf[c.wpos] // BCE ?
-	return c.buf[c.wpos:]
+	_ = c.buf[c.pos]
+	return c.buf[c.pos:]
+}
+func (limitError) Error() string {
+	return "buffer size limit reached"
+}
+func (limitError) Unwrap() error {
+	return io.EOF
 }
 
 // Grow grows the Chunk's buffer capacity, if necessary, to guarantee space for another n bytes.
@@ -150,29 +148,37 @@ func (e dataError) Error() string {
 	}
 	return "unknown error"
 }
-func (e limitError) Error() string {
-	return "buffer size limit reached"
-}
-func (e limitError) Unwrap() error {
-	return io.EOF
-}
 func (e whenceError) Error() string {
 	return "seek " + strconv.Itoa(int(e)) + " whence is invalid"
 }
 
-// Avaliable returns if a limit will block the writing of n bytes. This function can
-// be used to check if there is space to write before commiting a write.
+// Avaliable returns if a limit will block the writing of n bytes. This function can be used to check if there
+// is space to write before commiting a write.
 func (c Chunk) Avaliable(n int) bool {
 	return c.Limit <= 0 || c.Size()+n <= c.Limit
+}
+
+// Truncate discards all but the first n unread bytes from the Chunk but continues to use the same allocated storage.
+// This will return an error if n is negative or greater than the length of the buffer.
+func (c *Chunk) Truncate(n int) error {
+	if n == 0 {
+		c.Reset()
+		return nil
+	}
+	if n < 0 || n > c.Len() {
+		return ErrInvalidIndex
+	}
+	c.buf = c.buf[:c.pos+n]
+	return nil
 }
 func (c *Chunk) small(b ...byte) error {
 	_, err := c.Write(b)
 	return err
 }
 func (c *Chunk) grow(n int) (int, error) {
-	x := len(c.buf) - c.wpos
-	if x == 0 && c.wpos != 0 {
-		c.Reset()
+	x := len(c.buf) - c.pos
+	if x == 0 && c.pos != 0 {
+		c.pos, c.buf = 0, c.buf[:0]
 	}
 	if c.Limit > 0 {
 		if x >= c.Limit {
@@ -191,7 +197,7 @@ func (c *Chunk) grow(n int) (int, error) {
 	}
 	switch m := cap(c.buf); {
 	case n <= m/2-x:
-		copy(c.buf, c.buf[c.wpos:])
+		copy(c.buf, c.buf[c.pos:])
 	case c.Limit > 0 && m > c.Limit-m-n:
 		return 0, ErrLimit
 	case m > max-m-n:
@@ -201,11 +207,10 @@ func (c *Chunk) grow(n int) (int, error) {
 		if err != nil {
 			return 0, err
 		}
-		copy(b, c.buf[c.wpos:])
+		copy(b, c.buf[c.pos:])
 		c.buf = b
 	}
-	c.wpos = 0
-	c.buf = c.buf[:x+n]
+	c.pos, c.buf = 0, c.buf[:x+n]
 	return x, nil
 }
 func (c *Chunk) reslice(n int) (int, bool) {
@@ -232,15 +237,15 @@ func trySlice(n int) (b []byte, err error) {
 	return make([]byte, n), nil
 }
 
-// Read reads the next len(p) bytes from the Chunk or until the Chunk
-// is drained. The return value n is the number of bytes read.
+// Read reads the next len(p) bytes from the Chunk or until the Chunk is drained. The return value n is the
+// number of bytes read.
 func (c *Chunk) Read(b []byte) (int, error) {
-	if len(c.buf) <= c.rpos {
+	if len(c.buf) <= c.pos {
 		c.Reset()
 		return 0, io.EOF
 	}
-	n := copy(b, c.buf[c.rpos:])
-	c.rpos += n
+	n := copy(b, c.buf[c.pos:])
+	c.pos += n
 	return n, nil
 }
 
@@ -263,10 +268,10 @@ func (c *Chunk) Write(b []byte) (int, error) {
 	return n, nil
 }
 
-// MarshalStream writes the Chunk data into a binary data representation. This function will return an error
+// MarshalStream writes the unread Chunk data into a binary data representation. This function will return an error
 // if any part of the writes fail.
 func (c Chunk) MarshalStream(w Writer) error {
-	return w.WriteBytes(c.buf[c.wpos:])
+	return w.WriteBytes(c.buf[c.pos:])
 }
 
 // UnmarshalStream reads the Chunk data from a binary data representation. This function will return an error
@@ -274,7 +279,7 @@ func (c Chunk) MarshalStream(w Writer) error {
 func (c *Chunk) UnmarshalStream(r Reader) error {
 	var err error
 	c.buf, err = r.Bytes()
-	c.rpos, c.wpos = 0, 0
+	c.pos = 0
 	return err
 }
 
@@ -284,13 +289,13 @@ func (c *Chunk) WriteTo(w io.Writer) (int64, error) {
 	if c.Empty() {
 		return 0, nil
 	}
-	n, err := w.Write(c.buf[c.rpos:])
-	c.rpos += n
+	n, err := w.Write(c.buf[c.pos:])
+	c.pos += n
 	return int64(n), err
 }
 
-// Seek will attempt to seek to the provided offset index and whence. This function will return
-// the new offset if successful and will return an error if the offset and/or whence are invalid.
+// Seek will attempt to seek to the provided offset index and whence. This function will return the new offset
+// if successful and will return an error if the offset and/or whence are invalid.
 func (c *Chunk) Seek(o int64, w int) (int64, error) {
 	switch w {
 	case io.SeekStart:
@@ -298,7 +303,7 @@ func (c *Chunk) Seek(o int64, w int) (int64, error) {
 			return 0, ErrInvalidIndex
 		}
 	case io.SeekCurrent:
-		o += int64(c.rpos)
+		o += int64(c.pos)
 	case io.SeekEnd:
 		o += int64(c.Size())
 	default:
@@ -307,13 +312,13 @@ func (c *Chunk) Seek(o int64, w int) (int64, error) {
 	if o < 0 || int(o) > c.Size() {
 		return 0, ErrInvalidIndex
 	}
-	c.rpos = int(o)
+	c.pos = int(o)
 	return o, nil
 
 }
 
-// ReadFrom reads data from the supplied Reader until EOF or error. The return value is the number of
-// bytes read. Any error except io.EOF encountered during the read is also returned.
+// ReadFrom reads data from the supplied Reader until EOF or error. The return value is the number of bytes read.
+// Any error except io.EOF encountered during the read is also returned.
 func (c *Chunk) ReadFrom(r io.Reader) (int64, error) {
 	b := *bufs.Get().(*[]byte)
 	var (

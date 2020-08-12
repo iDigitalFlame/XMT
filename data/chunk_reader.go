@@ -77,11 +77,11 @@ func (c *Chunk) Int64() (int64, error) {
 
 // Uint8 reads the value from the Chunk payload buffer.
 func (c *Chunk) Uint8() (uint8, error) {
-	if c.rpos+1 > len(c.buf) {
+	if c.pos+1 > len(c.buf) {
 		return 0, io.EOF
 	}
-	v := uint8(c.buf[c.rpos])
-	c.rpos++
+	v := uint8(c.buf[c.pos])
+	c.pos++
 	return v, nil
 }
 
@@ -122,9 +122,11 @@ func (c *Chunk) Bytes() ([]byte, error) {
 	default:
 		return nil, ErrInvalidType
 	}
-	b := make([]byte, l)
-	n, err := ReadFully(c, b)
-	if err != nil && ((err != io.EOF && err != ErrLimit) || n != l) {
+	var (
+		n int
+		b = make([]byte, l)
+	)
+	if n, err = ReadFully(c, b); err != nil && ((err != io.EOF && err != ErrLimit) || n != l) {
 		return nil, err
 	}
 	if n != l {
@@ -165,35 +167,35 @@ func (c *Chunk) ReadBool(p *bool) error {
 
 // Uint16 reads the value from the Chunk payload buffer.
 func (c *Chunk) Uint16() (uint16, error) {
-	if c.rpos+2 > len(c.buf) {
+	if c.pos+2 > len(c.buf) {
 		return 0, io.EOF
 	}
-	_ = c.buf[c.rpos+1]
-	v := uint16(c.buf[c.rpos+1]) | uint16(c.buf[c.rpos])<<8
-	c.rpos += 2
+	_ = c.buf[c.pos+1]
+	v := uint16(c.buf[c.pos+1]) | uint16(c.buf[c.pos])<<8
+	c.pos += 2
 	return v, nil
 }
 
 // Uint32 reads the value from the Chunk payload buffer.
 func (c *Chunk) Uint32() (uint32, error) {
-	if c.rpos+4 > len(c.buf) {
+	if c.pos+4 > len(c.buf) {
 		return 0, io.EOF
 	}
-	_ = c.buf[c.rpos+3]
-	v := uint32(c.buf[c.rpos+3]) | uint32(c.buf[c.rpos+2])<<8 | uint32(c.buf[c.rpos+1])<<16 | uint32(c.buf[c.rpos])<<24
-	c.rpos += 4
+	_ = c.buf[c.pos+3]
+	v := uint32(c.buf[c.pos+3]) | uint32(c.buf[c.pos+2])<<8 | uint32(c.buf[c.pos+1])<<16 | uint32(c.buf[c.pos])<<24
+	c.pos += 4
 	return v, nil
 }
 
 // Uint64 reads the value from the Chunk payload buffer.
 func (c *Chunk) Uint64() (uint64, error) {
-	if c.rpos+8 > len(c.buf) {
+	if c.pos+8 > len(c.buf) {
 		return 0, io.EOF
 	}
-	_ = c.buf[c.rpos+7]
-	v := uint64(c.buf[c.rpos+7]) | uint64(c.buf[c.rpos+6])<<8 | uint64(c.buf[c.rpos+5])<<16 | uint64(c.buf[c.rpos+4])<<24 |
-		uint64(c.buf[c.rpos+3])<<32 | uint64(c.buf[c.rpos+2])<<40 | uint64(c.buf[c.rpos+1])<<48 | uint64(c.buf[c.rpos])<<56
-	c.rpos += 8
+	_ = c.buf[c.pos+7]
+	v := uint64(c.buf[c.pos+7]) | uint64(c.buf[c.pos+6])<<8 | uint64(c.buf[c.pos+5])<<16 | uint64(c.buf[c.pos+4])<<24 |
+		uint64(c.buf[c.pos+3])<<32 | uint64(c.buf[c.pos+2])<<40 | uint64(c.buf[c.pos+1])<<48 | uint64(c.buf[c.pos])<<56
+	c.pos += 8
 	return v, nil
 }
 

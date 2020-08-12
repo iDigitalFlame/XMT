@@ -114,8 +114,8 @@ func (s *Session) listen() {
 			}
 			s.peek = &com.Packet{ID: MvShutdown, Device: s.ID}
 			atomic.StoreUint32(&s.mode, 0)
-			atomic.StoreUint32(&s.channel, 0)
 			atomic.StoreUint32(&s.done, flagOption)
+			atomic.StoreUint32(&s.channel, flagFinished)
 			close(s.send)
 		}
 		s.log.Trace("[%s] Waking up...", s.ID)
@@ -143,6 +143,9 @@ func (s *Session) listen() {
 			break
 		}
 		if c.Close(); s.errors > maxErrors {
+			break
+		}
+		if s.done == flagOption {
 			break
 		}
 		select {

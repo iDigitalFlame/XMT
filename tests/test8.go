@@ -3,14 +3,29 @@ package main
 import (
 	"fmt"
 
-	"github.com/iDigitalFlame/xmt/util/xerr"
+	"github.com/iDigitalFlame/xmt/data"
 )
 
 func main() {
-	var (
-		d  = xerr.New("test error")
-		d1 = xerr.New("test error")
-		d2 = xerr.New("test error2")
-	)
-	fmt.Println(d, d1, d2, "\n", d == d, d == d1, d == d2)
+	var c data.Chunk
+
+	//c.Limit = 6
+
+	fmt.Println(c.Empty(), c.Size())
+
+	c.WriteString("TESTING STRING!")
+	c.WriteString("testing string!")
+
+	fmt.Println("grow", c.Grow(101))
+
+	c.StringVal()
+
+	fmt.Println(c.Payload())
+
+	c.StringVal()
+
+	c.WriteInt(1)
+
+	fmt.Println(c.Empty(), c.Size())
+
 }

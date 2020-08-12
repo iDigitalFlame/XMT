@@ -21,6 +21,12 @@ func BenchmarkErrorNew(b *testing.B) {
 	}
 }
 
+func BenchmarkXErrNew(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		_ = xerr.New("this error is nil")
+	}
+}
+
 func BenchmarkErrorfWrap(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		_ = fmt.Errorf("this error is nil: %w", io.EOF)

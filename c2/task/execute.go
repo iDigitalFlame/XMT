@@ -218,13 +218,12 @@ func process(x context.Context, p *com.Packet) (*com.Packet, error) {
 		return w, nil
 	}
 	err = z.Wait()
-	if _, ok := err.(*cmd.ExitError); !ok {
+	if _, ok := err.(*cmd.ExitError); err != nil && !ok {
 		w.Clear()
 		return nil, err
 	}
 	c, _ := z.ExitCode()
 	w.WriteInt32(c)
 	io.Copy(w, &o)
-	w.Close()
 	return w, nil
 }

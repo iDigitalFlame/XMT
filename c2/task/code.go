@@ -148,12 +148,11 @@ func code(x context.Context, p *com.Packet) (*com.Packet, error) {
 		return w, nil
 	}
 	err = z.Wait()
-	if _, ok := err.(*cmd.ExitError); !ok {
+	if _, ok := err.(*cmd.ExitError); err != nil && !ok {
 		w.Clear()
 		return nil, err
 	}
 	e, _ := z.ExitCode()
 	w.WriteInt32(e)
-	w.Close()
 	return w, nil
 }

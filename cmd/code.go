@@ -68,7 +68,7 @@ func (c *Code) Running() bool {
 // String returns the formatted size of the Code thread data.
 func (c Code) String() string {
 	if c.handle > 0 {
-		return "Code[0x" + strconv.FormatUint(uint64(c.handle), 16) + ", " + c.base.String() + "] " + strconv.Itoa(len(c.Data)) + "B"
+		return "Code[" + strconv.FormatUint(uint64(c.handle), 16) + ", " + c.base.String() + "] " + strconv.Itoa(len(c.Data)) + "B"
 	}
 	return "Code " + strconv.Itoa(len(c.Data)) + "B"
 }

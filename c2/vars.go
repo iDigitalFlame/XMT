@@ -279,7 +279,15 @@ func notifyClient(l *Listener, s *Session, p *com.Packet) {
 		// INFO: Clear the buffer of the last Packet as we don't want to block
 		<-s.recv
 	}
+	if s.done == flagFinished {
+		return
+	}
 	s.recv <- p
+	select {
+	case <-s.s.ch:
+		return
+	default:
+	}
 	switch {
 	case s.Mux != nil:
 		s.s.events <- event{p: p, s: s, pFunc: s.Mux.Handle}
