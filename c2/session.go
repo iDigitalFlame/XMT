@@ -29,30 +29,38 @@ var (
 // Session is a struct that represents a connection between the client and the Listener. This struct does some
 // automatic handeling and acts as the communication channel between the client and server.
 type Session struct {
-	ID       device.ID
-	Last     time.Time
-	Device   device.Machine
-	Created  time.Time
-	Receive  func(*Session, *com.Packet)
+	Device device.Machine
+	connection
+
+	Last    time.Time
+	Created time.Time
+	ID      device.ID
+
+	host  string
+	sleep time.Duration
+
+	ch     chan waker
+	socket func(string) (net.Conn, error)
+
+	peek *com.Packet
+	send chan *com.Packet
+
+	Receive func(*Session, *com.Packet)
+
+	wake   chan waker
+	parent *Listener
+	frags  map[uint16]*cluster
+	swarm  *proxySwarm
+
 	Shutdown func(*Session)
 
-	ch      chan waker
-	mode    uint32
-	host    string
-	peek    *com.Packet
-	send    chan *com.Packet
 	recv    chan *com.Packet
-	wake    chan waker
 	done    uint32
-	frags   map[uint16]*cluster
-	swarm   *proxySwarm
-	sleep   time.Duration
-	jitter  uint8
-	errors  uint8
-	parent  *Listener
-	socket  func(string) (net.Conn, error)
+	mode    uint32
 	channel uint32
-	connection
+
+	jitter uint8
+	errors uint8
 }
 type cluster struct {
 	max  uint16

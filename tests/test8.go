@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/iDigitalFlame/xmt/data"
+	"github.com/iDigitalFlame/xmt/device"
 )
 
 func main() {
@@ -26,6 +27,6 @@ func main() {
 
 	c.WriteInt(1)
 
-	fmt.Println(c.Empty(), c.Size())
+	fmt.Println(c.Empty(), c.Size(), device.Local.String())
 
 }

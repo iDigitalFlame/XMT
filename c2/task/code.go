@@ -15,12 +15,14 @@ import (
 // will be injected into the current process.
 type Code struct {
 	Data    []byte
-	Wait    bool
-	Timeout time.Duration
+	choices []string
 
-	pid      int32
-	name     string
-	choices  []string
+	name string
+
+	Timeout time.Duration
+	pid     int32
+
+	Wait     bool
 	elevated bool
 }
 

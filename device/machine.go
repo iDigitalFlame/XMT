@@ -5,15 +5,19 @@ import "github.com/iDigitalFlame/xmt/data"
 // Machine is a struct that contains information about a specific device. This struct contains generic Operating
 // System Information such as Version, Arch and network information.
 type Machine struct {
-	ID       ID         `json:"id"`
-	OS       deviceOS   `json:"os"`
-	PID      uint32     `json:"pid"`
-	PPID     uint32     `json:"ppid"`
+	ID ID `json:"id"`
+
+	Network Network `json:"network"`
+
+	Hostname string `json:"hostname"`
+	User     string `json:"user"`
+	Version  string `json:"version"`
+
+	PID  uint32 `json:"pid"`
+	PPID uint32 `json:"ppid"`
+
 	Arch     deviceArch `json:"arch"`
-	User     string     `json:"user"`
-	Version  string     `json:"version"`
-	Network  Network    `json:"network"`
-	Hostname string     `json:"hostname"`
+	OS       deviceOS   `json:"os"`
 	Elevated bool       `json:"elevated"`
 }
 

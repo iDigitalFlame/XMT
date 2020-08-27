@@ -15,17 +15,20 @@ import (
 // Process is a struct that is similar to the 'cmd.Process' struct. This is used to Task a Client with running
 // a specified command.
 type Process struct {
-	Dir     string
 	Env     []string
-	Wait    bool
 	Args    []string
 	Stdin   []byte
-	Flags   uint32
+	choices []string
+
+	Dir  string
+	name string
+
 	Timeout time.Duration
 
-	pid      int32
-	name     string
-	choices  []string
+	Flags uint32
+	pid   int32
+
+	Wait     bool
 	elevated bool
 }
 

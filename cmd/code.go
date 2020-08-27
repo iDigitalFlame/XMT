@@ -11,15 +11,17 @@ import (
 // that runs the shellcode. If none are specified, the shellcode will be injected into the current process.
 // This struct only works on Windows devices. All calls on non-Windows devices will return 'ErrNotSupportedOS'.
 type Code struct {
-	Data    []byte
-	Timeout time.Duration
-
-	ch     chan finished
-	ctx    context.Context
-	err    error
-	exit   uint32
-	handle uintptr
 	base
+
+	Data []byte
+	ctx  context.Context
+
+	err    error
+	ch     chan finished
+	handle uintptr
+
+	Timeout time.Duration
+	exit    uint32
 }
 
 // Run will start the Code thread and wait until it completes. This function will return the same errors as the 'Start'

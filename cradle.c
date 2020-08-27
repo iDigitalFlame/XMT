@@ -27,6 +27,9 @@ int get(char *host, char *port, char *path, unsigned char **buffer) {
         }
         closesocket(s);
     }
+    if (s == NULL || s == INVALID_SOCKET) {
+        return 0;
+    }
     freeaddrinfo(a);
     unsigned char *m = malloc(256 + strlen(host) + strlen(port) + strlen(path));
     strcpy(m, "GET /\0");

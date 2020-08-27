@@ -37,12 +37,16 @@ var (
 // CBK is the representation of the CBK Cipher.
 // CBK is a block based cipher that allows for a variable size index in encoding.
 type CBK struct {
-	A, B, C, D byte
+	buf []byte
+	// Random Source to use for data generation from keys.
+	// This source MUST be repeatable.
 	Source     rand.Source
-
-	buf        []byte
-	index      uint8
 	pos, total int
+	// The first two key bytes of the cipher.
+	A, B  byte
+	index uint8
+	// The second two ey bytes of the cipher.
+	C, D byte
 }
 
 // NewCBK returns a new CBK Cipher with the D value specified. The other A, B and C values
