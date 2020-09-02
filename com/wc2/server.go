@@ -164,7 +164,7 @@ func (s *Server) Connect(a string) (net.Conn, error) {
 	return c, nil
 }
 func (f fileHandler) Open(_ string) (http.File, error) {
-	return os.Open(string(f))
+	return os.OpenFile(string(f), os.O_RDONLY, 0)
 }
 
 // Listen returns a new C2 listener for this Web instance. This function creates a separate server, but still

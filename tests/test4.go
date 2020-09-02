@@ -9,16 +9,16 @@ import (
 	"github.com/iDigitalFlame/xmt/man"
 )
 
-var sent = man.Sentinel{
+/*var sent = man.Sentinel{
 	Paths: []string{
 		os.Args[0],
 	},
-}
+}*/
 
 func test4Main() {
 
 	if len(os.Args) == 2 {
-		ok, err := sent.Ping(os.Args[1])
+		ok, err := man.Wake(os.Args[1], os.Args[0])
 		if err != nil {
 			fmt.Println("error", err)
 		}

@@ -215,7 +215,7 @@ func (o *options) readHandle(r io.Reader, m bool) (windows.Handle, error) {
 			return 0, nil
 		}
 	} else {
-		f, err := os.Open(os.DevNull)
+		f, err := os.OpenFile(os.DevNull, os.O_RDONLY, 0)
 		if err != nil {
 			return 0, xerr.Wrap("cannot open null device", err)
 		}
@@ -265,7 +265,7 @@ func (o *options) writeHandle(w io.Writer, m bool) (windows.Handle, error) {
 			return 0, nil
 		}
 	} else {
-		f, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0644)
+		f, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
 		if err != nil {
 			return 0, xerr.Wrap("cannot open null device", err)
 		}

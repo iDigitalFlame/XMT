@@ -73,8 +73,7 @@ func handleSock(c net.Conn) {
 	c.Close()
 }
 
-// Close will close the Guardian and stoppings the listener. Any errors during listener close will be
-// returned.
+// Close will close the Guardian and stoppings the listener. Any errors during listener close will be returned.
 func (g *Guardian) Close() error {
 	atomic.StoreUint32(&g.done, 1)
 	g.cancel()

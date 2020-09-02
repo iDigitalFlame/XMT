@@ -204,7 +204,6 @@ func (l *listener) Accept() (net.Conn, error) {
 		return nil, &errno{m: "could not connect pipe: " + err.Error(), e: err}
 	}
 	return &conn{addr: l.addr, handle: h}, nil
-
 }
 func (c *conn) SetDeadline(t time.Time) error {
 	c.read, c.write = t, t

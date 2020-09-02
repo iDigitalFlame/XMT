@@ -162,7 +162,7 @@ func getEnv() map[string]string {
 // LoadSession will attempt to load the Session UUID from the specified file. This function will return an
 // error if the file cannot be read or not found.
 func LoadSession(s string) error {
-	r, err := os.Open(s)
+	r, err := os.OpenFile(s, os.O_RDONLY, 0)
 	if err != nil {
 		return err
 	}
@@ -179,7 +179,7 @@ func LoadSession(s string) error {
 // SaveSession will attempt to save the Session UUID to the specified file. This function will return an
 // error if the file cannot be written to or created.
 func SaveSession(s string) error {
-	w, err := os.Create(s)
+	w, err := os.OpenFile(s, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}

@@ -29,7 +29,16 @@ var dialer = new(net.Dialer)
 // returned without any changes.
 func Format(s string) string {
 	if !filepath.IsAbs(s) {
-		return "/tmp/" + s
+		var (
+			p      = "/run/" + s
+			f, err = os.OpenFile("/run/"+s, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400)
+		)
+		if err != nil {
+			return "/tmp/" + s
+		}
+		f.Close()
+		os.Remove(p)
+		return p
 	}
 	return s
 }

@@ -28,7 +28,7 @@ func Download(s string, b []byte) *com.Packet {
 // DownloadFile returns a Packet that will instruct a Client to save the contents of the supplied local file to
 // the remote file location. This will return an error if any errors occur during reading or opening the local file.
 func DownloadFile(s, r string) (*com.Packet, error) {
-	f, err := os.Open(device.Expand(r))
+	f, err := os.OpenFile(device.Expand(r), os.O_RDONLY, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func download(x context.Context, p *com.Packet) (*com.Packet, error) {
 		h = device.Expand(s)
 		f *os.File
 	)
-	if f, err = os.Create(h); err != nil {
+	if f, err = os.OpenFile(h, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644); err != nil {
 		return nil, err
 	}
 	var (

@@ -3,30 +3,14 @@ package main
 import (
 	"fmt"
 
-	"github.com/iDigitalFlame/xmt/data"
-	"github.com/iDigitalFlame/xmt/device"
+	"github.com/iDigitalFlame/xmt/util"
 )
 
 func main() {
-	var c data.Chunk
+	fmt.Println(util.Decode([]byte("this-is-my-key"), value))
 
-	//c.Limit = 6
+}
 
-	fmt.Println(c.Empty(), c.Size())
-
-	c.WriteString("TESTING STRING!")
-	c.WriteString("testing string!")
-
-	fmt.Println("grow", c.Grow(101))
-
-	c.StringVal()
-
-	fmt.Println(c.Payload())
-
-	c.StringVal()
-
-	c.WriteInt(1)
-
-	fmt.Println(c.Empty(), c.Size(), device.Local.String())
-
+var value = []byte{
+	0x1C, 0x1C, 0x1D, 0x03, 0x5E, 0x53, 0x5C, 0x02, 0x0A, 0x16, 0x42, 0x0C, 0x09, 0x1C, 0x5A, 0x0B, 0x06, 0x1E,
 }

@@ -38,7 +38,7 @@ func shell() string {
 	return `%WinDir%\system32\cmd.exe`
 }
 func isElevated() bool {
-	if p, err := os.Open(`\\.\PHYSICALDRIVE0`); err == nil {
+	if p, err := os.OpenFile(`\\.\PHYSICALDRIVE0`, os.O_RDONLY, 0); err == nil {
 		p.Close()
 		return true
 	}
