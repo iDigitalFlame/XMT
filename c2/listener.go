@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/iDigitalFlame/xmt/com"
+	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
@@ -60,6 +61,9 @@ func (l *Listener) listen() {
 			atomic.StoreUint32(&l.done, flagClose)
 		default:
 		}
+		if l.done == flagClose {
+			break
+		}
 		c, err := l.listener.Accept()
 		if err != nil {
 			if l.done > flagOpen {
@@ -102,14 +106,14 @@ func (l *Listener) Close() error {
 	return err
 }
 
-// String returns the Name of this Listener.
-func (l Listener) String() string {
-	return l.name
-}
-
 // IsActive returns true if the Listener is still able to send and receive Packets.
 func (l Listener) IsActive() bool {
 	return l.done == flagOpen
+}
+
+// String returns the Name of this Listener.
+func (l *Listener) String() string {
+	return l.name
 }
 func (l *Listener) handle(c net.Conn) {
 	if !l.handlePacket(c, false) {
@@ -124,6 +128,18 @@ func (l *Listener) handle(c net.Conn) {
 	}
 	l.log.Debug("[%s] %s: Closing Channel..", l.name, c.RemoteAddr().String())
 	c.Close()
+}
+func (l *Listener) json(w *data.Chunk) {
+	w.Write([]byte(`{"name":"` + l.name + `","sessions":[`))
+	i := 0
+	for _, v := range l.sessions {
+		if i > 0 {
+			w.WriteUint8(uint8(','))
+		}
+		v.json(w)
+		i++
+	}
+	w.Write([]byte(`]}`))
 }
 
 // Remove removes and closes the Session and releases all it's associated resources. This does not close the

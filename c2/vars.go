@@ -99,12 +99,6 @@ type connection struct {
 	log    logx.Log
 	cancel context.CancelFunc
 }
-type serverClient interface {
-	Connect(string) (net.Conn, error)
-}
-type serverListener interface {
-	Listen(string) (net.Listener, error)
-}
 
 // Wrapper is an interface that wraps the binary streams into separate stream types. This allows for using
 // encryption or compression (or both!).
@@ -119,6 +113,20 @@ type Transform interface {
 	Read(io.Writer, []byte) error
 	Write(io.Writer, []byte) error
 }
+type serverClient interface {
+	Connect(string) (net.Conn, error)
+}
+type serverListener interface {
+	Listen(string) (net.Listener, error)
+}
+
+// ConnectFunc is a wrapper alias that will fulfil the serverClient interface and allow using a single function
+// instead of creating a struct to create connections. This can be used in all Server 'Connect' function calls.
+type ConnectFunc func(string) (net.Conn, error)
+
+// ListenerFunc is a wrapper alias that will fulfil the serverListener interface and allow using a single function
+// instead of creating a struct to create listeners. This can be used in all Server 'Listen' function calls.
+type ListenerFunc func(string) (net.Listener, error)
 
 func returnBuffer(c *data.Chunk) {
 	c.Reset()
@@ -142,6 +150,11 @@ func (e *event) process(l logx.Log) {
 	}
 	e.p, e.s, e.j = nil, nil, nil
 	e.pFunc, e.sFunc, e.jFunc = nil, nil, nil
+}
+
+// Connect fulfills the serverClient interface.
+func (c ConnectFunc) Connect(a string) (net.Conn, error) {
+	return c(a)
 }
 func notify(l *Listener, s *Session, p *com.Packet) error {
 	if (l == nil && s == nil) || p == nil || p.Device == nil {
@@ -296,6 +309,11 @@ func notifyClient(l *Listener, s *Session, p *com.Packet) {
 	case s.s.Scheduler != nil:
 		s.s.events <- event{p: p, s: s, pFunc: s.s.Scheduler.Handle}
 	}
+}
+
+// Listen fulfills the serverListener interface.
+func (l ListenerFunc) Listen(a string) (net.Listener, error) {
+	return l(a)
 }
 func readPacket(c io.Reader, w Wrapper, t Transform) (*com.Packet, error) {
 	b := buffers.Get().(*data.Chunk)

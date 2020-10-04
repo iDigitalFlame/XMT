@@ -115,6 +115,7 @@ func (d *DNSClient) Write(w io.Writer, b []byte) error {
 		d.lastA, d.lastB = byte(util.FastRand()), byte(util.FastRand())
 		g[0], g[1] = d.lastA, d.lastB
 	}
+	// TODO: Fix offset for the hash to match the valid hash value in the DNS RFC.
 	g[2], g[3] = 1, 32
 	g[4], g[5] = byte(i>>8), byte(i)
 	g[6], g[7], g[8], g[9] = 0, 0, 0, 0

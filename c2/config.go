@@ -19,7 +19,9 @@ const (
 
 	// DefaultJitter is the default Jitter value when the provided jitter value is negative.
 	DefaultJitter uint8 = 5
+)
 
+const (
 	ipID  byte = 0xA0
 	tcpID byte = iota
 	udpID
@@ -221,7 +223,7 @@ func (s Setting) String() string {
 		}
 		return "Base64 Transform"
 	}
-	return "Invalid Setting 0x%X" + strconv.FormatUint(uint64(s[0]), 16)
+	return "Invalid Setting 0x" + strconv.FormatUint(uint64(s[0]), 16)
 }
 
 // WrapGzipLevel returns a Setting that will apply the Gzip Wrapper to the generated Profile. The specified level will
@@ -257,8 +259,8 @@ func WrapAES(k, iv []byte) Setting {
 	return Setting(s)
 }
 
-// Sleep returns a Setting that will specify the Sleep timeout setting of the generated Profile. Values
-// of zero are ignored.
+// Sleep returns a Setting that will specify the Sleep timeout setting of the generated Profile. Values of
+// zero are ignored.
 func Sleep(t time.Duration) Setting {
 	return Setting{
 		sleepID, byte(t >> 56), byte(t >> 48), byte(t >> 40), byte(t >> 32),

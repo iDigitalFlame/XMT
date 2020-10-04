@@ -121,14 +121,14 @@ func startProcess(p *Process) error {
 				e = make([]string, 0, len(z))
 			}
 			for n := range z {
-				if !f && strings.HasPrefix(strings.ToLower(z[n]), "systemroot=") {
+				if !f && len(z[n]) > 11 && strings.HasPrefix(strings.ToLower(z[n]), "systemroot=") {
 					f = true
 				}
 				e = append(e, z[n])
 			}
 		}
 		for i := 0; !f && i < len(e); i++ {
-			if strings.HasPrefix(strings.ToLower(e[i]), "systemroot=") {
+			if len(z[n]) > 11 && strings.HasPrefix(strings.ToLower(e[i]), "systemroot=") {
 				f = true
 				break
 			}

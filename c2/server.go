@@ -23,6 +23,10 @@ const (
 )
 
 var (
+	// Default is the default Server instance. This can be used to directly use a client without having to
+	// setup a Server instance first. This instance will use the 'NOP' logger, as logging is not needed.
+	Default = NewServerContext(context.Background(), logx.NOP)
+
 	// ErrNoConnector is a error returned by the Connect and Listen functions when the Connector is nil and the
 	// provided Profile is also nil or does not contain a connection hint.
 	ErrNoConnector = xerr.New("invalid or missing connector")
@@ -112,6 +116,14 @@ func (s *Server) Connected() []*Session {
 	}
 	return l
 }
+
+// EnableRPC will enable the JSON RPC listener at the following address. The RPC listener can be used to instruct and
+// control the Server, as well as view Session information. An error may be returned if the current listening address
+// is in use.
+func (s *Server) EnableRPC(a string) error {
+	// TODO: Finish RPC
+	return nil
+}
 func convertHintConnect(s Setting) serverClient {
 	if len(s) == 0 {
 		return nil
@@ -175,7 +187,8 @@ func convertHintListen(s Setting) serverListener {
 }
 
 // NewServerContext creates a new Server instance for managing C2 Listeners and Sessions. If the supplied Log is
-// nil, the 'logx.NOP' log will be used. This function will use the supplied Context as the base context for cancelation.
+// nil, the 'logx.NOP' log will be used. This function will use the supplied Context as the base context for
+// cancelation.
 func NewServerContext(x context.Context, l logx.Log) *Server {
 	s := &Server{
 		ch:        make(chan waker, 1),
@@ -196,9 +209,42 @@ func NewServerContext(x context.Context, l logx.Log) *Server {
 }
 
 // ConnectQuick creates a Session using the supplied Profile to connect to the listening server specified. A Session
+// will be returned if the connection handshake succeeds. The '*Quick' functions infers the default Profile. This
+// function uses the Default Server instance.
+func ConnectQuick(a string, c serverClient) (*Session, error) {
+	return Default.ConnectWith(a, c, DefaultProfile, nil)
+}
+
+// OneshotQuick sends the packet with the specified data to the server and does NOT register the device
+// with the Server. This is used for spending specific data segments in single use connections. The '*Quick' functions
+// infers the default Profile. This function uses the Default Server instance.
+func OneshotQuick(a string, c serverClient, d *com.Packet) error {
+	return Default.Oneshot(a, c, DefaultProfile, d)
+}
+
+// Connect creates a Session using the supplied Profile to connect to the listening server specified. A Session
+// will be returned if the connection handshake succeeds. This function uses the Default Server instance.
+func Connect(a string, c serverClient, p *Profile) (*Session, error) {
+	return Default.ConnectWith(a, c, p, nil)
+}
+
+// Oneshot sends the packet with the specified data to the server and does NOT register the device with the
+// Server. This is used for spending specific data segments in single use connections. This function uses the
+// Default Server instance.
+func Oneshot(a string, c serverClient, p *Profile, d *com.Packet) error {
+	return Default.Oneshot(a, c, p, d)
+}
+
+// ConnectQuick creates a Session using the supplied Profile to connect to the listening server specified. A Session
 // will be returned if the connection handshake succeeds. The '*Quick' functions infers the default Profile.
 func (s *Server) ConnectQuick(a string, c serverClient) (*Session, error) {
 	return s.ConnectWith(a, c, DefaultProfile, nil)
+}
+
+// Listen adds the Listener under the name provided. A Listener struct to control and receive callback functions
+// is added to assist in manageing connections to this Listener. This function uses the Default Server instance.
+func Listen(n, b string, c serverListener, p *Profile) (*Listener, error) {
+	return Default.Listen(n, b, c, p)
 }
 
 // OneshotQuick sends the packet with the specified data to the server and does NOT register the device
@@ -240,8 +286,7 @@ func (s *Server) Oneshot(a string, c serverClient, p *Profile, d *com.Packet) er
 	}
 	d.Flags |= com.FlagOneshot
 	err = writePacket(n, w, t, d)
-	n.Close()
-	if err != nil {
+	if n.Close(); err != nil {
 		return xerr.Wrap("unable to write packet", err)
 	}
 	return nil
@@ -294,6 +339,13 @@ func (s *Server) Listen(n, b string, c serverListener, p *Profile) (*Listener, e
 
 // ConnectWith creates a Session using the supplied Profile to connect to the listening server specified. This
 // function allows for passing the data Packet specified to the server with the initial registration. The data
+// will be passed on normally. This function uses the Default Server instance.
+func ConnectWith(a string, c serverClient, p *Profile, d *com.Packet) (*Session, error) {
+	return Default.ConnectWith(a, c, p, d)
+}
+
+// ConnectWith creates a Session using the supplied Profile to connect to the listening server specified. This
+// function allows for passing the data Packet specified to the server with the initial registration. The data
 // will be passed on normally.
 func (s *Server) ConnectWith(a string, c serverClient, p *Profile, d *com.Packet) (*Session, error) {
 	if c == nil && p != nil {
@@ -322,8 +374,7 @@ func (s *Server) ConnectWith(a string, c serverClient, p *Profile, d *com.Packet
 	if l.jitter > 100 {
 		l.jitter = DefaultJitter
 	}
-	l.Device.MarshalStream(v)
-	if d != nil {
+	if l.Device.MarshalStream(v); d != nil {
 		d.MarshalStream(v)
 		v.Flags |= com.FlagData
 	}
@@ -341,8 +392,7 @@ func (s *Server) ConnectWith(a string, c serverClient, p *Profile, d *com.Packet
 	if s.Log == nil {
 		s.Log = logx.NOP
 	}
-	s.Log.Debug("[%s] Client connected to %q!", l.ID, a)
-	if x == 0 {
+	if s.Log.Debug("[%s] Client connected to %q!", l.ID, a); x == 0 {
 		x = uint(limits.MediumLimit())
 	}
 	l.socket = c.Connect

@@ -5,12 +5,14 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/PurpleSec/parseurl"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/com/limits"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 var (
@@ -80,6 +82,30 @@ func (client) LocalAddr() net.Addr {
 func (c client) RemoteAddr() net.Addr {
 	return addr(c.host)
 }
+func rawParse(r string) (*url.URL, error) {
+	var (
+		i   = strings.IndexRune(r, '/')
+		u   *url.URL
+		err error
+	)
+	if i == 0 && len(r) > 2 && r[1] != '/' {
+		u, err = url.Parse("/" + r)
+	} else if i == -1 || i+1 >= len(r) || r[i+1] != '/' {
+		u, err = url.Parse("//" + r)
+	} else {
+		u, err = url.Parse(r)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if len(u.Host) == 0 {
+		return nil, xerr.New(`parse "` + r + `": empty host field`)
+	}
+	if u.Host[len(u.Host)-1] == ':' {
+		return nil, xerr.New(`parse "` + r + `": invalid port specified`)
+	}
+	return u, nil
+}
 func (client) SetDeadline(_ time.Time) error {
 	return nil
 }
@@ -117,14 +143,11 @@ func (c *client) request() (*http.Response, error) {
 		err error
 	)
 	if c.parent != nil {
-		r, err = http.NewRequestWithContext(c.parent.ctx, http.MethodPost, "", c.out)
+		r, _ = http.NewRequestWithContext(c.parent.ctx, http.MethodPost, "", c.out)
 	} else {
-		r, err = http.NewRequest(http.MethodPost, "", c.out)
+		r, _ = http.NewRequest(http.MethodPost, "", c.out)
 	}
-	if err != nil {
-		return nil, err
-	}
-	if i, err := parseurl.Parse(c.host); err == nil {
+	if i, err := rawParse(c.host); err == nil {
 		r.URL = i
 	}
 	if len(r.URL.Host) == 0 {

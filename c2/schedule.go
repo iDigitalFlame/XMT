@@ -140,8 +140,7 @@ func (x *Scheduler) Schedule(s *Session, p *com.Packet) (*Job, error) {
 		x.jobs = make(map[uint16]*Job, 1)
 	}
 	if p.Job == 0 {
-		p.Job = x.newJobID()
-		if p.Job == 0 {
+		if p.Job = x.newJobID(); p.Job == 0 {
 			return nil, ErrCannotAssign
 		}
 	}

@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"testing"
 
+	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -46,5 +48,41 @@ func BenchmarkSprintf(b *testing.B) {
 func BenchmarkStringPlus(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		_ = "string value " + strconv.FormatInt(int64(n), 16) + "!"
+	}
+}
+
+func BenchmarkStringMatch(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		_ = strings.ToLower("DERPMASTER69!") == strings.ToLower("DERpmASTER69!")
+	}
+}
+
+func BenchmarkFastStringMatch(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		_ = util.FastUTF8Match("DERPMASTER69!", "DERpmASTER69!")
+	}
+}
+
+func BenchmarkStringMatchBad(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		_ = strings.ToLower("DERPMASTER69!") == strings.ToLower("DERpmASTER68!")
+	}
+}
+
+func BenchmarkFastStringMatchBad(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		_ = util.FastUTF8Match("DERPMASTER69!", "DERpmASTER68!")
+	}
+}
+
+func BenchmarkStringMatchBad2(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		_ = strings.ToLower("DERPMASTER69!") == strings.ToLower("mASTER68!")
+	}
+}
+
+func BenchmarkFastStringMatchBad2(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		_ = util.FastUTF8Match("DERPMASTER69!", "mASTER68!")
 	}
 }

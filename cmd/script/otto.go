@@ -2,7 +2,6 @@ package script
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -106,7 +105,7 @@ func (o *ottoScript) log(v otto.FunctionCall) otto.Value {
 		if i > 0 {
 			o.c.WriteByte(32)
 		}
-		fmt.Fprintf(&o.c, "%v", v.Argument(i))
+		o.c.WriteString(v.Argument(i).String())
 	}
 	o.c.WriteByte(10)
 	return ottoEmpty
@@ -157,8 +156,7 @@ func InvokeOttoEx(x context.Context, m map[string]interface{}, s string) (string
 	for k := range m {
 		h.Set(k, nil)
 	}
-	ottoPool.Put(h)
-	if len(o) > 1 && o[len(o)-1] == '\n' {
+	if ottoPool.Put(h); len(o) > 1 && o[len(o)-1] == '\n' {
 		return o[:len(o)-1], err
 	}
 	return o, err

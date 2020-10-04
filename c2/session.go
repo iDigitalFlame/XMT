@@ -295,6 +295,48 @@ func (s *Session) SetChannel(c bool) {
 func (s Session) RemoteAddr() string {
 	return s.host
 }
+func (s Session) json(w *data.Chunk) {
+	w.Write([]byte(`{` +
+		`"id":"` + s.ID.FullString() + `",` +
+		`"hash":"` + strconv.Itoa(int(s.ID.Hash())) + `",` +
+		`"device":{` +
+		`"id":"` + s.ID.FullString() + `",` +
+		`"signature":"` + s.ID.Signature() + `",` +
+		`"user":"` + s.Device.User + `",` +
+		`"hostname":"` + s.Device.Hostname + `",` +
+		`"version":"` + s.Device.Version + `",` +
+		`"arch":"` + s.Device.Arch.String() + `",` +
+		`"os":"` + s.Device.OS.String() + `",` +
+		`"elevated":"` + strconv.FormatBool(s.Device.Elevated) + `",` +
+		`"pid":` + strconv.Itoa(int(s.Device.PID)) + `,` +
+		`"ppid":` + strconv.Itoa(int(s.Device.PID)) + `,` +
+		`"network":[`,
+	))
+	for i := range s.Device.Network {
+		if i > 0 {
+			w.WriteUint8(uint8(','))
+		}
+		w.Write([]byte(
+			`{"name":"` + s.Device.Network[i].Name + `",` +
+				`"mac":"` + s.Device.Network[i].Hardware.String() + `","ip":[`,
+		))
+		for x := range s.Device.Network[i].Address {
+			if x > 0 {
+				w.WriteUint8(uint8(','))
+			}
+			w.Write([]byte(`"` + s.Device.Network[i].Address[x].String() + `"`))
+		}
+		w.Write([]byte("]}"))
+	}
+	w.Write([]byte(
+		`]},` +
+			`"created":"` + s.Created.Format(time.RFC3339) + `",` +
+			`"last":"` + s.Last.Format(time.RFC3339) + `",` +
+			`"via":"` + s.host + `",` +
+			`"sleep":` + strconv.Itoa(int(s.sleep)) + `,` +
+			`"jitter":` + strconv.Itoa(int(s.jitter)) + `}`,
+	))
+}
 
 // Time returns the value for the timeout period between C2 Server connections.
 func (s Session) Time() time.Duration {
@@ -306,6 +348,7 @@ func (s Session) Time() time.Duration {
 func (s *Session) Send(p *com.Packet) {
 	s.write(true, p)
 }
+
 func (c *cluster) add(p *com.Packet) error {
 	if p == nil || p.Empty() {
 		return nil
