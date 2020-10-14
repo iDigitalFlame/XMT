@@ -3,6 +3,7 @@
 package devtools
 
 import (
+	"context"
 	"time"
 )
 
@@ -19,5 +20,11 @@ type Service struct {
 // Run will trigger the service to start and will block until the service completes. Will always returns
 // 'ErrNoWindows' on non-Windows devices.
 func (s *Service) Run() error {
+	return ErrNoWindows
+}
+
+// RunContext will trigger the service to start and will block until the service completes. Will always returns
+// 'ErrNoWindows' on non-Windows devices. This function allows to pass a Context to cancel the running service.
+func (s *Service) RunContext(_ context.Context) error {
 	return ErrNoWindows
 }

@@ -194,7 +194,7 @@ func (c *proxyClient) next(i bool) (*com.Packet, error) {
 		}
 		return p, nil
 	}
-	if p, c.peek, err = nextPacket(c.send, p, c.ID); err != nil {
+	if p, c.peek, err = nextPacket(wake, c.send, p, c.ID); err != nil {
 		return nil, err
 	}
 	atomic.StoreUint32(&c.ready, 1)
@@ -328,7 +328,7 @@ func (p *Proxy) client(c net.Conn, d *com.Packet) *proxyClient {
 // Proxy establishes a new listening Proxy connection using the supplied listener that will send any received
 // Packets "upstream" via the current Session. Packets destined for hosts connected to this proxy will be routed
 // back and forth on this Session. This function will return a wrapped 'ErrUnable' if this is not a client Session.
-func (s *Session) Proxy(b string, c serverListener, p *Profile) (*Proxy, error) {
+func (s *Session) Proxy(b string, c listener, p *Profile) (*Proxy, error) {
 	if s.parent != nil {
 		return nil, xerr.Wrap("must be a client session", ErrUnable)
 	}

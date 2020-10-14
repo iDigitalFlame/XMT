@@ -173,6 +173,15 @@ func (l *Listener) Context() context.Context {
 	return l.ctx
 }
 
+// MarshalJSON fulfils the JSON Marshaler interface.
+func (l *Listener) MarshalJSON() ([]byte, error) {
+	b := buffers.Get().(*data.Chunk)
+	l.json(b)
+	d := b.Payload()
+	returnBuffer(b)
+	return d, nil
+}
+
 // Session returns the Session that matches the specified Device ID. This function will return nil if
 // no matching Device ID is found.
 func (l *Listener) Session(i device.ID) *Session {

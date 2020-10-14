@@ -11,6 +11,7 @@ import (
 	"unsafe"
 
 	"github.com/iDigitalFlame/xmt/util/xerr"
+
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )

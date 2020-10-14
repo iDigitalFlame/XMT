@@ -119,7 +119,7 @@ func server(s *c2.Server, p *c2.Profile) {
 
 		fmt.Printf("%s JOB ID %d submitted!\n", v.ID, j.ID)
 
-		j.Done = func(ii *c2.Job) {
+		j.Update = func(ii *c2.Job) {
 			fmt.Printf("JOB ID %d done!\n", ii.ID)
 			fmt.Printf("%s:\n[%s]\n", ii.Result.String(), ii.Result.Payload())
 		}

@@ -186,7 +186,6 @@ func (s *Server) Listen(a string) (net.Listener, error) {
 		socket: c,
 		Server: &http.Server{
 			TLSConfig:         s.tls,
-			Handler:           new(http.ServeMux),
 			ReadTimeout:       s.dialer.Timeout,
 			IdleTimeout:       s.dialer.Timeout,
 			WriteTimeout:      s.dialer.Timeout,
@@ -194,8 +193,7 @@ func (s *Server) Listen(a string) (net.Listener, error) {
 		},
 	}
 	l.ctx, l.cancel = context.WithCancel(s.ctx)
-	l.Server.Handler.(*http.ServeMux).Handle("/", l)
-	l.Server.BaseContext = l.context
+	l.Server.Handler, l.Server.BaseContext = l, l.context
 	go l.listen()
 	return l, nil
 }

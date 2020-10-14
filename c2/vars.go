@@ -89,6 +89,9 @@ type event struct {
 	nFunc func(*com.Packet)
 	pFunc func(*Session, *com.Packet)
 }
+type client interface {
+	Connect(string) (net.Conn, error)
+}
 type connection struct {
 	Mux Mux
 
@@ -98,6 +101,12 @@ type connection struct {
 	ctx    context.Context
 	log    logx.Log
 	cancel context.CancelFunc
+}
+type listener interface {
+	Listen(string) (net.Listener, error)
+}
+type notifier interface {
+	accept(i uint16)
 }
 
 // Wrapper is an interface that wraps the binary streams into separate stream types. This allows for using
@@ -113,21 +122,16 @@ type Transform interface {
 	Read(io.Writer, []byte) error
 	Write(io.Writer, []byte) error
 }
-type serverClient interface {
-	Connect(string) (net.Conn, error)
-}
-type serverListener interface {
-	Listen(string) (net.Listener, error)
-}
 
-// ConnectFunc is a wrapper alias that will fulfil the serverClient interface and allow using a single function
+// ConnectFunc is a wrapper alias that will fulfil the client interface and allow using a single function
 // instead of creating a struct to create connections. This can be used in all Server 'Connect' function calls.
 type ConnectFunc func(string) (net.Conn, error)
 
-// ListenerFunc is a wrapper alias that will fulfil the serverListener interface and allow using a single function
+// ListenerFunc is a wrapper alias that will fulfil the listener interface and allow using a single function
 // instead of creating a struct to create listeners. This can be used in all Server 'Listen' function calls.
 type ListenerFunc func(string) (net.Listener, error)
 
+func (waker) accept(_ uint16) {}
 func returnBuffer(c *data.Chunk) {
 	c.Reset()
 	buffers.Put(c)
@@ -178,10 +182,7 @@ func notify(l *Listener, s *Session, p *com.Packet) error {
 		}
 		return nil
 	}
-	if s == nil {
-		return nil
-	}
-	if p.ID <= MvHello && p.Flags&com.FlagData == 0 {
+	if s == nil || (p.ID <= MvHello && p.Flags&com.FlagData == 0) {
 		return nil
 	}
 	switch {
@@ -394,13 +395,16 @@ func writePacket(c io.Writer, w Wrapper, t Transform, p *com.Packet) error {
 	}
 	return nil
 }
-func nextPacket(c chan *com.Packet, p *com.Packet, i device.ID) (*com.Packet, *com.Packet, error) {
+func nextPacket(n notifier, c chan *com.Packet, p *com.Packet, i device.ID) (*com.Packet, *com.Packet, error) {
 	if limits.SmallLimit() <= 1 {
 		if p != nil {
+			n.accept(p.Job)
 			return p, nil, nil
 		}
 		if len(c) > 0 {
-			return <-c, nil, nil
+			k := <-c
+			n.accept(k.Job)
+			return k, nil, nil
 		}
 		return nil, nil, nil
 	}
@@ -413,6 +417,7 @@ func nextPacket(c chan *com.Packet, p *com.Packet, i device.ID) (*com.Packet, *c
 		if p == nil {
 			if len(c) == 0 {
 				if t == 1 && a && !m {
+					n.accept(x.Job)
 					return x, nil, nil
 				}
 				break
@@ -426,9 +431,11 @@ func nextPacket(c chan *com.Packet, p *com.Packet, i device.ID) (*com.Packet, *c
 		}
 		if s += p.Size(); s >= limits.FragLimit() {
 			if a && !m && t == 0 {
+				n.accept(p.Job)
 				return p, x, nil
 			}
 			if a && !m && t == 1 {
+				n.accept(x.Job)
 				return x, p, nil
 			}
 			if w != nil {
@@ -436,6 +443,7 @@ func nextPacket(c chan *com.Packet, p *com.Packet, i device.ID) (*com.Packet, *c
 			}
 		}
 		if t++; t == 1 && !m && a {
+			n.accept(x.Job)
 			x, p = p, nil
 			continue
 		}
@@ -446,6 +454,7 @@ func nextPacket(c chan *com.Packet, p *com.Packet, i device.ID) (*com.Packet, *c
 				if x.MarshalStream(w); x.Flags&com.FlagChannel != 0 {
 					w.Flags |= com.FlagChannel
 				}
+				n.accept(x.Job)
 				x.Clear()
 				x = nil
 			}
@@ -454,6 +463,7 @@ func nextPacket(c chan *com.Packet, p *com.Packet, i device.ID) (*com.Packet, *c
 		if p.MarshalStream(w); p.Flags&com.FlagChannel != 0 {
 			w.Flags |= com.FlagChannel
 		}
+		n.accept(p.Job)
 		p.Clear()
 		p = nil
 	}

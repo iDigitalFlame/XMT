@@ -250,6 +250,12 @@ func (s Session) IsChannel() bool {
 func (s *Session) SetJitter(j int) {
 	s.SetDuration(s.sleep, j)
 }
+func (s *Session) accept(i uint16) {
+	if s.parent == nil || s.s == nil || s.s.Scheduler == nil {
+		return
+	}
+	s.s.Scheduler.notifyTask(i)
+}
 
 // Read attempts to grab a Packet from the receiving buffer. This function returns nil if the buffer is empty.
 func (s *Session) Read() *com.Packet {
@@ -348,7 +354,6 @@ func (s Session) Time() time.Duration {
 func (s *Session) Send(p *com.Packet) {
 	s.write(true, p)
 }
-
 func (c *cluster) add(p *com.Packet) error {
 	if p == nil || p.Empty() {
 		return nil
@@ -380,6 +385,15 @@ func (s *Session) Context() context.Context {
 // asynchronous and returns immediately. 'ErrFullBuffer' will be returned if the send buffer is full.
 func (s *Session) Write(p *com.Packet) error {
 	return s.write(false, p)
+}
+
+// MarshalJSON fulfils the JSON Marshaler interface.
+func (s Session) MarshalJSON() ([]byte, error) {
+	b := buffers.Get().(*data.Chunk)
+	s.json(b)
+	d := b.Payload()
+	returnBuffer(b)
+	return d, nil
 }
 
 // Packets returns a receive only channel that can be used in a for loop for acting on Packets when they arrive without
@@ -467,9 +481,10 @@ func (s *Session) next(i bool) (*com.Packet, error) {
 	}
 	if len(s.send) == 0 && p.Verify(s.ID) {
 		p.Tags = t
+		s.accept(p.Job)
 		return p, nil
 	}
-	if p, s.peek, err = nextPacket(s.send, p, s.ID); err != nil {
+	if p, s.peek, err = nextPacket(s, s.send, p, s.ID); err != nil {
 		return nil, err
 	}
 	p.Tags = t

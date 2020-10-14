@@ -1,16 +1,10 @@
 package device
 
 import (
-	"crypto/rand"
-	"io"
 	"os"
 	"regexp"
 	"runtime"
 	"strings"
-	"sync"
-
-	"github.com/denisbrodbeck/machineid"
-	"github.com/iDigitalFlame/xmt/data"
 )
 
 const (
@@ -35,50 +29,13 @@ const (
 	ArchMips deviceArch = 0x4
 	// ArchUnknown represents an unknown chipset family.
 	ArchUnknown deviceArch = 0x5
-
-	// IDSize is the amount of bytes used to store the Host ID and
-	// SessionID values.  The ID is the (HostID + SessionID).
-	IDSize = 32
-	// MachineIDSize is the amount of bytes that is used as the Host
-	// specific ID value that does not change when on the same host.
-	MachineIDSize = 28
 )
 
-const (
-	encTable = "0123456789ABCDEF"
+var envExp = regexp.MustCompile(`%[\w\d()-_]+%|\$[[\w\d-_]+|\$\{[[\w\d-_]+\}`)
 
-	xmtIDPrime  uint32 = 16777619
-	xmtIDOffset uint32 = 2166136261
-)
-
-var (
-	encPool = sync.Pool{
-		New: func() interface{} {
-			return new(strings.Builder)
-		},
-	}
-	envRegexp = regexp.MustCompile(`(%([\w\d()-_]+)%|\$([[\w\d-_]+))`)
-)
-
-// ID is an alias for a byte array that represents a 48 byte client identification number. This is used for
-// tracking and detection purposes.
-type ID []byte
 type deviceOS uint8
 type deviceArch uint8
 
-func getID() ID {
-	var (
-		i      = ID(make([]byte, IDSize))
-		s, err = machineid.ProtectedID("xmtFramework-v2")
-	)
-	if err == nil {
-		copy(i, s)
-	} else {
-		rand.Read(i)
-	}
-	rand.Read(i[MachineIDSize:])
-	return i
-}
 func getArch() deviceArch {
 	switch runtime.GOARCH {
 	case "386":
@@ -95,57 +52,39 @@ func getArch() deviceArch {
 	return ArchUnknown
 }
 
-// Hash returns the 32bit hash sum of this ID value. The hash mechanism used is similar to the hash/fnv mechanism.
-func (i ID) Hash() uint32 {
-	h := xmtIDOffset
-	for x := range i {
-		h *= xmtIDPrime
-		h ^= uint32(i[x])
-	}
-	return h
-}
-
-// String returns a representation of this ID instance.
-func (i ID) String() string {
-	if len(i) < MachineIDSize {
-		return i.string(0, len(i))
-	}
-	return i.string(MachineIDSize, len(i))
-}
-
 // Expand attempts to determine environment variables from the current session and translate them from
-// the supplied string.
+// the supplied string. This function supports both Windows (%var%) and *nix ($var or ${var}) variable substitutions.
 func Expand(s string) string {
-	v := envRegexp.FindAllStringSubmatch(s, -1)
+	v := envExp.FindAllStringIndex(s, -1)
 	if len(v) == 0 {
 		return s
 	}
-	for _, i := range v {
-		if len(i) != 4 {
+	b := builders.Get().(*strings.Builder)
+	b.WriteString(s[:v[0][0]])
+	for i := range v {
+		if i > 0 {
+			b.WriteString(s[v[i-1][1]:v[i][0]])
+		}
+		a, x := 0, 0
+		for ; s[v[i][0]+a] == '%' || s[v[i][0]+a] == '$' || s[v[i][0]+a] == '{'; a++ {
+		}
+		for ; s[v[i][1]-(1+x)] == '%' || s[v[i][1]-(1+x)] == '}'; x++ {
+		}
+		if v[i][0]+a > len(s) || v[i][1]-x > len(s) {
+			break
+		}
+		e, ok := Environment[strings.ToLower(s[v[i][0]+a:v[i][1]-x])]
+		if !ok {
+			b.WriteString(s[v[i][0]:v[i][1]])
 			continue
 		}
-		n := i[2]
-		if len(i[3]) > 0 {
-			n = i[3]
-		}
-		if d, ok := Environment[strings.ToLower(n)]; ok {
-			s = strings.ReplaceAll(s, i[0], d)
-		}
+		b.WriteString(e)
 	}
-	return s
-}
-
-// Signature returns the signature portion of the ID value. This value is constant and unique for each device.
-func (i ID) Signature() string {
-	if len(i) < MachineIDSize {
-		return i.string(0, len(i))
-	}
-	return i.string(0, MachineIDSize)
-}
-
-// FullString returns the full string representation of this ID instance.
-func (i ID) FullString() string {
-	return i.string(0, len(i))
+	b.WriteString(s[v[len(v)-1][1]:])
+	r := b.String()
+	b.Reset()
+	builders.Put(b)
+	return r
 }
 func getEnv() map[string]string {
 	m := make(map[string]string)
@@ -157,37 +96,6 @@ func getEnv() map[string]string {
 	t := os.TempDir()
 	m["tmp"], m["temp"], m["tmpdir"], m["tempdir"] = t, t, t, t
 	return m
-}
-
-// LoadSession will attempt to load the Session UUID from the specified file. This function will return an
-// error if the file cannot be read or not found.
-func LoadSession(s string) error {
-	r, err := os.OpenFile(s, os.O_RDONLY, 0)
-	if err != nil {
-		return err
-	}
-	n, err := data.ReadFully(r, UUID)
-	if r.Close(); err != nil {
-		return err
-	}
-	if n != IDSize {
-		return io.EOF
-	}
-	return nil
-}
-
-// SaveSession will attempt to save the Session UUID to the specified file. This function will return an
-// error if the file cannot be written to or created.
-func SaveSession(s string) error {
-	w, err := os.OpenFile(s, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(UUID)
-	if w.Close(); err != nil {
-		return err
-	}
-	return nil
 }
 func (d deviceOS) String() string {
 	switch d {
@@ -216,36 +124,4 @@ func (d deviceArch) String() string {
 		return "PowerPC"
 	}
 	return "Unknown"
-}
-func (i ID) string(start, end int) string {
-	s := encPool.Get().(*strings.Builder)
-	for x := start; x < end; x++ {
-		s.WriteByte(encTable[i[x]>>4])
-		s.WriteByte(encTable[i[x]&0x0F])
-	}
-	r := s.String()
-	s.Reset()
-	encPool.Put(s)
-	return r
-}
-
-// MarshalStream transform this struct into a binary format and writes to the supplied data.Writer.
-func (i ID) MarshalStream(w data.Writer) error {
-	_, err := w.Write(i)
-	return err
-}
-
-// UnmarshalStream transforms this struct from a binary format that is read from the supplied data.Reader.
-func (i *ID) UnmarshalStream(r data.Reader) error {
-	if *i == nil {
-		*i = append(*i, make([]byte, IDSize)...)
-	}
-	n, err := data.ReadFully(r, *i)
-	if err != nil {
-		return err
-	}
-	if n != IDSize {
-		return io.EOF
-	}
-	return nil
 }

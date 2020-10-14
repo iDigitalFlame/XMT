@@ -85,32 +85,33 @@ func (c *conn) Read(b []byte) (int, error) {
 func (c *conn) Write(b []byte) (int, error) {
 	return c.w.Write(b)
 }
-func (conn) SetReadDeadline(_ time.Time) error {
-	return nil
-}
-func (conn) SetWriteDeadline(_ time.Time) error {
-	return nil
-}
-func (l *listener) Accept() (n net.Conn, err error) {
+func (l *listener) Accept() (net.Conn, error) {
+	var (
+		n   net.Conn
+		err error
+	)
 	if l.ReadTimeout > 0 {
 		x, f := context.WithTimeout(l.ctx, l.ReadTimeout)
 		select {
 		case <-x.Done():
 			err = &net.OpError{Op: "read", Net: "wc2", Err: x.Err()}
 		case n = <-l.new:
-		case <-l.ctx.Done():
-			err = l.ctx.Err()
 		}
 		f()
-		return
+		return n, err
 	}
 	select {
 	case n = <-l.new:
-		return
 	case <-l.ctx.Done():
 		err = l.ctx.Err()
-		return
 	}
+	return n, err
+}
+func (conn) SetReadDeadline(_ time.Time) error {
+	return nil
+}
+func (conn) SetWriteDeadline(_ time.Time) error {
+	return nil
 }
 func (l *listener) context(_ net.Listener) context.Context {
 	return l.ctx
@@ -123,4 +124,5 @@ func (l *listener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		l.parent.handler.ServeHTTP(w, r)
 	}
+	r.Body.Close()
 }

@@ -128,7 +128,7 @@ func startProcess(p *Process) error {
 			}
 		}
 		for i := 0; !f && i < len(e); i++ {
-			if len(z[n]) > 11 && strings.HasPrefix(strings.ToLower(e[i]), "systemroot=") {
+			if len(e[i]) > 11 && strings.HasPrefix(strings.ToLower(e[i]), "systemroot=") {
 				f = true
 				break
 			}

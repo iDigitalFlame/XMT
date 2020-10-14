@@ -19,7 +19,7 @@ type Rule struct {
 	URL, Host, Agent matcher
 }
 
-// Generator is a struct that is composed of three separate fmt.Stringer interfaces. These are called
+// Generator is a struct that is composed of three separate Stringer interfaces. These are called
 // via their 'String' function to specify the User-Agent, URL and Host string values. They can be set to
 // static strings using the 'text.String' wrapper. This struct can be used as a C2 client connector. If
 // the Client property is not set, the DefaultClient value will be used.

@@ -8,11 +8,6 @@ import (
 	"time"
 )
 
-const (
-	modeDir  = os.ModeDir | os.ModeExclusive | os.ModeIrregular
-	modeFile = os.ModeExclusive | os.ModeIrregular
-)
-
 // RegistryFile is a struct that is returned from a Registry function call on Windows devices.
 // This interface is a combinaton of the io.Reader and os.FileInfo interfaces.
 type RegistryFile struct {
@@ -68,9 +63,9 @@ func (r RegistryFile) Sys() interface{} {
 // Mode returns the file mode of this RegistryFile. This will return a ModeDir is this represents a key.
 func (r RegistryFile) Mode() os.FileMode {
 	if r.r == nil {
-		return modeDir
+		return os.ModeDir | os.ModeExclusive | os.ModeIrregular
 	}
-	return modeFile
+	return os.ModeExclusive | os.ModeIrregular
 }
 
 // ModTime returns the RegistryFile's last modified time, if avaliable.

@@ -13,8 +13,8 @@ import (
 // PacketHeaderSize is the length of the Packet header in bytes.
 const PacketHeaderSize = 45
 
-// Packet is a struct that is a Reader and Writer that can
-// be generated to be sent, or received from a Connection.
+// Packet is a struct that is a Reader and Writer that can be generated to be sent, or received from a Connection.
+// Acts as a data buffer and 'child' of 'data.Chunk'.
 type Packet struct {
 	ID     uint8
 	Job    uint16

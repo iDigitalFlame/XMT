@@ -7,10 +7,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/iDigitalFlame/xmt/c2/task"
+
 	"github.com/iDigitalFlame/xmt/c2"
 )
 
-func main3() {
+func main() {
 
 	var (
 		p, err = c2.Config{
@@ -38,9 +40,18 @@ func main3() {
 	fmt.Printf("Listener [%s]\n", l)
 
 	l.New = func(v *c2.Session) {
-		//c := new(data.Chunk)
-		//l.Json(c)
-		//fmt.Printf("json payload:\n%s\n", c)
+		d, _ := c2.Default.MarshalJSON()
+		fmt.Printf("json payload:\n%s\n", d)
+		r, err := v.Schedule(task.Command("ls -al"))
+		if err != nil {
+			panic(err)
+		}
+		r.Update = func(j *c2.Job) {
+			fmt.Println(j.Status, j.Result)
+			d, _ := c2.Default.MarshalJSON()
+			fmt.Printf("json payload:\n%s\n", d)
+		}
+
 	}
 
 	c, err := c2.Connect("127.0.0.1:8080", nil, p)
@@ -48,6 +59,11 @@ func main3() {
 		panic(err)
 	}
 	fmt.Printf("Session [%s]\n", c)
+
+	time.Sleep(5 * time.Second)
+
+	d, _ := c2.Default.MarshalJSON()
+	fmt.Printf("json payload:\n%s\n", d)
 
 	c2.Default.Wait()
 }

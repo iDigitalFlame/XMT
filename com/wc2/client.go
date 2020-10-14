@@ -160,8 +160,7 @@ func (c *client) request() (*http.Response, error) {
 			r.URL.Scheme = "http"
 		}
 	}
-	c.gen.prepRequest(r)
-	switch {
+	switch c.gen.prepRequest(r); {
 	case c.client != nil:
 		o, err = c.client.Do(r)
 	case c.parent != nil:

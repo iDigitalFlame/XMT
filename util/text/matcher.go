@@ -21,7 +21,7 @@ var (
 	regxBuild = regexp.MustCompile(`(\%(\d+f?)?[dhcsuln])`)
 )
 
-// String is a wrapper for strings to support the fmt.Stringer interface.
+// String is a wrapper for strings to support the Stringer interface.
 type String string
 
 // Matcher is an alias of a string that can contain specific variable instructsions to be replaced

@@ -7,8 +7,17 @@ import (
 
 	"github.com/iDigitalFlame/xmt/c2/task"
 	"github.com/iDigitalFlame/xmt/com"
+	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/xerr"
+)
+
+// These are status values that indicate the general status of the Job.
+const (
+	Waiting  status = 0
+	Accepted status = iota
+	Completed
+	Error
 )
 
 // ErrCannotAssign is an error returned by the 'Schedule' function when the random loop cannot find a valid
@@ -20,9 +29,10 @@ var ErrCannotAssign = xerr.New("unable to assign a unused JobID (is Scheduler fu
 type Job struct {
 	ID       uint16
 	Type     uint8
-	Done     func(*Job)
 	Start    time.Time
 	Error    string
+	Update   func(*Job)
+	Status   status
 	Result   *com.Packet
 	Session  *Session
 	Complete time.Time
@@ -30,6 +40,7 @@ type Job struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 }
+type status uint8
 
 // Scheduler is a handler that can manage and schedule Packets as Jobs to be sent to a Session and tracked. The
 // resulting output (or errors) can be tracked by the resulting Job structs.
@@ -60,6 +71,19 @@ func (j *Job) IsError() bool {
 	}
 	return len(j.Error) > 0
 }
+func (s status) String() string {
+	switch s {
+	case Error:
+		return "error"
+	case Waiting:
+		return "waiting"
+	case Accepted:
+		return "accepted"
+	case Completed:
+		return "completed"
+	}
+	return "invalid"
+}
 func (x *Scheduler) newJobID() uint16 {
 	var (
 		ok   bool
@@ -72,6 +96,41 @@ func (x *Scheduler) newJobID() uint16 {
 		}
 	}
 	return 0
+}
+func (x *Scheduler) json(w *data.Chunk) {
+	w.WriteUint8(uint8('{'))
+	i := 0
+	for _, v := range x.jobs {
+		if i > 0 {
+			w.WriteUint8(uint8(','))
+		}
+		w.Write([]byte(
+			`"` + strconv.Itoa(int(v.ID)) + `": {` +
+				`"id":` + strconv.Itoa(int(v.ID)) + `,` +
+				`"type":"` + strconv.Itoa(int(v.Type)) + `",` +
+				`"error":"` + v.Error + `",` +
+				`"status":"` + v.Status.String() + `",` +
+				`"start":"` + v.Start.Format(time.RFC3339Nano) + `"`,
+		))
+		if !v.Complete.IsZero() {
+			w.Write([]byte(`,"complete":` + v.Complete.Format(time.RFC3339Nano) + `"`))
+		}
+		w.WriteUint8(uint8('}'))
+		i++
+	}
+	w.WriteUint8(uint8('}'))
+}
+func (x *Scheduler) notifyTask(i uint16) {
+	if i < 20 || x.jobs == nil || len(x.jobs) == 0 {
+		return
+	}
+	j, ok := x.jobs[i]
+	if !ok {
+		return
+	}
+	if j.Status = Accepted; j.Update != nil {
+		x.s.events <- event{j: j, jFunc: j.Update}
+	}
 }
 
 // Task will execute the provided Tasker with the provided Packet as the data input. The Session will be used to return
@@ -122,14 +181,15 @@ func (x *Scheduler) Handle(s *Session, p *com.Packet) {
 		return
 	}
 	x.s.Log.Trace("[%s:Sched] Received response for Job ID %d.", s.ID, j.ID)
-	if j.Result, j.Complete = p, time.Now(); p.Flags&com.FlagError != 0 {
+	if j.Result, j.Complete, j.Status = p, time.Now(), Completed; p.Flags&com.FlagError != 0 {
+		j.Status = Error
 		if err := p.ReadString(&j.Error); err != nil {
 			j.Error = err.Error()
 		}
 	}
 	delete(x.jobs, j.ID)
-	if j.cancel(); j.Done != nil {
-		s.s.events <- event{j: j, jFunc: j.Done}
+	if j.cancel(); j.Update != nil {
+		s.s.events <- event{j: j, jFunc: j.Update}
 	}
 }
 

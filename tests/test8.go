@@ -1,16 +1,9 @@
 package main
 
 import (
-	"fmt"
-
-	"github.com/iDigitalFlame/xmt/util"
+	"github.com/iDigitalFlame/xmt/device"
 )
 
 func main() {
-	fmt.Println(util.Decode([]byte("this-is-my-key"), value))
-
-}
-
-var value = []byte{
-	0x1C, 0x1C, 0x1D, 0x03, 0x5E, 0x53, 0x5C, 0x02, 0x0A, 0x16, 0x42, 0x0C, 0x09, 0x1C, 0x5A, 0x0B, 0x06, 0x1E,
+	device.Expand("testing SHELL=${shell}bin; $home lol${pwd}dd")
 }

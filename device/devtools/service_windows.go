@@ -3,7 +3,7 @@
 package devtools
 
 import (
-	"sync/atomic"
+	"context"
 	"time"
 
 	"golang.org/x/sys/windows/svc"
@@ -18,12 +18,21 @@ type Service struct {
 	Timeout          time.Duration
 	Exec, Start, End func()
 
-	done uint32
+	ctx context.Context
 }
 
 // Run will trigger the service to start and will block until the service completes. Will always returns
 // 'ErrNoWindows' on non-Windows devices.
 func (s *Service) Run() error {
+	return s.RunContext(context.Background())
+}
+
+// RunContext will trigger the service to start and will block until the service completes. Will always returns
+// 'ErrNoWindows' on non-Windows devices. This function allows to pass a Context to cancel the running service.
+func (s *Service) RunContext(x context.Context) error {
+	if s != nil {
+		s.ctx = x
+	}
 	return svc.Run(s.Name, s)
 }
 
@@ -44,20 +53,25 @@ func (s *Service) Execute(_ []string, c <-chan svc.ChangeRequest, x chan<- svc.S
 		x <- svc.Status{State: svc.StopPending}
 		return false, 0
 	}
+	if s.ctx == nil {
+		s.ctx = context.Background()
+	}
 	var (
-		i chan bool
-		t *time.Ticker
-		p <-chan time.Time
+		t    *time.Ticker
+		w    <-chan time.Time
+		z, f = context.WithCancel(s.ctx)
 	)
-	if s.Timeout > 0 {
-		t = time.NewTicker(s.Timeout)
-		p = t.C
+	if s.Timeout <= 0 {
+		go func(o *Service, q context.CancelFunc) {
+			o.Exec()
+			q()
+		}(s, f)
 	} else {
-		i = make(chan bool, 1)
-		i <- true
+		t = time.NewTicker(s.Timeout)
+		w = t.C
 	}
 	x <- svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown}
-	for atomic.LoadUint32(&s.done) == 0 {
+	for {
 		select {
 		case r := <-c:
 			switch r.Cmd {
@@ -66,23 +80,22 @@ func (s *Service) Execute(_ []string, c <-chan svc.ChangeRequest, x chan<- svc.S
 				time.Sleep(100 * time.Millisecond)
 				x <- r.CurrentStatus
 			case svc.Stop, svc.Shutdown:
-				atomic.StoreUint32(&s.done, 1)
+				goto cleanup
 			default:
 			}
-		case <-i:
+		case <-w:
 			s.Exec()
-		case <-p:
-			s.Exec()
+		case <-z.Done():
+			goto cleanup
 		}
 	}
-	if s.Timeout > 0 {
+cleanup:
+	x <- svc.Status{State: svc.StopPending}
+	if f(); t != nil {
 		t.Stop()
-	} else {
-		close(i)
 	}
 	if s.End != nil {
 		s.End()
 	}
-	x <- svc.Status{State: svc.StopPending}
 	return false, 0
 }
