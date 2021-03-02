@@ -27,6 +27,7 @@ var (
 
 	funcRtlCloneUserProcess = dllNtdll.NewProc("RtlCloneUserProcess")
 
+	funcLoadLibrary                       = dllKernel32.NewProc("LoadLibraryW")
 	funcAllocConsole                      = dllKernel32.NewProc("AllocConsole")
 	funcCreateProcess                     = dllKernel32.NewProc("CreateProcessW")
 	funcCreateProcessAsUser               = dllKernel32.NewProc("CreateProcessAsUserW")

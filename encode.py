@@ -15,32 +15,32 @@ def xor(key: bytes, data: bytes) -> bytearray:
 if __name__ == "__main__":
     if len(argv) != 3:
         print("XMT String Encoder\nEncodes a string payload\n", file=stderr)
-        print("%s <key> <string>" % argv[0], file=stderr)
+        print(f"{argv[0]} <key> <string>", file=stderr)
         exit(2)
 
     try:
         key = argv[1].encode("UTF-8")
     except UnicodeDecodeError as err:
-        print('Error encoding key "%s": %s!' % (argv[1], str(err)), file=stderr)
+        print(f'Error encoding key "{argv[1]}": {err}!', file=stderr)
         exit(1)
 
     try:
         data = argv[2].encode("UTF-8")
     except UnicodeDecodeError as err:
-        print('Error encoding string "%s": %s!' % (argv[2], str(err)), file=stderr)
+        print(f'Error encoding string "{argv[2]}": {err}!', file=stderr)
         exit(1)
 
     out = xor(key, data)
     del key
     del data
 
-    print("Paste this data into your Golang code, then call 'util.Decode(key, value)'", file=stderr)
+    print("Paste this data into your Golang code, then call 'util.Decode(key, value)'\n", file=stderr)
     print("var value = []byte{", end="")
     for i in range(0, len(out)):
         if i == 0 or i % 20 == 0:
             print("\n\t", end="")
         else:
             print(" ", end="")
-        print("0x%s," % ("%X" % out[i]).zfill(2), end="")
+        print(f"0x{('%X' % out[i]).zfill(2)}", end="")
     print("\n}")
     del out

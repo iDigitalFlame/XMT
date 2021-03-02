@@ -31,7 +31,7 @@ const (
 	ArchUnknown deviceArch = 0x5
 )
 
-var envExp = regexp.MustCompile(`%[\w\d()-_]+%|\$[[\w\d-_]+|\$\{[[\w\d-_]+\}`)
+var envExp = regexp.MustCompile(`%[\w\d()_-]+%|\$[\w\d_-]+|\$\{[[\w\d_-]+\}`)
 
 type deviceOS uint8
 type deviceArch uint8

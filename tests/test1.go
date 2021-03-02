@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -13,9 +14,16 @@ import (
 	"github.com/iDigitalFlame/xmt/c2"
 	"github.com/iDigitalFlame/xmt/c2/task"
 	"github.com/iDigitalFlame/xmt/com"
+	"github.com/nakabonne/gosivy/agent"
 )
 
-func test1Main() {
+func main() {
+
+	if err := agent.Listen(agent.Options{}); err != nil {
+		log.Fatal(err)
+	}
+	defer agent.Close()
+
 	logx.Global.SetLevel(logx.Debug)
 
 	var (

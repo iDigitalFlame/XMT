@@ -41,7 +41,7 @@ func (n *Network) Refresh() error {
 	}
 	l, err := net.Interfaces()
 	if err != nil {
-		return xerr.Wrap("error retriving interfaces", err)
+		return xerr.Wrap("cannot get interfaces", err)
 	}
 	for i := range l {
 		if l[i].Flags&net.FlagUp == 0 || l[i].Flags&net.FlagLoopback != 0 || l[i].Flags&net.FlagPointToPoint != 0 {

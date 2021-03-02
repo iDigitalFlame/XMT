@@ -12,7 +12,7 @@ import (
 	"github.com/iDigitalFlame/xmt/c2"
 )
 
-func main() {
+func test9Main() {
 
 	var (
 		p, err = c2.Config{
