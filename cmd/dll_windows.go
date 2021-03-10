@@ -3,6 +3,6 @@
 package cmd
 
 func a() error {
-	//funcLoadLibrary.Handle()
+	//funcLoadLibrary.Addr()
 	return nil
 }

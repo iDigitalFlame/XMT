@@ -5,7 +5,7 @@ package devtools
 import "github.com/iDigitalFlame/xmt/util/xerr"
 
 // ErrNoWindows is an error that is returned when a non-Windows device attempts a Windows specific function.
-var ErrNoWindows = xerr.New("not supported on non-Windows devices")
+var ErrNoWindows = xerr.New("only supported on Windows devices")
 
 // AdjustPrivileges will attempt to enable the supplied Windows privilege values on the current process's Token.
 // Errors during encoding, lookup or assignment will be returned and not all privileges will be assigned, if they

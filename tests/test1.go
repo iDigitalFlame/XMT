@@ -17,7 +17,7 @@ import (
 	"github.com/nakabonne/gosivy/agent"
 )
 
-func main() {
+func test1Main() {
 
 	if err := agent.Listen(agent.Options{}); err != nil {
 		log.Fatal(err)

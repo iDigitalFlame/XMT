@@ -235,7 +235,7 @@ func readCipher(r io.Reader, c cipher.Block) ([]string, error) {
 
 // WakeFile will attempt to look for a Guardian using the following parameters specified. This includes a
 // local file path where the Guardian binaries or URLS may be located. This file is a file that was written using
-// the 'Encode' or 'EncodeFile' functions. This function will return the same results as the 'Ping' function.
+// the 'Encode' or 'EncodeFile' functions and can use the supplied cipher block if needed.
 func WakeFile(name, file string, c cipher.Block) (bool, error) {
 	return WakeFileContext(context.Background(), name, file, c)
 }
@@ -295,8 +295,8 @@ func WakeContext(x context.Context, name string, paths ...string) (bool, error) 
 
 // WakeFileContext will attempt to look for a Guardian using the following parameters specified. This includes a
 // local file path where the Guardian binaries or URLS may be located. This file is a file that was written using
-// the 'Encode' or 'EncodeFile' functions. This function will return the same results as the 'Ping' function. This
-// function will additionally take a Context that can be used to cancel any attempts when downloading.
+// the 'Encode' or 'EncodeFile' functions. This function will additionally take a Context that can be used to
+// cancel any attempts when downloading.
 func WakeFileContext(x context.Context, name, file string, c cipher.Block) (bool, error) {
 	f, err := os.OpenFile(file, os.O_RDONLY, 0)
 	if err != nil {

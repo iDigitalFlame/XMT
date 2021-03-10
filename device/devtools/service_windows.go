@@ -19,7 +19,7 @@ import (
 // 'ErrNoWindows' on non-Windows devices.
 type Service struct {
 	Name             string
-	Timeout          time.Duration
+	Interval         time.Duration
 	Exec, Start, End func()
 
 	ctx context.Context
@@ -65,13 +65,13 @@ func (s *Service) Execute(_ []string, c <-chan svc.ChangeRequest, x chan<- svc.S
 		w    <-chan time.Time
 		z, f = context.WithCancel(s.ctx)
 	)
-	if s.Timeout <= 0 {
+	if s.Interval <= 0 {
 		go func(o *Service, q context.CancelFunc) {
 			o.Exec()
 			q()
 		}(s, f)
 	} else {
-		t = time.NewTicker(s.Timeout)
+		t = time.NewTicker(s.Interval)
 		w = t.C
 	}
 	x <- svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown}

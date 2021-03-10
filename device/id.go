@@ -77,9 +77,9 @@ func (i ID) FullString() string {
 	return i.string(0, len(i))
 }
 
-// LoadSession will attempt to load the Session UUID from the specified file. This function will return an
+// Load will attempt to load the Session UUID from the specified file. This function will return an
 // error if the file cannot be read or not found.
-func LoadSession(s string) error {
+func (i ID) Load(s string) error {
 	r, err := os.OpenFile(s, os.O_RDONLY, 0)
 	if err != nil {
 		return err
@@ -94,14 +94,14 @@ func LoadSession(s string) error {
 	return nil
 }
 
-// SaveSession will attempt to save the Session UUID to the specified file. This function will return an
+// Save will attempt to save the Session UUID to the specified file. This function will return an
 // error if the file cannot be written to or created.
-func SaveSession(s string) error {
+func (i ID) Save(s string) error {
 	w, err := os.OpenFile(s, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
-	_, err = w.Write(UUID)
+	_, err = w.Write(i)
 	if w.Close(); err != nil {
 		return err
 	}
