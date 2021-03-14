@@ -1,6 +1,7 @@
 package wc2
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"net"
@@ -19,20 +20,26 @@ const (
 	netWeb = "tcp"
 )
 
+var bufs = &sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
+
 // Server is a C2 profile that mimics a standard web server and client setup. This struct
 // inherits the http.Server struct and can be used to serve real files and pages. Use the
 // Mapper struct to provide a URL mapping that can be used by clients to access the C2 functions.
 type Server struct {
-	Client    *http.Client
 	Generator Generator
+	ctx       context.Context
 
-	ctx     context.Context
+	Client  *http.Client
 	tls     *tls.Config
-	lock    sync.RWMutex
-	rules   []Rule
 	dialer  *net.Dialer
 	cancel  context.CancelFunc
 	handler *http.ServeMux
+	rules   []Rule
+	lock    sync.RWMutex
 }
 type fileHandler string
 

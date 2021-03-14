@@ -16,7 +16,6 @@ var (
 			return new(strings.Builder)
 		},
 	}
-
 	regxFalse = falseRegexp(false)
 	regxBuild = regexp.MustCompile(`(\%(\d+f?)?[dhcsuln])`)
 )

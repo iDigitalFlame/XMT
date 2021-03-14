@@ -14,25 +14,24 @@ import (
 // Proxy is a struct that controls a Proxied connection between a client and a server and allows for packets to be
 // routed through a current established Session.
 type Proxy struct {
+	connection
+	listener net.Listener
 	ch       chan waker
-	done     uint32
 	parent   *Session
 	clients  []uint32
-	listener net.Listener
-	connection
+	done     uint32
 }
 type proxySwarm struct {
 	new      chan *proxyClient
 	close    chan uint32
-	closers  []func()
 	clients  map[uint32]*proxyClient
 	register chan func()
+	closers  []func()
 }
 type proxyClient struct {
-	ID device.ID
-
 	send  chan *com.Packet
 	peek  *com.Packet
+	ID    device.ID
 	ready uint32
 }
 

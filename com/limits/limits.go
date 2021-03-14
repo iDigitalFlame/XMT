@@ -14,13 +14,10 @@ var Current = Medium
 var (
 	// Tiny provides the smallest values. This may provide the slowest but most undetectable transfers.
 	Tiny = &Limit{Frag: 256, Small: 64, Large: 1024, Medium: 512}
-
 	// Small provides the small values for buffers and size.
 	Small = &Limit{Frag: 512, Small: 128, Large: 2048, Medium: 1024}
-
 	// Medium provides the most efficient values for buffers and size. This is the default value.
 	Medium = &Limit{Frag: 1024, Small: 256, Large: 4096, Medium: 2048}
-
 	// Large provides the largest buffer and limit sizes. This is best for the fastest transfer rates, but
 	// will increase the potential detection rate.
 	Large = &Limit{Frag: 4096, Small: 512, Large: 8192, Medium: 4096}
@@ -29,11 +26,10 @@ var (
 // Limit is a struct that defines the default values for buffer and channel sizes. The
 // built-in values can be customized for petter performance.
 type Limit struct {
-	_      [0]func()
-	Frag   uint32
-	Large  uint32
-	Small  uint16
-	Medium uint16
+	_ [0]func()
+
+	Frag, Large   uint32
+	Medium, Small uint16
 }
 
 // FragLimit returns the Fragment size on the current Limit. This function will return the Fragment

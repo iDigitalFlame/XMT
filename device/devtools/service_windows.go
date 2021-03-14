@@ -18,11 +18,11 @@ import (
 // Trigger the service to start by using the 'Service.Run' function. The 'Run' function always returns
 // 'ErrNoWindows' on non-Windows devices.
 type Service struct {
+	ctx context.Context
+
+	Start, End, Exec func()
 	Name             string
 	Interval         time.Duration
-	Exec, Start, End func()
-
-	ctx context.Context
 }
 
 // Run will trigger the service to start and will block until the service completes. Will always returns

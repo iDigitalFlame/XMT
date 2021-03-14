@@ -12,22 +12,22 @@ import (
 // IPStream is a struct that represents a IP stream (direct) based network connection. This struct can
 // be used to control and manage the current connection.
 type IPStream struct {
-	timeout time.Duration
 	net.Conn
+	timeout time.Duration
 }
 
 // IPListener is a struct that represents a IP based network connection listener. This struct can
 // be used to accept and create new IP connections.
 type IPListener struct {
-	proto byte
 	net.Listener
+	proto byte
 }
 
 // IPConnector is a struct that represents a IP based network connection handler. This struct can be
 // used to create new IP listeners.
 type IPConnector struct {
-	proto  byte
 	dialer *net.Dialer
+	proto  byte
 }
 
 // String returns a string representation of this UNIXListener.

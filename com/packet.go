@@ -16,12 +16,13 @@ const PacketHeaderSize = 45
 // Packet is a struct that is a Reader and Writer that can be generated to be sent, or received from a Connection.
 // Acts as a data buffer and 'child' of 'data.Chunk'.
 type Packet struct {
-	ID     uint8
-	Job    uint16
 	Tags   []uint32
-	Flags  Flag
 	Device device.ID
 	data.Chunk
+
+	Flags Flag
+	Job   uint16
+	ID    uint8
 }
 
 // Size returns the amount of bytes written or contained in this Packet with the header size added.

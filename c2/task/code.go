@@ -14,16 +14,15 @@ import (
 // 'SetParent*' function will attempt to set the target that runs the shellcode. If none are specified, the shellcode
 // will be injected into the current process.
 type Code struct {
+	name string
+
 	Data    []byte
 	choices []string
-
-	name string
 
 	Timeout time.Duration
 	pid     int32
 
-	Wait     bool
-	elevated bool
+	Wait, elevated bool
 }
 
 // SetParent will instruct the Process to choose a parent with the supplied process name. If this string is empty,

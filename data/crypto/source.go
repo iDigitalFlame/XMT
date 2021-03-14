@@ -26,8 +26,8 @@ type Source interface {
 // MultiSource is a struct that is a random Source that can use multiple source providers and spreads
 // the calls among them in a random manner.
 type MultiSource struct {
-	s    []rand.Source
 	rng  *rand.Rand
+	s    []rand.Source
 	seed int64
 }
 

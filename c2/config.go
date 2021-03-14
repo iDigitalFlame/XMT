@@ -103,13 +103,13 @@ type Config []Setting
 // Profile is a struct that represents a C2 profile. This is used for defining the specifics that will
 // be used to listen by servers and for connections by clients.  Nil or empty values will be replaced with defaults.
 type Profile struct {
-	Size      uint
-	Sleep     time.Duration
-	Jitter    uint
 	Wrapper   Wrapper
 	Transform Transform
+	hint      Setting
 
-	hint Setting
+	Size   uint
+	Sleep  time.Duration
+	Jitter uint
 }
 
 // MultiWrapper is an alias for an array of Wrappers. This will preform the wrapper/unwrapping operations in the

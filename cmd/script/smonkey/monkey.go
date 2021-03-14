@@ -1,0 +1,244 @@
+package smonkey
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+	"unsafe"
+
+	"github.com/iDigitalFlame/xmt/cmd"
+	"github.com/iDigitalFlame/xmt/util/xerr"
+	"github.com/skx/monkey/evaluator"
+	"github.com/skx/monkey/lexer"
+	"github.com/skx/monkey/object"
+	"github.com/skx/monkey/parser"
+)
+
+// Monkey is a mapping for the Monkey (github.com/skx/monkey) Scripting engine. This can be used to run Monkey scripts
+// directly and can be registered by the 'task.RegisterScript' function to include the engine in the XMT task runtime.
+const Monkey monkeyEngine = 0xD1
+
+var (
+	monkeyPool = sync.Pool{
+		New: func() interface{} {
+			return &monkeyScript{Environment: object.NewEnvironment()}
+		},
+	}
+
+	// Idea from the great read of https://tailscale.com/blog/netaddr-new-ip-type-for-go/
+	// Source of the code for this is at https://pkg.go.dev/go4.org/intern
+	monkeyLock    sync.RWMutex
+	monkeyTracker = make(map[uintptr]*monkeyScript)
+)
+
+type monkeyEngine uint8
+type monkeyScript struct {
+	*object.Environment
+	c strings.Builder
+}
+
+func init() {
+	evaluator.RegisterBuiltin("exec", exec)
+	evaluator.RegisterBuiltin("puts", print)
+	evaluator.RegisterBuiltin("sleep", sleep)
+	evaluator.RegisterBuiltin("print", print)
+	evaluator.RegisterBuiltin("printf", printf)
+	evaluator.RegisterBuiltin("println", println)
+	evaluator.RegisterBuiltin("exit", func(_ *object.Environment, _ ...object.Object) object.Object { return evaluator.NULL })
+}
+
+// InvokeMonkey will use the Monkey (github.com/skx/monkey) Scripting engine. This can be used to run code not
+// built in at compile time. The only argument is the script that is to be run. The results are the output of the
+// console (all print* together) and any errors that may occur or syntax errors.
+//
+// This will capture the output of all the console writes and adds a 'print*' statement as a shortcut to be used.
+// Another additional function 'exec' can be used to run commands natively. This function can take a vardict of strings
+// to be the command line arguments.
+func InvokeMonkey(s string) (string, error) {
+	return InvokeMonkeyEx(context.Background(), nil, s)
+}
+func exec(_ *object.Environment, a ...object.Object) object.Object {
+	var p cmd.Process
+	if len(a) == 1 {
+		p.Args = cmd.Split(a[0].Inspect())
+	} else {
+		for i := range a {
+			p.Args = append(p.Args, a[i].Inspect())
+		}
+	}
+	b, err := p.CombinedOutput()
+	if err != nil {
+		return &object.Error{Message: err.Error()}
+	}
+	if len(b) > 0 && b[len(b)-1] == 10 {
+		b = b[:len(b)-1]
+	}
+	return &object.String{Value: string(b)}
+}
+func sleep(e *object.Environment, a ...object.Object) object.Object {
+	if len(a) == 0 {
+		return evaluator.NULL
+	}
+	var n float64
+	switch a[0].Type() {
+	case object.FLOAT_OBJ:
+		if v, ok := a[0].(*object.Float); ok {
+			n = v.Value
+		}
+	case object.INTEGER_OBJ:
+		if v, ok := a[0].(*object.Integer); ok && v.Value > 0 {
+			n = float64(v.Value)
+		}
+	}
+	if n > 0 {
+		time.Sleep(time.Duration(n * float64(time.Second)))
+	}
+	return evaluator.NULL
+}
+func print(e *object.Environment, a ...object.Object) object.Object {
+	monkeyLock.RLock()
+	m, ok := monkeyTracker[uintptr(unsafe.Pointer(e))]
+	if monkeyLock.RUnlock(); !ok {
+		return evaluator.NULL
+	}
+	for i := range a {
+		m.c.WriteString(a[i].Inspect())
+	}
+	return evaluator.NULL
+}
+func printf(e *object.Environment, a ...object.Object) object.Object {
+	if len(a) < 1 || a[0].Type() != object.STRING_OBJ {
+		return evaluator.NULL
+	}
+	monkeyLock.RLock()
+	var (
+		d     = make([]interface{}, len(a)-1)
+		m, ok = monkeyTracker[uintptr(unsafe.Pointer(e))]
+	)
+	if monkeyLock.RUnlock(); !ok {
+		return evaluator.NULL
+	}
+	for i := 1; i < len(a); i++ {
+		d[i-1] = a[i].ToInterface()
+	}
+	m.c.WriteString(fmt.Sprintf(a[0].Inspect(), d...))
+	return evaluator.NULL
+}
+func println(e *object.Environment, a ...object.Object) object.Object {
+	return print(e, append(a, &object.String{Value: "\n"})...)
+}
+
+// InvokeMonkeyContext will use the Monkey (github.com/skx/monkey) Scripting engine. This can be used to run code not
+// built in at compile time. A context is required to timeout the script execution and the script to be run, as a
+// string. The results are the output of the console (all print* together) and any errors that may occur or syntax
+// errors.
+//
+// This will capture the output of all the console writes and adds a 'print*' statement as a shortcut to be used.
+// Another additional function 'exec' can be used to run commands natively. This function can take a vardict of strings
+// to be the command line arguments.
+//
+// Context cancelation is UNSUPPORTED at this time.
+// See: https://github.com/skx/monkey/issues/79
+func InvokeMonkeyContext(x context.Context, s string) (string, error) {
+	return InvokeMonkeyEx(x, nil, s)
+}
+
+// InvokeMonkeyEx will use the Monkey (github.com/skx/monkey) Scripting engine. This can be used to run code not
+// built in at compile time. A context is required to timeout the script execution and the script to be run, as a
+// string. The results are the output of the console (all print* together) and any errors that may occur or syntax
+// errors.
+//
+// This will capture the output of all the console writes and adds a 'print*' statement as a shortcut to be used.
+// Another additional function 'exec' can be used to run commands natively. This function can take a vardict of strings
+// to be the command line arguments.
+//
+// This Ex function allows to specify a map that contains any starting variables to be supplied at runtime.
+//
+// Context cancelation is UNSUPPORTED at this time.
+// See: https://github.com/skx/monkey/issues/79
+func InvokeMonkeyEx(_ context.Context, m map[string]interface{}, s string) (string, error) {
+	p := parser.New(lexer.New(s))
+	if len(p.Errors()) != 0 {
+		return "", xerr.New(strings.Join(p.Errors(), ";"))
+	}
+	var (
+		d = p.ParseProgram()
+		e = monkeyPool.Get().(*monkeyScript)
+	)
+	for k, v := range m {
+		if v == nil {
+			e.SetConst(k, evaluator.NULL)
+			continue
+		}
+		switch t := v.(type) {
+		case bool:
+			if t {
+				e.SetConst(k, evaluator.TRUE)
+				continue
+			}
+			e.SetConst(k, evaluator.FALSE)
+		case []byte:
+			a := make([]object.Object, len(t))
+			for i := range t {
+				a[i] = &object.Integer{Value: int64(t[i])}
+			}
+			e.SetConst(k, &object.Array{Elements: a})
+		case string:
+		case int:
+			e.SetConst(k, &object.Integer{Value: int64(t)})
+		case int8:
+			e.SetConst(k, &object.Integer{Value: int64(t)})
+		case int16:
+			e.SetConst(k, &object.Integer{Value: int64(t)})
+		case int32:
+			e.SetConst(k, &object.Integer{Value: int64(t)})
+		case int64:
+			e.SetConst(k, &object.Integer{Value: t})
+		case uint:
+			e.SetConst(k, &object.Integer{Value: int64(t)})
+		case uint8:
+			e.SetConst(k, &object.Integer{Value: int64(t)})
+		case uint16:
+			e.SetConst(k, &object.Integer{Value: int64(t)})
+		case uint32:
+			e.SetConst(k, &object.Integer{Value: int64(t)})
+		case uint64:
+			e.SetConst(k, &object.Integer{Value: int64(t)})
+		case float32:
+			e.SetConst(k, &object.Float{Value: float64(t)})
+		case float64:
+			e.SetConst(k, &object.Float{Value: t})
+		}
+	}
+	monkeyLock.Lock()
+	var (
+		u     = uintptr(unsafe.Pointer(e.Environment))
+		_, ok = monkeyTracker[u]
+	)
+	if !ok {
+		monkeyTracker[u] = e
+	}
+	monkeyLock.Unlock()
+	var (
+		o   = evaluator.Eval(d, e.Environment)
+		r   string
+		err error
+	)
+	if o.Type() == object.ERROR_OBJ {
+		err = xerr.New(o.Inspect())
+	} else {
+		r = o.Inspect()
+	}
+	r = e.c.String() + r
+	e.c.Reset()
+	for k := range m {
+		e.SetConst(k, nil)
+	}
+	monkeyPool.Put(e)
+	return r, err
+}
+func (monkeyEngine) Invoke(x context.Context, m map[string]interface{}, s string) (string, error) {
+	return InvokeMonkeyEx(x, m, s)
+}

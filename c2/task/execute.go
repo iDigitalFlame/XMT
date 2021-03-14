@@ -15,21 +15,17 @@ import (
 // Process is a struct that is similar to the 'cmd.Process' struct. This is used to Task a Client with running
 // a specified command.
 type Process struct {
-	Env     []string
-	Args    []string
-	Stdin   []byte
-	choices []string
+	Dir, name string
 
-	Dir  string
-	name string
+	Env, Args []string
+	Stdin     []byte
+	choices   []string
 
 	Timeout time.Duration
+	Flags   uint32
+	pid     int32
 
-	Flags uint32
-	pid   int32
-
-	Wait     bool
-	elevated bool
+	Wait, elevated bool
 }
 
 // Run returns a Packet with the 'TvExecute' ID value and a Process struct in the payload that is based on the

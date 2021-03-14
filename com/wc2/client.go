@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/com"
@@ -35,12 +34,6 @@ var (
 		ExpectContinueTimeout: com.DefaultTimeout,
 		ResponseHeaderTimeout: com.DefaultTimeout,
 	}
-
-	bufs = &sync.Pool{
-		New: func() interface{} {
-			return new(bytes.Buffer)
-		},
-	}
 )
 
 // Client is a simple struct that supports the C2 client connector interface. This can be used by
@@ -52,12 +45,12 @@ type Client struct {
 }
 type client struct {
 	_      [0]func()
-	in     *http.Response
 	gen    Generator
+	in     *http.Response
 	out    *bytes.Buffer
-	host   string
 	client *http.Client
 	parent *Server
+	host   string
 }
 
 func (c *client) Close() error {

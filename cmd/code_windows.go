@@ -30,11 +30,11 @@ var (
 )
 
 type base struct {
-	loc    uintptr
-	once   uint32
-	owner  windows.Handle
 	cancel context.CancelFunc
 	container
+	loc   uintptr
+	owner windows.Handle
+	once  uint32
 }
 
 func (c *Code) wait() {

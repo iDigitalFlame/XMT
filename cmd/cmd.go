@@ -36,26 +36,24 @@ var (
 // Process is a struct that represents an executable command and allows for setting
 // options in order change the operating functions.
 type Process struct {
-	Dir     string
-	Env     []string
-	Args    []string
-	Stdin   io.Reader
-	Stdout  io.Writer
-	Stderr  io.Writer
-	Timeout time.Duration
+	ctx context.Context
 
-	ch      chan finished
-	ctx     context.Context
-	err     error
-	opts    *options
-	exit    uint32
-	once    uint32
-	split   bool
-	flags   uint32
-	reader  *os.File
-	cancel  context.CancelFunc
-	closers []*os.File
+	Stdin          io.Reader
+	Stdout, Stderr io.Writer
+	err            error
+	opts           *options
+	cancel         context.CancelFunc
+	ch             chan finished
+	reader         *os.File
+
+	Dir       string
+	Env, Args []string
+	closers   []*os.File
 	container
+
+	Timeout           time.Duration
+	flags, exit, once uint32
+	split             bool
 }
 
 // ExitError is a type of error that is returned by the Wait and Run functions when a function

@@ -39,8 +39,7 @@ type file interface {
 	File() (*os.File, error)
 }
 type clientID struct {
-	UniqueProcess uintptr
-	UniqueThread  uintptr
+	UniqueProcess, UniqueThread uintptr
 }
 type imageInfo struct {
 	_       uintptr
@@ -56,11 +55,10 @@ type imageInfo struct {
 	_, _, _ uint32
 }
 type processInfo struct {
-	Length   uint32
-	Process  uintptr
-	Thread   uintptr
-	ClientID clientID
-	_        imageInfo
+	Length          uint32
+	Process, Thread uintptr
+	ClientID        clientID
+	_               imageInfo
 }
 type closer windows.Handle
 type startupAttrs struct {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/iDigitalFlame/xmt/cmd/script"
+	"github.com/iDigitalFlame/xmt/cmd/script/sotto"
 	"github.com/iDigitalFlame/xmt/man"
 	"github.com/iDigitalFlame/xmt/util/text"
 )
@@ -36,7 +36,7 @@ exec("rm /tmp/derp.txt");
 func test7Main() {
 	var (
 		l, c   = context.WithTimeout(context.Background(), time.Duration(20)*time.Second)
-		r, err = script.InvokeOttoContext(l, script1)
+		r, err = sotto.InvokeOttoContext(l, script1)
 	)
 
 	fmt.Printf("output [%s], error[%s]\n", r, err)

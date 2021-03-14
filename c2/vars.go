@@ -75,7 +75,6 @@ var (
 			return new(data.Chunk)
 		},
 	}
-
 	wake waker
 )
 

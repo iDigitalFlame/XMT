@@ -30,10 +30,9 @@ var (
 // operations on static containers. Chunk fulfils the Reader, Seeker, Writer, Flusher
 // and Closer interfaces.
 type Chunk struct {
-	Limit int
-
-	pos int
 	buf []byte
+
+	Limit, pos int
 }
 type dataError uint8
 type whenceError int

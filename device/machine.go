@@ -1,17 +1,21 @@
 package device
 
-import "github.com/iDigitalFlame/xmt/data"
+import (
+	"unsafe"
+
+	"github.com/iDigitalFlame/xmt/data"
+)
 
 // Machine is a struct that contains information about a specific device. This struct contains generic Operating
 // System Information such as Version, Arch and network information.
 type Machine struct {
-	ID ID `json:"id"`
+	User string `json:"user"`
 
-	Network Network `json:"network"`
-
-	Hostname string `json:"hostname"`
-	User     string `json:"user"`
 	Version  string `json:"version"`
+	Hostname string `json:"hostname"`
+
+	ID      ID      `json:"id"`
+	Network Network `json:"network"`
 
 	PID  uint32 `json:"pid"`
 	PPID uint32 `json:"ppid"`
@@ -70,18 +74,12 @@ func (m *Machine) UnmarshalStream(r data.Reader) error {
 	if err := m.ID.UnmarshalStream(r); err != nil {
 		return err
 	}
-	var (
-		err  error
-		o, a uint8
-	)
-	if o, err = r.Uint8(); err != nil {
+	if err := r.ReadUint8((*uint8)(unsafe.Pointer(&m.OS))); err != nil {
 		return err
 	}
-	if a, err = r.Uint8(); err != nil {
+	if err := r.ReadUint8((*uint8)(unsafe.Pointer(&m.Arch))); err != nil {
 		return err
 	}
-	m.OS = deviceOS(o)
-	m.Arch = deviceArch(a)
 	if err := r.ReadUint32(&m.PID); err != nil {
 		return err
 	}

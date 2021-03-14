@@ -15,8 +15,8 @@ var ErrInvalid = xerr.New("provided crypto arguments cannot be nil")
 // Block is a struct that contains an IV and Block-based Cipher that can be used to Wrap/Unwrap with the specified
 // encryption algorithm.
 type Block struct {
-	v []byte
 	cipher.Block
+	v []byte
 }
 
 // Stream is a struct that contains a XMT Crypto Reader/Writer that can be used to Wrap/Unwrap using the specified

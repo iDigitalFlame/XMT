@@ -64,6 +64,11 @@ func (i ID) String() string {
 	return i.string(MachineIDSize, len(i))
 }
 
+// Equal will return true if both ID values are equal in size and have the same Hash value.
+func (i ID) Equal(a ID) bool {
+	return len(i) == len(a) && i.Hash() == a.Hash()
+}
+
 // Signature returns the signature portion of the ID value. This value is constant and unique for each device.
 func (i ID) Signature() string {
 	if len(i) < MachineIDSize {
@@ -109,6 +114,7 @@ func (i ID) Save(s string) error {
 }
 func (i ID) string(start, end int) string {
 	s := builders.Get().(*strings.Builder)
+	s.Grow(end - start)
 	for x := start; x < end; x++ {
 		s.WriteByte(table[i[x]>>4])
 		s.WriteByte(table[i[x]&0x0F])

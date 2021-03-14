@@ -25,11 +25,11 @@ type waker struct{}
 // TCP sockets (if specified). This struct will maintain a thread that will 'heartbeat' back to the Sentinel
 // connections made.
 type Guardian struct {
-	ch     chan waker
 	ctx    context.Context
 	sock   net.Listener
-	done   uint32
+	ch     chan waker
 	cancel context.CancelFunc
+	done   uint32
 }
 
 // Wait will block until the Guardian is closed.

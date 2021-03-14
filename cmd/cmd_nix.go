@@ -22,9 +22,8 @@ type options struct {
 	*exec.Cmd
 }
 type container struct {
-	uid  uint32
-	gid  uint32
-	root string
+	root     string
+	uid, gid uint32
 }
 
 func (options) close() {}

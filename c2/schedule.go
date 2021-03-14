@@ -27,18 +27,18 @@ var ErrCannotAssign = xerr.New("unable to assign a unused JobID (is Scheduler fu
 // Job is a struct that is used to track and manage Tasks given to Session Clients. This struct has function callbacks
 // that can be used to watch for completion and also offers a Wait function to pause execution until a response is received.
 type Job struct {
-	ID       uint16
-	Type     uint8
-	Start    time.Time
-	Error    string
-	Update   func(*Job)
-	Status   status
-	Result   *com.Packet
-	Session  *Session
-	Complete time.Time
+	Start, Complete time.Time
+	ctx             context.Context
 
-	ctx    context.Context
-	cancel context.CancelFunc
+	Result  *com.Packet
+	Session *Session
+	Update  func(*Job)
+	cancel  context.CancelFunc
+
+	Error  string
+	ID     uint16
+	Type   uint8
+	Status status
 }
 type status uint8
 

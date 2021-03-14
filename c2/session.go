@@ -29,42 +29,30 @@ var (
 // Session is a struct that represents a connection between the client and the Listener. This struct does some
 // automatic handeling and acts as the communication channel between the client and server.
 type Session struct {
-	Device device.Machine
 	connection
+	Last, Created time.Time
+	Shutdown      func(*Session)
+	frags         map[uint16]*cluster
+	parent        *Listener
+	recv          chan *com.Packet
+	ch            chan waker
+	socket        func(string) (net.Conn, error)
+	peek          *com.Packet
+	send          chan *com.Packet
 
-	Last    time.Time
-	Created time.Time
-	ID      device.ID
-
-	host  string
-	sleep time.Duration
-
-	ch     chan waker
-	socket func(string) (net.Conn, error)
-
-	peek *com.Packet
-	send chan *com.Packet
-
-	Receive func(*Session, *com.Packet)
-
-	wake   chan waker
-	parent *Listener
-	frags  map[uint16]*cluster
-	swarm  *proxySwarm
-
-	Shutdown func(*Session)
-
-	recv    chan *com.Packet
-	done    uint32
-	mode    uint32
-	channel uint32
-
-	jitter uint8
-	errors uint8
+	Receive             func(*Session, *com.Packet)
+	wake                chan waker
+	swarm               *proxySwarm
+	host                string
+	ID                  device.ID
+	Device              device.Machine
+	sleep               time.Duration
+	done, mode, channel uint32
+	jitter, errors      uint8
 }
 type cluster struct {
-	max  uint16
 	data []*com.Packet
+	max  uint16
 }
 
 // Wait will block until the current Session is closed and shutdown.
@@ -324,7 +312,7 @@ func (s Session) json(w *data.Chunk) {
 		}
 		w.Write([]byte(
 			`{"name":"` + s.Device.Network[i].Name + `",` +
-				`"mac":"` + s.Device.Network[i].Hardware.String() + `","ip":[`,
+				`"mac":"` + s.Device.Network[i].Mac.String() + `","ip":[`,
 		))
 		for x := range s.Device.Network[i].Address {
 			if x > 0 {

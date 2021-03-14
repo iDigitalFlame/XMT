@@ -1,4 +1,4 @@
-package script
+package sotto
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/robertkrimen/otto"
 )
 
-// Otto is mapping for the Otto (github.com/robertkrimen/otto) JavaScript engine. This can be used to run JavaScript
+// Otto is a mapping for the Otto (github.com/robertkrimen/otto) JavaScript engine. This can be used to run JavaScript
 // directly and can be registered by the 'task.RegisterScript' function to include the engine in the XMT task runtime.
 const Otto ottoEngine = 0xD0
 
@@ -26,8 +26,8 @@ var (
 
 type ottoEngine uint8
 type ottoScript struct {
-	c strings.Builder
 	*otto.Otto
+	c strings.Builder
 }
 
 func newOtto() *ottoScript {
@@ -37,8 +37,8 @@ func newOtto() *ottoScript {
 		c.Object().Set("log", i.log)
 	}
 	i.Set("print", i.log)
-	i.Set("exec", ottoExec)
-	i.Set("sleep", ottoSleep)
+	i.Set("exec", exec)
+	i.Set("sleep", sleep)
 	return i
 }
 
@@ -52,7 +52,7 @@ func newOtto() *ottoScript {
 func InvokeOtto(s string) (string, error) {
 	return InvokeOttoEx(context.Background(), nil, s)
 }
-func ottoExec(v otto.FunctionCall) otto.Value {
+func exec(v otto.FunctionCall) otto.Value {
 	var p cmd.Process
 	if len(v.ArgumentList) == 1 {
 		s, err := v.Argument(0).ToString()
@@ -82,7 +82,7 @@ func ottoExec(v otto.FunctionCall) otto.Value {
 	i, _ := v.Otto.ToValue(string(b))
 	return i
 }
-func ottoSleep(v otto.FunctionCall) otto.Value {
+func sleep(v otto.FunctionCall) otto.Value {
 	if len(v.ArgumentList) == 0 {
 		return ottoEmpty
 	}
@@ -90,7 +90,7 @@ func ottoSleep(v otto.FunctionCall) otto.Value {
 	if err != nil {
 		return ottoEmpty
 	}
-	time.Sleep(time.Duration(n) * time.Second)
+	time.Sleep(time.Duration(n * float64(time.Second)))
 	return ottoEmpty
 }
 func (o *ottoScript) run(c chan<- error, s string) {

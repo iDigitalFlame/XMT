@@ -43,26 +43,24 @@ var (
 
 type addr string
 type conn struct {
-	addr   addr
-	read   time.Time
-	write  time.Time
-	handle windows.Handle
+	read, write time.Time
+	addr        addr
+	handle      windows.Handle
 }
 type wait struct {
-	n   uint32
 	err error
+	n   uint32
 }
 type errno struct {
-	t bool
 	e error
 	m string
+	t bool
 }
 type listener struct {
-	addr    addr
-	done    uint32
-	active  windows.Handle
-	handle  windows.Handle
-	overlap *windows.Overlapped
+	overlap        *windows.Overlapped
+	addr           addr
+	active, handle windows.Handle
+	done           uint32
 }
 
 // Format will ensure the path for this Pipe socket fits the proper OS based pathname. Valid pathnames will be

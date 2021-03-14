@@ -20,19 +20,19 @@ var ErrInvalidPacketCount = xerr.New("frag total is zero on a multi or frag pack
 // allows for controlling the Listener and setting callback functions to be used when a client connects,
 // registers or disconnects.
 type Listener struct {
-	New     func(*Session)
-	Connect func(*Session)
-	Oneshot func(*com.Packet)
-	Receive func(*Session, *com.Packet)
-
-	ch       chan waker
-	size     uint
-	name     string
-	done     uint32
-	close    chan uint32
-	listener net.Listener
-	sessions map[uint32]*Session
 	connection
+	listener net.Listener
+
+	New, Connect func(*Session)
+	Oneshot      func(*com.Packet)
+	ch           chan waker
+	close        chan uint32
+
+	Receive  func(*Session, *com.Packet)
+	sessions map[uint32]*Session
+	name     string
+	size     uint
+	done     uint32
 }
 
 // Wait will block until the current socket associated with this Listener is closed and shutdown.

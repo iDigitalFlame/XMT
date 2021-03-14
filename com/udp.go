@@ -21,24 +21,25 @@ type UDPConn struct {
 // UDPStream is a struct that represents a UDP stream (direct) based network connection. This struct
 // can be used to control and manage the current connection.
 type UDPStream struct {
-	_       [0]func()
-	timeout time.Duration
+	_ [0]func()
 	net.Conn
+	timeout time.Duration
 }
 
 // UDPListener is a struct that represents a UDP based network connection listener. This struct can
 // be used to accept and create new UDP connections.
 type UDPListener struct {
-	buf     []byte
-	delete  chan net.Addr
 	socket  net.PacketConn
+	delete  chan net.Addr
 	active  map[net.Addr]*UDPConn
+	buf     []byte
 	timeout time.Duration
 }
 
 // UDPConnector is a struct that represents a UDP based network connection handler. This struct
 // can be used to create new UDP listeners.
 type UDPConnector struct {
+	_      [0]func()
 	dialer *net.Dialer
 }
 
@@ -152,6 +153,10 @@ func (u *UDPListener) Accept() (net.Conn, error) {
 	if u.timeout > 0 {
 		u.socket.SetDeadline(time.Now().Add(u.timeout))
 	}
+	// note: Apparently there's a bug in this method about not getting the full length of
+	// the packet from this call?
+	// Not that we'll need it but I think I should note this down just incase I need to bang my
+	// head against the desk when the connector doesn't work.
 	n, a, err := u.socket.ReadFrom(u.buf)
 	if err != nil {
 		return nil, err
@@ -164,11 +169,7 @@ func (u *UDPListener) Accept() (net.Conn, error) {
 	}
 	c, ok := u.active[a]
 	if !ok {
-		c = &UDPConn{
-			buf:    make(chan byte, limits.LargeLimit()),
-			addr:   a,
-			parent: u,
-		}
+		c = &UDPConn{buf: make(chan byte, limits.LargeLimit()), addr: a, parent: u}
 		u.active[a] = c
 	}
 	for i := 0; i < n; i++ {

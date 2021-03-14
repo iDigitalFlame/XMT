@@ -21,20 +21,18 @@ const (
 )
 
 type options struct {
-	X, Y  uint32
-	W, H  uint32
-	Mode  uint16
-	Flags uint32
-	Title string
-
+	Title   string
+	closers []io.Closer
 	info    windows.ProcessInformation
 	parent  windows.Handle
-	closers []io.Closer
+
+	Flags, X, Y, W, H uint32
+	Mode              uint16
 }
 type container struct {
-	pid      int32
 	name     string
 	choices  []string
+	pid      int32
 	elevated bool
 }
 

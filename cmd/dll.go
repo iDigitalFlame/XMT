@@ -1,9 +1,8 @@
 package cmd
 
 type DLL struct {
-	Path string
-
 	code *Code
+	Path string
 }
 
 // DLL is just a simple wrapper for Code

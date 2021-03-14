@@ -10,14 +10,14 @@ import (
 // functionallies of the standard 'cmd.Program' function. The 'SetParent*' function will attempt to set the target
 // that runs the shellcode. If none are specified, the shellcode will be injected into the current process.
 // This struct only works on Windows devices. All calls on non-Windows devices will return 'ErrNotSupportedOS'.
+// TODO: Add Linux shellcode execution support.
 type Code struct {
-	base
+	ctx context.Context
+	err error
+	ch  chan finished
 
 	Data []byte
-	ctx  context.Context
-
-	err    error
-	ch     chan finished
+	base
 	handle uintptr
 
 	Timeout time.Duration

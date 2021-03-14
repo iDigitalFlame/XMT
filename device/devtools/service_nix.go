@@ -12,9 +12,9 @@ import (
 // End - function to run on service shutdown.) Trigger the service to start by using the 'Service.Run' function.
 // The 'Run' function always returns 'ErrNoWindows' on non-Windows devices.
 type Service struct {
+	Start, End, Exec func()
 	Name             string
 	Timeout          time.Duration
-	Exec, Start, End func()
 }
 
 // Run will trigger the service to start and will block until the service completes. Will always returns
