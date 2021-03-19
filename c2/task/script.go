@@ -37,19 +37,6 @@ func createEnv() map[string]interface{} {
 		"HOSTNAME": device.Local.Hostname,
 	}
 }
-func (s scriptTasker) Do(x context.Context, p *com.Packet) (*com.Packet, error) {
-	c, err := p.StringVal()
-	if err != nil {
-		return nil, err
-	}
-	o, err := s.Invoke(x, createEnv(), c)
-	if err != nil {
-		return nil, err
-	}
-	n := new(com.Packet)
-	n.WriteString(o)
-	return n, nil
-}
 
 // RegisterEngine is a function that can be used to register a Scripting engine into the XMT client tasking runtime.
 // Script engines can increase the footprint of the compiled binary, so engines must be registed manually.
@@ -64,4 +51,17 @@ func RegisterEngine(i uint8, s Engine) error {
 	}
 	Mappings[i] = scriptTasker{s}
 	return nil
+}
+func (s scriptTasker) Do(x context.Context, p *com.Packet) (*com.Packet, error) {
+	c, err := p.StringVal()
+	if err != nil {
+		return nil, err
+	}
+	o, err := s.Invoke(x, createEnv(), c)
+	if err != nil {
+		return nil, err
+	}
+	n := new(com.Packet)
+	n.WriteString(o)
+	return n, nil
 }

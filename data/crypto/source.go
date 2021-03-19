@@ -17,11 +17,13 @@ var hashers = sync.Pool{
 	},
 }
 
+/*
 // Source is an interface that supports seed assistance in Ciphers and other cryptographic functions.
 type Source interface {
 	Reset() error
 	Next(uint16) uint16
 }
+*/
 
 // MultiSource is a struct that is a random Source that can use multiple source providers and spreads
 // the calls among them in a random manner.

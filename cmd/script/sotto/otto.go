@@ -42,15 +42,15 @@ func newOtto() *ottoScript {
 	return i
 }
 
-// InvokeOtto will use the Otto (github.com/robertkrimen/otto) JavaScript engine to run active JavaScript. This can be
+// Invoke will use the Otto (github.com/robertkrimen/otto) JavaScript engine to run active JavaScript. This can be
 // used to run code not built in at compile time. The only argument is the script that is to be run. The results are
 // the output of the console (all console.log together) and any errors that may occur or syntax errors.
 //
 // This will capture the output of all the console writes and adds a 'print' statement as a shortcut to be used.
 // Another additional function 'exec' can be used to run commands natively. This function can take a vardict of strings
 // to be the command line arguments.
-func InvokeOtto(s string) (string, error) {
-	return InvokeOttoEx(context.Background(), nil, s)
+func Invoke(s string) (string, error) {
+	return InvokeEx(context.Background(), nil, s)
 }
 func exec(v otto.FunctionCall) otto.Value {
 	var p cmd.Process
@@ -111,7 +111,7 @@ func (o *ottoScript) log(v otto.FunctionCall) otto.Value {
 	return ottoEmpty
 }
 
-// InvokeOttoContext will use the Otto (github.com/robertkrimen/otto) JavaScript engine to run active JavaScript. This can be
+// InvokeContext will use the Otto (github.com/robertkrimen/otto) JavaScript engine to run active JavaScript. This can be
 // used to run code not built in at compile time. A context is required to timeout the script execution and the script
 // to be run, as a string. The results are the output of the console (all console.log together) and any errors that may
 // occur or syntax errors.
@@ -119,11 +119,11 @@ func (o *ottoScript) log(v otto.FunctionCall) otto.Value {
 // This will capture the output of all the console writes and adds a 'print' statement as a shortcut to be used.
 // Another additional function 'exec' can be used to run commands natively. This function can take a vardict of strings
 // to be the command line arguments.
-func InvokeOttoContext(x context.Context, s string) (string, error) {
-	return InvokeOttoEx(x, nil, s)
+func InvokeContext(x context.Context, s string) (string, error) {
+	return InvokeEx(x, nil, s)
 }
 
-// InvokeOttoEx will use the Otto (github.com/robertkrimen/otto) JavaScript engine to run active JavaScript. This can be
+// InvokeEx will use the Otto (github.com/robertkrimen/otto) JavaScript engine to run active JavaScript. This can be
 // used to run code not built in at compile time. A context is required to timeout the script execution and the script
 // to be run, as a string. The results are the output of the console (all console.log together) and any errors that may
 // occur or syntax errors.
@@ -133,7 +133,7 @@ func InvokeOttoContext(x context.Context, s string) (string, error) {
 // to be the command line arguments.
 //
 // This Ex function allows to specify a map that contains any starting variables to be supplied at runtime.
-func InvokeOttoEx(x context.Context, m map[string]interface{}, s string) (string, error) {
+func InvokeEx(x context.Context, m map[string]interface{}, s string) (string, error) {
 	var (
 		c   = make(chan error, 1)
 		h   = ottoPool.Get().(*ottoScript)
@@ -162,5 +162,5 @@ func InvokeOttoEx(x context.Context, m map[string]interface{}, s string) (string
 	return o, err
 }
 func (ottoEngine) Invoke(x context.Context, m map[string]interface{}, s string) (string, error) {
-	return InvokeOttoEx(x, m, s)
+	return InvokeEx(x, m, s)
 }

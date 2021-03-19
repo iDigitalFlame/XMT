@@ -38,9 +38,11 @@ if __name__ == "__main__":
     print("var value = []byte{", end="")
     for i in range(0, len(out)):
         if i == 0 or i % 20 == 0:
+            if i % 20 == 0 and i != 0:
+                print(",", end="")
             print("\n\t", end="")
         else:
-            print(" ", end="")
+            print(", ", end="")
         print(f"0x{('%X' % out[i]).zfill(2)}", end="")
-    print("\n}")
+    print(",\n}")
     del out

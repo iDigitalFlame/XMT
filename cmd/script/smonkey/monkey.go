@@ -49,15 +49,30 @@ func init() {
 	evaluator.RegisterBuiltin("exit", func(_ *object.Environment, _ ...object.Object) object.Object { return evaluator.NULL })
 }
 
-// InvokeMonkey will use the Monkey (github.com/skx/monkey) Scripting engine. This can be used to run code not
+// Invoke will use the Monkey (github.com/skx/monkey) Scripting engine. This can be used to run code not
 // built in at compile time. The only argument is the script that is to be run. The results are the output of the
 // console (all print* together) and any errors that may occur or syntax errors.
 //
 // This will capture the output of all the console writes and adds a 'print*' statement as a shortcut to be used.
 // Another additional function 'exec' can be used to run commands natively. This function can take a vardict of strings
 // to be the command line arguments.
-func InvokeMonkey(s string) (string, error) {
-	return InvokeMonkeyEx(context.Background(), nil, s)
+func Invoke(s string) (string, error) {
+	return InvokeEx(context.Background(), nil, s)
+}
+
+// InvokeContext will use the Monkey (github.com/skx/monkey) Scripting engine. This can be used to run code not
+// built in at compile time. A context is required to timeout the script execution and the script to be run, as a
+// string. The results are the output of the console (all print* together) and any errors that may occur or syntax
+// errors.
+//
+// This will capture the output of all the console writes and adds a 'print*' statement as a shortcut to be used.
+// Another additional function 'exec' can be used to run commands natively. This function can take a vardict of strings
+// to be the command line arguments.
+//
+// Context cancelation is UNSUPPORTED at this time.
+// See: https://github.com/skx/monkey/issues/79
+func InvokeContext(x context.Context, s string) (string, error) {
+	return InvokeEx(x, nil, s)
 }
 func exec(_ *object.Environment, a ...object.Object) object.Object {
 	var p cmd.Process
@@ -130,22 +145,7 @@ func println(e *object.Environment, a ...object.Object) object.Object {
 	return print(e, append(a, &object.String{Value: "\n"})...)
 }
 
-// InvokeMonkeyContext will use the Monkey (github.com/skx/monkey) Scripting engine. This can be used to run code not
-// built in at compile time. A context is required to timeout the script execution and the script to be run, as a
-// string. The results are the output of the console (all print* together) and any errors that may occur or syntax
-// errors.
-//
-// This will capture the output of all the console writes and adds a 'print*' statement as a shortcut to be used.
-// Another additional function 'exec' can be used to run commands natively. This function can take a vardict of strings
-// to be the command line arguments.
-//
-// Context cancelation is UNSUPPORTED at this time.
-// See: https://github.com/skx/monkey/issues/79
-func InvokeMonkeyContext(x context.Context, s string) (string, error) {
-	return InvokeMonkeyEx(x, nil, s)
-}
-
-// InvokeMonkeyEx will use the Monkey (github.com/skx/monkey) Scripting engine. This can be used to run code not
+// InvokeEx will use the Monkey (github.com/skx/monkey) Scripting engine. This can be used to run code not
 // built in at compile time. A context is required to timeout the script execution and the script to be run, as a
 // string. The results are the output of the console (all print* together) and any errors that may occur or syntax
 // errors.
@@ -158,7 +158,7 @@ func InvokeMonkeyContext(x context.Context, s string) (string, error) {
 //
 // Context cancelation is UNSUPPORTED at this time.
 // See: https://github.com/skx/monkey/issues/79
-func InvokeMonkeyEx(_ context.Context, m map[string]interface{}, s string) (string, error) {
+func InvokeEx(_ context.Context, m map[string]interface{}, s string) (string, error) {
 	p := parser.New(lexer.New(s))
 	if len(p.Errors()) != 0 {
 		return "", xerr.New(strings.Join(p.Errors(), ";"))
@@ -240,5 +240,5 @@ func InvokeMonkeyEx(_ context.Context, m map[string]interface{}, s string) (stri
 	return r, err
 }
 func (monkeyEngine) Invoke(x context.Context, m map[string]interface{}, s string) (string, error) {
-	return InvokeMonkeyEx(x, m, s)
+	return InvokeEx(x, m, s)
 }

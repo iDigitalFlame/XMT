@@ -36,7 +36,7 @@ exec("rm /tmp/derp.txt");
 func test7Main() {
 	var (
 		l, c   = context.WithTimeout(context.Background(), time.Duration(20)*time.Second)
-		r, err = sotto.InvokeOttoContext(l, script1)
+		r, err = sotto.InvokeContext(l, script1)
 	)
 
 	fmt.Printf("output [%s], error[%s]\n", r, err)
