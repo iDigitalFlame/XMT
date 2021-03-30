@@ -95,27 +95,27 @@ func (r *reader) Bytes() ([]byte, error) {
 	case 0:
 		return nil, nil
 	case 1, 2:
-		n, err := r.Uint8()
-		if err != nil {
-			return nil, err
+		n, err2 := r.Uint8()
+		if err2 != nil {
+			return nil, err2
 		}
 		l = int(n)
 	case 3, 4:
-		n, err := r.Uint16()
-		if err != nil {
-			return nil, err
+		n, err2 := r.Uint16()
+		if err2 != nil {
+			return nil, err2
 		}
 		l = int(n)
 	case 5, 6:
-		n, err := r.Uint32()
-		if err != nil {
-			return nil, err
+		n, err2 := r.Uint32()
+		if err2 != nil {
+			return nil, err2
 		}
 		l = int(n)
 	case 7, 8:
-		n, err := r.Uint64()
-		if err != nil {
-			return nil, err
+		n, err2 := r.Uint64()
+		if err2 != nil {
+			return nil, err2
 		}
 		l = int(n)
 	default:

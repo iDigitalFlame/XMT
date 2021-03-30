@@ -423,7 +423,7 @@ func (s *Session) session(c net.Conn, o bool) bool {
 		s.log.Trace("[%s] Setting Channel flag on next Packet to %q (set by Packet)!", s.ID, s.host)
 	}
 	s.log.Trace("[%s] Sending Packet %q to %q.", s.ID, p.String(), s.host)
-	if err := writePacket(c, s.w, s.t, p); err != nil {
+	if err = writePacket(c, s.w, s.t, p); err != nil {
 		s.log.Warning("[%s] Received an error attempting to write to %q: %s!", s.ID, s.host, err.Error())
 		return false
 	}

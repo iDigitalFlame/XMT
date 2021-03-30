@@ -131,9 +131,8 @@ func (client) SetWriteDeadline(_ time.Time) error {
 }
 func (c *client) request() (*http.Response, error) {
 	var (
-		r   *http.Request
-		o   *http.Response
-		err error
+		r *http.Request
+		o *http.Response
 	)
 	if c.parent != nil {
 		r, _ = http.NewRequestWithContext(c.parent.ctx, http.MethodPost, "", c.out)
@@ -153,6 +152,7 @@ func (c *client) request() (*http.Response, error) {
 			r.URL.Scheme = "http"
 		}
 	}
+	var err error
 	switch c.gen.prepRequest(r); {
 	case c.client != nil:
 		o, err = c.client.Do(r)

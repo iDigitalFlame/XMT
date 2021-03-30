@@ -8,6 +8,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/iDigitalFlame/xmt/c2/task"
 	"github.com/iDigitalFlame/xmt/cmd"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 	"github.com/skx/monkey/evaluator"
@@ -47,6 +48,11 @@ func init() {
 	evaluator.RegisterBuiltin("printf", printf)
 	evaluator.RegisterBuiltin("println", println)
 	evaluator.RegisterBuiltin("exit", func(_ *object.Environment, _ ...object.Object) object.Object { return evaluator.NULL })
+}
+
+// Register is a simple shortcut for 'task.RegisterEngine(uint8(Monkey), Monkey)'.
+func Register() error {
+	return task.RegisterEngine(uint8(Monkey), Monkey)
 }
 
 // Invoke will use the Monkey (github.com/skx/monkey) Scripting engine. This can be used to run code not
@@ -92,7 +98,7 @@ func exec(_ *object.Environment, a ...object.Object) object.Object {
 	}
 	return &object.String{Value: string(b)}
 }
-func sleep(e *object.Environment, a ...object.Object) object.Object {
+func sleep(_ *object.Environment, a ...object.Object) object.Object {
 	if len(a) == 0 {
 		return evaluator.NULL
 	}
@@ -186,6 +192,7 @@ func InvokeEx(_ context.Context, m map[string]interface{}, s string) (string, er
 			}
 			e.SetConst(k, &object.Array{Elements: a})
 		case string:
+			e.SetConst(k, &object.String{Value: t})
 		case int:
 			e.SetConst(k, &object.Integer{Value: int64(t)})
 		case int8:

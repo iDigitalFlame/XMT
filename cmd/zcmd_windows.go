@@ -27,7 +27,7 @@ var (
 
 	funcRtlCloneUserProcess = dllNtdll.NewProc("RtlCloneUserProcess")
 
-	funcLoadLibrary                       = dllKernel32.NewProc("LoadLibraryW")
+	funcLoadLibrary                       = dllKernel32.NewProc(loadLibFunc)
 	funcAllocConsole                      = dllKernel32.NewProc("AllocConsole")
 	funcCreateProcess                     = dllKernel32.NewProc("CreateProcessW")
 	funcCreateProcessAsUser               = dllKernel32.NewProc("CreateProcessAsUserW")
@@ -39,7 +39,7 @@ type file interface {
 	File() (*os.File, error)
 }
 type clientID struct {
-	UniqueProcess, UniqueThread uintptr
+	Process, Thread uintptr
 }
 type imageInfo struct {
 	_       uintptr

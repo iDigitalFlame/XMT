@@ -109,7 +109,7 @@ func read(r io.Reader) ([]string, error) {
 			x.WriteByte(b[i])
 		}
 	}
-	if err == nil || err == io.EOF {
+	if err == io.EOF {
 		return s, nil
 	}
 	return s, err

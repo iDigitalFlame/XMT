@@ -96,27 +96,27 @@ func (c *Chunk) Bytes() ([]byte, error) {
 	case 0:
 		return nil, nil
 	case 1, 2:
-		n, err := c.Uint8()
-		if err != nil {
-			return nil, err
+		n, err2 := c.Uint8()
+		if err2 != nil {
+			return nil, err2
 		}
 		l = int(n)
 	case 3, 4:
-		n, err := c.Uint16()
-		if err != nil {
-			return nil, err
+		n, err2 := c.Uint16()
+		if err2 != nil {
+			return nil, err2
 		}
 		l = int(n)
 	case 5, 6:
-		n, err := c.Uint32()
-		if err != nil {
-			return nil, err
+		n, err2 := c.Uint32()
+		if err2 != nil {
+			return nil, err2
 		}
 		l = int(n)
 	case 7, 8:
-		n, err := c.Uint64()
-		if err != nil {
-			return nil, err
+		n, err2 := c.Uint64()
+		if err2 != nil {
+			return nil, err2
 		}
 		l = int(n)
 	default:

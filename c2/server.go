@@ -401,7 +401,7 @@ func (s *Server) ConnectWith(a string, c client, p *Profile, d *com.Packet) (*Se
 		v.Flags |= com.FlagData
 	}
 	v.Close()
-	if err := writePacket(n, l.w, l.t, v); err != nil {
+	if err = writePacket(n, l.w, l.t, v); err != nil {
 		return nil, xerr.Wrap("unable to write Packet", err)
 	}
 	r, err := readPacket(n, l.w, l.t)

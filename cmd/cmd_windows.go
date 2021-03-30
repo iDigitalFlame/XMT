@@ -47,14 +47,14 @@ func Fork() (uint32, error) {
 	)
 	switch r {
 	case 0:
-		h, err := windows.OpenThread(0x000F|0x00100000|0xffff, false, uint32(i.ClientID.UniqueThread))
+		h, err := windows.OpenThread(0x000F|0x00100000|0xFFFF, false, uint32(i.ClientID.Thread))
 		if err != nil {
 			return 0, xerr.Wrap("winapi OpenThread error", err)
 		}
 		if _, err := windows.ResumeThread(h); err != nil {
 			return 0, xerr.Wrap("winapi ResumeThread error", err)
 		}
-		return uint32(i.ClientID.UniqueProcess), windows.CloseHandle(h)
+		return uint32(i.ClientID.Process), windows.CloseHandle(h)
 	case 297:
 		if r, _, err = funcAllocConsole.Call(); r == 0 {
 			return 0, xerr.Wrap("winapi AllocConsole error", err)
@@ -188,8 +188,7 @@ func (p *Process) SetFlags(f uint32) {
 // this will use the current process (default). This function has no effect if the device is not running Windows.
 // Setting the Parent process will automatically set 'SetNewConsole' to true.
 func (p *Process) SetParent(n string) {
-	p.container.clear()
-	if len(n) > 0 {
+	if p.container.clear(); len(n) > 0 {
 		p.container.name = n
 		p.SetNewConsole(true)
 	}
@@ -242,8 +241,7 @@ func (p *Process) SetNewConsole(c bool) {
 // of writable processes. This function has no effect if the device is not running Windows. Setting the Parent
 // process will automatically set 'SetNewConsole' to true.
 func (p *Process) SetParentPID(i int32) {
-	p.container.clear()
-	if i != 0 {
+	if p.container.clear(); i != 0 {
 		p.container.pid = i
 		p.SetNewConsole(true)
 	}

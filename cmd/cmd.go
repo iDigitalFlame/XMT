@@ -187,8 +187,7 @@ func (p *Process) Start() error {
 			p.ctx, p.cancel = context.WithCancel(p.ctx)
 		}
 	}
-	atomic.StoreUint32(&p.once, 0)
-	if p.reader != nil {
+	if atomic.StoreUint32(&p.once, 0); p.reader != nil {
 		p.reader.Close()
 		p.reader = nil
 	}
@@ -257,8 +256,7 @@ func (p *Process) stopWith(e error) error {
 		}
 		close(p.ch)
 	}
-	p.cancel()
-	if p.err == nil && p.ctx.Err() != nil {
+	if p.cancel(); p.err == nil && p.ctx.Err() != nil {
 		if e != nil {
 			p.err = e
 			return e

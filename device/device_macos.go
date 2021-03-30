@@ -49,13 +49,13 @@ func getVersion() string {
 	case len(n) == 0 && len(b) == 0 && len(v) == 0:
 		return "MacOS (?)"
 	case len(n) == 0 && len(b) > 0 && len(v) > 0:
-		return "MacOS (" + v + ", " + b ")"
+		return "MacOS (" + v + ", " + b + ")"
 	case len(n) == 0 && len(b) == 0 && len(v) > 0:
 		return "MacOS (" + v + ")"
 	case len(n) == 0 && len(b) > 0 && len(v) == 0:
-		return "MacOS (" + b ")"
+		return "MacOS (" + b + ")"
 	case len(n) > 0 && len(b) > 0 && len(v) > 0:
-		return n + " (" + v + ", " + b ")"
+		return n + " (" + v + ", " + b + ")"
 	case len(n) > 0 && len(b) == 0 && len(v) > 0:
 		return n + " (" + v + ")"
 	case len(n) > 0 && len(b) > 0 && len(v) == 0:

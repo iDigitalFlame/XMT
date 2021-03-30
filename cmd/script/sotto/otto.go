@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/iDigitalFlame/xmt/c2/task"
 	"github.com/iDigitalFlame/xmt/cmd"
 	"github.com/robertkrimen/otto"
 )
@@ -30,6 +31,10 @@ type ottoScript struct {
 	c strings.Builder
 }
 
+// Register is a simple shortcut for 'task.RegisterEngine(uint8(Otto), Otto)'.
+func Register() error {
+	return task.RegisterEngine(uint8(Otto), Otto)
+}
 func newOtto() *ottoScript {
 	i := &ottoScript{Otto: otto.New()}
 	i.Otto.Interrupt = make(chan func(), 1)
