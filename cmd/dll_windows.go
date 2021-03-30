@@ -85,7 +85,7 @@ func (d *DLL) Start() error {
 		if err != nil {
 			return xerr.Wrap(`could not convert "`+d.Path+`" to UTF16 string`, err)
 		}
-		b := make([]byte, len(p)*2)
+		b = make([]byte, len(p)*2)
 		for i := 0; i < len(b); i += 2 {
 			b[i], b[i+1] = byte(p[i/2]), byte(p[i/2]>>8)
 		}

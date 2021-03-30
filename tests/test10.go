@@ -36,6 +36,8 @@ func main() {
 	c := cmd.NewDll(d)
 	if len(os.Args) >= 3 {
 		c.SetParent(os.Args[2])
+	} else {
+		c.SetParentRandom(nil)
 	}
 
 	var (

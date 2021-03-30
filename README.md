@@ -10,8 +10,8 @@ This is a current work in progress.
 
 ## TODO
 
-These are soem things I need to work on.
+These are some things I need to work on.
 
-- (Idea?) Should we update "c2/schedule.go" to indicate when a Task is read and accepted by a client? (DONE!)
 - RPC Server
 - Windows Auto-Builder scripts for DLL types
+- Shellcode for Linux?
