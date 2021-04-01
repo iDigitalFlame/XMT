@@ -1,7 +1,6 @@
 package com
 
 import (
-	"bytes"
 	"strconv"
 
 	"github.com/iDigitalFlame/xmt/data"
@@ -16,13 +15,14 @@ const PacketHeaderSize = 45
 // Packet is a struct that is a Reader and Writer that can be generated to be sent, or received from a Connection.
 // Acts as a data buffer and 'child' of 'data.Chunk'.
 type Packet struct {
-	Tags   []uint32
-	Device device.ID
+	Tags []uint32
 	data.Chunk
 
 	Flags Flag
 	Job   uint16
-	ID    uint8
+
+	Device device.ID
+	ID     uint8
 }
 
 // Size returns the amount of bytes written or contained in this Packet with the header size added.
@@ -91,16 +91,16 @@ func (p *Packet) Verify(i device.ID) bool {
 	if p.Job == 0 && p.Flags&FlagProxy == 0 {
 		p.Job = uint16(util.FastRand())
 	}
-	if p.Device == nil {
+	if p.Device.Empty() {
 		p.Device = i
 		return true
 	}
-	return bytes.Equal(p.Device, i)
+	return p.Device.Equal(i)
 }
 
 // MarshalStream writes the data of this Packet to the supplied Writer.
 func (p Packet) MarshalStream(w data.Writer) error {
-	if p.Device == nil {
+	if p.Device.Empty() {
 		p.Device = device.UUID
 	}
 	if err := w.WriteUint8(p.ID); err != nil {

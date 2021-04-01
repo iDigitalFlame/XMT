@@ -1,10 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/iDigitalFlame/xmt/cmd"
+	"github.com/iDigitalFlame/xmt/device"
 )
 
 const script = `println("Trying to sleep for 2 seconds!")
@@ -17,6 +19,14 @@ println("Done!")
 `
 
 func main() {
+	fmt.Println("ID 1:", device.UUID, device.UUID.FullString(), device.UUID.Hash())
+
+	device.UUID.Seed([]byte("D3RP"))
+
+	fmt.Println("ID 2:", device.UUID, device.UUID.FullString(), device.UUID.Hash())
+}
+
+func main1() {
 	/*fmt.Println(smonkey.Invoke(script))
 
 	fmt.Println(device.Local.String())

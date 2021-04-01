@@ -31,24 +31,28 @@ var (
 type Session struct {
 	connection
 	Last, Created time.Time
-	Shutdown      func(*Session)
-	frags         map[uint16]*cluster
-	parent        *Listener
-	recv          chan *com.Packet
-	ch            chan waker
-	socket        func(string) (net.Conn, error)
-	peek          *com.Packet
-	send          chan *com.Packet
 
-	Receive             func(*Session, *com.Packet)
-	wake                chan waker
-	swarm               *proxySwarm
-	host                string
-	ID                  device.ID
-	Device              device.Machine
-	sleep               time.Duration
+	swarm      *proxySwarm
+	frags      map[uint16]*cluster
+	parent     *Listener
+	recv, send chan *com.Packet
+	socket     func(string) (net.Conn, error)
+	peek       *com.Packet
+	ch         chan waker
+
+	Shutdown func(*Session)
+	wake     chan waker
+
+	Receive func(*Session, *com.Packet)
+	host    string
+
+	Device device.Machine
+	sleep  time.Duration
+
 	done, mode, channel uint32
-	jitter, errors      uint8
+
+	ID             device.ID
+	jitter, errors uint8
 }
 type cluster struct {
 	data []*com.Packet

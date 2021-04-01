@@ -126,7 +126,7 @@ func convertHintConnect(s Setting) client {
 		if s[1] == 1 {
 			return com.ICMP
 		}
-		return com.NewIP(s[1], DefaultSleep)
+		return com.NewIP(s[1], com.DefaultTimeout)
 	case udpID:
 		return com.UDP
 	case tcpID:
@@ -178,7 +178,7 @@ func convertHintListen(s Setting) listener {
 		if s[1] == 1 {
 			return com.ICMP
 		}
-		return com.NewIP(s[1], DefaultSleep)
+		return com.NewIP(s[1], com.DefaultTimeout)
 	case udpID:
 		return com.UDP
 	case tcpID:

@@ -87,7 +87,7 @@ func (p *Proxy) shutdown() {
 }
 func (s *proxySwarm) Close() {
 	for k, c := range s.clients {
-		c.ID, c.peek = nil, nil
+		c.peek = nil
 		close(c.send)
 		delete(s.clients, k)
 	}
@@ -128,7 +128,7 @@ func (s *proxySwarm) process() {
 			c, ok = s.clients[i]
 		)
 		if ok {
-			c.ID, c.peek = nil, nil
+			c.peek = nil
 			close(c.send)
 			delete(s.clients, i)
 		}

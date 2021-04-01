@@ -9,17 +9,16 @@ import (
 // Machine is a struct that contains information about a specific device. This struct contains generic Operating
 // System Information such as Version, Arch and network information.
 type Machine struct {
-	User string `json:"user"`
-
+	User     string `json:"user"`
 	Version  string `json:"version"`
 	Hostname string `json:"hostname"`
 
-	ID      ID      `json:"id"`
 	Network Network `json:"network"`
 
 	PID  uint32 `json:"pid"`
 	PPID uint32 `json:"ppid"`
 
+	ID       ID         `json:"id"`
 	Arch     deviceArch `json:"arch"`
 	OS       deviceOS   `json:"os"`
 	Elevated bool       `json:"elevated"`

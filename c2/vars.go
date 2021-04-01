@@ -1,7 +1,6 @@
 package c2
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"net"
@@ -160,10 +159,10 @@ func (c ConnectFunc) Connect(a string) (net.Conn, error) {
 	return c(a)
 }
 func notify(l *Listener, s *Session, p *com.Packet) error {
-	if (l == nil && s == nil) || p == nil || p.Device == nil {
+	if (l == nil && s == nil) || p == nil || p.Device.Empty() {
 		return nil
 	}
-	if s != nil && !bytes.Equal(p.Device, s.Device.ID) && p.Flags&com.FlagMultiDevice == 0 {
+	if s != nil && !p.Device.Equal(s.Device.ID) && p.Flags&com.FlagMultiDevice == 0 {
 		if s.swarm != nil && s.swarm.accept(p) {
 			return nil
 		}
