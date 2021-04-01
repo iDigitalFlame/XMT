@@ -71,7 +71,7 @@ func (i ID) Hash() uint32 {
 // String returns a representation of this ID instance.
 func (i ID) String() string {
 	if i[MachineIDSize] == 0 {
-		return i.string(0, IDSize)
+		return i.string(0, MachineIDSize)
 	}
 	return i.string(MachineIDSize, IDSize)
 }
@@ -94,7 +94,7 @@ func (i ID) Equal(a ID) bool {
 // Signature returns the signature portion of the ID value. This value is constant and unique for each device.
 func (i ID) Signature() string {
 	if i[MachineIDSize] == 0 {
-		return i.string(0, IDSize)
+		return i.string(0, MachineIDSize)
 	}
 	return i.string(0, MachineIDSize)
 }
