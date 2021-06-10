@@ -9,51 +9,48 @@ import (
 	"github.com/iDigitalFlame/xmt/com/limits"
 )
 
-// UDPConn is a struct that represents a UDP based network connection. This struct can
+// udpConn is a struct that represents a UDP based network connection. This struct can
 // be used to control and manage the current connection.
-type UDPConn struct {
+// udpStream is a struct that represents a UDP stream (direct) based network connection. This struct
+// can be used to control and manage the current connection.
+// udpListener is a struct that represents a UDP based network connection listener. This struct can
+// be used to accept and create new UDP connections.
+// can be used to create new UDP listeners.
+
+// Close closes this connetion and frees any related resources.
+// Close closes this listener. Any blocked Accept operations will be unblocked and return errors.
+
+type udpConn struct {
 	_      [0]func()
 	buf    chan byte
 	addr   net.Addr
-	parent *UDPListener
+	parent *udpListener
 }
-
-// UDPStream is a struct that represents a UDP stream (direct) based network connection. This struct
-// can be used to control and manage the current connection.
-type UDPStream struct {
+type udpStream struct {
 	_ [0]func()
 	net.Conn
 	timeout time.Duration
 }
-
-// UDPListener is a struct that represents a UDP based network connection listener. This struct can
-// be used to accept and create new UDP connections.
-type UDPListener struct {
+type udpListener struct {
 	socket  net.PacketConn
 	delete  chan net.Addr
-	active  map[net.Addr]*UDPConn
+	active  map[net.Addr]*udpConn
 	buf     []byte
 	timeout time.Duration
 }
-
-// UDPConnector is a struct that represents a UDP based network connection handler. This struct
-// can be used to create new UDP listeners.
-type UDPConnector struct {
+type udpConnector struct {
 	_      [0]func()
 	dialer *net.Dialer
 }
 
-// Close closes this connetion and frees any related resources.
-func (u *UDPConn) Close() error {
+func (u *udpConn) Close() error {
 	if u.buf == nil {
 		close(u.buf)
 		u.buf, u.parent = nil, nil
 	}
 	return nil
 }
-
-// Close closes this listener. Any blocked Accept operations will be unblocked and return errors.
-func (u *UDPListener) Close() error {
+func (u *udpListener) Close() error {
 	if u.delete == nil || u.socket == nil {
 		return nil
 	}
@@ -67,35 +64,54 @@ func (u *UDPListener) Close() error {
 	u.delete, u.socket = nil, nil
 	return err
 }
-
-// String returns a string representation of this UDPListener.
-func (u UDPListener) String() string {
+func (u udpListener) String() string {
 	return "UDP[" + u.socket.LocalAddr().String() + "]"
 }
 
+// String returns a string representation of this udpListener.
+
 // Addr returns the listener's current bound network address.
-func (u UDPListener) Addr() net.Addr {
-	return u.socket.LocalAddr()
-}
 
 // LocalAddr returns the connected remote network address.
-func (u UDPConn) LocalAddr() net.Addr {
+// RemoteAddr returns the connected remote network address.
+
+// Read will attempt to read len(b) bytes from the current connection and fill the supplied buffer.
+// The return values will be the amount of bytes read and any errors that occurred.
+// SetDeadline sets the read and write deadlines associated with the connection. This function
+// does nothing for this type of connection.
+
+// Write will attempt to write len(b) bytes to the current connection from the supplied buffer.
+// The return values will be the amount of bytes wrote and any errors that occurred.
+
+// Read will attempt to read len(b) bytes from the current connection and fill the supplied buffer.
+// The return values will be the amount of bytes read and any errors that occurred.
+// Write will attempt to write len(b) bytes to the current connection from the supplied buffer.
+// The return values will be the amount of bytes wrote and any errors that occurred.
+// SetReadDeadline sets the deadline for future Read calls and any currently-blocked Read call. This
+// function does nothing for this type of connection.
+
+// SetWriteDeadline sets the deadline for future Write calls and any currently-blocked Write call. This
+// function does nothing for this type of connection.
+// Connect instructs the connector to create a connection to the supplied address. This function will
+// return a connection handle if successful. Otherwise the returned error will be non-nil.
+// Listen instructs the connector to create a listener on the supplied listeneing address. This function
+// will return a handler to a listener and an error if there are any issues creating the listener.
+
+func (u udpListener) Addr() net.Addr {
+	return u.socket.LocalAddr()
+}
+func (u udpConn) LocalAddr() net.Addr {
 	return u.addr
 }
-
-// RemoteAddr returns the connected remote network address.
-func (u UDPConn) RemoteAddr() net.Addr {
+func (u udpConn) RemoteAddr() net.Addr {
 	return u.addr
 }
 
 // NewUDP creates a new simple UDP based connector with the supplied timeout.
-func NewUDP(t time.Duration) *UDPConnector {
-	return &UDPConnector{dialer: &net.Dialer{Timeout: t, KeepAlive: t, DualStack: true}}
+func NewUDP(t time.Duration) Connector {
+	return &udpConnector{dialer: &net.Dialer{Timeout: t, KeepAlive: t, DualStack: true}}
 }
-
-// Read will attempt to read len(b) bytes from the current connection and fill the supplied buffer.
-// The return values will be the amount of bytes read and any errors that occurred.
-func (u *UDPConn) Read(b []byte) (int, error) {
+func (u *udpConn) Read(b []byte) (int, error) {
 	if len(u.buf) == 0 || u.parent == nil {
 		return 0, io.EOF
 	}
@@ -105,34 +121,22 @@ func (u *UDPConn) Read(b []byte) (int, error) {
 	}
 	return n, nil
 }
-
-// SetDeadline sets the read and write deadlines associated with the connection. This function
-// does nothing for this type of connection.
-func (UDPConn) SetDeadline(_ time.Time) error {
+func (udpConn) SetDeadline(_ time.Time) error {
 	return nil
 }
-
-// Write will attempt to write len(b) bytes to the current connection from the supplied buffer.
-// The return values will be the amount of bytes wrote and any errors that occurred.
-func (u *UDPConn) Write(b []byte) (int, error) {
+func (u *udpConn) Write(b []byte) (int, error) {
 	if u.parent == nil {
 		return 0, io.ErrUnexpectedEOF
 	}
 	return u.parent.socket.WriteTo(b, u.addr)
 }
-
-// Read will attempt to read len(b) bytes from the current connection and fill the supplied buffer.
-// The return values will be the amount of bytes read and any errors that occurred.
-func (u *UDPStream) Read(b []byte) (int, error) {
+func (u *udpStream) Read(b []byte) (int, error) {
 	if u.timeout > 0 {
 		u.Conn.SetReadDeadline(time.Now().Add(u.timeout))
 	}
 	return u.Conn.Read(b)
 }
-
-// Write will attempt to write len(b) bytes to the current connection from the supplied buffer.
-// The return values will be the amount of bytes wrote and any errors that occurred.
-func (u *UDPStream) Write(b []byte) (int, error) {
+func (u *udpStream) Write(b []byte) (int, error) {
 	if u.timeout > 0 {
 		u.Conn.SetWriteDeadline(time.Now().Add(u.timeout))
 	}
@@ -143,7 +147,7 @@ func (u *UDPStream) Write(b []byte) (int, error) {
 // wil return only when a connection is made or it is closed. The return error will most likely
 // be nil unless the listener is closed. This function will return nil for both the connection and
 // the error if the connection received was an existing tracked connection or did not complete.
-func (u *UDPListener) Accept() (net.Conn, error) {
+func (u *udpListener) Accept() (net.Conn, error) {
 	for len(u.delete) > 0 {
 		delete(u.active, <-u.delete)
 	}
@@ -169,7 +173,7 @@ func (u *UDPListener) Accept() (net.Conn, error) {
 	}
 	c, ok := u.active[a]
 	if !ok {
-		c = &UDPConn{buf: make(chan byte, limits.LargeLimit()), addr: a, parent: u}
+		c = &udpConn{buf: make(chan byte, limits.LargeLimit()), addr: a, parent: u}
 		u.active[a] = c
 	}
 	for i := 0; i < n; i++ {
@@ -180,41 +184,29 @@ func (u *UDPListener) Accept() (net.Conn, error) {
 	}
 	return nil, nil
 }
-
-// SetReadDeadline sets the deadline for future Read calls and any currently-blocked Read call. This
-// function does nothing for this type of connection.
-func (UDPConn) SetReadDeadline(_ time.Time) error {
+func (udpConn) SetReadDeadline(_ time.Time) error {
 	return nil
 }
-
-// SetWriteDeadline sets the deadline for future Write calls and any currently-blocked Write call. This
-// function does nothing for this type of connection.
-func (UDPConn) SetWriteDeadline(_ time.Time) error {
+func (udpConn) SetWriteDeadline(_ time.Time) error {
 	return nil
 }
-
-// Connect instructs the connector to create a connection to the supplied address. This function will
-// return a connection handle if successful. Otherwise the returned error will be non-nil.
-func (u UDPConnector) Connect(s string) (net.Conn, error) {
+func (u udpConnector) Connect(s string) (net.Conn, error) {
 	c, err := u.dialer.Dial(netUDP, s)
 	if err != nil {
 		return nil, err
 	}
-	return &UDPStream{Conn: c, timeout: u.dialer.Timeout}, nil
+	return &udpStream{Conn: c, timeout: u.dialer.Timeout}, nil
 }
-
-// Listen instructs the connector to create a listener on the supplied listeneing address. This function
-// will return a handler to a listener and an error if there are any issues creating the listener.
-func (u UDPConnector) Listen(s string) (net.Listener, error) {
+func (u udpConnector) Listen(s string) (net.Listener, error) {
 	c, err := ListenConfig.ListenPacket(context.Background(), netUDP, s)
 	if err != nil {
 		return nil, err
 	}
-	l := &UDPListener{
+	l := &udpListener{
 		buf:     make([]byte, limits.LargeLimit()),
 		delete:  make(chan net.Addr, limits.SmallLimit()),
 		socket:  c,
-		active:  make(map[net.Addr]*UDPConn),
+		active:  make(map[net.Addr]*udpConn),
 		timeout: u.dialer.Timeout,
 	}
 	return l, nil

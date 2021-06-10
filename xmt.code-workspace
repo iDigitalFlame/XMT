@@ -11,10 +11,18 @@
         "files.associations": {
             "*.sh": "shellscript",
             "*.run": "shellscript",
+            "*.conf": "properties",
             "array": "c",
             "string_view": "c",
             "initializer_list": "c",
-            "utility": "c"
+            "utility": "c",
+            "random": "c",
+            "functional": "c",
+            "cstring": "c",
+            "*.tcc": "c",
+            "string": "c",
+            "unordered_map": "c",
+            "numbers": "c"
         }
     }
 }

@@ -12,8 +12,6 @@ import (
 	"unicode/utf16"
 	"unsafe"
 
-	"github.com/iDigitalFlame/xmt/device/devtools"
-	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 	"golang.org/x/sys/windows"
 )
@@ -74,7 +72,10 @@ func (p *Process) wait() {
 		x   = make(chan error)
 		err error
 	)
-	go waitFunc(p.opts.info.Process, windows.INFINITE, x)
+	go func(u chan error, z windows.Handle) {
+		u <- wait(z)
+		close(u)
+	}(x, p.opts.info.Process)
 	select {
 	case err = <-x:
 	case <-p.ctx.Done():
@@ -107,11 +108,14 @@ func (o *options) close() {
 	}
 	o.parent, o.closers = 0, nil
 }
-func (c container) clear() {
-	c.pid, c.name, c.choices, c.elevated = 0, "", nil, false
-}
 func (c closer) Close() error {
 	return windows.CloseHandle(windows.Handle(c))
+}
+func wait(h windows.Handle) error {
+	if r, err := windows.WaitForSingleObject(h, windows.INFINITE); r != windows.WAIT_OBJECT_0 {
+		return err
+	}
+	return nil
 }
 func createEnv(s []string) (*uint16, error) {
 	if len(s) == 0 {
@@ -135,25 +139,6 @@ func createEnv(s []string) (*uint16, error) {
 	b[i] = 0
 	return &utf16.Encode([]rune(string(b)))[0], nil
 }
-func readFunc(r io.ReadCloser, w io.Writer) {
-	io.Copy(w, r)
-	r.Close()
-}
-func wait(h windows.Handle, d uint32) error {
-	switch r, err := windows.WaitForSingleObject(h, d); {
-	case r == windows.WAIT_OBJECT_0:
-		return nil
-	default:
-		return err
-	}
-}
-func writeFunc(r io.Reader, w io.WriteCloser) {
-	io.Copy(w, r)
-	w.Close()
-}
-func waitFunc(h windows.Handle, d uint32, c chan<- error) {
-	c <- wait(h, d)
-}
 func (o *options) startInfo() (*windows.StartupInfo, error) {
 	s := &windows.StartupInfo{X: o.X, Y: o.Y, XSize: o.W, YSize: o.H, Flags: o.Flags, ShowWindow: o.Mode}
 	if len(o.Title) > 0 {
@@ -164,26 +149,6 @@ func (o *options) startInfo() (*windows.StartupInfo, error) {
 	}
 	o.parent, o.closers = 0, nil
 	return s, nil
-}
-func (c container) getParent(a uint32) (windows.Handle, error) {
-	if c.pid > 0 {
-		h, err := windows.OpenProcess(a, true, uint32(c.pid))
-		if h == 0 {
-			return 0, xerr.Wrap("winapi OpenProcess PID "+strconv.Itoa(int(c.pid))+" error", err)
-		}
-		return h, nil
-	}
-	h, err := getProcessByName(a, c.name, c.choices, c.pid < 0, c.elevated)
-	if err != nil {
-		if c.pid < 0 {
-			return 0, err
-		}
-		if len(c.name) > 0 {
-			return 0, xerr.Wrap(c.name, err)
-		}
-		return 0, xerr.Wrap("["+strings.Join(c.choices, ", ")+"]", err)
-	}
-	return h, nil
 }
 func (o *options) readHandle(r io.Reader, m bool) (windows.Handle, error) {
 	if !m && r == nil {
@@ -208,7 +173,10 @@ func (o *options) readHandle(r io.Reader, m bool) (windows.Handle, error) {
 			h = x.Fd()
 			o.closers = append(o.closers, x)
 			o.closers = append(o.closers, y)
-			go writeFunc(r, y)
+			go func(r1 io.Reader, w1 io.WriteCloser) {
+				io.Copy(w1, r1)
+				w1.Close()
+			}(r, y)
 		}
 		if h == 0 {
 			return 0, nil
@@ -258,7 +226,10 @@ func (o *options) writeHandle(w io.Writer, m bool) (windows.Handle, error) {
 			h = y.Fd()
 			o.closers = append(o.closers, x)
 			o.closers = append(o.closers, y)
-			go readFunc(x, w)
+			go func(r1 io.ReadCloser, w1 io.Writer) {
+				io.Copy(w1, r1)
+				r1.Close()
+			}(x, w)
 		}
 		if h == 0 {
 			return 0, nil
@@ -312,81 +283,6 @@ func newParentEx(p windows.Handle, i *windows.StartupInfo) (*startupInfoEx, erro
 		return nil, xerr.Wrap("winapi UpdateProcThreadAttribute error", err)
 	}
 	return &x, nil
-}
-func getProcessByName(a uint32, n string, x []string, v, y bool) (windows.Handle, error) {
-	h, err := windows.CreateToolhelp32Snapshot(0x00000002, 0)
-	if err != nil {
-		return 0, xerr.Wrap("winapi CreateToolhelp32Snapshot error", err)
-	}
-	if y {
-		devtools.AdjustPrivileges("SeDebugPrivilege")
-	}
-	var (
-		e    windows.ProcessEntry32
-		q    []string
-		c    []windows.Handle
-		p    = uint32(os.Getpid())
-		z    windows.Token
-		o    windows.Handle
-		f, j bool
-		s, m = "", strings.ToLower(n)
-	)
-	if e.Size = uint32(unsafe.Sizeof(e)); len(x) > 0 {
-		q := make([]string, len(x))
-		for i := range x {
-			q[i] = strings.ToLower(x[i])
-		}
-	}
-	for err = windows.Process32First(h, &e); err == nil; err = windows.Process32Next(h, &e) {
-		if e.ProcessID == p {
-			continue
-		}
-		if s = strings.ToLower(windows.UTF16ToString(e.ExeFile[:])); len(s) == 0 {
-			continue
-		}
-		for i := range q {
-			if q[i] == s {
-				f = true
-				break
-			}
-		}
-		if !v && ((len(q) > 0 && !f) || (len(m) > 0 && s != m)) {
-			continue
-		}
-		if o, err = windows.OpenProcess(a, true, e.ProcessID); err != nil || o == 0 {
-			continue
-		}
-		if y {
-			if err := windows.OpenProcessToken(o, windows.TOKEN_QUERY, &z); err != nil {
-				windows.CloseHandle(o)
-				continue
-			}
-			j = z.IsElevated()
-			if z.Close(); !j {
-				windows.CloseHandle(o)
-				continue
-			}
-		}
-		if v {
-			c = append(c, o)
-			continue
-		}
-		break
-	}
-	if windows.CloseHandle(h); v && len(c) > 0 {
-		b := c[int(util.FastRandN(len(c)))]
-		for i := range c {
-			if c[i] == b {
-				continue
-			}
-			windows.CloseHandle(c[i])
-		}
-		return b, nil
-	}
-	if err != nil {
-		return 0, ErrNoProcessFound
-	}
-	return windows.Handle(o), nil
 }
 func run(name, cmd, dir string, p, t *windows.SecurityAttributes, f uint32, e *uint16, s *windows.StartupInfo, x *startupInfoEx, u *windows.Token, i *windows.ProcessInformation) error {
 	var (

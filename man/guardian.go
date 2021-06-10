@@ -18,8 +18,6 @@ var bufs = sync.Pool{
 	},
 }
 
-type waker struct{}
-
 // Guardian is a struct that is used to maintain a running process that will re-establish itself
 // if it is not detected running. Guardian instances take advantage of local sockets (*NIX), Named Pipes (Windows) or
 // TCP sockets (if specified). This struct will maintain a thread that will 'heartbeat' back to the Sentinel
@@ -27,7 +25,7 @@ type waker struct{}
 type Guardian struct {
 	ctx    context.Context
 	sock   net.Listener
-	ch     chan waker
+	ch     chan struct{}
 	cancel context.CancelFunc
 	done   uint32
 }
@@ -103,6 +101,17 @@ func GuardTCP(p uint16) (*Guardian, error) {
 	return GuardContextTCP(context.Background(), p)
 }
 
+// MustGuardContext returns a Guardian instance that watches on the name provided. This function must complete
+// and will panic if an error occurs. Otherwise a Guardian instance is returned. This function also takes a
+// context.Context to be used for resource control.
+func MustGuardContext(x context.Context, n string) *Guardian {
+	g, err := GuardContext(x, n)
+	if err != nil {
+		panic(err)
+	}
+	return g
+}
+
 // GuardContext will attempt to create a Guardian instance on the provided name. This function will return an error
 // if the name is already being listened on. This function will choose the proper connection method based on the host
 // operating system. This function also takes a context.Context to be used for resource control.
@@ -111,7 +120,7 @@ func GuardContext(x context.Context, n string) (*Guardian, error) {
 	if err != nil {
 		return nil, err
 	}
-	g := &Guardian{ch: make(chan waker, 1), sock: l}
+	g := &Guardian{ch: make(chan struct{}, 1), sock: l}
 	g.ctx, g.cancel = context.WithCancel(x)
 	go g.listen()
 	return g, nil
@@ -125,7 +134,7 @@ func GuardContextTCP(x context.Context, p uint16) (*Guardian, error) {
 	if err != nil {
 		return nil, err
 	}
-	g := &Guardian{ch: make(chan waker, 1), sock: l}
+	g := &Guardian{ch: make(chan struct{}, 1), sock: l}
 	g.ctx, g.cancel = context.WithCancel(x)
 	go g.listen()
 	return g, nil

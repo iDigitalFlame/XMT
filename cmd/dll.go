@@ -46,8 +46,8 @@ func (d *DLL) Wait() error {
 	return d.err
 }
 
-// NewDll creates a new DLL instance that uses the supplied string as the DLL file path. Similar to '&DLL{Path: p}'.
-func NewDll(p string) *DLL {
+// NewDLL creates a new DLL instance that uses the supplied string as the DLL file path. Similar to '&DLL{Path: p}'.
+func NewDLL(p string) *DLL {
 	return &DLL{Path: p}
 }
 

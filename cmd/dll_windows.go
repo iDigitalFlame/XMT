@@ -19,7 +19,10 @@ func (d *DLL) wait() {
 		x   = make(chan error)
 		err error
 	)
-	go waitFunc(windows.Handle(d.handle), windows.INFINITE, x)
+	go func(u chan error, z windows.Handle) {
+		u <- wait(z)
+		close(u)
+	}(x, windows.Handle(d.handle))
 	select {
 	case err = <-x:
 	case <-d.ctx.Done():
@@ -105,8 +108,8 @@ func (d *DLL) Start() error {
 	var err error
 	atomic.StoreUint32(&d.once, 0)
 	d.ch = make(chan finished)
-	if d.owner = windows.CurrentProcess(); !d.container.empty() {
-		if d.owner, err = d.container.getParent(secCode); err != nil {
+	if d.owner = windows.CurrentProcess(); d.filter != nil {
+		if d.owner, err = d.filter.handle(secCode); err != nil {
 			return d.stopWith(err)
 		}
 	}
@@ -123,21 +126,10 @@ func (d *DLL) Start() error {
 	return nil
 }
 
-// SetParent will instruct the DLL to choose a parent with the supplied process name. If this string is empty,
+// SetParent will instruct the DLL to choose a parent with the supplied process Filter. If the Filter is nil
 // this will use the current process (default). This function has no effect if the device is not running Windows.
-func (d *DLL) SetParent(n string) {
-	if d.container.clear(); len(n) > 0 {
-		d.container.name = n
-	}
-}
-
-// SetParentPID will instruct the DLL to choose a parent with the supplied process ID. If this number is
-// zero, this will use the current process (default) and if < 0 this Process will choose a parent from a list
-// of writable processes. This function has no effect if the device is not running Windows.
-func (d *DLL) SetParentPID(i int32) {
-	if d.container.clear(); i != 0 {
-		d.container.pid = i
-	}
+func (d *DLL) SetParent(f *Filter) {
+	d.filter = f
 }
 func (d *DLL) stopWith(e error) error {
 	if atomic.LoadUint32(&d.once) != 1 {
@@ -161,38 +153,4 @@ func (d *DLL) stopWith(e error) error {
 		return nil
 	}
 	return d.err
-}
-
-// SetParentRandom will set instruct the DLL to choose a parent from the supplied string list on runtime.
-// If this list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if the
-// device is not running Windows.
-func (d *DLL) SetParentRandom(s []string) {
-	if len(s) == 0 {
-		d.SetParentPID(-1)
-	} else {
-		d.container.clear()
-		d.container.choices = s
-	}
-}
-
-// SetParentEx will instruct the DLL to choose a parent with the supplied process name. If this string
-// is empty, this will use the current process (default). This function has no effect if the device is not running
-// Windows.
-//
-// If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
-// none can be opened or found.
-func (d *DLL) SetParentEx(n string, e bool) {
-	d.container.elevated = e
-	d.SetParent(n)
-}
-
-// SetParentRandomEx will set instruct the DLL to choose a parent from the supplied string list on runtime.
-// If this list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if
-// the device is not running Windows.
-//
-// If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
-// none can be opened or found.
-func (d *DLL) SetParentRandomEx(s []string, e bool) {
-	d.container.elevated = e
-	d.SetParentRandom(s)
 }

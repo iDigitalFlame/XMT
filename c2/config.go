@@ -22,23 +22,23 @@ const (
 )
 
 const (
-	ipID  byte = 0xA0
-	tcpID byte = iota
-	udpID
-	wc2ID
-	tlsID
-	hexID
-	dnsID
-	aesID
-	cbkID
-	xorID
-	sizeID
-	zlibID
-	gzipID
-	sleepID
-	jitterID
-	base64ID
-	base64TID
+	ipID      byte = 0xA0
+	tcpID     byte = 0xA1
+	udpID     byte = 0xA2
+	wc2ID     byte = 0xA3
+	tlsID     byte = 0xA4
+	hexID     byte = 0xA5
+	dnsID     byte = 0xA6
+	aesID     byte = 0xA7
+	cbkID     byte = 0xA8
+	xorID     byte = 0xA9
+	sizeID    byte = 0xAA
+	zlibID    byte = 0xAB
+	gzipID    byte = 0xAC
+	sleepID   byte = 0xAD
+	jitterID  byte = 0xAE
+	base64ID  byte = 0xAF
+	base64TID byte = 0xB0
 )
 
 var (

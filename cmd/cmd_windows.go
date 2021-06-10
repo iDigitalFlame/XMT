@@ -22,18 +22,13 @@ const (
 
 type options struct {
 	Title   string
+	filter  *Filter
 	closers []io.Closer
 	info    windows.ProcessInformation
 	parent  windows.Handle
 
 	Flags, X, Y, W, H uint32
 	Mode              uint16
-}
-type container struct {
-	name     string
-	choices  []string
-	pid      int32
-	elevated bool
 }
 
 // Fork will attempt to use built-in system utilities to fork off the process into a separate, but similar process.
@@ -78,9 +73,6 @@ func (p *Process) kill() error {
 	}
 	return nil
 }
-func (c container) empty() bool {
-	return c.pid == 0 && len(c.name) == 0 && len(c.choices) == 0
-}
 
 // SetUID will set the process UID at runtime. This function takes the numerical UID value. Use '-1' to disable this
 // setting. The UID value is validated at runtime. This function has no effect on Windows devices.
@@ -91,15 +83,12 @@ func (*Process) SetUID(_ int32) {}
 func (*Process) SetGID(_ int32) {}
 
 func (p Process) isStarted() bool {
-	return p.opts != nil && p.opts.info.Process > 0
+	return p.opts.info.ProcessId > 0 && p.opts.info.Process > 0
 }
 func startProcess(p *Process) error {
 	x, err := exec.LookPath(p.Args[0])
 	if err != nil {
 		return err
-	}
-	if p.opts == nil {
-		p.opts = new(options)
 	}
 	s, err := p.opts.startInfo()
 	if err != nil {
@@ -140,8 +129,8 @@ func startProcess(p *Process) error {
 	if err != nil {
 		return err
 	}
-	if !p.container.empty() {
-		if p.opts.parent, err = p.getParent(secStandard); err != nil {
+	if p.opts.filter != nil {
+		if p.opts.parent, err = p.opts.filter.handle(secStandard); err != nil {
 			return err
 		}
 	}
@@ -184,12 +173,11 @@ func (p *Process) SetFlags(f uint32) {
 	p.flags = f
 }
 
-// SetParent will instruct the Process to choose a parent with the supplied process name. If this string is empty,
+// SetParent will instruct the Process to choose a parent with the supplied process Filter. If the Filter is nil
 // this will use the current process (default). This function has no effect if the device is not running Windows.
 // Setting the Parent process will automatically set 'SetNewConsole' to true.
-func (p *Process) SetParent(n string) {
-	if p.container.clear(); len(n) > 0 {
-		p.container.name = n
+func (p *Process) SetParent(f *Filter) {
+	if p.opts.filter = f; f != nil {
 		p.SetNewConsole(true)
 	}
 }
@@ -236,23 +224,9 @@ func (p *Process) SetNewConsole(c bool) {
 	}
 }
 
-// SetParentPID will instruct the Process to choose a parent with the supplied process ID. If this number is
-// zero, this will use the current process (default) and if < 0 this Process will choose a parent from a list
-// of writable processes. This function has no effect if the device is not running Windows. Setting the Parent
-// process will automatically set 'SetNewConsole' to true.
-func (p *Process) SetParentPID(i int32) {
-	if p.container.clear(); i != 0 {
-		p.container.pid = i
-		p.SetNewConsole(true)
-	}
-}
-
 // SetFullscreen will set the window fullscreen state of the newly spawned process. This function has no effect
 // on commands that do not generate windows. This function has no effect if the device is not running Windows.
 func (p *Process) SetFullscreen(f bool) {
-	if p.opts == nil {
-		p.opts = new(options)
-	}
 	if f {
 		p.opts.Flags |= flagFullscreen
 	} else {
@@ -264,9 +238,6 @@ func (p *Process) SetFullscreen(f bool) {
 // on commands that do not generate windows. This function has no effect if the device is not running Windows.
 // See the 'SW_*' values in winuser.h or the Golang windows package documentation for more details.
 func (p *Process) SetWindowDisplay(m int) {
-	if p.opts == nil {
-		p.opts = new(options)
-	}
 	if m < 0 {
 		p.opts.Flags = p.opts.Flags &^ windows.STARTF_USESHOWWINDOW
 	} else {
@@ -279,9 +250,6 @@ func (p *Process) SetWindowDisplay(m int) {
 // has no effect on commands that do not generate windows. This function has no effect if the device is not
 // running Windows.
 func (p *Process) SetWindowTitle(s string) {
-	if p.opts == nil {
-		p.opts = new(options)
-	}
 	if len(s) > 0 {
 		p.opts.Flags |= flagTitle
 		p.opts.Title = s
@@ -294,7 +262,7 @@ func (p *Process) SetWindowTitle(s string) {
 // This function returns an error if the Process was not started. The handle is not expected to be valid after the
 // Process exits or is terminated. This function always returns 'ErrNoWindows' on non-Windows devices.
 func (p Process) Handle() (uintptr, error) {
-	if !p.isStarted() || p.opts == nil {
+	if !p.isStarted() {
 		return 0, ErrNotCompleted
 	}
 	return uintptr(p.opts.info.Process), nil
@@ -303,54 +271,13 @@ func (p Process) Handle() (uintptr, error) {
 // SetWindowSize will set the window display size of the newly spawned process. This function has no effect
 // on commands that do not generate windows. This function has no effect if the device is not running Windows.
 func (p *Process) SetWindowSize(w, h uint32) {
-	if p.opts == nil {
-		p.opts = new(options)
-	}
 	p.opts.Flags |= flagSize
 	p.opts.W, p.opts.H = w, h
-}
-
-// SetParentRandom will set instruct the Process to choose a parent from the supplied string list on runtime. If this
-// list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if the
-// device is not running Windows. Setting the Parent process will automatically set 'SetNewConsole' to true.
-func (p *Process) SetParentRandom(c []string) {
-	if len(c) > 0 {
-		p.container.clear()
-		p.container.choices = c
-		p.SetNewConsole(true)
-	} else {
-		p.SetParentPID(-1)
-	}
-}
-
-// SetParentEx will instruct the Process to choose a parent with the supplied process name. If this string
-// is empty, this will use the current process (default). This function has no effect if the device is not running
-// Windows. Setting the Parent process will automatically set 'SetNewConsole' to true.
-//
-// If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
-// none can be opened or found.
-func (p *Process) SetParentEx(n string, e bool) {
-	p.container.elevated = e
-	p.SetParent(n)
 }
 
 // SetWindowPosition will set the window postion of the newly spawned process. This function has no effect
 // on commands that do not generate windows. This function has no effect if the device is not running Windows.
 func (p *Process) SetWindowPosition(x, y uint32) {
-	if p.opts == nil {
-		p.opts = new(options)
-	}
 	p.opts.Flags |= flagPosition
 	p.opts.X, p.opts.Y = x, y
-}
-
-// SetParentRandomEx will set instruct the Process to choose a parent from the supplied string list on runtime.
-// If this list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if
-// the device is not running Windows. Setting the Parent process will automatically set 'SetNewConsole' to true.
-//
-// If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
-// none can be opened or found.
-func (p *Process) SetParentRandomEx(s []string, e bool) {
-	p.container.elevated = e
-	p.SetParentRandom(s)
 }

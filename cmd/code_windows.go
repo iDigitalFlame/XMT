@@ -31,10 +31,10 @@ var (
 
 type base struct {
 	cancel context.CancelFunc
-	container
-	loc   uintptr
-	owner windows.Handle
-	once  uint32
+	loc    uintptr
+	owner  windows.Handle
+	once   uint32
+	filter *Filter
 }
 
 func (c *Code) wait() {
@@ -42,7 +42,10 @@ func (c *Code) wait() {
 		x   = make(chan error)
 		err error
 	)
-	go waitFunc(windows.Handle(c.handle), windows.INFINITE, x)
+	go func(u chan error, z windows.Handle) {
+		u <- wait(z)
+		close(u)
+	}(x, windows.Handle(c.handle))
 	select {
 	case err = <-x:
 	case <-c.ctx.Done():
@@ -115,8 +118,8 @@ func (c *Code) Start() error {
 	var err error
 	atomic.StoreUint32(&c.once, 0)
 	c.ch = make(chan finished)
-	if c.owner = windows.CurrentProcess(); !c.container.empty() {
-		if c.owner, err = c.container.getParent(secCode); err != nil {
+	if c.owner = windows.CurrentProcess(); c.filter != nil {
+		if c.owner, err = c.filter.handle(secCode); err != nil {
 			return c.stopWith(err)
 		}
 	}
@@ -136,21 +139,10 @@ func (b base) String() string {
 	return "0x" + strconv.FormatUint(uint64(b.owner), 16) + " -> 0x" + strconv.FormatUint(uint64(b.loc), 16)
 }
 
-// SetParent will instruct the Code thread to choose a parent with the supplied process name. If this string is empty,
+// SetParent will instruct the Code thread to choose a parent with the supplied process Filter. If the Filter is nil
 // this will use the current process (default). This function has no effect if the device is not running Windows.
-func (c *Code) SetParent(n string) {
-	if c.container.clear(); len(n) > 0 {
-		c.container.name = n
-	}
-}
-
-// SetParentPID will instruct the Code thread to choose a parent with the supplied process ID. If this number is
-// zero, this will use the current process (default) and if < 0 this Process will choose a parent from a list
-// of writable processes. This function has no effect if the device is not running Windows.
-func (c *Code) SetParentPID(i int32) {
-	if c.container.clear(); i != 0 {
-		c.container.pid = i
-	}
+func (c *Code) SetParent(f *Filter) {
+	c.filter = f
 }
 func (c *Code) stopWith(e error) error {
 	if atomic.LoadUint32(&c.once) != 1 {
@@ -175,29 +167,6 @@ func (c *Code) stopWith(e error) error {
 	}
 	return c.err
 }
-
-// SetParentRandom will set instruct the Code thread to choose a parent from the supplied string list on runtime.
-// If this list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if the
-// device is not running Windows.
-func (c *Code) SetParentRandom(s []string) {
-	if len(s) == 0 {
-		c.SetParentPID(-1)
-	} else {
-		c.container.clear()
-		c.container.choices = s
-	}
-}
-
-// SetParentEx will instruct the Code thread to choose a parent with the supplied process name. If this string
-// is empty, this will use the current process (default). This function has no effect if the device is not running
-// Windows.
-//
-// If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
-// none can be opened or found.
-func (c *Code) SetParentEx(n string, e bool) {
-	c.container.elevated = e
-	c.SetParent(n)
-}
 func freeMemory(h windows.Handle, a uintptr) error {
 	var (
 		s         uint32
@@ -210,17 +179,6 @@ func freeMemory(h windows.Handle, a uintptr) error {
 		return xerr.Wrap("winapi NtFreeVirtualMemory error", err)
 	}
 	return nil
-}
-
-// SetParentRandomEx will set instruct the Code thread to choose a parent from the supplied string list on runtime.
-// If this list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if
-// the device is not running Windows.
-//
-// If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
-// none can be opened or found.
-func (c *Code) SetParentRandomEx(s []string, e bool) {
-	c.container.elevated = e
-	c.SetParentRandom(s)
 }
 func createThread(h windows.Handle, a, p uintptr) (uintptr, error) {
 	var (

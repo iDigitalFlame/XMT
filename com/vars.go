@@ -18,12 +18,12 @@ const (
 )
 
 // ListenConfig is the default listener config that is used to generate the Listeners. This can be used to specify the
-// listen 'KeepALive' timeout.
+// listen 'KeepAlive' timeout.
 var ListenConfig = net.ListenConfig{KeepAlive: DefaultTimeout}
 
 var (
 	// TCP is the TCP Raw connector. This connector uses raw TCP connections for communication.
-	TCP = &TCPConnector{dialer: &net.Dialer{Timeout: DefaultTimeout, KeepAlive: DefaultTimeout, DualStack: true}}
+	TCP = &tcpConnector{dialer: &net.Dialer{Timeout: DefaultTimeout, KeepAlive: DefaultTimeout, DualStack: true}}
 
 	// UDP is the UDP Raw connector. This connector uses raw UDP connections for communication.
 	UDP = NewUDP(DefaultTimeout)
@@ -34,16 +34,19 @@ var (
 	// TLS is the TCP over TLS connector client. This client uses TCP wrapped in TLS encryption
 	// using certificates. This client is only valid for clients that connect to servers with properly
 	// signed and trusted certificates.
-	TLS = &tcpClient{c: TCPConnector{tls: new(tls.Config), dialer: TCP.dialer}}
+	TLS = &tcpClient{c: tcpConnector{tls: new(tls.Config), dialer: TCP.dialer}}
 	// TLSNoCheck is the TCP over TLS connector profile. This client uses TCP wrapped in TLS encryption
 	// using certificates. This instance DOES NOT check the server certificate for validity.
-	TLSNoCheck = &tcpClient{c: TCPConnector{tls: &tls.Config{InsecureSkipVerify: true}, dialer: TCP.dialer}}
+	TLSNoCheck = &tcpClient{c: tcpConnector{tls: &tls.Config{InsecureSkipVerify: true}, dialer: TCP.dialer}}
 )
 
 // ErrInvalidTLSConfig is returned when attempting to use the default TLS Connector as a listener. This error
 // is also returned when attemtping to use a TLS configuration that does not have a valid server certificates.
 var ErrInvalidTLSConfig = xerr.New("TLS configuration is missing certificates")
 
-type deadline interface {
-	SetDeadline(time.Time) error
+// Connector is an interface that represents an object that can create and establish connections on various
+// protocols.
+type Connector interface {
+	Connect(string) (net.Conn, error)
+	Listen(string) (net.Listener, error)
 }

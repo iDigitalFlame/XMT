@@ -47,19 +47,19 @@ func (p Packet) Size() int {
 func (p Packet) String() string {
 	switch {
 	case p.Empty() && p.Flags == 0 && p.Job == 0:
-		return strconv.FormatUint(uint64(p.ID), 16)
+		return "0x" + strconv.FormatUint(uint64(p.ID), 16)
 	case p.Empty() && p.Flags == 0:
-		return strconv.FormatUint(uint64(p.ID), 16) + "/" + strconv.Itoa(int(p.Job))
+		return "0x" + strconv.FormatUint(uint64(p.ID), 16) + "/" + strconv.Itoa(int(p.Job))
 	case p.Empty() && p.Job == 0:
-		return strconv.FormatUint(uint64(p.ID), 16) + " " + p.Flags.String()
+		return "0x" + strconv.FormatUint(uint64(p.ID), 16) + " " + p.Flags.String()
 	case p.Empty():
-		return strconv.FormatUint(uint64(p.ID), 16) + "/" + strconv.Itoa(int(p.Job)) + " " + p.Flags.String()
+		return "0x" + strconv.FormatUint(uint64(p.ID), 16) + "/" + strconv.Itoa(int(p.Job)) + " " + p.Flags.String()
 	case p.Flags == 0 && p.Job == 0:
-		return strconv.FormatUint(uint64(p.ID), 16) + ": " + strconv.Itoa(p.Size()) + "B"
+		return "0x" + strconv.FormatUint(uint64(p.ID), 16) + ": " + strconv.Itoa(p.Size()) + "B"
 	case p.Flags == 0:
-		return strconv.FormatUint(uint64(p.ID), 16) + "/" + strconv.Itoa(int(p.Job)) + ": " + strconv.Itoa(p.Size()) + "B"
+		return "0x" + strconv.FormatUint(uint64(p.ID), 16) + "/" + strconv.Itoa(int(p.Job)) + ": " + strconv.Itoa(p.Size()) + "B"
 	case p.Job == 0:
-		return strconv.FormatUint(uint64(p.ID), 16) + " " + p.Flags.String() + ": " + strconv.Itoa(p.Size()) + "B"
+		return "0x" + strconv.FormatUint(uint64(p.ID), 16) + " " + p.Flags.String() + ": " + strconv.Itoa(p.Size()) + "B"
 	}
 	return strconv.FormatUint(uint64(p.ID), 16) + "/" + strconv.Itoa(int(p.Job)) + " " + p.Flags.String() + ": " + strconv.Itoa(p.Size()) + "B"
 }

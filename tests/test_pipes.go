@@ -9,7 +9,7 @@ import (
 	"github.com/iDigitalFlame/xmt/com/pipe"
 )
 
-func test5Main() {
+func testPipes() {
 	l, err := pipe.ListenPerms(pipe.Format("testing1"), pipe.PermEveryone)
 	if err != nil {
 		panic(err)

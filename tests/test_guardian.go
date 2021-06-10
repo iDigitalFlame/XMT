@@ -9,14 +9,7 @@ import (
 	"github.com/iDigitalFlame/xmt/man"
 )
 
-/*var sent = man.Sentinel{
-	Paths: []string{
-		os.Args[0],
-	},
-}*/
-
-func test4Main() {
-
+func testGuardian() {
 	if len(os.Args) == 2 {
 		ok, err := man.Wake(os.Args[1], os.Args[0])
 		if err != nil {
@@ -45,5 +38,4 @@ func test4Main() {
 	<-s
 	c()
 	g.Wait()
-
 }

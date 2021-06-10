@@ -20,8 +20,6 @@ const (
 
 type options struct {
 	*exec.Cmd
-}
-type container struct {
 	root     string
 	uid, gid uint32
 }
@@ -75,9 +73,9 @@ func (p *Process) kill() error {
 // setting. The UID value is validated at runtime. This function has no effect on Windows devices.
 func (p *Process) SetUID(i int32) {
 	if i < 0 {
-		p.flags, p.uid = p.flags&^flagSetUID, 0
+		p.flags, p.opts.uid = p.flags&^flagSetUID, 0
 	} else {
-		p.uid = uint32(i)
+		p.opts.uid = uint32(i)
 		p.flags |= flagSetUID
 	}
 }
@@ -86,17 +84,16 @@ func (p *Process) SetUID(i int32) {
 // setting. The GID value is validated at runtime. This function has no effect on Windows devices.
 func (p *Process) SetGID(i int32) {
 	if i < 0 {
-		p.flags, p.gid = p.flags&^flagSetGID, 0
+		p.flags, p.opts.gid = p.flags&^flagSetGID, 0
 	} else {
-		p.gid = uint32(i)
+		p.opts.gid = uint32(i)
 		p.flags |= flagSetGID
 	}
 }
 func (p Process) isStarted() bool {
-	return p.opts != nil
+	return p.opts.Cmd != nil
 }
 func startProcess(p *Process) error {
-	p.opts = new(options)
 	if len(p.Args) == 1 {
 		p.opts.Cmd = exec.CommandContext(p.ctx, p.Args[0])
 	} else {
@@ -114,14 +111,14 @@ func startProcess(p *Process) error {
 		}
 	}
 	if p.flags > 0 {
-		p.opts.Cmd.SysProcAttr = &syscall.SysProcAttr{Chroot: p.root}
+		p.opts.Cmd.SysProcAttr = &syscall.SysProcAttr{Chroot: p.opts.root}
 		switch {
 		case p.flags&flagSetUID != 0 && p.flags&flagSetGID != 0:
-			p.opts.Cmd.SysProcAttr.Credential = &syscall.Credential{Uid: p.uid, Gid: p.gid}
+			p.opts.Cmd.SysProcAttr.Credential = &syscall.Credential{Uid: p.opts.uid, Gid: p.opts.gid}
 		case p.flags&flagSetUID != 0 && p.flags&flagSetGID == 0:
-			p.opts.Cmd.SysProcAttr.Credential = &syscall.Credential{Uid: p.uid, Gid: uint32(os.Getgid())}
+			p.opts.Cmd.SysProcAttr.Credential = &syscall.Credential{Uid: p.opts.uid, Gid: uint32(os.Getgid())}
 		case p.flags&flagSetUID == 0 && p.flags&flagSetGID != 0:
-			p.opts.Cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(os.Getuid()), Gid: p.gid}
+			p.opts.Cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(os.Getuid()), Gid: p.opts.gid}
 		}
 	}
 	if err := p.opts.Start(); err != nil {
@@ -131,10 +128,10 @@ func startProcess(p *Process) error {
 	return nil
 }
 
-// SetParent will instruct the Process to choose a parent with the supplied process name. If this string is empty,
+// SetParent will instruct the Process to choose a parent with the supplied process Filter. If the Filter is nil
 // this will use the current process (default). This function has no effect if the device is not running Windows.
 // Setting the Parent process will automatically set 'SetNewConsole' to true.
-func (*Process) SetParent(_ string) {}
+func (*Process) SetParent(_ *Filter) {}
 
 // SetNoWindow will hide or show the window of the newly spawned process. This function has no effect
 // on commands that do not generate windows. This function has no effect if the device is not running Windows.
@@ -160,22 +157,16 @@ func (*Process) SetSuspended(_ bool) {}
 // function has no effect on Windows devices.
 func (p *Process) SetChroot(s string) {
 	if len(s) == 0 {
-		p.flags, p.root = p.flags&^flagSetChroot, ""
+		p.flags, p.opts.root = p.flags&^flagSetChroot, ""
 	} else {
 		p.flags |= flagSetChroot
-		p.root = s
+		p.opts.root = s
 	}
 }
 
 // SetNewConsole will allocate a new console for the newly spawned process. This console output will be
 // independent of the parent process. This function has no effect if the device is not running Windows.
 func (*Process) SetNewConsole(_ bool) {}
-
-// SetParentPID will instruct the Process to choose a parent with the supplied process ID. If this number is
-// zero, this will use the current process (default) and if < 0 this Process will choose a parent from a list
-// of writable processes. This function has no effect if the device is not running Windows. Setting the Parent
-// process will automatically set 'SetNewConsole' to true.
-func (*Process) SetParentPID(_ int32) {}
 
 // SetFullscreen will set the window fullscreen state of the newly spawned process. This function has no effect
 // on commands that do not generate windows. This function has no effect if the device is not running Windows.
@@ -202,27 +193,6 @@ func (Process) Handle() (uintptr, error) {
 // on commands that do not generate windows. This function has no effect if the device is not running Windows.
 func (*Process) SetWindowSize(_, _ uint32) {}
 
-// SetParentRandom will set instruct the Process to choose a parent from the supplied string list on runtime. If this
-// list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if the
-// device is not running Windows. Setting the Parent process will automatically set 'SetNewConsole' to true.
-func (*Process) SetParentRandom(_ []string) {}
-
-// SetParentEx will instruct the Process to choose a parent with the supplied process name. If this string
-// is empty, this will use the current process (default). This function has no effect if the device is not running
-// Windows. Setting the Parent process will automatically set 'SetNewConsole' to true.
-//
-// If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
-// none can be opened or found.
-func (*Process) SetParentEx(_ string, _ bool) {}
-
 // SetWindowPosition will set the window postion of the newly spawned process. This function has no effect
 // on commands that do not generate windows. This function has no effect if the device is not running Windows.
 func (*Process) SetWindowPosition(_, _ uint32) {}
-
-// SetParentRandomEx will set instruct the Process to choose a parent from the supplied string list on runtime.
-// If this list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if
-// the device is not running Windows. Setting the Parent process will automatically set 'SetNewConsole' to true.
-//
-// If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
-// none can be opened or found.
-func (*Process) SetParentRandomEx(_ []string, _ bool) {}

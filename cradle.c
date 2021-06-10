@@ -78,6 +78,7 @@ int get(char *host, char *port, char *path, unsigned char **buffer) {
     closesocket(s);
     return t - r;
 }
+
 int main() {
     WSADATA w;
     if (WSAStartup(MAKEWORD(2, 2), &w) != 0) {

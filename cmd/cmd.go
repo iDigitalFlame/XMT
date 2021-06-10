@@ -41,7 +41,7 @@ type Process struct {
 	Stdin          io.Reader
 	Stdout, Stderr io.Writer
 	err            error
-	opts           *options
+	opts           options
 	cancel         context.CancelFunc
 	ch             chan finished
 	reader         *os.File
@@ -49,7 +49,6 @@ type Process struct {
 	Dir       string
 	Env, Args []string
 	closers   []*os.File
-	container
 
 	Timeout           time.Duration
 	flags, exit, once uint32
@@ -71,12 +70,8 @@ type Runnable interface {
 	Stop() error
 	Start() error
 	Running() bool
-	SetParent(string)
-	SetParentPID(int32)
+	SetParent(Filter)
 	ExitCode() (int32, error)
-	SetParentRandom([]string)
-	SetParentEx(string, bool)
-	SetParentRandomEx([]string, bool)
 }
 
 // Run will start the process and wait until it completes. This function will return the same errors as the 'Start'
@@ -198,6 +193,11 @@ func (p *Process) Start() error {
 	return nil
 }
 
+// Flags returns the current set flags value based on the configured options.
+func (p Process) Flags() uint32 {
+	return p.flags
+}
+
 // Running returns true if the current Process is running, false otherwise.
 func (p *Process) Running() bool {
 	if !p.isStarted() {
@@ -240,9 +240,7 @@ func (p *Process) stopWith(e error) error {
 		if p.Running() && s != 2 {
 			p.kill()
 		}
-		if p.opts != nil {
-			p.opts.close()
-		}
+		p.opts.close()
 		if p.closers != nil && len(p.closers) > 0 {
 			for i := range p.closers {
 				p.closers[i].Close()

@@ -23,32 +23,6 @@ func (base) String() string {
 	return ""
 }
 
-// SetParent will instruct the Process to choose a parent with the supplied process name. If this string is empty,
+// SetParent will instruct the Code thread to choose a parent with the supplied process Filter. If the Filter is nil
 // this will use the current process (default). This function has no effect if the device is not running Windows.
-func (*Code) SetParent(_ string) {}
-
-// SetParentPID will instruct the Process to choose a parent with the supplied process ID. If this number is
-// zero, this will use the current process (default) and if < 0 this Process will choose a parent from a list
-// of writable processes. This function has no effect if the device is not running Windows.
-func (*Code) SetParentPID(_ int32) {}
-
-// SetParentRandom will set instruct the Process to choose a parent from the supplied string list on runtime. If this
-// list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if the
-// device is not running Windows.
-func (*Code) SetParentRandom(_ []string) {}
-
-// SetParentEx will instruct the Code thread to choose a parent with the supplied process name. If this string
-// is empty, this will use the current process (default). This function has no effect if the device is not running
-// Windows.
-//
-// If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
-// none can be opened or found.
-func (*Code) SetParentEx(_ string, _ bool) {}
-
-// SetParentRandomEx will set instruct the Code thread to choose a parent from the supplied string list on runtime.
-// If this list is empty or nil, there is no limit to the name of the chosen process. This function has no effect if
-// the device is not running Windows.
-//
-// If the specified bool is true, this function will attempt to choose a high integrity process and will fail if
-// none can be opened or found.
-func (*Code) SetParentRandomEx(_ []string, _ bool) {}
+func (*Code) SetParent(_ *Filter) {}

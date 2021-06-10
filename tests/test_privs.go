@@ -7,7 +7,7 @@ import (
 	"github.com/iDigitalFlame/xmt/device/devtools"
 )
 
-func test3Main() {
+func testPrivs() {
 	if err := devtools.AdjustPrivileges("SeShutdownPrivilege", "SeUndockPrivilege"); err != nil {
 		panic(err)
 	}

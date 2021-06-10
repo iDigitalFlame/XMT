@@ -6,7 +6,7 @@ import (
 	"github.com/iDigitalFlame/xmt/cmd"
 )
 
-func test8Main() {
+func testElevated() {
 
 	if len(os.Args) <= 1 {
 		os.Stderr.WriteString("usage: " + os.Args[0] + " <command>\n")
@@ -21,7 +21,7 @@ func test8Main() {
 	}
 
 	x := cmd.NewProcess(os.Args[1:]...)
-	x.SetParentEx("TrustedInstaller.exe", true)
+	x.SetParent(&cmd.Filter{Include: []string{"TrustedInstaller.exe"}, Elevated: cmd.True})
 
 	b, err := x.CombinedOutput()
 
