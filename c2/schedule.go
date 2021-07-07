@@ -8,6 +8,7 @@ import (
 	"github.com/iDigitalFlame/xmt/c2/task"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
+	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
@@ -98,6 +99,9 @@ func (x *Scheduler) newJobID() uint16 {
 	return 0
 }
 func (x *Scheduler) json(w *data.Chunk) {
+	if !device.IsServer {
+		return
+	}
 	w.WriteUint8(uint8('{'))
 	i := 0
 	for _, v := range x.jobs {
@@ -144,21 +148,29 @@ func Task(t task.Tasker, s *Session, p *com.Packet) {
 	}
 }
 func doTask(t task.Tasker, s *Session, p *com.Packet) {
-	s.log.Debug("[%s:Task] Starting Task with JobID %d.", s.ID, p.Job)
+	if device.IsServer {
+		s.log.Debug("[%s:Task] Starting Task with JobID %d.", s.ID, p.Job)
+	}
 	r, err := t.Do(s.ctx, p)
 	if r == nil {
 		r = new(com.Packet)
 	}
 	if err != nil {
-		s.log.Error("[%s:Task] Received error during JobID %d Task runtime: %s!", s.ID, p.Job, err.Error())
+		if device.IsServer {
+			s.log.Error("[%s:Task] Received error during JobID %d Task runtime: %s!", s.ID, p.Job, err.Error())
+		}
 		r.Flags |= com.FlagError
 		r.WriteString(err.Error())
 	} else {
-		s.log.Debug("[%s:Task] Task with JobID %d completed!", s.ID, p.Job)
+		if device.IsServer {
+			s.log.Debug("[%s:Task] Task with JobID %d completed!", s.ID, p.Job)
+		}
 	}
 	r.ID, r.Job = MvResult, p.Job
 	if err := s.write(false, r); err != nil {
-		s.log.Error("[%s:Task] Received error sending Task results: %s!", s.ID, err.Error())
+		if device.IsServer {
+			s.log.Error("[%s:Task] Received error sending Task results: %s!", s.ID, err.Error())
+		}
 	}
 }
 
@@ -172,15 +184,21 @@ func (x *Scheduler) Handle(s *Session, p *com.Packet) {
 		return
 	}
 	if x.jobs == nil || len(x.jobs) == 0 {
-		x.s.Log.Warning("[%s:Sched] Received an un-tracked Job ID %d!", s.ID, p.Job)
+		if device.IsServer {
+			x.s.Log.Warning("[%s:Sched] Received an un-tracked Job ID %d!", s.ID, p.Job)
+		}
 		return
 	}
 	j, ok := x.jobs[p.Job]
 	if !ok {
-		x.s.Log.Warning("[%s:Sched] Received an un-tracked Job ID %d!", s.ID, p.Job)
+		if device.IsServer {
+			x.s.Log.Warning("[%s:Sched] Received an un-tracked Job ID %d!", s.ID, p.Job)
+		}
 		return
 	}
-	x.s.Log.Trace("[%s:Sched] Received response for Job ID %d.", s.ID, j.ID)
+	if device.IsServer {
+		x.s.Log.Trace("[%s:Sched] Received response for Job ID %d.", s.ID, j.ID)
+	}
 	if j.Result, j.Complete, j.Status = p, time.Now(), Completed; p.Flags&com.FlagError != 0 {
 		j.Status = Error
 		if err := p.ReadString(&j.Error); err != nil {

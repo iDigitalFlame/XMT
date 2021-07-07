@@ -3,6 +3,7 @@ package c2
 import (
 	"github.com/iDigitalFlame/xmt/c2/task"
 	"github.com/iDigitalFlame/xmt/com"
+	"github.com/iDigitalFlame/xmt/device"
 )
 
 // DefaultClientMux is the default Session Mux instance that handles the default C2 server and client functions.
@@ -19,7 +20,9 @@ type Mux interface {
 type MuxFunc func(*Session, *com.Packet)
 
 func defaultClientMux(s *Session, p *com.Packet) {
-	s.log.Debug("[%s:Mux] Received packet %q.", s.ID, p.String())
+	if device.IsServer {
+		s.log.Debug("[%s:Mux] Received packet %q.", s.ID, p.String())
+	}
 	if p.ID < 20 {
 		return
 	}
@@ -33,7 +36,9 @@ func defaultClientMux(s *Session, p *com.Packet) {
 	}
 	t := task.Mappings[p.ID]
 	if t == nil {
-		s.log.Warning("[%s:Mux] Received Packet ID 0x%X with no Task mapping!", s.ID, p.ID)
+		if device.IsServer {
+			s.log.Warning("[%s:Mux] Received Packet ID 0x%X with no Task mapping!", s.ID, p.ID)
+		}
 		return
 	}
 	if t.Thread() {

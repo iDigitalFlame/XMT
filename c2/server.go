@@ -56,7 +56,9 @@ func (s *Server) Wait() {
 	<-s.ch
 }
 func (s *Server) listen() {
-	s.Log.Debug("Server processing thread started!")
+	if device.IsServer {
+		s.Log.Debug("Server processing thread started!")
+	}
 	for {
 		select {
 		case <-s.ctx.Done():
@@ -82,7 +84,9 @@ func (s *Server) shutdown() {
 	for len(s.active) > 0 {
 		delete(s.active, <-s.close)
 	}
-	s.Log.Debug("Stopping Server.")
+	if device.IsServer {
+		s.Log.Debug("Stopping Server.")
+	}
 	s.active = nil
 	close(s.new)
 	close(s.close)
@@ -189,6 +193,9 @@ func convertHintListen(s Setting) listener {
 
 // MarshalJSON fulfils the JSON Marshaler interface.
 func (s *Server) MarshalJSON() ([]byte, error) {
+	if !device.IsServer {
+		return nil, nil
+	}
 	b := buffers.Get().(*data.Chunk)
 	b.Write([]byte(`{"tasks":`))
 	s.Scheduler.json(b)
@@ -237,7 +244,7 @@ func NewServerContext(x context.Context, l logx.Log) *Server {
 	}
 	s.Scheduler.s = s
 	s.ctx, s.cancel = context.WithCancel(x)
-	if s.Log == nil {
+	if s.Log == nil || !device.IsServer {
 		s.Log = logx.NOP
 	}
 	go s.listen()
@@ -352,8 +359,9 @@ func (s *Server) Listen(n, b string, c listener, p *Profile) (*Listener, error) 
 	if l.size == 0 {
 		l.size = uint(limits.MediumLimit())
 	}
-	l.ctx, l.cancel = context.WithCancel(s.ctx)
-	s.Log.Debug("[%s] Added Listener on %q!", x, b)
+	if l.ctx, l.cancel = context.WithCancel(s.ctx); device.IsServer {
+		s.Log.Debug("[%s] Added Listener on %q!", x, b)
+	}
 	s.new <- l
 	go l.listen()
 	return l, nil
@@ -414,7 +422,10 @@ func (s *Server) ConnectWith(a string, c client, p *Profile, d *com.Packet) (*Se
 	if s.Log == nil {
 		s.Log = logx.NOP
 	}
-	if s.Log.Debug("[%s] Client connected to %q!", l.ID, a); x == 0 {
+	if device.IsServer {
+		s.Log.Debug("[%s] Client connected to %q!", l.ID, a)
+	}
+	if x == 0 {
 		x = uint(limits.MediumLimit())
 	}
 	l.socket = c.Connect

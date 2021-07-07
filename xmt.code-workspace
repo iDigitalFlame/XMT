@@ -22,7 +22,9 @@
             "*.tcc": "c",
             "string": "c",
             "unordered_map": "c",
-            "numbers": "c"
+            "numbers": "c",
+            "cstdio": "c",
+            "*.a": "c"
         }
     }
 }

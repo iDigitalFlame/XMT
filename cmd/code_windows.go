@@ -181,6 +181,7 @@ func freeMemory(h windows.Handle, a uintptr) error {
 	return nil
 }
 func createThread(h windows.Handle, a, p uintptr) (uintptr, error) {
+	// Add NtQueueApcThread to this as an additional method of thread injection.
 	var (
 		t         uintptr
 		r, _, err = funcNtCreateThreadEx.Call(

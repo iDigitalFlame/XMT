@@ -137,7 +137,9 @@ func returnBuffer(c *data.Chunk) {
 func (e *event) process(l logx.Log) {
 	defer func(x logx.Log) {
 		if err := recover(); err != nil && x != nil {
-			x.Error("Server event processing function recovered from a panic: %s!", err)
+			if device.IsServer {
+				x.Error("Server event processing function recovered from a panic: %s!", err)
+			}
 		}
 	}(l)
 	switch {
@@ -244,19 +246,25 @@ func notifyClient(l *Listener, s *Session, p *com.Packet) {
 			if t, err := p.Uint64(); err == nil && t > 0 {
 				s.sleep = time.Duration(t)
 			}
-			s.log.Debug("[%s] Updated Sleep/Jitter settings from server (%s/%d%%).", s.ID, s.sleep.String(), s.jitter)
+			if device.IsServer {
+				s.log.Debug("[%s] Updated Sleep/Jitter settings from server (%s/%d%%).", s.ID, s.sleep.String(), s.jitter)
+			}
 			if p.Flags&com.FlagData == 0 {
 				return
 			}
 		case MvShutdown:
 			if s.parent != nil {
-				s.log.Debug("[%s] Client indicated shutdown, acknowledging and closing Session.", s.ID)
+				if device.IsServer {
+					s.log.Debug("[%s] Client indicated shutdown, acknowledging and closing Session.", s.ID)
+				}
 				s.Write(&com.Packet{ID: MvShutdown, Job: 1})
 			} else {
 				if s.done > flagOpen {
 					return
 				}
-				s.log.Debug("[%s] Server indicated shutdown, closing Session.", s.ID)
+				if device.IsServer {
+					s.log.Debug("[%s] Server indicated shutdown, closing Session.", s.ID)
+				}
 			}
 			s.Close()
 			return

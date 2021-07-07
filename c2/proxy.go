@@ -40,7 +40,9 @@ func (p *Proxy) Wait() {
 	<-p.ch
 }
 func (p *Proxy) listen() {
-	p.log.Trace("[%s:Proxy] Starting listen %q...", p.parent.ID, p.listener)
+	if device.IsServer {
+		p.log.Trace("[%s:Proxy] Starting listen %q...", p.parent.ID, p.listener)
+	}
 	for atomic.LoadUint32(&p.done) == flagOpen {
 		c, err := p.listener.Accept()
 		if err != nil {
@@ -51,7 +53,9 @@ func (p *Proxy) listen() {
 			if ok && e.Timeout() {
 				continue
 			}
-			p.parent.log.Error("[%s:Proxy] Received error during Listener accept: %s!", p.parent.ID, err.Error())
+			if device.IsServer {
+				p.parent.log.Error("[%s:Proxy] Received error during Listener accept: %s!", p.parent.ID, err.Error())
+			}
 			if ok && !e.Timeout() && !e.Temporary() {
 				break
 			}
@@ -60,10 +64,14 @@ func (p *Proxy) listen() {
 		if c == nil {
 			continue
 		}
-		p.log.Trace("[%s:Proxy] Received a connection from %q...", p.parent.ID, c.RemoteAddr().String())
+		if device.IsServer {
+			p.log.Trace("[%s:Proxy] Received a connection from %q...", p.parent.ID, c.RemoteAddr().String())
+		}
 		go p.handle(c)
 	}
-	p.parent.log.Debug("[%s:Proxy] Stopping Listener...", p.parent.ID)
+	if device.IsServer {
+		p.parent.log.Debug("[%s:Proxy] Stopping Listener...", p.parent.ID)
+	}
 	p.cancel()
 	p.listener.Close()
 	if p.done < flagOption {
@@ -142,13 +150,17 @@ func (p *Proxy) handle(c net.Conn) {
 		c.Close()
 		return
 	}
-	p.log.Debug("[%s:Proxy] %s: Triggered Channel mode, holding open Channel!", p.parent.ID, c.RemoteAddr().String())
+	if device.IsServer {
+		p.log.Debug("[%s:Proxy] %s: Triggered Channel mode, holding open Channel!", p.parent.ID, c.RemoteAddr().String())
+	}
 	for atomic.LoadUint32(&p.done) == flagOpen {
 		if p.handlePacket(c, true) {
 			break
 		}
 	}
-	p.log.Debug("[%s:Proxy] %s: Closing Channel..", p.parent.ID, c.RemoteAddr().String())
+	if device.IsServer {
+		p.log.Debug("[%s:Proxy] %s: Closing Channel..", p.parent.ID, c.RemoteAddr().String())
+	}
 	c.Close()
 }
 func (s proxySwarm) tags() []uint32 {
@@ -202,7 +214,9 @@ func (c *proxyClient) next(i bool) (*com.Packet, error) {
 func (p *Proxy) handlePacket(c net.Conn, o bool) bool {
 	d, err := readPacket(c, p.w, p.t)
 	if err != nil {
-		p.log.Warning("[%s:Proxy] %s: Error occurred during Packet read: %s!", p.parent.ID, c.RemoteAddr().String(), err.Error())
+		if device.IsServer {
+			p.log.Warning("[%s:Proxy] %s: Error occurred during Packet read: %s!", p.parent.ID, c.RemoteAddr().String(), err.Error())
+		}
 		return o
 	}
 	z := p.resolveTags(c.RemoteAddr().String(), p.parent.ID, d.Device, o, d.Tags)
@@ -210,11 +224,15 @@ func (p *Proxy) handlePacket(c net.Conn, o bool) bool {
 		if s := p.client(c, d); s != nil {
 			n, err := s.next(false)
 			if err != nil {
-				p.log.Warning("[%s:Proxy:%s] %s: Received an error retriving Packet data: %s!", p.parent.ID, s.ID, c.RemoteAddr().String(), err.Error())
+				if device.IsServer {
+					p.log.Warning("[%s:Proxy:%s] %s: Received an error retriving Packet data: %s!", p.parent.ID, s.ID, c.RemoteAddr().String(), err.Error())
+				}
 				return d.Flags&com.FlagChannel != 0
 			}
 			if len(z) > 0 {
-				p.log.Trace("[%s:Proxy:%s] %s: Resolved Tags added %d Packets!", p.parent.ID, s.ID, c.RemoteAddr().String(), len(z))
+				if device.IsServer {
+					p.log.Trace("[%s:Proxy:%s] %s: Resolved Tags added %d Packets!", p.parent.ID, s.ID, c.RemoteAddr().String(), len(z))
+				}
 				u := &com.Packet{ID: MvMultiple, Flags: com.FlagMulti | com.FlagMultiDevice}
 				n.MarshalStream(u)
 				for i := 0; i < len(z); i++ {
@@ -224,9 +242,13 @@ func (p *Proxy) handlePacket(c net.Conn, o bool) bool {
 				u.Close()
 				n = u
 			}
-			p.log.Trace("[%s:Proxy:%s] %s: Sending Packet %q to client...", p.parent.ID, s.ID, c.RemoteAddr().String(), n.String())
+			if device.IsServer {
+				p.log.Trace("[%s:Proxy:%s] %s: Sending Packet %q to client...", p.parent.ID, s.ID, c.RemoteAddr().String(), n.String())
+			}
 			if err = writePacket(c, p.w, p.t, n); err != nil {
-				p.log.Warning("[%s:Proxy:%s] %s: Received an error writing data to client: %s!", p.parent.ID, s.ID, c.RemoteAddr().String(), err.Error())
+				if device.IsServer {
+					p.log.Warning("[%s:Proxy:%s] %s: Received an error writing data to client: %s!", p.parent.ID, s.ID, c.RemoteAddr().String(), err.Error())
+				}
 				return o
 			}
 		}
@@ -234,7 +256,9 @@ func (p *Proxy) handlePacket(c net.Conn, o bool) bool {
 	}
 	x := d.Flags.Len()
 	if x == 0 {
-		p.log.Warning("[%s:Proxy:%s] %s: Received an invalid multi Packet!", p.parent.ID, d.Device, c.RemoteAddr().String())
+		if device.IsServer {
+			p.log.Warning("[%s:Proxy:%s] %s: Received an invalid multi Packet!", p.parent.ID, d.Device, c.RemoteAddr().String())
+		}
 		return d.Flags&com.FlagChannel != 0
 	}
 	var (
@@ -245,7 +269,9 @@ func (p *Proxy) handlePacket(c net.Conn, o bool) bool {
 	for ; i < x && p.parent.done == 0; i++ {
 		n = new(com.Packet)
 		if err := n.UnmarshalStream(d); err != nil {
-			p.log.Warning("[%s:Proxy:%s] %s: Received an error when attempting to read a Packet: %s!", p.parent.ID, d.Device, c.RemoteAddr().String(), err.Error())
+			if device.IsServer {
+				p.log.Warning("[%s:Proxy:%s] %s: Received an error when attempting to read a Packet: %s!", p.parent.ID, d.Device, c.RemoteAddr().String(), err.Error())
+			}
 			return d.Flags&com.FlagChannel != 0
 		}
 		s := p.client(c, n)
@@ -253,7 +279,9 @@ func (p *Proxy) handlePacket(c net.Conn, o bool) bool {
 			continue
 		}
 		if r, err := s.next(false); err != nil {
-			p.log.Warning("[%s:Proxy:%s] %s: Received an error retriving Packet data: %s!", p.parent.ID, s.ID, c.RemoteAddr().String(), err.Error())
+			if device.IsServer {
+				p.log.Warning("[%s:Proxy:%s] %s: Received an error retriving Packet data: %s!", p.parent.ID, s.ID, c.RemoteAddr().String(), err.Error())
+			}
 		} else {
 			r.MarshalStream(m)
 		}
@@ -261,22 +289,29 @@ func (p *Proxy) handlePacket(c net.Conn, o bool) bool {
 		t++
 	}
 	if len(z) > 0 {
-		p.log.Trace("[%s:Proxy:%s] %s: Resolved Tags added %d Packets!", p.parent.ID, d.Device, c.RemoteAddr().String(), len(z))
+		if device.IsServer {
+			p.log.Trace("[%s:Proxy:%s] %s: Resolved Tags added %d Packets!", p.parent.ID, d.Device, c.RemoteAddr().String(), len(z))
+		}
 		for i := 0; i < len(z); i++ {
 			z[i].MarshalStream(m)
 		}
 		t += uint16(len(z))
 	}
 	m.Flags.SetLen(t)
-	m.Close()
-	p.log.Trace("[%s:Proxy:%s] %s: Sending Packet %q to client...", p.parent.ID, d.Device, c.RemoteAddr().String(), m.String())
+	if m.Close(); device.IsServer {
+		p.log.Trace("[%s:Proxy:%s] %s: Sending Packet %q to client...", p.parent.ID, d.Device, c.RemoteAddr().String(), m.String())
+	}
 	if err := writePacket(c, p.w, p.t, m); err != nil {
-		p.log.Warning("[%s:Proxy:%s] %s: Received an error writing data to client: %s!", p.parent.ID, d.Device, c.RemoteAddr().String(), err.Error())
+		if device.IsServer {
+			p.log.Warning("[%s:Proxy:%s] %s: Received an error writing data to client: %s!", p.parent.ID, d.Device, c.RemoteAddr().String(), err.Error())
+		}
 	}
 	return d.Flags&com.FlagChannel != 0
 }
 func (p *Proxy) client(c net.Conn, d *com.Packet) *proxyClient {
-	p.log.Trace("[%s:Proxy:%s] %s: Received a packet %q...", p.parent.ID, d.Device, c.RemoteAddr().String(), d.String())
+	if device.IsServer {
+		p.log.Trace("[%s:Proxy:%s] %s: Received a packet %q...", p.parent.ID, d.Device, c.RemoteAddr().String(), d.String())
+	}
 	if p.parent.done != 0 {
 		return nil
 	}
@@ -288,9 +323,13 @@ func (p *Proxy) client(c net.Conn, d *com.Packet) *proxyClient {
 	if !ok {
 		if d.ID != MvHello {
 			if len(p.parent.swarm.new) == 0 {
-				p.log.Warning("[%s:Proxy:%s] %s: Received a non-hello Packet from a unregistered client!", p.parent.ID, d.Device, c.RemoteAddr().String())
+				if device.IsServer {
+					p.log.Warning("[%s:Proxy:%s] %s: Received a non-hello Packet from a unregistered client!", p.parent.ID, d.Device, c.RemoteAddr().String())
+				}
 				if err := writePacket(c, p.w, p.t, &com.Packet{ID: MvRegister}); err != nil {
-					p.log.Warning("[%s:Proxy:%s] %s: Received an error writing data to client: %s!", p.parent.ID, d.Device, c.RemoteAddr().String(), err.Error())
+					if device.IsServer {
+						p.log.Warning("[%s:Proxy:%s] %s: Received an error writing data to client: %s!", p.parent.ID, d.Device, c.RemoteAddr().String(), err.Error())
+					}
 				}
 			}
 			return nil
@@ -304,9 +343,13 @@ func (p *Proxy) client(c net.Conn, d *com.Packet) *proxyClient {
 		p.parent.swarm.new <- s
 		p.clients = append(p.clients, d.Device.Hash())
 		if err := writePacket(c, p.w, p.t, &com.Packet{ID: MvComplete, Device: d.Device, Job: d.Job}); err != nil {
-			p.log.Warning("[%s:Proxy:%s] %s: Received an error writing data to client: %s!", p.parent.ID, d.Device, c.RemoteAddr().String(), err.Error())
+			if device.IsServer {
+				p.log.Warning("[%s:Proxy:%s] %s: Received an error writing data to client: %s!", p.parent.ID, d.Device, c.RemoteAddr().String(), err.Error())
+			}
 		}
-		p.log.Debug("[%s:Proxy:%s] %s: New client registered as %q hash 0x%X.", p.parent.ID, s.ID, c.RemoteAddr().String(), s.ID, i)
+		if device.IsServer {
+			p.log.Debug("[%s:Proxy:%s] %s: New client registered as %q hash 0x%X.", p.parent.ID, s.ID, c.RemoteAddr().String(), s.ID, i)
+		}
 		return nil
 	}
 	switch {
@@ -314,7 +357,9 @@ func (p *Proxy) client(c net.Conn, d *com.Packet) *proxyClient {
 		p.parent.swarm.close <- i
 		p.parent.send <- d
 		if err := writePacket(c, p.w, p.t, &com.Packet{ID: MvShutdown, Device: d.Device, Job: d.Job}); err != nil {
-			p.log.Warning("[%s:Proxy:%s] %s: Received an error writing data to client: %s!", p.parent.ID, d.Device, c.RemoteAddr().String(), err.Error())
+			if device.IsServer {
+				p.log.Warning("[%s:Proxy:%s] %s: Received an error writing data to client: %s!", p.parent.ID, d.Device, c.RemoteAddr().String(), err.Error())
+			}
 		}
 		return nil
 	case d.ID != MvNop || d.Flags&com.FlagMultiDevice != 0:
@@ -356,8 +401,9 @@ func (s *Session) Proxy(b string, c listener, p *Profile) (*Proxy, error) {
 	if p != nil {
 		l.w, l.t = p.Wrapper, p.Transform
 	}
-	l.ctx, l.cancel = context.WithCancel(s.ctx)
-	l.log.Debug("[%s] Added Proxy Listener on %q!", s.ID, b)
+	if l.ctx, l.cancel = context.WithCancel(s.ctx); device.IsServer {
+		l.log.Debug("[%s] Added Proxy Listener on %q!", s.ID, b)
+	}
 	if s.swarm == nil {
 		s.swarm = &proxySwarm{
 			new:      make(chan *proxyClient, 64),
@@ -373,15 +419,21 @@ func (s *Session) Proxy(b string, c listener, p *Profile) (*Proxy, error) {
 func (p *Proxy) resolveTags(a string, l, i device.ID, o bool, t []uint32) []*com.Packet {
 	var y []*com.Packet
 	for x := 0; x < len(t); x++ {
-		p.log.Trace("[%s:%s] %s: Received a Tag 0x%X...", l, i, a, t[x])
+		if device.IsServer {
+			p.log.Trace("[%s:%s] %s: Received a Tag 0x%X...", l, i, a, t[x])
+		}
 		s, ok := p.parent.swarm.clients[t[x]]
 		if !ok {
-			p.log.Warning("[%s:%s] %s: Received an invalid Tag 0x%X!", l, i, a, t[x])
+			if device.IsServer {
+				p.log.Warning("[%s:%s] %s: Received an invalid Tag 0x%X!", l, i, a, t[x])
+			}
 			continue
 		}
 		n, err := s.next(true)
 		if err != nil {
-			p.log.Warning("[%s:%s] %s: Received an error retriving Packet data: %s!", l, i, a, err.Error())
+			if device.IsServer {
+				p.log.Warning("[%s:%s] %s: Received an error retriving Packet data: %s!", l, i, a, err.Error())
+			}
 			continue
 		}
 		if n == nil {

@@ -127,14 +127,18 @@ func (s *Session) listen() {
 			if s.done > 0 {
 				break
 			}
-			s.log.Warning("[%s] Received an error attempting to connect to %q: %s!", s.ID, s.host, err.Error())
+			if device.IsServer {
+				s.log.Warning("[%s] Received an error attempting to connect to %q: %s!", s.ID, s.host, err.Error())
+			}
 			if s.errors < maxErrors {
 				s.errors++
 				continue
 			}
 			break
 		}
-		s.log.Trace("[%s] Connected to %q...", s.ID, s.host)
+		if device.IsServer {
+			s.log.Trace("[%s] Connected to %q...", s.ID, s.host)
+		}
 		for o := false; atomic.LoadUint32(&s.done) <= flagOption; {
 			if s.session(c, o) && s.done == flagOpen {
 				o = true
@@ -154,7 +158,9 @@ func (s *Session) listen() {
 		default:
 		}
 	}
-	s.log.Trace("[%s] Stopping transaction thread...", s.ID)
+	if device.IsServer {
+		s.log.Trace("[%s] Stopping transaction thread...", s.ID)
+	}
 	s.shutdown()
 }
 func (s *Session) shutdown() {
@@ -294,6 +300,9 @@ func (s Session) RemoteAddr() string {
 	return s.host
 }
 func (s Session) json(w *data.Chunk) {
+	if !device.IsServer {
+		return
+	}
 	w.Write([]byte(`{` +
 		`"id":"` + s.ID.FullString() + `",` +
 		`"hash":"` + strconv.Itoa(int(s.ID.Hash())) + `",` +
@@ -396,7 +405,9 @@ func (s *Session) Packets() <-chan *com.Packet {
 func (s *Session) session(c net.Conn, o bool) bool {
 	p, err := s.next(false)
 	if err != nil {
-		s.log.Warning("[%s] Received an error retriving the next Packet to %q: %s!", s.ID, s.host, err.Error())
+		if device.IsServer {
+			s.log.Warning("[%s] Received an error retriving the next Packet to %q: %s!", s.ID, s.host, err.Error())
+		}
 		return false
 	}
 	var y = o
@@ -413,8 +424,9 @@ func (s *Session) session(c net.Conn, o bool) bool {
 			atomic.StoreUint32(&s.mode, 0)
 		}
 		y = !o
-		p.Flags |= com.FlagChannel
-		s.log.Trace("[%s] Setting Channel flag on next Packet to %q!", s.ID, s.host)
+		if p.Flags |= com.FlagChannel; device.IsServer {
+			s.log.Trace("[%s] Setting Channel flag on next Packet to %q!", s.ID, s.host)
+		}
 	case p.Flags&com.FlagChannel != 0 && o:
 		fallthrough
 	case p.Flags&com.FlagChannel != 0 && !o:
@@ -423,23 +435,34 @@ func (s *Session) session(c net.Conn, o bool) bool {
 		} else {
 			atomic.StoreUint32(&s.mode, 0)
 		}
-		y = !o
-		s.log.Trace("[%s] Setting Channel flag on next Packet to %q (set by Packet)!", s.ID, s.host)
+		if y = !o; device.IsServer {
+			s.log.Trace("[%s] Setting Channel flag on next Packet to %q (set by Packet)!", s.ID, s.host)
+		}
 	}
-	s.log.Trace("[%s] Sending Packet %q to %q.", s.ID, p.String(), s.host)
+	if device.IsServer {
+		s.log.Trace("[%s] Sending Packet %q to %q.", s.ID, p.String(), s.host)
+	}
 	if err = writePacket(c, s.w, s.t, p); err != nil {
-		s.log.Warning("[%s] Received an error attempting to write to %q: %s!", s.ID, s.host, err.Error())
+		if device.IsServer {
+			s.log.Warning("[%s] Received an error attempting to write to %q: %s!", s.ID, s.host, err.Error())
+		}
 		return false
 	}
 	p.Clear()
 	if p, err = readPacket(c, s.w, s.t); err != nil {
-		s.log.Warning("[%s] Received an error attempting to read from %q: %s!", s.ID, s.host, err.Error())
+		if device.IsServer {
+			s.log.Warning("[%s] Received an error attempting to read from %q: %s!", s.ID, s.host, err.Error())
+		}
 		s.errors++
 		return false
 	}
-	s.log.Trace("[%s] %s: Received a Packet %q...", s.ID, s.host, p.String())
+	if device.IsServer {
+		s.log.Trace("[%s] %s: Received a Packet %q...", s.ID, s.host, p.String())
+	}
 	if err := notify(s.parent, s, p); err != nil {
-		s.log.Warning("[%s] Received an error processing packet data from %q! (%s)", s.ID, s.host, err.Error())
+		if device.IsServer {
+			s.log.Warning("[%s] Received an error processing packet data from %q! (%s)", s.ID, s.host, err.Error())
+		}
 		return false
 	}
 	s.errors = 0

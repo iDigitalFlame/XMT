@@ -40,7 +40,9 @@ func (l *Listener) Wait() {
 	<-l.ch
 }
 func (l *Listener) listen() {
-	l.log.Debug("[%s] Starting Listener %q...", l.name, l.listener)
+	if device.IsServer {
+		l.log.Debug("[%s] Starting Listener %q...", l.name, l.listener)
+	}
 	for atomic.LoadUint32(&l.done) == flagOpen {
 		for len(l.close) > 0 {
 			var (
@@ -53,8 +55,9 @@ func (l *Listener) listen() {
 			if s.Shutdown != nil {
 				l.s.events <- event{s: s, sFunc: s.Shutdown}
 			}
-			delete(l.sessions, i)
-			l.log.Debug("[%s] Removed closed Session 0x%X.", l.name, i)
+			if delete(l.sessions, i); device.IsServer {
+				l.log.Debug("[%s] Removed closed Session 0x%X.", l.name, i)
+			}
 		}
 		select {
 		case <-l.ctx.Done():
@@ -73,7 +76,9 @@ func (l *Listener) listen() {
 			if ok && e.Timeout() {
 				continue
 			}
-			l.log.Error("[%s] Error occurred during Listener accept: %s!", l.name, err.Error())
+			if device.IsServer {
+				l.log.Error("[%s] Error occurred during Listener accept: %s!", l.name, err.Error())
+			}
 			if ok && !e.Timeout() && !e.Temporary() {
 				break
 			}
@@ -82,10 +87,14 @@ func (l *Listener) listen() {
 		if c == nil {
 			continue
 		}
-		l.log.Trace("[%s] Received a connection from %q...", l.name, c.RemoteAddr().String())
+		if device.IsServer {
+			l.log.Trace("[%s] Received a connection from %q...", l.name, c.RemoteAddr().String())
+		}
 		go l.handle(c)
 	}
-	l.log.Debug("[%s] Stopping Listener.", l.name)
+	if device.IsServer {
+		l.log.Debug("[%s] Stopping Listener.", l.name)
+	}
 	for _, v := range l.sessions {
 		v.Close()
 	}
@@ -120,16 +129,23 @@ func (l *Listener) handle(c net.Conn) {
 		c.Close()
 		return
 	}
-	l.log.Debug("[%s] %s: Triggered Channel mode, holding open Channel!", l.name, c.RemoteAddr().String())
+	if device.IsServer {
+		l.log.Debug("[%s] %s: Triggered Channel mode, holding open Channel!", l.name, c.RemoteAddr().String())
+	}
 	for atomic.LoadUint32(&l.done) == flagOpen {
 		if l.handlePacket(c, true) {
 			break
 		}
 	}
-	l.log.Debug("[%s] %s: Closing Channel..", l.name, c.RemoteAddr().String())
+	if device.IsServer {
+		l.log.Debug("[%s] %s: Closing Channel..", l.name, c.RemoteAddr().String())
+	}
 	c.Close()
 }
 func (l *Listener) json(w *data.Chunk) {
+	if !device.IsServer {
+		return
+	}
 	w.Write([]byte(`{"name":"` + l.name + `","sessions":[`))
 	i := 0
 	for _, v := range l.sessions {
@@ -196,25 +212,35 @@ func (l *Listener) Session(i device.ID) *Session {
 func (l *Listener) handlePacket(c net.Conn, o bool) bool {
 	p, err := readPacket(c, l.w, l.t)
 	if err != nil {
-		l.log.Warning("[%s] %s: Error occurred during Packet read: %s!", l.name, c.RemoteAddr().String(), err.Error())
+		if device.IsServer {
+			l.log.Warning("[%s] %s: Error occurred during Packet read: %s!", l.name, c.RemoteAddr().String(), err.Error())
+		}
 		return o
 	}
 	if p.Flags&com.FlagOneshot != 0 {
-		l.log.Trace("[%s] %s: Received an Oneshot Packet.", l.name, c.RemoteAddr().String())
+		if device.IsServer {
+			l.log.Trace("[%s] %s: Received an Oneshot Packet.", l.name, c.RemoteAddr().String())
+		}
 		notify(l, nil, p)
 		return false
 	}
-	l.log.Trace("[%s:%s] Received Packet %q.", l.name, c.RemoteAddr().String(), p)
+	if device.IsServer {
+		l.log.Trace("[%s:%s] Received Packet %q.", l.name, c.RemoteAddr().String(), p)
+	}
 	z := l.resolveTags(c.RemoteAddr().String(), p.Device, o, p.Tags)
 	if p.Flags&com.FlagMultiDevice == 0 && p.Flags&com.FlagProxy == 0 {
 		if s := l.client(c, p, o); s != nil {
 			n, err := s.next(false)
 			if err != nil {
-				l.log.Warning("[%s:%s] %s: Received an error retriving Packet data: %s!", l.name, s.Device.ID, s.host, err.Error())
+				if device.IsServer {
+					l.log.Warning("[%s:%s] %s: Received an error retriving Packet data: %s!", l.name, s.Device.ID, s.host, err.Error())
+				}
 				return p.Flags&com.FlagChannel != 0
 			}
 			if len(z) > 0 {
-				l.log.Trace("[%s:%s] %s: Resolved Tags added %d Packets!", l.name, s.Device.ID, s.host, len(z))
+				if device.IsServer {
+					l.log.Trace("[%s:%s] %s: Resolved Tags added %d Packets!", l.name, s.Device.ID, s.host, len(z))
+				}
 				u := &com.Packet{ID: MvMultiple, Flags: com.FlagMulti | com.FlagMultiDevice}
 				n.MarshalStream(u)
 				for i := 0; i < len(z); i++ {
@@ -224,9 +250,13 @@ func (l *Listener) handlePacket(c net.Conn, o bool) bool {
 				u.Close()
 				n = u
 			}
-			l.log.Trace("[%s:%s] %s: Sending Packet %q to client...", l.name, s.Device.ID, s.host, n.String())
+			if device.IsServer {
+				l.log.Trace("[%s:%s] %s: Sending Packet %q to client...", l.name, s.Device.ID, s.host, n.String())
+			}
 			if err = writePacket(c, s.w, s.t, n); err != nil {
-				l.log.Warning("[%s:%s] %s: Received an error writing data to client: %s!", l.name, s.Device.ID, s.host, err.Error())
+				if device.IsServer {
+					l.log.Warning("[%s:%s] %s: Received an error writing data to client: %s!", l.name, s.Device.ID, s.host, err.Error())
+				}
 				return o
 			}
 		}
@@ -234,7 +264,9 @@ func (l *Listener) handlePacket(c net.Conn, o bool) bool {
 	}
 	x := p.Flags.Len()
 	if x == 0 {
-		l.log.Warning("[%s:%s] %s: Received an invalid multi Packet!", l.name, p.Device, c.RemoteAddr().String())
+		if device.IsServer {
+			l.log.Warning("[%s:%s] %s: Received an invalid multi Packet!", l.name, p.Device, c.RemoteAddr().String())
+		}
 		return p.Flags&com.FlagChannel != 0
 	}
 	var (
@@ -245,11 +277,15 @@ func (l *Listener) handlePacket(c net.Conn, o bool) bool {
 	for ; i < x; i++ {
 		n = new(com.Packet)
 		if err := n.UnmarshalStream(p); err != nil {
-			l.log.Warning("[%s:%s] %s: Received an error when attempting to read a Packet: %s!", l.name, p.Device, c.RemoteAddr().String(), err.Error())
+			if device.IsServer {
+				l.log.Warning("[%s:%s] %s: Received an error when attempting to read a Packet: %s!", l.name, p.Device, c.RemoteAddr().String(), err.Error())
+			}
 			return p.Flags&com.FlagChannel != 0
 		}
 		if n.Flags&com.FlagOneshot != 0 {
-			l.log.Trace("[%s:%s] %s: Received an Oneshot Packet.", l.name, n.Device, c.RemoteAddr().String())
+			if device.IsServer {
+				l.log.Trace("[%s:%s] %s: Received an Oneshot Packet.", l.name, n.Device, c.RemoteAddr().String())
+			}
 			notify(l, nil, n)
 			continue
 		}
@@ -258,7 +294,9 @@ func (l *Listener) handlePacket(c net.Conn, o bool) bool {
 			continue
 		}
 		if r, err := s.next(false); err != nil {
-			l.log.Warning("[%s:%s] %s: Received an error retriving Packet data: %s!", l.name, s.Device.ID, s.host, err.Error())
+			if device.IsServer {
+				l.log.Warning("[%s:%s] %s: Received an error retriving Packet data: %s!", l.name, s.Device.ID, s.host, err.Error())
+			}
 		} else {
 			r.MarshalStream(m)
 		}
@@ -266,31 +304,42 @@ func (l *Listener) handlePacket(c net.Conn, o bool) bool {
 		t++
 	}
 	if len(z) > 0 {
-		l.log.Trace("[%s:%s] %s: Resolved Tags added %d Packets!", l.name, p.Device, c.RemoteAddr().String(), len(z))
+		if device.IsServer {
+			l.log.Trace("[%s:%s] %s: Resolved Tags added %d Packets!", l.name, p.Device, c.RemoteAddr().String(), len(z))
+		}
 		for i := 0; i < len(z); i++ {
 			z[i].MarshalStream(m)
 		}
 		t += uint16(len(z))
 	}
 	m.Flags.SetLen(t)
-	m.Close()
-	l.log.Trace("[%s:%s] %s: Sending Packet %q to client...", l.name, p.Device, c.RemoteAddr().String(), m.String())
+	if m.Close(); device.IsServer {
+		l.log.Trace("[%s:%s] %s: Sending Packet %q to client...", l.name, p.Device, c.RemoteAddr().String(), m.String())
+	}
 	if err := writePacket(c, l.w, l.t, m); err != nil {
-		l.log.Warning("[%s:%s] %s: Received an error writing data to client: %s!", l.name, p.Device, c.RemoteAddr().String(), err.Error())
+		if device.IsServer {
+			l.log.Warning("[%s:%s] %s: Received an error writing data to client: %s!", l.name, p.Device, c.RemoteAddr().String(), err.Error())
+		}
 	}
 	return p.Flags&com.FlagChannel != 0
 }
 func (l *Listener) client(c net.Conn, p *com.Packet, o bool) *Session {
-	l.log.Trace("[%s:%s] %s: Received a Packet %q...", l.name, p.Device, c.RemoteAddr().String(), p.String())
+	if device.IsServer {
+		l.log.Trace("[%s:%s] %s: Received a Packet %q...", l.name, p.Device, c.RemoteAddr().String(), p.String())
+	}
 	var (
 		i     = p.Device.Hash()
 		s, ok = l.sessions[i]
 	)
 	if !ok {
 		if p.ID != MvHello {
-			l.log.Warning("[%s:%s] %s: Received a non-hello Packet from a unregistered client!", l.name, p.Device, c.RemoteAddr().String())
+			if device.IsServer {
+				l.log.Warning("[%s:%s] %s: Received a non-hello Packet from a unregistered client!", l.name, p.Device, c.RemoteAddr().String())
+			}
 			if err := writePacket(c, l.w, l.t, &com.Packet{ID: MvRegister}); err != nil {
-				l.log.Warning("[%s:%s] %s: Received an error writing data to client: %s!", l.name, p.Device, c.RemoteAddr().String(), err.Error())
+				if device.IsServer {
+					l.log.Warning("[%s:%s] %s: Received an error writing data to client: %s!", l.name, p.Device, c.RemoteAddr().String(), err.Error())
+				}
 			}
 			return nil
 		}
@@ -311,17 +360,22 @@ func (l *Listener) client(c net.Conn, p *com.Packet, o bool) *Session {
 			},
 		}
 		s.ctx, s.cancel = context.WithCancel(l.ctx)
-		l.sessions[i] = s
-		l.log.Debug("[%s:%s] %s: New client registered as %q hash 0x%X.", l.name, s.ID, c.RemoteAddr().String(), s.ID, i)
+		if l.sessions[i] = s; device.IsServer {
+			l.log.Debug("[%s:%s] %s: New client registered as %q hash 0x%X.", l.name, s.ID, c.RemoteAddr().String(), s.ID, i)
+		}
 	}
 	s.Last = time.Now()
 	s.host = c.RemoteAddr().String()
 	if p.ID == MvHello {
 		if err := s.Device.UnmarshalStream(p); err != nil {
-			l.log.Warning("[%s:%s] %s: Received an error reading data from client: %s!", l.name, s.ID, s.host, err.Error())
+			if device.IsServer {
+				l.log.Warning("[%s:%s] %s: Received an error reading data from client: %s!", l.name, s.ID, s.host, err.Error())
+			}
 			return nil
 		}
-		l.log.Trace("[%s:%s] %s: Received client device info: (OS: %s, %s).", l.name, s.ID, s.host, s.Device.OS.String(), s.Device.Version)
+		if device.IsServer {
+			l.log.Trace("[%s:%s] %s: Received client device info: (OS: %s, %s).", l.name, s.ID, s.host, s.Device.OS.String(), s.Device.Version)
+		}
 		if p.Flags&com.FlagProxy == 0 {
 			s.send <- &com.Packet{ID: MvComplete, Device: p.Device, Job: p.Job}
 		}
@@ -329,7 +383,9 @@ func (l *Listener) client(c net.Conn, p *com.Packet, o bool) *Session {
 			l.s.events <- event{s: s, sFunc: l.New}
 		}
 		if err := notify(l, s, p); err != nil {
-			l.log.Warning("[%s:%s] %s: Received an error processing Packet data: %s!", l.name, s.ID, c.RemoteAddr().String(), err.Error())
+			if device.IsServer {
+				l.log.Warning("[%s:%s] %s: Received an error processing Packet data: %s!", l.name, s.ID, c.RemoteAddr().String(), err.Error())
+			}
 		}
 		return s
 	}
@@ -337,7 +393,9 @@ func (l *Listener) client(c net.Conn, p *com.Packet, o bool) *Session {
 		l.s.events <- event{s: s, sFunc: l.Connect}
 	}
 	if err := notify(l, s, p); err != nil {
-		l.log.Warning("[%s:%s] %s: Received an error processing Packet data: %s!", l.name, s.ID, c.RemoteAddr().String(), err.Error())
+		if device.IsServer {
+			l.log.Warning("[%s:%s] %s: Received an error processing Packet data: %s!", l.name, s.ID, c.RemoteAddr().String(), err.Error())
+		}
 		return nil
 	}
 	return s
@@ -345,10 +403,14 @@ func (l *Listener) client(c net.Conn, p *com.Packet, o bool) *Session {
 func (l *Listener) resolveTags(a string, i device.ID, o bool, t []uint32) []*com.Packet {
 	var p []*com.Packet
 	for x := 0; x < len(t); x++ {
-		l.log.Trace("[%s:%s] %s: Received a Tag 0x%X...", l.name, i, a, t[x])
+		if device.IsServer {
+			l.log.Trace("[%s:%s] %s: Received a Tag 0x%X...", l.name, i, a, t[x])
+		}
 		s, ok := l.sessions[t[x]]
 		if !ok {
-			l.log.Warning("[%s:%s] %s: Received an invalid Tag 0x%X!", l.name, i, a, t[x])
+			if device.IsServer {
+				l.log.Warning("[%s:%s] %s: Received an invalid Tag 0x%X!", l.name, i, a, t[x])
+			}
 			continue
 		}
 		s.host, s.Last = a, time.Now()
@@ -357,7 +419,9 @@ func (l *Listener) resolveTags(a string, i device.ID, o bool, t []uint32) []*com
 		}
 		n, err := s.next(true)
 		if err != nil {
-			l.log.Warning("[%s:%s] %s: Received an error retriving Packet data: %s!", l.name, i, a, err.Error())
+			if device.IsServer {
+				l.log.Warning("[%s:%s] %s: Received an error retriving Packet data: %s!", l.name, i, a, err.Error())
+			}
 			continue
 		}
 		if n == nil {

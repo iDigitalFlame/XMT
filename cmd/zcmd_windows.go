@@ -5,7 +5,6 @@ package cmd
 import (
 	"io"
 	"os"
-	"reflect"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -162,7 +161,7 @@ func (o *options) readHandle(r io.Reader, m bool) (windows.Handle, error) {
 		case file:
 			f, err := i.File()
 			if err != nil {
-				return 0, xerr.Wrap("cannot obtain file handle for "+reflect.TypeOf(r).String(), err)
+				return 0, xerr.Wrap("cannot obtain file handle", err)
 			}
 			h = f.Fd()
 		default:
@@ -215,7 +214,7 @@ func (o *options) writeHandle(w io.Writer, m bool) (windows.Handle, error) {
 		case file:
 			f, err := i.File()
 			if err != nil {
-				return 0, xerr.Wrap("cannot obtain file handle for "+reflect.TypeOf(w).String(), err)
+				return 0, xerr.Wrap("cannot obtain file handle", err)
 			}
 			h = f.Fd()
 		default:
@@ -261,6 +260,8 @@ func newParentEx(p windows.Handle, i *windows.StartupInfo) (*startupInfoEx, erro
 		s uint64
 		x startupInfoEx
 	)
+	// Maybe add the PROCESS_MITIGATION_POLICY blocking DLLs from injecting into us here.
+	// This would double the attribute list size.
 	if _, _, err := funcInitializeProcThreadAttributeList.Call(0, 1, 0, uintptr(unsafe.Pointer(&s))); s < 48 {
 		return nil, xerr.Wrap("winapi InitializeProcThreadAttributeList error", err)
 	}

@@ -5,9 +5,6 @@ import (
 	"os/user"
 )
 
-// IPv6 is a compile-time flag that enables (true) or disables (false) support for IPv6-based network addresses.
-const IPv6 = true
-
 var (
 	// UUID is the device specific and session specific identifier.
 	UUID = getID()

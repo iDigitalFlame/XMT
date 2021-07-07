@@ -9,17 +9,6 @@ import (
 	"github.com/iDigitalFlame/xmt/com/limits"
 )
 
-// udpConn is a struct that represents a UDP based network connection. This struct can
-// be used to control and manage the current connection.
-// udpStream is a struct that represents a UDP stream (direct) based network connection. This struct
-// can be used to control and manage the current connection.
-// udpListener is a struct that represents a UDP based network connection listener. This struct can
-// be used to accept and create new UDP connections.
-// can be used to create new UDP listeners.
-
-// Close closes this connetion and frees any related resources.
-// Close closes this listener. Any blocked Accept operations will be unblocked and return errors.
-
 type udpConn struct {
 	_      [0]func()
 	buf    chan byte

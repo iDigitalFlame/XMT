@@ -14,7 +14,7 @@ import (
 type Service struct {
 	Start, End, Exec func()
 	Name             string
-	Timeout          time.Duration
+	Interval         time.Duration
 }
 
 // Run will trigger the service to start and will block until the service completes. Will always returns
