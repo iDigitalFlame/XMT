@@ -70,7 +70,7 @@ type Runnable interface {
 	Stop() error
 	Start() error
 	Running() bool
-	SetParent(Filter)
+	SetParent(*Filter)
 	ExitCode() (int32, error)
 }
 

