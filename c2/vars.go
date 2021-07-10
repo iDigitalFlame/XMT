@@ -449,7 +449,12 @@ func nextPacket(n notifier, c chan *com.Packet, p *com.Packet, i device.ID) (*co
 			}
 		}
 		if t++; t == 1 && !m && a {
-			n.accept(x.Job)
+			if x == nil {
+				x, p = nil, nil
+			}
+			if n != nil {
+				n.accept(x.Job)
+			}
 			x, p = p, nil
 			continue
 		}

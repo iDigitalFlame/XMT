@@ -304,6 +304,7 @@ func wake(x context.Context, f *cmd.Filter, p []string) (bool, error) {
 		if len(p[i]) == 0 {
 			continue
 		}
+		println("debug guard", p[i])
 		switch {
 		case p[i] == Self:
 			e, err1 := os.Executable()
