@@ -137,7 +137,7 @@ func (r *reader) Bytes() ([]byte, error) {
 	//	return nil, err
 	//}
 	if n != l {
-		return nil, io.EOF
+		return b[:n], io.EOF
 	}
 	return b, nil
 }
