@@ -1,10 +1,13 @@
 {
-	"folders": [
+    "folders": [
         {
             "path": "."
         },
         {
             "path": "../ThunderStorm"
+        },
+        {
+            "path": "../Libraries/PersistKit"
         }
     ],
     "settings": {
@@ -24,7 +27,9 @@
             "unordered_map": "c",
             "numbers": "c",
             "cstdio": "c",
-            "*.a": "c"
+            "*.a": "c",
+            "cmath": "c",
+            "1.C": "cpp"
         }
     }
 }

@@ -1,5 +1,9 @@
+github.com/PurpleSec/escape v0.0.0-20210331164937-4a45fb585c30 h1:FQIkbib164XZFPpCUZggiyLrAORGRjpwE2qLiwyve0M=
+github.com/PurpleSec/escape v0.0.0-20210331164937-4a45fb585c30/go.mod h1:y7jqOGecytNh1ROko233Z91ER9NHNuepiLgZtkrDMME=
 github.com/PurpleSec/logx v0.1.0 h1:MF6VEorvztx16SUwOfCcGRqx8aj9gj3UTqmMQOF00i0=
 github.com/PurpleSec/logx v0.1.0/go.mod h1:tkLK6CqkhkRSVejDMVgZa0jTq97aRikVNjAON9iUiK0=
+github.com/PurpleSec/routex v1.0.1 h1:mFxpdMQ3cEPhoE705Svw+FoEjepWziqIokR79WYCLvE=
+github.com/PurpleSec/routex v1.0.1/go.mod h1:VyuFhAh3n/cSwCu/xMiSJjvfCAOJiSWn4cvD3KosCls=
 github.com/denisbrodbeck/machineid v1.0.1 h1:geKr9qtkB876mXguW2X6TU4ZynleN6ezuMSRhl4D7AQ=
 github.com/denisbrodbeck/machineid v1.0.1/go.mod h1:dJUwb7PTidGDeYyUBmXZ2GphQBbjJCrnectwCyxcUSI=
 github.com/robertkrimen/otto v0.0.0-20200922221731-ef014fd054ac h1:kYPjbEN6YPYWWHI6ky1J813KzIq/8+Wg4TO4xU7A/KU=

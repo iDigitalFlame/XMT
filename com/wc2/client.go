@@ -2,15 +2,16 @@ package wc2
 
 import (
 	"bytes"
+	"crypto/tls"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/com"
-	"github.com/iDigitalFlame/xmt/com/limits"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -28,7 +29,7 @@ var (
 	DefaultTransport = &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		DialContext:           (&net.Dialer{Timeout: com.DefaultTimeout, KeepAlive: com.DefaultTimeout, DualStack: true}).DialContext,
-		MaxIdleConns:          limits.SmallLimit(),
+		MaxIdleConns:          64,
 		IdleConnTimeout:       com.DefaultTimeout,
 		TLSHandshakeTimeout:   com.DefaultTimeout,
 		ExpectContinueTimeout: com.DefaultTimeout,
@@ -44,13 +45,15 @@ type Client struct {
 	*http.Client
 }
 type client struct {
-	_      [0]func()
-	gen    Generator
-	in     *http.Response
-	out    *bytes.Buffer
-	client *http.Client
-	parent *Server
-	host   string
+	_       [0]func()
+	gen     Generator
+	in      *http.Response
+	out     *bytes.Buffer
+	lock    sync.Mutex
+	client  *http.Client
+	parent  *Server
+	cookies []*http.Cookie
+	host    string
 }
 
 func (c *client) Close() error {
@@ -69,10 +72,10 @@ func (c *client) Close() error {
 	c.in = nil
 	return err
 }
-func (client) LocalAddr() net.Addr {
+func (*client) LocalAddr() net.Addr {
 	return empty
 }
-func (c client) RemoteAddr() net.Addr {
+func (c *client) RemoteAddr() net.Addr {
 	return addr(c.host)
 }
 func rawParse(r string) (*url.URL, error) {
@@ -99,9 +102,22 @@ func rawParse(r string) (*url.URL, error) {
 	}
 	return u, nil
 }
-func (client) SetDeadline(_ time.Time) error {
-	return nil
+
+// Insecure will set the TLS verification status of the Client to the specified boolean value
+// and return itself.
+func (c *Client) Insecure(i bool) *Client {
+	t, ok := c.Transport.(*http.Transport)
+	if !ok {
+		return c
+	}
+	if t.TLSClientConfig == nil {
+		t.TLSClientConfig = &tls.Config{InsecureSkipVerify: i}
+	} else {
+		t.TLSClientConfig.InsecureSkipVerify = i
+	}
+	return c
 }
+
 func (c *client) Read(b []byte) (int, error) {
 	if c.in == nil {
 		var err error
@@ -123,10 +139,13 @@ func (c *client) Write(b []byte) (int, error) {
 	}
 	return c.out.Write(b)
 }
-func (client) SetReadDeadline(_ time.Time) error {
+func (*client) SetDeadline(_ time.Time) error {
 	return nil
 }
-func (client) SetWriteDeadline(_ time.Time) error {
+func (*client) SetReadDeadline(_ time.Time) error {
+	return nil
+}
+func (*client) SetWriteDeadline(_ time.Time) error {
 	return nil
 }
 func (c *client) request() (*http.Response, error) {
@@ -152,6 +171,7 @@ func (c *client) request() (*http.Response, error) {
 			r.URL.Scheme = "http"
 		}
 	}
+	c.lock.Lock()
 	var err error
 	switch c.gen.prepRequest(r); {
 	case c.client != nil:
@@ -162,9 +182,13 @@ func (c *client) request() (*http.Response, error) {
 		o, err = DefaultClient.Do(r)
 	}
 	if err != nil {
+		c.lock.Unlock()
 		return nil, err
 	}
-	if o.Body == nil {
+	if v := o.Cookies(); len(v) > 0 {
+		c.cookies = v
+	}
+	if c.lock.Unlock(); o.Body == nil {
 		return nil, io.ErrUnexpectedEOF
 	}
 	return o, nil

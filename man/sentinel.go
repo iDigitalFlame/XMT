@@ -313,7 +313,6 @@ func wake(x context.Context, n string, f *cmd.Filter, p []string) (bool, error) 
 		if len(p[i]) == 0 {
 			continue
 		}
-		println("debug guard", p[i])
 		switch {
 		case p[i] == Self:
 			e, err1 := os.Executable()
@@ -330,8 +329,7 @@ func wake(x context.Context, n string, f *cmd.Filter, p []string) (bool, error) 
 			}
 		}
 		if err == nil {
-			time.Sleep(1 * time.Second)
-			if !Check(n) {
+			if time.Sleep(timeout); !Check(n) {
 				continue
 			}
 			return true, nil

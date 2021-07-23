@@ -58,6 +58,11 @@ func F() *Filter {
 	return new(Filter)
 }
 
+// B is a shortcut for '&Filter{Fallback: f}'
+func B(f bool) *Filter {
+	return &Filter{Fallback: f}
+}
+
 // Clear clears the Filter settings, except for 'Fallback' and return the Filter struct.
 func (f *Filter) Clear() *Filter {
 	f.PID, f.Session, f.Elevated, f.Exclude, f.Include = 0, Empty, Empty, nil, nil

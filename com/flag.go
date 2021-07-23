@@ -29,6 +29,7 @@ const (
 	// channel connection. This means that the connection is kept alive and the client will not poll the server.
 	// This flag will be present on the top level multi-packet if included in a single packet inside. This flag will
 	// take affect on each hop that it goes through. Incompatible with 'FlagOneshot'. Has to be used once per connection.
+	// Currently Disabled.
 	FlagChannel
 	// FlagOneshot is used to signal that the Packet contains information and should not be used to
 	// create or re-establish a session.
@@ -113,7 +114,7 @@ func (f Flag) String() string {
 	if f&FlagMulti != 0 {
 		b.WriteString("[" + strconv.Itoa(int(f.Len())) + "]")
 	} else if f&FlagFrag != 0 {
-		b.WriteString("[" + strconv.FormatUint(uint64(f.Group()), 16) + ":" + strconv.Itoa(int(f.Position()+1)) + "/" + strconv.Itoa(int(f.Len()+1)) + "]")
+		b.WriteString("[" + strconv.FormatUint(uint64(f.Group()), 16) + ":" + strconv.Itoa(int(f.Position()+1)) + "/" + strconv.Itoa(int(f.Len())) + "]")
 	}
 	s := b.String()
 	b.Reset()

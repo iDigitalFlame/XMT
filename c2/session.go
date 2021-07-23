@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/PurpleSec/escape"
+
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/com/limits"
 	"github.com/iDigitalFlame/xmt/data"
@@ -44,12 +46,13 @@ type Session struct {
 	wake     chan waker
 
 	Receive func(*Session, *com.Packet)
+	jobs    map[uint16]*Job
 	host    string
 
 	Device device.Machine
 	sleep  time.Duration
 
-	done, mode, channel uint32
+	done, mode, last, channel uint32
 
 	ID             device.ID
 	jitter, errors uint8
@@ -103,6 +106,22 @@ func (s *Session) Wake() {
 		s.wake <- wake
 	}
 }
+
+// Exit will instruct the Session to shutdown and remove itself. This
+// has no effect if the Session is not on the server side.
+func (s *Session) Exit() {
+	if s.parent != nil {
+		s.parent.Shutdown(s.ID)
+	}
+}
+
+// Remove will instruct the Sessionremove itself. This
+// has no effect if the Session is not on the server side.
+func (s *Session) Remove() {
+	if s.parent != nil {
+		s.parent.Remove(s.ID)
+	}
+}
 func (s *Session) listen() {
 	if s.parent != nil {
 		atomic.StoreUint32(&s.done, flagClose)
@@ -118,7 +137,9 @@ func (s *Session) listen() {
 			atomic.StoreUint32(&s.channel, flagFinished)
 			close(s.send)
 		}
-		s.log.Trace("[%s] Waking up...", s.ID)
+		if Logging {
+			s.log.Trace("[%s] Waking up...", s.ID)
+		}
 		if s.done == 0 && s.swarm != nil {
 			s.swarm.process()
 		}
@@ -127,7 +148,7 @@ func (s *Session) listen() {
 			if s.done > 0 {
 				break
 			}
-			if device.IsServer {
+			if Logging {
 				s.log.Warning("[%s] Received an error attempting to connect to %q: %s!", s.ID, s.host, err.Error())
 			}
 			if s.errors < maxErrors {
@@ -136,7 +157,7 @@ func (s *Session) listen() {
 			}
 			break
 		}
-		if device.IsServer {
+		if Logging {
 			s.log.Trace("[%s] Connected to %q...", s.ID, s.host)
 		}
 		for o := false; atomic.LoadUint32(&s.done) <= flagOption; {
@@ -158,7 +179,7 @@ func (s *Session) listen() {
 		default:
 		}
 	}
-	if device.IsServer {
+	if Logging {
 		s.log.Trace("[%s] Stopping transaction thread...", s.ID)
 	}
 	s.shutdown()
@@ -192,6 +213,19 @@ func (s Session) Jitter() uint8 {
 // IsProxy returns true when a Proxy has been attached to this Session and is active.
 func (s Session) IsProxy() bool {
 	return s.swarm != nil
+}
+
+// Jobs returns all current Jobs for this Session. This returns nil if there are no Jobs or
+// this Session does not have the ability to schedule them.
+func (s *Session) Jobs() []*Job {
+	if s.jobs == nil || len(s.jobs) == 0 {
+		return nil
+	}
+	r := make([]*Job, 0, len(s.jobs))
+	for _, j := range s.jobs {
+		r = append(r, j)
+	}
+	return r
 }
 
 // Close stops the listening thread from this Session and releases all associated resources.
@@ -240,19 +274,30 @@ func (s Session) IsClient() bool {
 func (s Session) IsChannel() bool {
 	return s.channel == 1 || s.mode == 1
 }
-
-// SetJitter sets Jitter percentage of the Session's wake interval. This is a 0 to 100 percentage (inclusive) that
-// will determine any +/- time is added to the waiting period. This assists in evading IDS/NDS devices/systems. A
-// value of 0 will disable Jitter and any value over 100 will set the value to 100, which represents using Jitter 100%
-// of the time. If this is a Server-side Session, the new value will be sent to the Client in a MvUpdate Packet.
-func (s *Session) SetJitter(j int) {
-	s.SetDuration(s.sleep, j)
-}
 func (s *Session) accept(i uint16) {
-	if s.parent == nil || s.s == nil || s.s.Scheduler == nil {
+	if i < 20 || s.parent == nil || s.s == nil || s.jobs == nil || len(s.jobs) == 0 {
 		return
 	}
-	s.s.Scheduler.notifyTask(i)
+	j, ok := s.jobs[i]
+	if !ok {
+		return
+	}
+	if j.Status = Accepted; j.Update != nil {
+		s.s.events <- event{j: j, jFunc: j.Update}
+	}
+}
+func (s *Session) newJobID() uint16 {
+	var (
+		ok   bool
+		i, c uint16
+	)
+	for ; c < 256; c++ {
+		i = uint16(util.FastRand())
+		if _, ok = s.jobs[i]; !ok {
+			return i
+		}
+	}
+	return 0
 }
 
 // Read attempts to grab a Packet from the receiving buffer. This function returns nil if the buffer is empty.
@@ -263,6 +308,9 @@ func (s *Session) Read() *com.Packet {
 	return nil
 }
 func (c *cluster) done() *com.Packet {
+	if len(c.data) == 0 {
+		return nil
+	}
 	if uint16(len(c.data)) >= c.max {
 		n := c.data[0]
 		for x := 1; x < len(c.data); x++ {
@@ -299,24 +347,33 @@ func (s *Session) SetChannel(c bool) {
 func (s Session) RemoteAddr() string {
 	return s.host
 }
-func (s Session) json(w *data.Chunk) {
-	if !device.IsServer {
+
+// Job returns a Job with the associated ID, if it exists. It returns nil otherwise.
+func (s *Session) Job(i uint16) *Job {
+	if s.jobs == nil {
+		return nil
+	}
+	return s.jobs[i]
+}
+
+// JSON returns the data of this Session as a JSON blob.
+func (s Session) JSON(w *data.Chunk) {
+	if !Logging {
 		return
 	}
 	w.Write([]byte(`{` +
-		`"id":"` + s.ID.FullString() + `",` +
+		`"id":"` + s.ID.String() + `",` +
 		`"hash":"` + strconv.Itoa(int(s.ID.Hash())) + `",` +
 		`"device":{` +
 		`"id":"` + s.ID.FullString() + `",` +
-		`"signature":"` + s.ID.Signature() + `",` +
-		`"user":"` + s.Device.User + `",` +
-		`"hostname":"` + s.Device.Hostname + `",` +
-		`"version":"` + s.Device.Version + `",` +
+		`"user":` + escape.JSON(s.Device.User) + `,` +
+		`"hostname":` + escape.JSON(s.Device.Hostname) + `,` +
+		`"version":` + escape.JSON(s.Device.Version) + `,` +
 		`"arch":"` + s.Device.Arch.String() + `",` +
-		`"os":"` + s.Device.OS.String() + `",` +
-		`"elevated":"` + strconv.FormatBool(s.Device.Elevated) + `",` +
+		`"os":` + escape.JSON(s.Device.OS.String()) + `,` +
+		`"elevated":` + strconv.FormatBool(s.Device.Elevated) + `,` +
 		`"pid":` + strconv.Itoa(int(s.Device.PID)) + `,` +
-		`"ppid":` + strconv.Itoa(int(s.Device.PID)) + `,` +
+		`"ppid":` + strconv.Itoa(int(s.Device.PPID)) + `,` +
 		`"network":[`,
 	))
 	for i := range s.Device.Network {
@@ -324,7 +381,7 @@ func (s Session) json(w *data.Chunk) {
 			w.WriteUint8(uint8(','))
 		}
 		w.Write([]byte(
-			`{"name":"` + s.Device.Network[i].Name + `",` +
+			`{"name":` + escape.JSON(s.Device.Network[i].Name) + `,` +
 				`"mac":"` + s.Device.Network[i].Mac.String() + `","ip":[`,
 		))
 		for x := range s.Device.Network[i].Address {
@@ -339,10 +396,11 @@ func (s Session) json(w *data.Chunk) {
 		`]},` +
 			`"created":"` + s.Created.Format(time.RFC3339) + `",` +
 			`"last":"` + s.Last.Format(time.RFC3339) + `",` +
-			`"via":"` + s.host + `",` +
+			`"via":` + escape.JSON(s.host) + `,` +
 			`"sleep":` + strconv.Itoa(int(s.sleep)) + `,` +
-			`"jitter":` + strconv.Itoa(int(s.jitter)) + `}`,
+			`"jitter":` + strconv.Itoa(int(s.jitter)),
 	))
+	w.WriteUint8(uint8('}'))
 }
 
 // Time returns the value for the timeout period between C2 Server connections.
@@ -354,6 +412,12 @@ func (s Session) Time() time.Duration {
 // and returns immediately. Unlike 'Write' this function does NOT return an error and will wait if the send buffer is full.
 func (s *Session) Send(p *com.Packet) {
 	s.write(true, p)
+}
+
+// Listener will return the Listener that created the Session. This will return nil if
+// the session is not on the server side.
+func (s *Session) Listener() *Listener {
+	return s.parent
 }
 func (c *cluster) add(p *com.Packet) error {
 	if p == nil || p.Empty() {
@@ -368,12 +432,20 @@ func (c *cluster) add(p *com.Packet) error {
 	c.data = append(c.data, p)
 	return nil
 }
-
-// SetSleep sets the wake interval period for this Session. This is the time value between connections to the C2
-// Server. This does NOT apply to channels. If this is a Server-side Session, the new value will be sent to the
-// Client in a MvUpdate Packet. This setting does not affect Jitter.
-func (s *Session) SetSleep(t time.Duration) {
-	s.SetDuration(t, int(s.jitter))
+func (s *Session) frag(i, max, cur uint16) {
+	if s.parent == nil || s.s == nil || s.jobs == nil || len(s.jobs) == 0 {
+		return
+	}
+	j, ok := s.jobs[i]
+	if !ok {
+		return
+	}
+	if j.Frags == 0 {
+		j.Status = Receiving
+	}
+	if j.Frags, j.Current = max, cur; j.Update != nil {
+		s.s.events <- event{j: j, jFunc: j.Update}
+	}
 }
 
 // Context returns the current Session's context. This function can be useful for canceling running processes
@@ -391,7 +463,7 @@ func (s *Session) Write(p *com.Packet) error {
 // MarshalJSON fulfils the JSON Marshaler interface.
 func (s Session) MarshalJSON() ([]byte, error) {
 	b := buffers.Get().(*data.Chunk)
-	s.json(b)
+	s.JSON(b)
 	d := b.Payload()
 	returnBuffer(b)
 	return d, nil
@@ -402,10 +474,18 @@ func (s Session) MarshalJSON() ([]byte, error) {
 func (s *Session) Packets() <-chan *com.Packet {
 	return s.recv
 }
+
+// SetJitter sets Jitter percentage of the Session's wake interval. This is a 0 to 100 percentage (inclusive) that
+// will determine any +/- time is added to the waiting period. This assists in evading IDS/NDS devices/systems. A
+// value of 0 will disable Jitter and any value over 100 will set the value to 100, which represents using Jitter 100%
+// of the time. If this is a Server-side Session, the new value will be sent to the Client in a MvUpdate Packet.
+func (s *Session) SetJitter(j int) (*Job, error) {
+	return s.SetDuration(s.sleep, j)
+}
 func (s *Session) session(c net.Conn, o bool) bool {
 	p, err := s.next(false)
 	if err != nil {
-		if device.IsServer {
+		if Logging {
 			s.log.Warning("[%s] Received an error retriving the next Packet to %q: %s!", s.ID, s.host, err.Error())
 		}
 		return false
@@ -419,48 +499,52 @@ func (s *Session) session(c net.Conn, o bool) bool {
 		fallthrough
 	case atomic.LoadUint32(&s.channel) == 1 && !o:
 		if !o {
+			// Disabling channel setting.
+			// Channel code is currently broken right now.
 			atomic.StoreUint32(&s.mode, 1)
 		} else {
 			atomic.StoreUint32(&s.mode, 0)
 		}
 		y = !o
-		if p.Flags |= com.FlagChannel; device.IsServer {
+		if p.Flags |= com.FlagChannel; Logging {
 			s.log.Trace("[%s] Setting Channel flag on next Packet to %q!", s.ID, s.host)
 		}
 	case p.Flags&com.FlagChannel != 0 && o:
 		fallthrough
 	case p.Flags&com.FlagChannel != 0 && !o:
 		if !o {
+			// Disabling channel setting.
+			// Channel code is currently broken right now.
 			atomic.StoreUint32(&s.mode, 1)
 		} else {
 			atomic.StoreUint32(&s.mode, 0)
 		}
-		if y = !o; device.IsServer {
+		if y = !o; Logging {
 			s.log.Trace("[%s] Setting Channel flag on next Packet to %q (set by Packet)!", s.ID, s.host)
 		}
 	}
-	if device.IsServer {
+	if Logging {
 		s.log.Trace("[%s] Sending Packet %q to %q.", s.ID, p.String(), s.host)
 	}
 	if err = writePacket(c, s.w, s.t, p); err != nil {
-		if device.IsServer {
+		if Logging {
 			s.log.Warning("[%s] Received an error attempting to write to %q: %s!", s.ID, s.host, err.Error())
 		}
 		return false
 	}
 	p.Clear()
 	if p, err = readPacket(c, s.w, s.t); err != nil {
-		if device.IsServer {
+		if Logging {
 			s.log.Warning("[%s] Received an error attempting to read from %q: %s!", s.ID, s.host, err.Error())
 		}
 		s.errors++
 		return false
 	}
-	if device.IsServer {
+	if Logging {
 		s.log.Trace("[%s] %s: Received a Packet %q...", s.ID, s.host, p.String())
 	}
 	if err := notify(s.parent, s, p); err != nil {
-		if device.IsServer {
+		if Logging {
 			s.log.Warning("[%s] Received an error processing packet data from %q! (%s)", s.ID, s.host, err.Error())
 		}
 		return false
@@ -474,6 +558,7 @@ func (s *Session) next(i bool) (*com.Packet, error) {
 		t = s.swarm.tags()
 	}
 	if s.peek == nil && len(s.send) == 0 {
+		atomic.StoreUint32(&s.last, 0)
 		if s.parent == nil {
 			if atomic.LoadUint32(&s.mode) == 1 {
 				s.wait()
@@ -497,7 +582,18 @@ func (s *Session) next(i bool) (*com.Packet, error) {
 	if len(s.send) == 0 && p.Verify(s.ID) {
 		p.Tags = t
 		s.accept(p.Job)
+		atomic.StoreUint32(&s.last, 0)
 		return p, nil
+	}
+	if s.last > 0 {
+		for p.Flags.Group() == uint16(s.last) && len(s.send) > 0 {
+			p = <-s.send
+		}
+		if p == nil || p.Flags.Group() == uint16(s.last) {
+			atomic.StoreUint32(&s.last, 0)
+			return &com.Packet{ID: MvNop, Device: s.ID, Tags: t}, nil
+		}
+		atomic.StoreUint32(&s.last, 0)
 	}
 	if p, s.peek, err = nextPacket(s, s.send, p, s.ID); err != nil {
 		return nil, err
@@ -509,7 +605,7 @@ func (s *Session) write(w bool, p *com.Packet) error {
 	if atomic.LoadUint32(&s.done) > flagOpen {
 		return io.ErrClosedPipe
 	}
-	if p.Len() <= limits.FragLimit() {
+	if p.Len() <= limits.Frag || limits.Frag == 0 {
 		if !w && len(s.send)+1 >= cap(s.send) {
 			return ErrFullBuffer
 		}
@@ -519,7 +615,7 @@ func (s *Session) write(w bool, p *com.Packet) error {
 		}
 		return nil
 	}
-	var m = (p.Len() / limits.FragLimit()) + 1
+	var m = (p.Len() / limits.Frag) + 1
 	if !w && len(s.send)+m >= cap(s.send) {
 		return ErrFullBuffer
 	}
@@ -530,8 +626,8 @@ func (s *Session) write(w bool, p *com.Packet) error {
 		err  error
 		t, n int64
 	)
-	for i := 0; i < m && t < x; i++ {
-		c := &com.Packet{ID: p.ID, Job: p.Job, Flags: p.Flags, Chunk: data.Chunk{Limit: limits.FragLimit()}}
+	for i := 0; i <= m && t < x; i++ {
+		c := &com.Packet{ID: p.ID, Job: p.Job, Flags: p.Flags, Chunk: data.Chunk{Limit: limits.Frag}}
 		c.Flags.SetGroup(g)
 		c.Flags.SetLen(uint16(m))
 		c.Flags.SetPosition(uint16(i))
@@ -550,12 +646,45 @@ func (s *Session) write(w bool, p *com.Packet) error {
 	return nil
 }
 
+// Schedule is a quick alias for the 'Server.Scheduler.Schedule' function that uses this current Session in the
+// Session parameter. This function will return a wrapped 'ErrUnable' error if this is a client Session.
+func (s *Session) Schedule(p *com.Packet) (*Job, error) {
+	if s.parent == nil || s.jobs == nil {
+		return nil, xerr.Wrap("cannot be a client session", ErrUnable)
+	}
+	if p.Job == 0 {
+		if p.Job = s.newJobID(); p.Job == 0 {
+			return nil, ErrCannotAssign
+		}
+	}
+	if len(p.Device) == 0 {
+		p.Device = s.Device.ID
+	}
+	if _, ok := s.jobs[p.Job]; ok {
+		return nil, xerr.New("job ID " + strconv.Itoa(int(p.Job)) + " is already being tracked")
+	}
+	if err := s.Write(p); err != nil {
+		return nil, err
+	}
+	j := &Job{ID: p.Job, Type: p.ID, Start: time.Now(), Session: s}
+	j.ctx, j.cancel = context.WithCancel(s.s.ctx)
+	s.jobs[p.Job] = j
+	return j, nil
+}
+
+// SetSleep sets the wake interval period for this Session. This is the time value between connections to the C2
+// Server. This does NOT apply to channels. If this is a Server-side Session, the new value will be sent to the
+// Client in a MvUpdate Packet. This setting does not affect Jitter.
+func (s *Session) SetSleep(t time.Duration) (*Job, error) {
+	return s.SetDuration(t, int(s.jitter))
+}
+
 // SetDuration sets the wake interval period and Jitter for this Session. This is the time value between
 // connections to the C2 Server. This does NOT apply to channels. Jitter is a 0 to 100 percentage (inclusive) that
 // will determine any +/- time is added to the waiting period. This assists in evading IDS/NDS devices/systems. A
 // value of 0 will disable Jitter and any value over 100 will set the value to 100, which represents using Jitter 100%
 // of the time. If this is a Server-side Session, the new value will be sent to the Client in a MvUpdate Packet.
-func (s *Session) SetDuration(t time.Duration, j int) {
+func (s *Session) SetDuration(t time.Duration, j int) (*Job, error) {
 	switch {
 	case j < 0:
 		s.jitter = 0
@@ -564,21 +693,12 @@ func (s *Session) SetDuration(t time.Duration, j int) {
 	default:
 		s.jitter = uint8(j)
 	}
-	s.sleep = t
-	if s.parent != nil {
-		n := &com.Packet{ID: MvUpdate, Device: s.Device.ID}
-		n.WriteUint8(s.jitter)
-		n.WriteUint64(uint64(s.sleep))
-		n.Close()
-		s.send <- n
+	if s.sleep = t; s.parent == nil {
+		return nil, nil
 	}
-}
-
-// Schedule is a quick alias for the 'Server.Scheduler.Schedule' function that uses this current Session in the
-// Session parameter. This function will return a wrapped 'ErrUnable' error if this is a client Session.
-func (s *Session) Schedule(p *com.Packet) (*Job, error) {
-	if s.parent == nil {
-		return nil, xerr.Wrap("cannot be a client session", ErrUnable)
-	}
-	return s.s.Scheduler.Schedule(s, p)
+	n := &com.Packet{ID: MvUpdate, Device: s.Device.ID}
+	n.WriteUint8(s.jitter)
+	n.WriteUint64(uint64(s.sleep))
+	n.Close()
+	return s.Schedule(n)
 }

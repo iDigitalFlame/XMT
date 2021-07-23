@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/PurpleSec/logx"
@@ -31,6 +32,8 @@ import (
 // MvNop      -  1: Instructs the server or client to wait until the next wakeup as there is no data to return.
 // MvHello    -  2: Initial ID value to send to the server as a client to begin the registration process. By design, this
 //                  Packet should contain the device information struct.
+// MvDrop     -  8: Packet that carries a Flag that is used to indicate to the responding client that the frag group
+//                  In the flags needs to be dropped. This is only effective for one sequential packet stream.
 // MvError    -  7: Used to inform that the Job ID that this Packet contains resulted in an error. By design, this Packet
 //                  should contain a string value that describes the error.
 // MvSpawn    - 17: Instructs the client Session to spawn a separate and independent Session from the current one. By design,
@@ -46,6 +49,7 @@ import (
 // MvRegister -  3: Sent by the server to a client when a client attempts to communicate to a server that it has not
 //                  previously registered with. By design, the client should re-invoke the MvHello packet with the device
 //                  information to establish a proper connection to the target server.
+//                  If this packet contains a frag group, it is also considered a MvDrop packet.
 // MvComplete -  4: Response by the server when a client issues a MvHello packet. This indicates that registration is
 //                  successful and the client may start the standard communication protocol.
 // MvShutdown -  5: Indicates shutdown by the server or client. If sent by the client, the server will remove the client
@@ -57,6 +61,7 @@ const (
 	MvInvalid  uint8 = 0x00
 	MvNop      uint8 = 0x01
 	MvHello    uint8 = 0x02
+	MvDrop     uint8 = 0x08
 	MvError    uint8 = 0x07
 	MvSpawn    uint8 = 0x11
 	MvProxy    uint8 = 0x12
@@ -71,10 +76,13 @@ const (
 var (
 	buffers = sync.Pool{
 		New: func() interface{} {
+			//c := new(data.Chunk)
+			//c.Grow(limits.FragLimit())
 			return new(data.Chunk)
 		},
 	}
-	wake waker
+	wake    waker
+	padding []byte
 )
 
 type waker struct{}
@@ -104,7 +112,8 @@ type listener interface {
 	Listen(string) (net.Listener, error)
 }
 type notifier interface {
-	accept(i uint16)
+	accept(uint16)
+	frag(uint16, uint16, uint16)
 }
 
 // Wrapper is an interface that wraps the binary streams into separate stream types. This allows for using
@@ -131,13 +140,14 @@ type ListenerFunc func(string) (net.Listener, error)
 
 func (waker) accept(_ uint16) {}
 func returnBuffer(c *data.Chunk) {
-	c.Reset()
+	c.Clear()
 	buffers.Put(c)
 }
+func (waker) frag(_, _, _ uint16) {}
 func (e *event) process(l logx.Log) {
 	defer func(x logx.Log) {
 		if err := recover(); err != nil && x != nil {
-			if device.IsServer {
+			if Logging {
 				x.Error("Server event processing function recovered from a panic: %s!", err)
 			}
 		}
@@ -208,6 +218,15 @@ func notify(l *Listener, s *Session, p *com.Packet) error {
 		p.Clear()
 		return nil
 	case p.Flags&com.FlagFrag != 0 && p.Flags&com.FlagMulti == 0:
+		if p.ID == MvDrop || p.ID == MvRegister {
+			if Logging {
+				s.log.Warning("[%s] Indicated to clear Frag Group %X!", s.ID, p.Flags.Group())
+			}
+			if atomic.StoreUint32(&s.last, uint32(p.Flags.Group())); p.ID != MvRegister {
+				return nil
+			}
+			break
+		}
 		if p.Flags.Len() == 0 {
 			return ErrInvalidPacketCount
 		}
@@ -220,6 +239,10 @@ func notify(l *Listener, s *Session, p *com.Packet) error {
 			g     = p.Flags.Group()
 			c, ok = s.frags[g]
 		)
+		if !ok && p.Flags.Position() > 0 {
+			s.send <- &com.Packet{ID: MvDrop, Flags: p.Flags}
+			return nil
+		}
 		if !ok {
 			c = new(cluster)
 			s.frags[g] = c
@@ -231,6 +254,7 @@ func notify(l *Listener, s *Session, p *com.Packet) error {
 			notify(l, s, n)
 			delete(s.frags, g)
 		}
+		s.frag(p.Job, p.Flags.Len(), p.Flags.Position())
 		return nil
 	}
 	notifyClient(l, s, p)
@@ -246,15 +270,18 @@ func notifyClient(l *Listener, s *Session, p *com.Packet) {
 			if t, err := p.Uint64(); err == nil && t > 0 {
 				s.sleep = time.Duration(t)
 			}
-			if device.IsServer {
+			if Logging {
 				s.log.Debug("[%s] Updated Sleep/Jitter settings from server (%s/%d%%).", s.ID, s.sleep.String(), s.jitter)
+			}
+			if p.Job > 0 {
+				s.send <- &com.Packet{ID: MvResult, Job: p.Job}
 			}
 			if p.Flags&com.FlagData == 0 {
 				return
 			}
 		case MvShutdown:
 			if s.parent != nil {
-				if device.IsServer {
+				if Logging {
 					s.log.Debug("[%s] Client indicated shutdown, acknowledging and closing Session.", s.ID)
 				}
 				s.Write(&com.Packet{ID: MvShutdown, Job: 1})
@@ -262,7 +289,7 @@ func notifyClient(l *Listener, s *Session, p *com.Packet) {
 				if s.done > flagOpen {
 					return
 				}
-				if device.IsServer {
+				if Logging {
 					s.log.Debug("[%s] Server indicated shutdown, closing Session.", s.ID)
 				}
 			}
@@ -276,8 +303,11 @@ func notifyClient(l *Listener, s *Session, p *com.Packet) {
 			}
 			n := &com.Packet{ID: MvHello, Job: uint16(util.FastRand())}
 			device.Local.MarshalStream(n)
-			n.Close()
-			s.send <- n
+			// Bug here causes panic.
+			// Need to determine when channel is closed.
+			if n.Close(); atomic.LoadUint32(&s.done) < flagFinished {
+				s.send <- n
+			}
 			if len(s.send) == 1 {
 				s.Wake()
 			}
@@ -323,10 +353,17 @@ func (l ListenerFunc) Listen(a string) (net.Listener, error) {
 	return l(a)
 }
 func readPacket(c io.Reader, w Wrapper, t Transform) (*com.Packet, error) {
-	b := buffers.Get().(*data.Chunk)
-	if _, err := b.ReadFrom(c); err != nil && err != io.EOF {
+	var (
+		b      = buffers.Get().(*data.Chunk)
+		n, err = b.ReadFrom(c)
+	)
+	if err != nil && err != io.EOF {
 		returnBuffer(b)
 		return nil, xerr.Wrap("unable to read from stream reader", err)
+	}
+	if n == 0 && err == io.EOF {
+		returnBuffer(b)
+		return nil, xerr.Wrap("unable to read from stream reader", io.ErrUnexpectedEOF)
 	}
 	if b.Close(); t != nil {
 		var (
@@ -348,10 +385,8 @@ func readPacket(c io.Reader, w Wrapper, t Transform) (*com.Packet, error) {
 		}
 		r = data.NewReader(u)
 	}
-	var (
-		p   = new(com.Packet)
-		err = p.UnmarshalStream(r)
-	)
+	p := new(com.Packet)
+	err = p.UnmarshalStream(r)
 	if returnBuffer(b); err != nil && err != io.EOF {
 		return nil, xerr.Wrap("unable to read from cache reader", err)
 	}
@@ -380,6 +415,7 @@ func writePacket(c io.Writer, w Wrapper, t Transform, p *com.Packet) error {
 		returnBuffer(b)
 		return xerr.Wrap("unable to write to cache writer", err)
 	}
+	p.Clear()
 	if err := s.Close(); err != nil {
 		returnBuffer(b)
 		return xerr.Wrap("unable to close cache writer", err)
@@ -396,13 +432,14 @@ func writePacket(c io.Writer, w Wrapper, t Transform, p *com.Packet) error {
 		b = i
 	}
 	_, err := b.WriteTo(c)
+	c.Write(padding)
 	if returnBuffer(b); err != nil {
 		return xerr.Wrap("unable to write to stream writer", err)
 	}
 	return nil
 }
 func nextPacket(n notifier, c chan *com.Packet, p *com.Packet, i device.ID) (*com.Packet, *com.Packet, error) {
-	if limits.SmallLimit() <= 1 {
+	if limits.Packets <= 1 {
 		if p != nil {
 			n.accept(p.Job)
 			return p, nil, nil
@@ -419,7 +456,7 @@ func nextPacket(n notifier, c chan *com.Packet, p *com.Packet, i device.ID) (*co
 		m, a bool
 		x, w *com.Packet
 	)
-	for t < limits.SmallLimit() {
+	for t < limits.Packets {
 		if p == nil {
 			if len(c) == 0 {
 				if t == 1 && a && !m {
@@ -435,7 +472,7 @@ func nextPacket(n notifier, c chan *com.Packet, p *com.Packet, i device.ID) (*co
 		} else {
 			m = true
 		}
-		if s += p.Size(); s >= limits.FragLimit() {
+		if s += p.Size(); s >= limits.Frag {
 			if a && !m && t == 0 {
 				n.accept(p.Job)
 				return p, x, nil

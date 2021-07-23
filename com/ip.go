@@ -2,6 +2,7 @@ package com
 
 import (
 	"context"
+	"io"
 	"net"
 	"strconv"
 	"time"
@@ -39,6 +40,9 @@ func (i *ipStream) Read(b []byte) (int, error) {
 		copy(b, b[20:])
 		n -= 20
 	}
+	if err == nil && n < len(b)-20 {
+		err = io.EOF
+	}
 	return n, err
 }
 func (i ipConnector) Connect(s string) (net.Conn, error) {
@@ -56,8 +60,8 @@ func (i ipConnector) Listen(s string) (net.Listener, error) {
 	l := &ipListener{
 		proto: i.proto,
 		Listener: &udpListener{
-			buf:     make([]byte, limits.LargeLimit()),
-			delete:  make(chan net.Addr, limits.SmallLimit()),
+			buf:     make([]byte, limits.Buffer),
+			delete:  make(chan net.Addr, 32),
 			socket:  c,
 			active:  make(map[net.Addr]*udpConn),
 			timeout: i.dialer.Timeout,

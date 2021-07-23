@@ -121,11 +121,21 @@ func (r *reader) Bytes() ([]byte, error) {
 	default:
 		return nil, ErrInvalidType
 	}
-	b := make([]byte, l)
-	n, err := ReadFully(r.r, b)
-	if err != nil && ((err != io.EOF && err != ErrLimit) || n != l) {
-		return nil, err
+	var (
+		b = make([]byte, l)
+		n int
+	)
+	if n, err = ReadFully(r.r, b); err != nil {
+		switch {
+		case err == io.EOF:
+		case err == ErrLimit:
+		default:
+			return nil, err
+		}
 	}
+	//if err != nil && ((err != io.EOF && err != ErrLimit) || n != l) {
+	//	return nil, err
+	//}
 	if n != l {
 		return nil, io.EOF
 	}

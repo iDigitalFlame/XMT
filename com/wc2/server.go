@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/iDigitalFlame/xmt/com"
-	"github.com/iDigitalFlame/xmt/com/limits"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -152,7 +151,7 @@ func NewTLS(t time.Duration, c *tls.Config) *Server {
 			Dial:                  w.dialer.Dial,
 			Proxy:                 http.ProxyFromEnvironment,
 			DialContext:           w.dialer.DialContext,
-			MaxIdleConns:          limits.SmallLimit(),
+			MaxIdleConns:          256,
 			IdleConnTimeout:       w.dialer.Timeout,
 			TLSHandshakeTimeout:   w.dialer.Timeout,
 			ExpectContinueTimeout: w.dialer.Timeout,
@@ -188,7 +187,7 @@ func (s *Server) Listen(a string) (net.Listener, error) {
 		c = tls.NewListener(c, s.tls)
 	}
 	l := &listener{
-		new:    make(chan *conn, limits.SmallLimit()),
+		new:    make(chan *conn, 256),
 		parent: s,
 		socket: c,
 		Server: &http.Server{

@@ -29,6 +29,7 @@ var (
 	UDP = NewUDP(DefaultTimeout)
 
 	// ICMP is the ICMP Raw connector. This connector uses raw ICMP connections for communication.
+	// TODO: I think ICMP is bugged ATM, "NewIP(<anything greater than 1>, DefaultTimeout)" works, weird.
 	ICMP = NewIP(1, DefaultTimeout)
 
 	// TLS is the TCP over TLS connector client. This client uses TCP wrapped in TLS encryption

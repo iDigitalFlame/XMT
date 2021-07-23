@@ -61,7 +61,7 @@ func (f Filter) handle(a uint32) (windows.Handle, error) {
 		}
 		return h, nil
 	}
-	return f.open(a, false, nil)
+	return f.open(a, true, nil)
 }
 func (f Filter) open(a uint32, r bool, x filter) (windows.Handle, error) {
 	h, err := windows.CreateToolhelp32Snapshot(0x0002, 0)

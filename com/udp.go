@@ -56,36 +56,6 @@ func (u *udpListener) Close() error {
 func (u udpListener) String() string {
 	return "UDP[" + u.socket.LocalAddr().String() + "]"
 }
-
-// String returns a string representation of this udpListener.
-
-// Addr returns the listener's current bound network address.
-
-// LocalAddr returns the connected remote network address.
-// RemoteAddr returns the connected remote network address.
-
-// Read will attempt to read len(b) bytes from the current connection and fill the supplied buffer.
-// The return values will be the amount of bytes read and any errors that occurred.
-// SetDeadline sets the read and write deadlines associated with the connection. This function
-// does nothing for this type of connection.
-
-// Write will attempt to write len(b) bytes to the current connection from the supplied buffer.
-// The return values will be the amount of bytes wrote and any errors that occurred.
-
-// Read will attempt to read len(b) bytes from the current connection and fill the supplied buffer.
-// The return values will be the amount of bytes read and any errors that occurred.
-// Write will attempt to write len(b) bytes to the current connection from the supplied buffer.
-// The return values will be the amount of bytes wrote and any errors that occurred.
-// SetReadDeadline sets the deadline for future Read calls and any currently-blocked Read call. This
-// function does nothing for this type of connection.
-
-// SetWriteDeadline sets the deadline for future Write calls and any currently-blocked Write call. This
-// function does nothing for this type of connection.
-// Connect instructs the connector to create a connection to the supplied address. This function will
-// return a connection handle if successful. Otherwise the returned error will be non-nil.
-// Listen instructs the connector to create a listener on the supplied listeneing address. This function
-// will return a handler to a listener and an error if there are any issues creating the listener.
-
 func (u udpListener) Addr() net.Addr {
 	return u.socket.LocalAddr()
 }
@@ -123,7 +93,11 @@ func (u *udpStream) Read(b []byte) (int, error) {
 	if u.timeout > 0 {
 		u.Conn.SetReadDeadline(time.Now().Add(u.timeout))
 	}
-	return u.Conn.Read(b)
+	n, err := u.Conn.Read(b)
+	if err == nil && n < len(b) {
+		err = io.EOF
+	}
+	return n, err
 }
 func (u *udpStream) Write(b []byte) (int, error) {
 	if u.timeout > 0 {
@@ -162,7 +136,7 @@ func (u *udpListener) Accept() (net.Conn, error) {
 	}
 	c, ok := u.active[a]
 	if !ok {
-		c = &udpConn{buf: make(chan byte, limits.LargeLimit()), addr: a, parent: u}
+		c = &udpConn{buf: make(chan byte, limits.Buffer), addr: a, parent: u}
 		u.active[a] = c
 	}
 	for i := 0; i < n; i++ {
@@ -192,8 +166,8 @@ func (u udpConnector) Listen(s string) (net.Listener, error) {
 		return nil, err
 	}
 	l := &udpListener{
-		buf:     make([]byte, limits.LargeLimit()),
-		delete:  make(chan net.Addr, limits.SmallLimit()),
+		buf:     make([]byte, limits.Buffer),
+		delete:  make(chan net.Addr, 32),
 		socket:  c,
 		active:  make(map[net.Addr]*udpConn),
 		timeout: u.dialer.Timeout,

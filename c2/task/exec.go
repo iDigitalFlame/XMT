@@ -5,16 +5,24 @@ import (
 	"context"
 	"io"
 	"io/ioutil"
+	"strings"
 	"time"
 	"unsafe"
 
 	"github.com/iDigitalFlame/xmt/cmd"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
+	"github.com/iDigitalFlame/xmt/device"
 )
 
+// Execute represents the execute Tasklet. This can be used to instruct a client to
+// execute a specific command.
+const Execute = exec(0xC3)
+
+type exec uint8
+
 // Process is a struct that is similar to the 'cmd.Process' struct. This is used to Task a Client with running
-// a specified command.
+// a specified command. These can be submitted to the Execute tasklet.
 type Process struct {
 	Dir string
 
@@ -28,25 +36,8 @@ type Process struct {
 	Wait bool
 }
 
-// Run returns a Packet with the 'TvExecute' ID value and a Process struct in the payload that is based on the
-// provided string vardict. By default, this will wait for the Process to complete before the client returns the
-// output.
-func Run(s ...string) *com.Packet {
-	return Execute(&Process{Args: s, Wait: true})
-}
-
-// Command returns a Packet with the 'TvExecute' ID value and a Process struct in the payload that is based on the
-// supplied command, which is parsed using 'cmd.Split'. By default, this will wait for the Process to complete before
-// the client returns the output.
-func Command(s string) *com.Packet {
-	return Execute(&Process{Args: cmd.Split(s), Wait: true})
-}
-
-// Execute returns a Packet with the 'TvExecute' ID value and the provided Process struct as the Payload.
-func Execute(e *Process) *com.Packet {
-	p := &com.Packet{ID: TvExecute}
-	e.MarshalStream(p)
-	return p
+func (exec) Thread() bool {
+	return true
 }
 
 // SetFlags will set the startup Flag values used for Windows programs. This function overrites many
@@ -54,12 +45,29 @@ func Execute(e *Process) *com.Packet {
 func (p *Process) SetFlags(f uint32) {
 	p.Flags = f
 }
+func (exec) Exec(c string) *com.Packet {
+	return Execute.Run(&Process{Args: cmd.Split(c), Wait: true})
+}
+func (exec) Run(p *Process) *com.Packet {
+	v := &com.Packet{ID: TvExecute}
+	p.MarshalStream(v)
+	return v
+}
+func (exec) Shell(c string) *com.Packet {
+	return Execute.Run(&Process{Args: []string{"@SHELL@", c}, Wait: true})
+}
+func (exec) Raw(c ...string) *com.Packet {
+	return Execute.Run(&Process{Args: c, Wait: true})
+}
 
 // SetParent will instruct the Process to choose a parent with the supplied process Filter. If the Filter is nil
 // this will use the current process (default). This function has no effect if the device is not running Windows.
 // Setting the Parent process will automatically set 'SetNewConsole' to true.
 func (p *Process) SetParent(f *cmd.Filter) {
 	p.Filter = f
+}
+func (exec) PowerShell(c string) *com.Packet {
+	return nil
 }
 
 // SetStdin wil attempt to read all the data from the supplied reader to fill the Stdin byte array for this Process
@@ -139,27 +147,35 @@ func (p *Process) UnmarshalStream(r data.Reader) error {
 	}
 	return nil
 }
-func process(x context.Context, p *com.Packet) (*com.Packet, error) {
+func (exec) Do(x context.Context, p *com.Packet) (*com.Packet, error) {
 	var e Process
 	if err := e.UnmarshalStream(p); err != nil {
 		return nil, err
+	}
+	if len(e.Args) == 0 {
+		return nil, cmd.ErrEmptyCommand
 	}
 	var (
 		z = cmd.NewProcessContext(x, e.Args...)
 		o bytes.Buffer
 	)
+	if e.Args[0] == "@SHELL@" {
+		z.Args = []string{device.Shell}
+		z.Args = append(z.Args, device.ShellArgs...)
+		z.Args = append(z.Args, strings.Join(e.Args[1:], " "))
+	}
 	z.SetFlags(e.Flags)
 	if z.SetParent(e.Filter); len(e.Stdin) > 0 {
 		z.Stdin = bytes.NewReader(e.Stdin)
 	}
-	z.Timeout, z.Dir, z.Env = e.Timeout, e.Dir, e.Env
-	if e.Wait {
+	if z.Timeout, z.Dir, z.Env = e.Timeout, e.Dir, e.Env; e.Wait {
 		z.Stdout = &o
 		z.Stderr = &o
 	}
 	if err := z.Start(); err != nil {
 		return nil, err
 	}
+	e.Stdin = nil
 	w := new(com.Packet)
 	if w.WriteUint64(z.Pid()); !e.Wait {
 		w.WriteInt32(0)

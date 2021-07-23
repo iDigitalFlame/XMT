@@ -12,6 +12,11 @@ const (
 	empty = "<nil>"
 )
 
+const (
+	bufSize    = 2048
+	bufMinRead = 2048 //1744
+)
+
 var (
 	// ErrLimit is an error that is returned when a Limit is set on a Chunk and the size limit was hit when
 	// attempting to write to the Chunk. This error wraps the io.EOF error, which allows this error to match
@@ -20,7 +25,7 @@ var (
 
 	bufs = sync.Pool{
 		New: func() interface{} {
-			b := make([]byte, 512)
+			b := make([]byte, bufSize)
 			return &b
 		},
 	}
@@ -97,7 +102,7 @@ func (c Chunk) Empty() bool {
 
 // String returns a string representation of this Chunk's buffer.
 func (c Chunk) String() string {
-	if len(c.buf) == 0 {
+	if len(c.buf) == 0 || c.pos >= len(c.buf) {
 		return empty
 	}
 	_ = c.buf[c.pos]
@@ -111,7 +116,7 @@ func NewChunk(b []byte) *Chunk {
 
 // Payload returns a copy of the underlying buffer contained in this Chunk.
 func (c Chunk) Payload() []byte {
-	if len(c.buf) == 0 {
+	if len(c.buf) == 0 || c.pos >= len(c.buf) {
 		return nil
 	}
 	_ = c.buf[c.pos]
@@ -321,10 +326,10 @@ func (c *Chunk) Seek(o int64, w int) (int64, error) {
 func (c *Chunk) ReadFrom(r io.Reader) (int64, error) {
 	b := *bufs.Get().(*[]byte)
 	var (
-		n   int
-		w   int
-		t   int64
-		err error
+		n         int
+		w         int
+		t         int64
+		err, err2 error
 	)
 	for {
 		if c.Limit > 0 {
@@ -337,17 +342,30 @@ func (c *Chunk) ReadFrom(r io.Reader) (int64, error) {
 			n, err = r.Read(b)
 		}
 		if n > 0 {
-			w, err = c.Write(b[:n])
+			w, err2 = c.Write(b[:n])
 			if w < n {
 				t += int64(w)
 			} else {
 				t += int64(n)
 			}
-			if err != nil {
+			if err2 != nil {
 				break
 			}
 		}
-		if n < len(b) || err != nil {
+		/*
+			Seems this line causes data fragmentation issues.
+				if n < len(b) || err != nil {
+			Data isn't read to full, so we use the TcpWriteClose and other
+			Methods to to this.
+			Also un-masks the error from read that occurs.
+		*/
+		if err != nil {
+			println("RCK err " + err.Error())
+		}
+		if err2 != nil {
+			println("RCK err2 " + err2.Error())
+		}
+		if n < bufMinRead || err != nil || err2 != nil {
 			break
 		}
 	}

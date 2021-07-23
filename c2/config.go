@@ -7,7 +7,6 @@ import (
 
 	"github.com/iDigitalFlame/xmt/c2/transform"
 	"github.com/iDigitalFlame/xmt/c2/wrapper"
-	"github.com/iDigitalFlame/xmt/com/limits"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/data/crypto"
 	"github.com/iDigitalFlame/xmt/util/xerr"
@@ -76,7 +75,7 @@ var (
 
 	// DefaultProfile is an simple profile for use with testing or filling without having to define all the
 	// profile properties.
-	DefaultProfile = &Profile{Size: uint(limits.MediumLimit()), Sleep: DefaultSleep, Jitter: uint(DefaultJitter)}
+	DefaultProfile = &Profile{Size: 512, Sleep: DefaultSleep, Jitter: uint(DefaultJitter)}
 
 	// TransformBase64 is a Setting that enables the Base64 Transform for the generated Profile.
 	TransformBase64 = Setting{base64TID}

@@ -6,7 +6,6 @@ import (
 
 	"github.com/PurpleSec/logx"
 	"github.com/iDigitalFlame/xmt/com"
-	"github.com/iDigitalFlame/xmt/com/limits"
 	"github.com/iDigitalFlame/xmt/com/wc2"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
@@ -56,7 +55,7 @@ func (s *Server) Wait() {
 	<-s.ch
 }
 func (s *Server) listen() {
-	if device.IsServer {
+	if Logging {
 		s.Log.Debug("Server processing thread started!")
 	}
 	for {
@@ -84,7 +83,7 @@ func (s *Server) shutdown() {
 	for len(s.active) > 0 {
 		delete(s.active, <-s.close)
 	}
-	if device.IsServer {
+	if Logging {
 		s.Log.Debug("Stopping Server.")
 	}
 	s.active = nil
@@ -118,6 +117,15 @@ func (s *Server) Connected() []*Session {
 	var l []*Session
 	for _, v := range s.active {
 		l = append(l, v.Connected()...)
+	}
+	return l
+}
+
+// Listeners returns all the Listeners current active on this Server.
+func (s *Server) Listeners() []*Listener {
+	l := make([]*Listener, 0, len(s.active))
+	for _, v := range s.active {
+		l = append(l, v)
 	}
 	return l
 }
@@ -165,14 +173,6 @@ func convertHintConnect(s Setting) client {
 	}
 	return nil
 }
-
-// EnableRPC will enable the JSON RPC listener at the following address. The RPC listener can be used to instruct and
-// control the Server, as well as view Session information. An error may be returned if the current listening address
-// is in use.
-func (s *Server) EnableRPC(a string) error {
-	// TODO: Finish RPC
-	return nil
-}
 func convertHintListen(s Setting) listener {
 	if len(s) == 0 {
 		return nil
@@ -191,28 +191,45 @@ func convertHintListen(s Setting) listener {
 	return nil
 }
 
+// Listener returns the lister with the provided name if it exists, nil otherwise.
+func (s *Server) Listener(n string) *Listener {
+	return s.active[n]
+}
+
 // MarshalJSON fulfils the JSON Marshaler interface.
 func (s *Server) MarshalJSON() ([]byte, error) {
-	if !device.IsServer {
+	if !Logging {
 		return nil, nil
 	}
 	b := buffers.Get().(*data.Chunk)
-	b.Write([]byte(`{"tasks":`))
-	s.Scheduler.json(b)
-	b.Write([]byte(`,"listeners": {`))
+	b.Write([]byte(`{"listeners": {`))
 	i := 0
 	for k, v := range s.active {
 		if i > 0 {
 			b.WriteUint8(uint8(','))
 		}
 		b.Write([]byte(`"` + k + `":`))
-		v.json(b)
+		v.JSON(b)
 		i++
 	}
 	b.Write([]byte(`}}`))
 	d := b.Payload()
 	returnBuffer(b)
 	return d, nil
+}
+
+// Session returns the Session that matches the specified Device ID. This function will return nil if
+// no matching Device ID is found.
+func (s *Server) Session(i device.ID) *Session {
+	if i.Empty() {
+		return nil
+	}
+	for _, l := range s.active {
+		if x := l.Session(i); x != nil {
+			return x
+		}
+	}
+	return nil
 }
 
 // ConnectQuick creates a Session using the supplied Profile to connect to the listening server specified. A Session
@@ -236,15 +253,14 @@ func NewServerContext(x context.Context, l logx.Log) *Server {
 	s := &Server{
 		ch:        make(chan waker, 1),
 		Log:       l,
-		new:       make(chan *Listener, 16),
+		new:       make(chan *Listener, 8),
 		close:     make(chan string, 16),
 		active:    make(map[string]*Listener),
-		events:    make(chan event, limits.SmallLimit()),
+		events:    make(chan event, 2048),
 		Scheduler: new(Scheduler),
 	}
-	s.Scheduler.s = s
 	s.ctx, s.cancel = context.WithCancel(x)
-	if s.Log == nil || !device.IsServer {
+	if s.Log == nil || !Logging {
 		s.Log = logx.NOP
 	}
 	go s.listen()
@@ -357,9 +373,9 @@ func (s *Server) Listen(n, b string, c listener, p *Profile) (*Listener, error) 
 		l.w, l.t = p.Wrapper, p.Transform
 	}
 	if l.size == 0 {
-		l.size = uint(limits.MediumLimit())
+		l.size = 512
 	}
-	if l.ctx, l.cancel = context.WithCancel(s.ctx); device.IsServer {
+	if l.ctx, l.cancel = context.WithCancel(s.ctx); Logging {
 		s.Log.Debug("[%s] Added Listener on %q!", x, b)
 	}
 	s.new <- l
@@ -413,20 +429,20 @@ func (s *Server) ConnectWith(a string, c client, p *Profile, d *com.Packet) (*Se
 		return nil, xerr.Wrap("unable to write Packet", err)
 	}
 	r, err := readPacket(n, l.w, l.t)
-	if err != nil {
+	if v.Clear(); err != nil {
 		return nil, xerr.Wrap("unable to read Packet", err)
 	}
 	if r == nil || r.ID != MvComplete {
 		return nil, ErrEmptyPacket
 	}
-	if s.Log == nil {
+	if r.Clear(); s.Log == nil {
 		s.Log = logx.NOP
 	}
-	if device.IsServer {
+	if Logging {
 		s.Log.Debug("[%s] Client connected to %q!", l.ID, a)
 	}
 	if x == 0 {
-		x = uint(limits.MediumLimit())
+		x = 512
 	}
 	l.socket = c.Connect
 	l.frags = make(map[uint16]*cluster)

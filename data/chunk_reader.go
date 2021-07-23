@@ -126,11 +126,17 @@ func (c *Chunk) Bytes() ([]byte, error) {
 		n int
 		b = make([]byte, l)
 	)
-	if n, err = ReadFully(c, b); err != nil && ((err != io.EOF && err != ErrLimit) || n != l) {
-		return nil, err
+	//if n, err = ReadFully(c, b); err != nil && ((err != io.EOF && err != ErrLimit) || n != l) {
+	if n, err = ReadFully(c, b); err != nil {
+		switch {
+		case err == io.EOF:
+		case err == ErrLimit:
+		default:
+			return nil, err
+		}
 	}
 	if n != l {
-		return nil, io.EOF
+		return b[:n], io.EOF
 	}
 	return b, nil
 }
