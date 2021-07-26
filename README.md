@@ -22,7 +22,7 @@ These are some things I need to work on.
 Issues that I know are broken.
 If you're using this, feel free to submit issue tickets or pull requests. (I don't bite)
 
-- UDP/ICMP Channels currently have issues transferring data blobs larger than the chunk size.
+- UDP/ICMP connectors currently have issues transferring data blobs larger than the chunk size.
   - WC2 Also has this issue.
 - Channel is still broken. :(
 - CBK does not play well with WC2 for some reason.
