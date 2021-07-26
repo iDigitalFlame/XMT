@@ -327,6 +327,17 @@ func (e *CBK) Read(r io.Reader, b []byte) (int, error) {
 		e.buf = make([]byte, size+1)
 	}
 	if e.total-e.pos > len(b) {
+		// Possible panic here
+		//  panic: runtime error: slice bounds out of range [:44] with capacity 17
+		//  goroutine 27 [running]:
+		//  data/crypto.(*CBK).Read(0xc0000307c0, 0x839300, 0xc0000b9080, 0xc00018b1ca, 0x20, 0x20, 0xc0000288e0, 0xc00028d840, 0x6d2bc7)
+		//  data/crypto/cbk.go:330 +0x4d5
+		//  data/crypto.(*reader).Read(0xc000068800, 0xc00018b1ca, 0x20, 0x20, 0x8, 0x0, 0x0)
+		//  data/crypto/crypto.go:60 +0x67
+		//  data.(*reader).Read(0xc00010bc20, 0xc00018b1ca, 0x20, 0x20, 0x8, 0x0, 0x0)
+		//  data/data_reader.go:249 +0x51
+		//  data.(*reader).Read(0xc00010bc50, 0xc00018b1ca, 0x20, 0x20, 0x8, 0x0, 0x0)
+		//  data/data_reader.go:249 +0x51
 		u := copy(b, e.buf[e.pos:e.pos+len(b)])
 		e.pos += len(b)
 		return u, nil

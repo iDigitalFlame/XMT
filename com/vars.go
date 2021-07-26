@@ -8,10 +8,12 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-// DefaultTimeout is the default timeout used for the default connectors. The default is 60 seconds (one minute).
-const DefaultTimeout = time.Duration(60) * time.Second
-
 const (
+	// DefaultTimeout is the default timeout used for the default connectors. The default is 30 seconds.
+	DefaultTimeout = time.Second * 30
+	// DefaultKeepalive is the default keepalive timeout used per connection. The default is 30 seconds.
+	DefaultKeepalive = time.Second * 30
+
 	netTCP  = "tcp"
 	netUDP  = "udp"
 	netUNIX = "unix"
@@ -23,7 +25,7 @@ var ListenConfig = net.ListenConfig{KeepAlive: DefaultTimeout}
 
 var (
 	// TCP is the TCP Raw connector. This connector uses raw TCP connections for communication.
-	TCP = &tcpConnector{dialer: &net.Dialer{Timeout: DefaultTimeout, KeepAlive: DefaultTimeout, DualStack: true}}
+	TCP = &tcpConnector{dialer: &net.Dialer{Timeout: DefaultTimeout, KeepAlive: DefaultKeepalive, DualStack: true}}
 
 	// UDP is the UDP Raw connector. This connector uses raw UDP connections for communication.
 	UDP = NewUDP(DefaultTimeout)

@@ -275,11 +275,11 @@ func WrapCBK(a, b, c, d byte) Setting {
 
 // Add will append the specified Setting to the end of this Config array. This function also returns the Config array
 // for convenience and easy chained use.
-func (c Config) Add(s Setting) Config {
+func (c *Config) Add(s Setting) *Config {
 	if len(s) == 0 {
 		return c
 	}
-	c = append(c, s)
+	*c = append(*c, s)
 	return c
 }
 

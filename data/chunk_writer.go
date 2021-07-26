@@ -96,6 +96,7 @@ func (c *Chunk) WriteBytes(b []byte) error {
 		}
 	}
 	_, err := c.Write(b)
+	//println("WO > ", len(b), "|", n)
 	return err
 }
 

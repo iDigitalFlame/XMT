@@ -2,8 +2,10 @@ package data
 
 import (
 	"io"
+	"net"
 	"strconv"
 	"sync"
+	"time"
 )
 
 const (
@@ -13,8 +15,8 @@ const (
 )
 
 const (
-	bufSize    = 2048
-	bufMinRead = 2048 //1744
+	bufSize     = 4096
+	bufReadWait = 150000
 )
 
 var (
@@ -352,20 +354,17 @@ func (c *Chunk) ReadFrom(r io.Reader) (int64, error) {
 				break
 			}
 		}
-		/*
-			Seems this line causes data fragmentation issues.
-				if n < len(b) || err != nil {
-			Data isn't read to full, so we use the TcpWriteClose and other
-			Methods to to this.
-			Also un-masks the error from read that occurs.
-		*/
-		if err != nil {
-			println("RCK err " + err.Error())
+		// Holy fuck...
+		// So, I have to account for some kind of "network" backlog.
+		// Any lower and I miss reads. Any higher, I timeout.
+		// Fuck me....
+		if _, ok := r.(net.Conn); ok {
+			time.Sleep(bufReadWait)
 		}
-		if err2 != nil {
-			println("RCK err2 " + err2.Error())
-		}
-		if n < bufMinRead || err != nil || err2 != nil {
+		if n < len(b) || err != nil || err2 != nil {
+			if err == io.EOF || err == ErrLimit {
+				err = nil
+			}
 			break
 		}
 	}

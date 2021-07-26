@@ -14,8 +14,12 @@ import (
 )
 
 func (r *Server) httpJob(_ context.Context, w http.ResponseWriter, x *routex.Request) {
+	if w.Header().Set("Content-Type", "application/json; charset=utf-8"); !x.IsDelete() && !x.IsGet() {
+		errors(http.StatusMethodNotAllowed, http.StatusText(http.StatusMethodNotAllowed), w, x)
+		return
+	}
 	n, err := x.Values.String("session")
-	if w.Header().Set("Content-Type", "application/json; charset=utf-8"); err != nil {
+	if err != nil {
 		errors(http.StatusBadRequest, err.Error(), w, x)
 		return
 	}
@@ -144,8 +148,11 @@ func (r *Server) httpJobResultGet(_ context.Context, w http.ResponseWriter, x *r
 			`{"path":` + escape.JSON(p) + `,"size":` + strconv.FormatUint(b, 10) + `,"dir":` +
 				strconv.FormatBool(d) + `,"data":"`,
 		))
-		base64.NewEncoder(base64.StdEncoding, w).Write(j.Result.Payload())
+		e := base64.NewEncoder(base64.StdEncoding, w)
+		e.Write(j.Result.Payload())
+		e.Close()
 		w.Write([]byte(`","type":"download"}`))
+		j.Result.Reset()
 	case task.TvUpload:
 		w.Write([]byte(`{"type":"upload"}`))
 	case task.TvCode:
@@ -153,11 +160,14 @@ func (r *Server) httpJobResultGet(_ context.Context, w http.ResponseWriter, x *r
 	case task.TvExecute:
 		var (
 			p, _ = j.Result.Uint64()
-			e, _ = j.Result.Uint32()
+			c, _ = j.Result.Uint32()
 		)
-		w.Write([]byte(`{"pid":` + strconv.Itoa(int(p)) + `,"exit":` + strconv.Itoa(int(e)) + `,"data":"`))
-		base64.NewEncoder(base64.StdEncoding, w).Write(j.Result.Payload())
+		w.Write([]byte(`{"pid":` + strconv.Itoa(int(p)) + `,"exit":` + strconv.Itoa(int(c)) + `,"data":"`))
+		e := base64.NewEncoder(base64.StdEncoding, w)
+		e.Write(j.Result.Payload())
+		e.Close()
 		w.Write([]byte(`","type":"execute"}`))
+		j.Result.Seek(0, 0)
 	default:
 		w.Write(j.Result.Payload())
 	}

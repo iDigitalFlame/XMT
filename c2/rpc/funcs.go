@@ -1,6 +1,16 @@
 package rpc
 
+// Add
+// Canceling JObs via RPC
+
 /*
+	GET /api/v1/session
+		Session details and info
+	DELETE /api/v1/session
+		BODY (OPTIONAL):
+		{
+			"shutdown": <bool, default: false>
+		}
 
 	GET /api/v1/session
 		JSON list of Sessions

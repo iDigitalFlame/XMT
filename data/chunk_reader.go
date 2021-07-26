@@ -135,6 +135,7 @@ func (c *Chunk) Bytes() ([]byte, error) {
 			return nil, err
 		}
 	}
+	//println("RI < ", l, "|", n)
 	if n != l {
 		return b[:n], io.EOF
 	}

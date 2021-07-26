@@ -23,7 +23,7 @@ var (
 
 	valSessionCmd = val.Set{
 		val.Validator{Name: "wait", Type: val.Bool, Optional: true},
-		val.Validator{Name: "cmd", Type: val.String, Rules: val.Rules{val.Length{Min: 1}}},
+		val.Validator{Name: "cmd", Type: val.String, Rules: val.Rules{val.NoEmpty}},
 		val.Validator{Name: "filter", Type: val.Object, Optional: true, Rules: val.Rules{
 			val.SubSet{
 				val.Validator{Name: "pid", Type: val.Int, Optional: true},
@@ -36,7 +36,7 @@ var (
 		}},
 	}
 	valSessionCode = val.Set{
-		val.Validator{Name: "data", Type: val.String, Rules: val.Rules{val.Length{Min: 1}}},
+		val.Validator{Name: "data", Type: val.String, Rules: val.Rules{val.NoEmpty}},
 		val.Validator{Name: "filter", Type: val.Object, Rules: val.Rules{
 			val.SubSet{
 				val.Validator{Name: "pid", Type: val.Int, Optional: true},
@@ -128,7 +128,11 @@ func execute(s *c2.Session, c string, w bool, h bool, f *cmd.Filter) (*c2.Job, e
 	}
 	return s.Schedule(task.Execute.Run(p))
 }
-func (r *Server) httpSessionGet(_ context.Context, w http.ResponseWriter, x *routex.Request) {
+func (r *Server) httpSession(_ context.Context, w http.ResponseWriter, x *routex.Request) {
+	if w.Header().Set("Content-Type", "application/json; charset=utf-8"); !x.IsDelete() && !x.IsGet() {
+		errors(http.StatusMethodNotAllowed, http.StatusText(http.StatusMethodNotAllowed), w, x)
+		return
+	}
 	n, err := x.Values.String("session")
 	if w.Header().Set("Content-Type", "application/json; charset=utf-8"); err != nil {
 		errors(http.StatusBadRequest, http.StatusText(http.StatusBadRequest), w, x)
@@ -137,6 +141,24 @@ func (r *Server) httpSessionGet(_ context.Context, w http.ResponseWriter, x *rou
 	v := r.session(n)
 	if v == nil {
 		errors(http.StatusNotFound, http.StatusText(http.StatusNotFound), w, x)
+		return
+	}
+	if x.IsDelete() {
+		c, err := x.Content()
+		if err != nil {
+			errors(http.StatusBadRequest, err.Error(), w, x)
+			return
+		}
+		if len(c) == 0 {
+			errors(http.StatusBadRequest, http.StatusText(http.StatusBadRequest), w, x)
+			return
+		}
+		if c.BoolDefault("shutdown", false) {
+			v.Exit()
+		} else {
+			v.Remove()
+		}
+		w.WriteHeader(http.StatusOK)
 		return
 	}
 	b, _ := v.MarshalJSON()
@@ -181,7 +203,6 @@ func (r *Server) httpSessionExecPut(_ context.Context, w http.ResponseWriter, x 
 		errors(http.StatusInternalServerError, err.Error(), w, x)
 		return
 	}
-	print("got ", d, len(d))
 	j.Update = r.complete
 	b, _ := j.MarshalJSON()
 	w.WriteHeader(http.StatusCreated)
@@ -216,3 +237,35 @@ func (r *Server) httpSessionCodePut(_ context.Context, w http.ResponseWriter, x 
 	w.WriteHeader(http.StatusCreated)
 	w.Write(b)
 }
+
+/*
+func (r *Server) httpSessionDllPut(_ context.Context, w http.ResponseWriter, x *routex.Request, c routex.Content) {
+	s, f, d, e, err := r.lookup("data", x, c)
+	if w.Header().Set("Content-Type", "application/json; charset=utf-8"); err != nil {
+		if e {
+			errors(http.StatusNotFound, http.StatusText(http.StatusNotFound), w, x)
+		} else {
+			errors(http.StatusBadRequest, err.Error(), w, x)
+		}
+		return
+	}
+	if f == nil {
+		errors(http.StatusBadRequest, "refusing to inject code into self", w, x)
+		return
+	}
+	b, err := base64.StdEncoding.DecodeString(d)
+	if err != nil {
+		errors(http.StatusBadRequest, err.Error(), w, x)
+		return
+	}
+	j, err := s.Schedule(task.Inject.Run(&task.Code{Data: b, Filter: f}))
+	if err != nil {
+		errors(http.StatusBadRequest, err.Error(), w, x)
+		return
+	}
+	j.Update = r.complete
+	b, _ = j.MarshalJSON()
+	w.WriteHeader(http.StatusCreated)
+	w.Write(b)
+}
+*/

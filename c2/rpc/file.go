@@ -12,10 +12,10 @@ import (
 
 var (
 	valUpload = val.Set{
-		val.Validator{Name: "path", Type: val.String, Rules: val.Rules{val.Length{Min: 1}}},
-		val.Validator{Name: "data", Type: val.String, Rules: val.Rules{val.Length{Min: 1}}},
+		val.Validator{Name: "path", Type: val.String, Rules: val.Rules{val.NoEmpty}},
+		val.Validator{Name: "data", Type: val.String, Rules: val.Rules{val.NoEmpty}},
 	}
-	valDownload = val.Set{val.Validator{Name: "path", Type: val.String, Rules: val.Rules{val.Length{Min: 1}}}}
+	valDownload = val.Set{val.Validator{Name: "path", Type: val.String, Rules: val.Rules{val.NoEmpty}}}
 )
 
 func (r *Server) httpUploadPut(_ context.Context, w http.ResponseWriter, x *routex.Request, c routex.Content) {

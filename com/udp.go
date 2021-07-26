@@ -6,13 +6,18 @@ import (
 	"net"
 	"time"
 
+	"github.com/iDigitalFlame/xmt/util/xerr"
+
 	"github.com/iDigitalFlame/xmt/com/limits"
 )
+
+const udpLimit = 32768
 
 type udpConn struct {
 	_      [0]func()
 	buf    chan byte
 	addr   net.Addr
+	ident  string
 	parent *udpListener
 }
 type udpStream struct {
@@ -22,8 +27,8 @@ type udpStream struct {
 }
 type udpListener struct {
 	socket  net.PacketConn
-	delete  chan net.Addr
-	active  map[net.Addr]*udpConn
+	delete  chan string
+	active  map[string]*udpConn
 	buf     []byte
 	timeout time.Duration
 }
@@ -33,8 +38,9 @@ type udpConnector struct {
 }
 
 func (u *udpConn) Close() error {
-	if u.buf == nil {
+	if u.parent != nil {
 		close(u.buf)
+		u.parent.delete <- u.ident
 		u.buf, u.parent = nil, nil
 	}
 	return nil
@@ -87,23 +93,70 @@ func (u *udpConn) Write(b []byte) (int, error) {
 	if u.parent == nil {
 		return 0, io.ErrUnexpectedEOF
 	}
-	return u.parent.socket.WriteTo(b, u.addr)
+	var (
+		n, c int
+		err  error
+	)
+	for s, x := 0, udpLimit; n < len(b) && s < len(b); {
+		if x > len(b) {
+			x = len(b)
+		}
+		if c, err = u.parent.socket.WriteTo(b[s:x], u.addr); err != nil {
+			break
+		}
+		s += c
+		x += c
+		n += c
+	}
+	return n, err
 }
 func (u *udpStream) Read(b []byte) (int, error) {
 	if u.timeout > 0 {
 		u.Conn.SetReadDeadline(time.Now().Add(u.timeout))
 	}
-	n, err := u.Conn.Read(b)
-	if err == nil && n < len(b) {
-		err = io.EOF
+	var (
+		n, c int
+		err  error
+	)
+	for s, x := 0, udpLimit; n < len(b) && s < len(b); {
+		if x > len(b) {
+			x = len(b)
+		}
+		//println("read ", x-s)
+		if c, err = u.Conn.Read(b[s:x]); err != nil {
+			break
+		}
+		n += c
+		//println(c, err, x-s)
+		if c < udpLimit {
+			break
+		}
+		s += c
+		x += c
 	}
+	//println(c, err, n)
 	return n, err
 }
 func (u *udpStream) Write(b []byte) (int, error) {
 	if u.timeout > 0 {
 		u.Conn.SetWriteDeadline(time.Now().Add(u.timeout))
 	}
-	return u.Conn.Write(b)
+	var (
+		n, c int
+		err  error
+	)
+	for s, x := 0, udpLimit; n < len(b) && s < len(b); {
+		if x > len(b) {
+			x = len(b)
+		}
+		if c, err = u.Conn.Write(b[s:x]); err != nil {
+			break
+		}
+		s += c
+		x += c
+		n += c
+	}
+	return n, err
 }
 
 // Accept will block and listen for a connection to it's current listening port. This function
@@ -111,9 +164,6 @@ func (u *udpStream) Write(b []byte) (int, error) {
 // be nil unless the listener is closed. This function will return nil for both the connection and
 // the error if the connection received was an existing tracked connection or did not complete.
 func (u *udpListener) Accept() (net.Conn, error) {
-	for len(u.delete) > 0 {
-		delete(u.active, <-u.delete)
-	}
 	if u.socket == nil {
 		return nil, io.ErrClosedPipe
 	}
@@ -125,23 +175,39 @@ func (u *udpListener) Accept() (net.Conn, error) {
 	// Not that we'll need it but I think I should note this down just incase I need to bang my
 	// head against the desk when the connector doesn't work.
 	n, a, err := u.socket.ReadFrom(u.buf)
-	if err != nil {
+	for len(u.delete) > 0 {
+		delete(u.active, <-u.delete)
+	}
+	if n == 0 && err != nil {
 		return nil, err
 	}
+	//println("UDP: Read", n, a.String())
 	if a == nil || n <= 1 {
 		// Returning nil here as this happens due to a PacketCon hiccup in Golang.
 		// Returning an error would trigger a closure of the socket, which we don't want.
 		// Both returning nil means that we can continue listening.
 		return nil, nil
 	}
-	c, ok := u.active[a]
-	if !ok {
-		c = &udpConn{buf: make(chan byte, limits.Buffer), addr: a, parent: u}
-		u.active[a] = c
+	var s string
+	// TODO: Replace this with a compound integer.
+	switch i := a.(type) {
+	case *net.IPAddr:
+		s = i.IP.String()
+	case *net.UDPAddr:
+		s = i.IP.String()
+	default:
+		return nil, xerr.New(`invalid type "` + a.Network() + `" supplied to UDP listener`)
 	}
+	c, ok := u.active[s]
+	if !ok {
+		c = &udpConn{buf: make(chan byte, limits.Buffer), addr: a, ident: s, parent: u}
+		u.active[s] = c
+	}
+	//println("UDP: Push", n, "bytes")
 	for i := 0; i < n; i++ {
 		c.buf <- u.buf[i]
 	}
+	//println("UDP: Push", n, "bytes done, ret", !ok)
 	if !ok {
 		return c, nil
 	}
@@ -167,9 +233,9 @@ func (u udpConnector) Listen(s string) (net.Listener, error) {
 	}
 	l := &udpListener{
 		buf:     make([]byte, limits.Buffer),
-		delete:  make(chan net.Addr, 32),
+		delete:  make(chan string, 32),
 		socket:  c,
-		active:  make(map[net.Addr]*udpConn),
+		active:  make(map[string]*udpConn),
 		timeout: u.dialer.Timeout,
 	}
 	return l, nil

@@ -11,8 +11,7 @@ import (
 )
 
 type ipStream struct {
-	net.Conn
-	timeout time.Duration
+	udpStream
 }
 type ipListener struct {
 	net.Listener
@@ -35,7 +34,7 @@ func (i *ipStream) Read(b []byte) (int, error) {
 	if i.timeout > 0 {
 		i.Conn.SetReadDeadline(time.Now().Add(i.timeout))
 	}
-	n, err := i.Conn.Read(b)
+	n, err := i.udpStream.Read(b)
 	if n > 20 {
 		copy(b, b[20:])
 		n -= 20
@@ -50,7 +49,7 @@ func (i ipConnector) Connect(s string) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ipStream{timeout: i.dialer.Timeout, Conn: c}, nil
+	return &ipStream{udpStream{timeout: i.dialer.Timeout, Conn: c}}, nil
 }
 func (i ipConnector) Listen(s string) (net.Listener, error) {
 	c, err := ListenConfig.ListenPacket(context.Background(), "ip:"+strconv.Itoa(int(i.proto)), s)
@@ -61,9 +60,9 @@ func (i ipConnector) Listen(s string) (net.Listener, error) {
 		proto: i.proto,
 		Listener: &udpListener{
 			buf:     make([]byte, limits.Buffer),
-			delete:  make(chan net.Addr, 32),
+			delete:  make(chan string, 32),
 			socket:  c,
-			active:  make(map[net.Addr]*udpConn),
+			active:  make(map[string]*udpConn),
 			timeout: i.dialer.Timeout,
 		},
 	}

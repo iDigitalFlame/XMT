@@ -35,13 +35,6 @@ type tcpConnector struct {
 func (t tcpListener) String() string {
 	return "TCP[" + t.Addr().String() + "]"
 }
-func (t *tcpConn) CloseWrite() error {
-	v, ok := t.Conn.(*net.TCPConn)
-	if !ok {
-		return nil
-	}
-	return v.CloseWrite()
-}
 func (t *tcpConn) Read(b []byte) (int, error) {
 	if t.timeout > 0 {
 		t.Conn.SetReadDeadline(time.Now().Add(t.timeout))

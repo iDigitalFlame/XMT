@@ -2,7 +2,6 @@ package crypto
 
 import (
 	"crypto/sha512"
-	"fmt"
 	"hash"
 	"math/rand"
 	"sync"
@@ -129,7 +128,11 @@ func NewSourceEx(rounds int, seed interface{}) rand.Source {
 		case string:
 			b = []byte(x)
 		default:
-			b = []byte(fmt.Sprintf("%s", seed))
+			// b = []byte(fmt.Sprintf("%s", seed))
+			// Removing the need for "fmt" here.
+			// I don't think this is used enough to
+			// Adding as static instead.
+			b = []byte("<invalid>")
 		}
 		for _, v := range SHA512(b) {
 			s += int64(v)

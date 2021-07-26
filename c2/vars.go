@@ -76,13 +76,10 @@ const (
 var (
 	buffers = sync.Pool{
 		New: func() interface{} {
-			//c := new(data.Chunk)
-			//c.Grow(limits.FragLimit())
 			return new(data.Chunk)
 		},
 	}
-	wake    waker
-	padding []byte
+	wake waker
 )
 
 type waker struct{}
@@ -361,7 +358,7 @@ func readPacket(c io.Reader, w Wrapper, t Transform) (*com.Packet, error) {
 		returnBuffer(b)
 		return nil, xerr.Wrap("unable to read from stream reader", err)
 	}
-	if n == 0 && err == io.EOF {
+	if n == 0 || err == io.EOF {
 		returnBuffer(b)
 		return nil, xerr.Wrap("unable to read from stream reader", io.ErrUnexpectedEOF)
 	}
@@ -393,8 +390,8 @@ func readPacket(c io.Reader, w Wrapper, t Transform) (*com.Packet, error) {
 	if err := r.Close(); err != nil {
 		return nil, xerr.Wrap("unable to close cache reader", err)
 	}
-	if len(p.Device) == 0 {
-		return nil, xerr.Wrap("unable to read from stream", io.ErrNoProgress)
+	if p.Device.Empty() || p.ID == MvInvalid {
+		return nil, xerr.Wrap("unable to read from stream (bad packet)", io.ErrNoProgress)
 	}
 	return p, nil
 }
@@ -432,7 +429,6 @@ func writePacket(c io.Writer, w Wrapper, t Transform, p *com.Packet) error {
 		b = i
 	}
 	_, err := b.WriteTo(c)
-	c.Write(padding)
 	if returnBuffer(b); err != nil {
 		return xerr.Wrap("unable to write to stream writer", err)
 	}
