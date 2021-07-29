@@ -110,8 +110,13 @@ func (s *Session) Wake() {
 // Exit will instruct the Session to shutdown and remove itself. This
 // has no effect if the Session is not on the server side.
 func (s *Session) Exit() {
+	//if s.parent != nil {
+	//	s.parent.Shutdown(s.ID)
+	//	s.Close()
+	//}
+	s.write(false, &com.Packet{ID: MvShutdown})
 	if s.parent != nil {
-		s.parent.Shutdown(s.ID)
+		s.parent.Remove(s.ID)
 	}
 }
 
@@ -236,7 +241,7 @@ func (s *Session) Close() error {
 	atomic.StoreUint32(&s.done, flagLast)
 	s.cancel()
 	if s.parent == nil {
-		s.Wait()
+		s.Wake()
 	} else {
 		s.shutdown()
 	}

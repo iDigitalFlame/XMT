@@ -16,7 +16,7 @@ const (
 
 const (
 	bufSize     = 4096
-	bufReadWait = 150000
+	bufReadWait = 155000
 )
 
 var (

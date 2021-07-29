@@ -154,7 +154,7 @@ func (p *Proxy) handle(c net.Conn) {
 		p.log.Debug("[%s:Proxy] %s: Triggered Channel mode, holding open Channel!", p.parent.ID, c.RemoteAddr().String())
 	}
 	for atomic.LoadUint32(&p.done) == flagOpen {
-		if p.handlePacket(c, true) {
+		if !p.handlePacket(c, true) {
 			break
 		}
 	}
@@ -217,7 +217,7 @@ func (p *Proxy) handlePacket(c net.Conn, o bool) bool {
 		if Logging {
 			p.log.Warning("[%s:Proxy] %s: Error occurred during Packet read: %s!", p.parent.ID, c.RemoteAddr().String(), err.Error())
 		}
-		return true
+		return false
 	}
 	z := p.resolveTags(c.RemoteAddr().String(), p.parent.ID, d.Device, o, d.Tags)
 	if d.Flags&com.FlagMultiDevice == 0 {

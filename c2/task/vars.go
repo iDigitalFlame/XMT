@@ -34,7 +34,7 @@ var Mappings = [256]Tasker{
 	TvRefresh:  simpleTask(TvRefresh),
 
 	// WinTask related Mappings
-	wintask.DLLTask: wintask.DLLTask,
+	wintask.InjectDLL: wintask.InjectDLL,
 }
 
 type simpleTask uint8

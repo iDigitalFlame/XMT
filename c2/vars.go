@@ -358,7 +358,7 @@ func readPacket(c io.Reader, w Wrapper, t Transform) (*com.Packet, error) {
 		returnBuffer(b)
 		return nil, xerr.Wrap("unable to read from stream reader", err)
 	}
-	if n == 0 || err == io.EOF {
+	if n == 0 { // || err == io.EOF {
 		returnBuffer(b)
 		return nil, xerr.Wrap("unable to read from stream reader", io.ErrUnexpectedEOF)
 	}

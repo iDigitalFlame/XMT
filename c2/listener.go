@@ -139,7 +139,7 @@ func (l *Listener) handle(c net.Conn) {
 		l.log.Debug("[%s] %s: Triggered Channel mode, holding open Channel!", l.name, c.RemoteAddr().String())
 	}
 	for atomic.LoadUint32(&l.done) == flagOpen {
-		if l.handlePacket(c, true) {
+		if !l.handlePacket(c, true) {
 			break
 		}
 	}
@@ -225,14 +225,14 @@ func (l *Listener) handlePacket(c net.Conn, o bool) bool {
 		if Logging {
 			l.log.Warning("[%s] %s: Error occurred during Packet read: %s!", l.name, c.RemoteAddr().String(), err.Error())
 		}
-		return true
+		return false
 	}
 	if p.Flags&com.FlagOneshot != 0 {
 		if Logging {
 			l.log.Trace("[%s] %s: Received an Oneshot Packet.", l.name, c.RemoteAddr().String())
 		}
 		notify(l, nil, p)
-		return true
+		return false
 	}
 	if Logging {
 		l.log.Trace("[%s:%s] Received Packet %q.", l.name, c.RemoteAddr().String(), p)

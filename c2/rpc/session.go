@@ -149,10 +149,6 @@ func (r *Server) httpSession(_ context.Context, w http.ResponseWriter, x *routex
 			errors(http.StatusBadRequest, err.Error(), w, x)
 			return
 		}
-		if len(c) == 0 {
-			errors(http.StatusBadRequest, http.StatusText(http.StatusBadRequest), w, x)
-			return
-		}
 		if c.BoolDefault("shutdown", false) {
 			v.Exit()
 		} else {
