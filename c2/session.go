@@ -115,9 +115,9 @@ func (s *Session) Exit() {
 	//	s.Close()
 	//}
 	s.write(false, &com.Packet{ID: MvShutdown})
-	if s.parent != nil {
-		s.parent.Remove(s.ID)
-	}
+	//if s.parent != nil {
+	//	s.parent.Remove(s.ID)
+	//}
 }
 
 // Remove will instruct the Sessionremove itself. This
