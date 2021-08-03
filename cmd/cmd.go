@@ -36,19 +36,18 @@ var (
 // Process is a struct that represents an executable command and allows for setting
 // options in order change the operating functions.
 type Process struct {
-	ctx context.Context
-
 	Stdin          io.Reader
 	Stdout, Stderr io.Writer
 	err            error
-	opts           options
+	ctx            context.Context
+	reader         *os.File
 	cancel         context.CancelFunc
 	ch             chan finished
-	reader         *os.File
 
 	Dir       string
 	Env, Args []string
 	closers   []*os.File
+	opts      options
 
 	Timeout           time.Duration
 	flags, exit, once uint32

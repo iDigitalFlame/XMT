@@ -1,3 +1,5 @@
+// C2 is the base package for all C2 communication structures and functions.
+
 package c2
 
 import (
@@ -358,15 +360,14 @@ func readPacket(c io.Reader, w Wrapper, t Transform) (*com.Packet, error) {
 		returnBuffer(b)
 		return nil, xerr.Wrap("unable to read from stream reader", err)
 	}
+	// I think this below line breaks UDP/IP?
 	if n == 0 { // || err == io.EOF {
 		returnBuffer(b)
 		return nil, xerr.Wrap("unable to read from stream reader", io.ErrUnexpectedEOF)
 	}
 	if b.Close(); t != nil {
-		var (
-			i   = buffers.Get().(*data.Chunk)
-			err = t.Read(i, b.Payload())
-		)
+		i := buffers.Get().(*data.Chunk)
+		err = t.Read(i, b.Payload())
 		if returnBuffer(b); err != nil {
 			returnBuffer(i)
 			return nil, xerr.Wrap("unable to transform reader", err)
@@ -375,10 +376,10 @@ func readPacket(c io.Reader, w Wrapper, t Transform) (*com.Packet, error) {
 	}
 	var r data.Reader = b
 	if w != nil {
-		u, err := w.Unwrap(b)
-		if err != nil {
+		u, err2 := w.Unwrap(b)
+		if err2 != nil {
 			returnBuffer(b)
-			return nil, xerr.Wrap("unable to wrap stream reader", err)
+			return nil, xerr.Wrap("unable to wrap stream reader", err2)
 		}
 		r = data.NewReader(u)
 	}

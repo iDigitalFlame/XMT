@@ -30,17 +30,19 @@ var buffers = sync.Pool{
 
 // Server is the struct that handles the C2 RPC server interface and submits the control requests.
 type Server struct {
+	lock sync.Mutex
+	http.Server
+
+	ctx  context.Context
+	hash map[string]device.ID
+	jobs map[uint32]cache
+	c    *c2.Server
+
+	cancel context.CancelFunc
+	mux    *routex.Mux
+
 	Key     string
 	Timeout time.Duration
-
-	c      *c2.Server
-	mux    *routex.Mux
-	ctx    context.Context
-	lock   sync.Mutex
-	hash   map[string]device.ID
-	jobs   map[uint32]cache
-	cancel context.CancelFunc
-	http.Server
 }
 type cache map[uint16]*c2.Job
 

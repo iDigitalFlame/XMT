@@ -369,11 +369,7 @@ func (s *Server) Listen(n, b string, c listener, p *Profile) (*Listener, error) 
 		connection: connection{s: s, log: s.Log, Mux: s.Scheduler},
 	}
 	if p != nil {
-		l.size = p.Size
 		l.w, l.t = p.Wrapper, p.Transform
-	}
-	if l.size == 0 {
-		l.size = 512
 	}
 	if l.ctx, l.cancel = context.WithCancel(s.ctx); Logging {
 		s.Log.Debug("[%s] Added Listener on %q!", x, b)
@@ -406,13 +402,12 @@ func (s *Server) ConnectWith(a string, c client, p *Profile, d *com.Packet) (*Se
 	}
 	defer n.Close()
 	var (
-		x uint
 		l = &Session{ID: device.UUID, host: a, Device: *device.Local.Machine}
 		v = &com.Packet{ID: MvHello, Device: l.ID, Job: uint16(util.FastRand())}
 	)
 	if p != nil {
 		l.sleep, l.jitter = p.Sleep, uint8(p.Jitter)
-		l.w, l.t, x = p.Wrapper, p.Transform, p.Size
+		l.w, l.t = p.Wrapper, p.Transform
 	}
 	if l.sleep == 0 {
 		l.sleep = DefaultSleep
@@ -441,15 +436,12 @@ func (s *Server) ConnectWith(a string, c client, p *Profile, d *com.Packet) (*Se
 	if Logging {
 		s.Log.Debug("[%s] Client connected to %q!", l.ID, a)
 	}
-	if x == 0 {
-		x = 512
-	}
 	l.socket = c.Connect
 	l.frags = make(map[uint16]*cluster)
 	l.ctx, l.cancel = context.WithCancel(s.ctx)
 	l.log, l.s, l.Mux = s.Log, s, DefaultClientMux
 	l.wake, l.ch = make(chan waker, 1), make(chan waker, 1)
-	l.send, l.recv = make(chan *com.Packet, x), make(chan *com.Packet, x)
+	l.send, l.recv = make(chan *com.Packet, 256), make(chan *com.Packet, 256)
 	go l.listen()
 	return l, nil
 }

@@ -24,9 +24,10 @@ const InjectDLL = dllTasker(0xC5)
 // The Path parameter is the path (on the client) where the DLL is located. Name may be omitted and Data
 // can be filled with the raw binary data to send and load a DLL instead.
 type DLL struct {
-	Path   string
-	Data   []byte
 	Filter *cmd.Filter
+
+	Path string
+	Data []byte
 }
 type dllTasker uint8
 
@@ -69,7 +70,7 @@ func (d *DLL) UnmarshalStream(r data.Reader) error {
 	}
 	if f {
 		d.Filter = new(cmd.Filter)
-		if err := d.Filter.UnmarshalStream(r); err != nil {
+		if err = d.Filter.UnmarshalStream(r); err != nil {
 			return err
 		}
 	}

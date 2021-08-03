@@ -7,7 +7,7 @@ import (
 	"github.com/iDigitalFlame/xmt/cmd"
 )
 
-func testShellcode() {
+func TestShellcode() {
 	c := &cmd.Code{
 		Data: []byte{},
 	}

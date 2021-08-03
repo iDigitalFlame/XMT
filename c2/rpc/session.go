@@ -126,6 +126,7 @@ func execute(s *c2.Session, c string, w bool, h bool, f *cmd.Filter) (*c2.Job, e
 	default:
 		p = &task.Process{Args: cmd.Split(c), Wait: w, Filter: f}
 	}
+	p.Hide = h
 	return s.Schedule(task.Execute.Run(p))
 }
 func (r *Server) httpSession(_ context.Context, w http.ResponseWriter, x *routex.Request) {

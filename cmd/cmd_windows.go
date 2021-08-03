@@ -42,11 +42,11 @@ func Fork() (uint32, error) {
 	)
 	switch r {
 	case 0:
-		h, err := windows.OpenThread(0x000F|0x00100000|0xFFFF, false, uint32(i.ClientID.Thread))
-		if err != nil {
-			return 0, xerr.Wrap("winapi OpenThread error", err)
+		h, err2 := windows.OpenThread(0x000F|0x00100000|0xFFFF, false, uint32(i.ClientID.Thread))
+		if err2 != nil {
+			return 0, xerr.Wrap("winapi OpenThread error", err2)
 		}
-		if _, err := windows.ResumeThread(h); err != nil {
+		if _, err = windows.ResumeThread(h); err != nil {
 			return 0, xerr.Wrap("winapi ResumeThread error", err)
 		}
 		return uint32(i.ClientID.Process), windows.CloseHandle(h)

@@ -11,7 +11,6 @@ import (
 	"unsafe"
 
 	"github.com/iDigitalFlame/xmt/util/xerr"
-
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
@@ -58,7 +57,7 @@ func adjust(h uintptr, s []string) error {
 		if n, err = windows.UTF16PtrFromString(s[i]); err != nil {
 			return xerr.Wrap(`cannot convert "`+s[i]+`"`, err)
 		}
-		if err := windows.LookupPrivilegeValue(nil, n, &p.Privileges[i].Luid); err != nil {
+		if err = windows.LookupPrivilegeValue(nil, n, &p.Privileges[i].Luid); err != nil {
 			return xerr.Wrap(`cannot lookup privilege "`+s[i]+`"`, err)
 		}
 		p.Privileges[i].Attributes = windows.SE_PRIVILEGE_ENABLED
@@ -105,7 +104,7 @@ func Registry(key, value string) (*RegistryFile, error) {
 		return nil, err
 	}
 	var y time.Time
-	if m, err := h.Stat(); err == nil {
+	if m, err2 := h.Stat(); err2 == nil {
 		y = m.ModTime()
 	}
 	if len(value) == 0 {

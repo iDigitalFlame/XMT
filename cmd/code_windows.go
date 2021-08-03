@@ -31,10 +31,10 @@ var (
 
 type base struct {
 	cancel context.CancelFunc
+	filter *Filter
 	loc    uintptr
 	owner  windows.Handle
 	once   uint32
-	filter *Filter
 }
 
 func (c *Code) wait() {

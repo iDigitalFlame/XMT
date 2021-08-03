@@ -61,7 +61,7 @@ func parseSleep(s string) (time.Duration, error) {
 	}
 	return d, nil
 }
-func errors(c int, e string, w http.ResponseWriter, r *routex.Request) {
+func errors(c int, e string, w http.ResponseWriter, _ *routex.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(c)
 	w.Write([]byte(`{"error": ` + escape.JSON(e) + `, "code": ` + strconv.Itoa(c) + `}`))

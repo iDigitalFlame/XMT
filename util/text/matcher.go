@@ -1,7 +1,6 @@
 package text
 
 import (
-	"bytes"
 	"regexp"
 	"strconv"
 	"strings"
@@ -86,15 +85,15 @@ func (s Matcher) String() string {
 		}
 		switch {
 		case s[m[x][1]-1] == 'n' && s[m[x][1]-2] == 'f' && v > 0:
-			c = util.Rand.StringNumber(v)
+			c = Rand.StringNumber(v)
 		case s[m[x][1]-1] == 'c' && s[m[x][1]-2] == 'f' && v > 0:
-			c = util.Rand.StringCharacters(v)
+			c = Rand.StringCharacters(v)
 		case s[m[x][1]-1] == 'u' && s[m[x][1]-2] == 'f' && v > 0:
-			c = util.Rand.StringUpper(v)
+			c = Rand.StringUpper(v)
 		case s[m[x][1]-1] == 'l' && s[m[x][1]-2] == 'f' && v > 0:
-			c = util.Rand.StringLower(v)
+			c = Rand.StringLower(v)
 		case s[m[x][1]-1] == 's' && s[m[x][1]-2] == 'f' && v > 0:
-			c = util.Rand.String(v)
+			c = Rand.String(v)
 		case s[m[x][1]-1] == 'd' && s[m[x][1]-2] == 'f' && v >= 0:
 			c = strconv.Itoa(v)
 		case s[m[x][1]-1] == 'h' && s[m[x][1]-2] == 'f' && v >= 0:
@@ -104,15 +103,15 @@ func (s Matcher) String() string {
 		case s[m[x][1]-1] == 'h' && v >= 0:
 			c = strconv.FormatInt(int64(util.FastRandN(v)), 16)
 		case s[m[x][1]-1] == 'n' && v > 0:
-			c = util.Rand.StringNumberRange(1, v)
+			c = Rand.StringNumberRange(1, v)
 		case s[m[x][1]-1] == 'c' && v > 0:
-			c = util.Rand.StringCharactersRange(1, v)
+			c = Rand.StringCharactersRange(1, v)
 		case s[m[x][1]-1] == 'u' && v > 0:
-			c = util.Rand.StringUpperRange(1, v)
+			c = Rand.StringUpperRange(1, v)
 		case s[m[x][1]-1] == 'l' && v > 0:
-			c = util.Rand.StringLowerRange(1, v)
+			c = Rand.StringLowerRange(1, v)
 		case s[m[x][1]-1] == 's' && v > 0:
-			c = util.Rand.StringRange(1, v)
+			c = Rand.StringRange(1, v)
 		case s[m[x][1]-1] == 'd':
 			c = strconv.Itoa(int(util.FastRand()))
 		case s[m[x][1]-1] == 'h':
@@ -245,7 +244,7 @@ func (falseRegexp) Match(_ []byte) bool {
 	return false
 }
 func (i inverseRegexp) Match(b []byte) bool {
-	return !bytes.Equal(b, []byte(i))
+	return string(i) != string(b)
 }
 func (falseRegexp) MatchString(_ string) bool {
 	return false

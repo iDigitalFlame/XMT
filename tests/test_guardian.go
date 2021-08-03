@@ -9,7 +9,7 @@ import (
 	"github.com/iDigitalFlame/xmt/man"
 )
 
-func testGuardian() {
+func TestGuardian() {
 	if len(os.Args) == 2 {
 		ok, err := man.Wake(os.Args[1], os.Args[0])
 		if err != nil {

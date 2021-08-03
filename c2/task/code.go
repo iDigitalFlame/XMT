@@ -24,11 +24,13 @@ type code uint8
 // 'SetParent' function will attempt to set the target that runs the shellcode. If none are specified, the shellcode
 // will be injected into the current process.
 type Code struct {
-	Data    []byte
-	Wait    bool
-	Path    string
-	Filter  *cmd.Filter
+	Filter *cmd.Filter
+
+	Path string
+	Data []byte
+
 	Timeout time.Duration
+	Wait    bool
 }
 
 func (code) Thread() bool {
@@ -88,7 +90,7 @@ func (c *Code) UnmarshalStream(r data.Reader) error {
 	}
 	if f {
 		c.Filter = new(cmd.Filter)
-		if err := c.Filter.UnmarshalStream(r); err != nil {
+		if err = c.Filter.UnmarshalStream(r); err != nil {
 			return err
 		}
 	}

@@ -36,8 +36,8 @@ var (
 
 type monkeyEngine uint8
 type monkeyScript struct {
-	*object.Environment
 	c strings.Builder
+	*object.Environment
 }
 
 func init() {
@@ -74,9 +74,6 @@ func Invoke(s string) (string, error) {
 // This will capture the output of all the console writes and adds a 'print*' statement as a shortcut to be used.
 // Another additional function 'exec' can be used to run commands natively. This function can take a vardict of strings
 // to be the command line arguments.
-//
-// Context cancelation is UNSUPPORTED at this time.
-// See: https://github.com/skx/monkey/issues/79
 func InvokeContext(x context.Context, s string) (string, error) {
 	return InvokeEx(x, nil, s)
 }
@@ -161,10 +158,7 @@ func println(e *object.Environment, a ...object.Object) object.Object {
 // to be the command line arguments.
 //
 // This Ex function allows to specify a map that contains any starting variables to be supplied at runtime.
-//
-// Context cancelation is UNSUPPORTED at this time.
-// See: https://github.com/skx/monkey/issues/79
-func InvokeEx(_ context.Context, m map[string]interface{}, s string) (string, error) {
+func InvokeEx(x context.Context, m map[string]interface{}, s string) (string, error) {
 	p := parser.New(lexer.New(s))
 	if len(p.Errors()) != 0 {
 		return "", xerr.New(strings.Join(p.Errors(), ";"))
@@ -229,7 +223,7 @@ func InvokeEx(_ context.Context, m map[string]interface{}, s string) (string, er
 	}
 	monkeyLock.Unlock()
 	var (
-		o   = evaluator.Eval(d, e.Environment)
+		o   = evaluator.EvalContext(x, d, e.Environment)
 		r   string
 		err error
 	)

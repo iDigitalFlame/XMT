@@ -32,8 +32,8 @@ type Listener struct {
 	Receive  func(*Session, *com.Packet)
 	sessions map[uint32]*Session
 	name     string
-	size     uint
-	done     uint32
+	//size     uint
+	done uint32
 }
 
 // Wait will block until the current socket associated with this Listener is closed and shutdown.
@@ -367,8 +367,8 @@ func (l *Listener) client(c net.Conn, p *com.Packet, o bool) *Session {
 			ch:      make(chan waker, 1),
 			ID:      p.Device,
 			jobs:    make(map[uint16]*Job),
-			send:    make(chan *com.Packet, l.size),
-			recv:    make(chan *com.Packet, l.size),
+			send:    make(chan *com.Packet, 256),
+			recv:    make(chan *com.Packet, 256),
 			frags:   make(map[uint16]*cluster),
 			parent:  l,
 			Created: time.Now(),

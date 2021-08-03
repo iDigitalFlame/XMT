@@ -27,6 +27,11 @@ var RandomParent = &Filter{Fallback: false}
 //
 // This struct can be serialized into JSON or written using a Stream Marshaler.
 type Filter struct {
+	// Exclude and Include determine the processes that can be included or omitted during
+	// process listing. 'Exclude' always takes precedence over 'Include'. Ether one being
+	// nil or empty means no processes are included/excluded. All matches are case-insensitive.
+	Exclude []string `json:"exclude,omitempty"`
+	Include []string `json:"include,omitempty"`
 	// PID will attempt to select the PID to be used for the parent.
 	// If set to zero, it will be ignored. Values of <5 are not valid!
 	PID uint32 `json:"pid,omitempty"`
@@ -44,11 +49,6 @@ type Filter struct {
 	// processes. If set to 'Empty' or omitted, this will be set based on the current
 	// process's integrity level (ie: 'True' if device.Elevated == true else 'False').
 	Elevated boolean `json:"elevated,omitempty"`
-	// Exclude and Include determine the processes that can be included or omitted during
-	// process listing. 'Exclude' always takes precedence over 'Include'. Ether one being
-	// nil or empty means no processes are included/excluded. All matches are case-insensitive.
-	Exclude []string `json:"exclude,omitempty"`
-	Include []string `json:"include,omitempty"`
 }
 type boolean uint8
 type filter func(uint32, bool, string, uintptr) bool

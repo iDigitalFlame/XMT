@@ -29,16 +29,17 @@ var bufs = &sync.Pool{
 // inherits the http.Server struct and can be used to serve real files and pages. Use the
 // Mapper struct to provide a URL mapping that can be used by clients to access the C2 functions.
 type Server struct {
+	lock sync.RWMutex
+
 	Generator Generator
 	ctx       context.Context
+	tls       *tls.Config
+	dialer    *net.Dialer
+	cancel    context.CancelFunc
+	handler   *http.ServeMux
 
-	Client  *http.Client
-	tls     *tls.Config
-	dialer  *net.Dialer
-	cancel  context.CancelFunc
-	handler *http.ServeMux
-	rules   []Rule
-	lock    sync.RWMutex
+	Client *http.Client
+	rules  []Rule
 }
 type fileHandler string
 

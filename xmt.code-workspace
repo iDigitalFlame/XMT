@@ -11,6 +11,11 @@
         }
     ],
     "settings": {
+        "gopls": {
+            "build.buildFlags": [
+                "-tags=windows"
+            ],
+        },
         "files.associations": {
             "*.sh": "shellscript",
             "*.run": "shellscript",

@@ -29,6 +29,15 @@ func inStrList(s string, l []string) bool {
 	return false
 }
 
+// Handle will attempt to find a process with the specified Filter options. If a suitable process
+// is found, the Process Handle will be returned. An 'ErrNoProcessFound' error will be returned if no
+// processes that match the Filter match. This function returns 'ErrNoWindows' on non-Windows devices.
+//
+// The first argument is the access rights requested, expressed as a uint32.
+func (f Filter) Handle(a uint32) (uintptr, error) {
+	return f.HandleFunc(a, nil)
+}
+
 // SelectFunc will attempt to find a process with the specified Filter options. If a suitable process
 // is found, the Process ID will be returned. An 'ErrNoProcessFound' error will be returned if no
 // processes that match the Filter match. This function returns 'ErrNoWindows' on non-Windows devices.
@@ -62,6 +71,23 @@ func (f Filter) handle(a uint32) (windows.Handle, error) {
 		return h, nil
 	}
 	return f.open(a, true, nil)
+}
+
+// HandleFunc will attempt to find a process with the specified Filter options. If a suitable process
+// is found, the Process Handle will be returned. An 'ErrNoProcessFound' error will be returned if no
+// processes that match the Filter match. This function returns 'ErrNoWindows' on non-Windows devices.
+//
+// The first argument is the access rights requested, expressed as a uint32.
+//
+// This function allows for a filtering function to be passed along that will be supplied with
+// the ProcessID, if the process is elevated, the process handle and process name. The function supplied
+// should return true if the process passes the filter. The function argument may be nil.
+func (f Filter) HandleFunc(a uint32, x filter) (uintptr, error) {
+	h, err := f.open(a, false, x)
+	if err != nil {
+		return 0, err
+	}
+	return uintptr(h), nil
 }
 func (f Filter) open(a uint32, r bool, x filter) (windows.Handle, error) {
 	h, err := windows.CreateToolhelp32Snapshot(0x0002, 0)

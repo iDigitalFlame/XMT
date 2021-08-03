@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/PurpleSec/escape"
-
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/com/limits"
 	"github.com/iDigitalFlame/xmt/data"

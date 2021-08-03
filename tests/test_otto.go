@@ -31,7 +31,7 @@ print("read " + f, f);
 exec("rm /tmp/derp.txt");
 `
 
-func testOtto() {
+func TestOtto() {
 	var (
 		l, c   = context.WithTimeout(context.Background(), time.Duration(20)*time.Second)
 		r, err = sotto.InvokeContext(l, script1)

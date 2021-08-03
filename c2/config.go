@@ -1,6 +1,7 @@
 package c2
 
 import (
+	"bytes"
 	"io"
 	"strconv"
 	"time"
@@ -31,7 +32,6 @@ const (
 	aesID     byte = 0xA7
 	cbkID     byte = 0xA8
 	xorID     byte = 0xA9
-	sizeID    byte = 0xAA
 	zlibID    byte = 0xAB
 	gzipID    byte = 0xAC
 	sleepID   byte = 0xAD
@@ -73,10 +73,6 @@ var (
 	// DOES NOT check the server certificate for validity. This hint cannot be used as a Listener.
 	ConnectTLSNoVerify = Setting{tlsID, 1}
 
-	// DefaultProfile is an simple profile for use with testing or filling without having to define all the
-	// profile properties.
-	DefaultProfile = &Profile{Size: 512, Sleep: DefaultSleep, Jitter: uint(DefaultJitter)}
-
 	// TransformBase64 is a Setting that enables the Base64 Transform for the generated Profile.
 	TransformBase64 = Setting{base64TID}
 
@@ -98,31 +94,6 @@ type Setting []byte
 // Config is an array of settings that can be transformed into a valid C2 Profile. This alias also allows for
 // reading/writing the settings from/into a Reader/Writer stream.
 type Config []Setting
-
-// Profile is a struct that represents a C2 profile. This is used for defining the specifics that will
-// be used to listen by servers and for connections by clients.  Nil or empty values will be replaced with defaults.
-type Profile struct {
-	Wrapper   Wrapper
-	Transform Transform
-	hint      Setting
-
-	Size   uint
-	Sleep  time.Duration
-	Jitter uint
-}
-
-// MultiWrapper is an alias for an array of Wrappers. This will preform the wrapper/unwrapping operations in the
-// order of the array. This is automatically created by a Config instance when multiple Wrappers are present.
-type MultiWrapper []Wrapper
-
-// Size returns a Setting that will specify the buffer size of the generated Profile. Only sizes greater than zero
-// are valid sizes. Otherwise the medium limit setting is used.
-func Size(n uint) Setting {
-	return Setting{
-		sizeID, byte(n >> 56), byte(n >> 48), byte(n >> 40), byte(n >> 32),
-		byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n),
-	}
-}
 
 // Len returns the amount of Settings contained in this Config.
 func (c Config) Len() int {
@@ -184,14 +155,6 @@ func (s Setting) String() string {
 		return "CBK Wrapper"
 	case xorID:
 		return "XOR Wrapper"
-	case sizeID:
-		if len(s) == 9 {
-			_ = s[8]
-			return "Size " + strconv.Itoa(int(
-				uint64(s[8])|uint64(s[7])<<8|uint64(s[6])<<16|uint64(s[5])<<24|
-					uint64(s[4])<<32|uint64(s[3])<<40|uint64(s[2])<<48|uint64(s[1])<<56,
-			))
-		}
 	case zlibID:
 		if len(s) == 2 {
 			return "Zlib Wrapper (Level " + strconv.Itoa(int(s[1])) + ")"
@@ -354,6 +317,16 @@ func (s Setting) write(w io.Writer) error {
 	return err
 }
 
+// ReadBytes is similar to the 'Read' function but reads directly from a byte array instead of a Reader.
+// This function returns 'io.EOF' if the byte array is empty.
+func (c *Config) ReadBytes(b []byte) error {
+	if len(b) == 0 {
+		return io.EOF
+	}
+	r := bytes.NewReader(b)
+	return c.Read(r)
+}
+
 // Profile attempts to build a C2 Profile based on the Settings contained in this Config. This function will return
 // 'ErrInvalidSetting' if any of the Settings contain invalid values, 'ErrMultipleTransforms' if multiple Transforms
 // are contained in this Config or 'ErrMultipleHints' if multiple connection hints are contained in this Config.
@@ -439,15 +412,6 @@ func (c Config) Profile() (*Profile, error) {
 			x := crypto.XOR(c[i][1:])
 			z, _ := wrapper.NewCrypto(x, x)
 			w = append(w, z)
-		case sizeID:
-			if len(c[i]) != 9 {
-				return nil, xerr.Wrap("size requires two values", ErrInvalidSetting)
-			}
-			_ = c[i][8]
-			p.Size = uint(
-				uint64(c[i][8]) | uint64(c[i][7])<<8 | uint64(c[i][6])<<16 | uint64(c[i][5])<<24 |
-					uint64(c[i][4])<<32 | uint64(c[i][3])<<40 | uint64(c[i][2])<<48 | uint64(c[i][1])<<56,
-			)
 		case zlibID:
 			if len(c[i]) == 2 {
 				z, err := wrapper.NewZlib(int(c[i][1]))
@@ -553,32 +517,4 @@ func (s *Setting) read(b []byte, r io.Reader) error {
 // UnmarshalStream transforms this Config from a binary format that is read from the supplied data.Reader.
 func (c *Config) UnmarshalStream(r data.Reader) error {
 	return c.Read(r)
-}
-
-// Wrap satisfies the Wrapper interface.
-func (m MultiWrapper) Wrap(w io.WriteCloser) (io.WriteCloser, error) {
-	var (
-		o   = w
-		err error
-	)
-	for x := len(m) - 1; x > 0; x-- {
-		if o, err = m[x].Wrap(o); err != nil {
-			return nil, err
-		}
-	}
-	return o, nil
-}
-
-// Unwrap satisfies the Wrapper interface.
-func (m MultiWrapper) Unwrap(r io.ReadCloser) (io.ReadCloser, error) {
-	var (
-		o   = r
-		err error
-	)
-	for x := len(m) - 1; x > 0; x-- {
-		if o, err = m[x].Unwrap(o); err != nil {
-			return nil, err
-		}
-	}
-	return o, nil
 }

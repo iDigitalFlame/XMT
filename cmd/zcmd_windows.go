@@ -38,6 +38,8 @@ type file interface {
 type clientID struct {
 	Process, Thread uintptr
 }
+
+// DO NOT REORDER
 type imageInfo struct {
 	_       uintptr
 	_       uint32
@@ -61,6 +63,8 @@ type closer windows.Handle
 type startupAttrs struct {
 	_, _, _, _, _, _ uint64
 }
+
+// DO NOT REORDER
 type startupInfoEx struct {
 	StartupInfo   windows.StartupInfo
 	AttributeList *startupAttrs

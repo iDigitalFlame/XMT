@@ -27,8 +27,8 @@ var (
 
 type ottoEngine uint8
 type ottoScript struct {
-	*otto.Otto
 	c strings.Builder
+	*otto.Otto
 }
 
 // Register is a simple shortcut for 'task.RegisterEngine(uint8(Otto), Otto)'.

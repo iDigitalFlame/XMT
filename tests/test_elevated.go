@@ -6,7 +6,7 @@ import (
 	"github.com/iDigitalFlame/xmt/cmd"
 )
 
-func testElevated() {
+func TestElevated() {
 
 	if len(os.Args) <= 1 {
 		os.Stderr.WriteString("usage: " + os.Args[0] + " <command>\n")

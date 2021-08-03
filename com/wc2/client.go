@@ -46,14 +46,14 @@ type Client struct {
 }
 type client struct {
 	_       [0]func()
+	lock    sync.Mutex
 	gen     Generator
 	in      *http.Response
 	out     *bytes.Buffer
-	lock    sync.Mutex
 	client  *http.Client
 	parent  *Server
-	cookies []*http.Cookie
 	host    string
+	cookies []*http.Cookie
 }
 
 func (c *client) Close() error {
