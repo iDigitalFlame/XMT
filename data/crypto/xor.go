@@ -5,13 +5,14 @@ import (
 	"sync"
 
 	"github.com/iDigitalFlame/xmt/data"
+	"github.com/iDigitalFlame/xmt/util/bugtrack"
 )
 
-const smallBuf = 512
+const bufMax = 2 << 14 // Should cover the default chunk.Write buffer size
 
 var bufs = sync.Pool{
 	New: func() interface{} {
-		b := make([]byte, smallBuf)
+		b := make([]byte, 512, bufMax)
 		return &b
 	},
 }
@@ -46,34 +47,50 @@ func (XOR) Flush(w io.Writer) error {
 
 // Decrypt preforms the XOR operation on the specified byte array using the cipher as the key.
 func (x XOR) Decrypt(dst, src []byte) {
-	copy(dst, src)
-	x.Operate(dst)
+	n := copy(dst, src)
+	x.Operate(dst[:n])
 }
 
 // Encrypt preforms the XOR operation on the specified byte array using the cipher as the key.
 func (x XOR) Encrypt(dst, src []byte) {
-	copy(dst, src)
-	x.Operate(dst)
+	n := copy(dst, src)
+	x.Operate(dst[:n])
 }
 
 // Read satisfies the crypto.Reader interface.
 func (x XOR) Read(r io.Reader, b []byte) (int, error) {
-	n, err := r.Read(b)
-	x.Operate(b)
+	n, err := io.ReadFull(r, b)
+	//        NOTE(dij): ErrUnexpectedEOF happens here on short (< buf size)
+	//                   Reads, though is completely normal.
+	x.Operate(b[:n])
 	return n, err
 }
 
 // Write satisfies the crypto.Writer interface.
 func (x XOR) Write(w io.Writer, b []byte) (int, error) {
 	n := len(b)
-	var o []byte
-	if n < smallBuf {
-		o = *bufs.Get().(*[]byte)
-		defer bufs.Put(&o)
-	} else {
-		o = make([]byte, n)
+	if n > bufMax {
+		if bugtrack.Enabled {
+			bugtrack.Track("crypto.XOR.Write(): Creating non-heap buffer, n=%d, bufMax=%d", n, bufMax)
+		}
+		o := make([]byte, n)
+		copy(o, b)
+		x.Operate(o)
+		z, err := w.Write(o)
+		// NOTE(dij): Make the GCs job easy
+		o = nil
+		return z, err
 	}
-	copy(o, b)
-	x.Operate(o[:n])
-	return w.Write(o[:n])
+	o := bufs.Get().(*[]byte)
+	if len(*o) < n {
+		if bugtrack.Enabled {
+			bugtrack.Track("crypto.XOR.Write(): Increasing heap buffer size len(*o)=%d, n=%d", len(*o), n)
+		}
+		*o = append(*o, make([]byte, n-len(*o))...)
+	}
+	copy(*o, b)
+	x.Operate((*o)[:n])
+	z, err := w.Write((*o)[:n])
+	bufs.Put(o)
+	return z, err
 }

@@ -1,3 +1,4 @@
+//go:build s_small
 // +build s_small
 
 package limits

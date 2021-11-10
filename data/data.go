@@ -1,34 +1,26 @@
 package data
 
-import (
-	"context"
-	"io"
-	"unsafe"
-)
-
 const (
-	// ErrTooLarge is raised if memory cannot be allocated to store data in a Chunk.
-	ErrTooLarge = dataError(3)
-	// ErrInvalidIndex is raised if a specified Grow or index function is supplied with an negative or out of
-	// bounds number or when a Seek index is not valid.
-	ErrInvalidIndex = dataError(2)
-	// ErrInvalidType is an error that occurs when the Bytes, ReadBytes, StringVal or ReadString functions could not
-	// propertly determine the underlying type of array from the Reader.
-	ErrInvalidType = dataError(1)
-)
+	// MaxSlice is the max slice value used when creating slices to prevent OOM issues. XMT will refuse to
+	// make a slice any larger than this and will return 'ErrToLarge'
+	//
+	// NOTE(dij): Should this be less than 32 for x86 systems?
+	MaxSlice = 35_184_372_088_832 // (2 << 45)
 
-const (
-	// DataLimitSmall is the size value allowed for small strings using the WriteString and WriteBytes functions.
-	DataLimitSmall uint64 = 2 << 7
-	// DataLimitLarge is the size value allowed for large strings using the WriteString and WriteBytes functions.
-	DataLimitLarge uint64 = 2 << 31
-	// DataLimitMedium is the size value allowed for medium strings using the WriteString and WriteBytes functions.
-	DataLimitMedium uint64 = 2 << 15
+	// LimitSmall is the size value allowed for small strings using the WriteString and WriteBytes functions.
+	LimitSmall uint64 = 2 << 7
+	// LimitLarge is the size value allowed for large strings using the WriteString and WriteBytes functions.
+	LimitLarge uint64 = 2 << 31
+	// LimitMedium is the size value allowed for medium strings using the WriteString and WriteBytes functions.
+	LimitMedium uint64 = 2 << 15
 )
 
 // Reader is a basic interface that supports all types of read functions of the core Golang builtin types.
 // Pointer functions are avaliable to allow for easier usage and fluid operation.
 type Reader interface {
+	Close() error
+	Read([]byte) (int, error)
+
 	Int() (int, error)
 	Bool() (bool, error)
 	Int8() (int8, error)
@@ -53,20 +45,21 @@ type Reader interface {
 	ReadInt32(*int32) error
 	ReadInt64(*int64) error
 	ReadUint8(*uint8) error
+	ReadBytes(*[]byte) error
 	ReadUint16(*uint16) error
 	ReadUint32(*uint32) error
 	ReadUint64(*uint64) error
 	ReadString(*string) error
 	ReadFloat32(*float32) error
 	ReadFloat64(*float64) error
-	io.ReadCloser
-}
-type nopCloser struct {
-	io.Reader
 }
 
 // Writer is a basic interface that supports writing of all core Golang builtin types.
 type Writer interface {
+	Close() error
+	Flush() error
+	Write([]byte) (int, error)
+
 	WriteInt(int) error
 	WriteBool(bool) error
 	WriteInt8(int8) error
@@ -82,13 +75,6 @@ type Writer interface {
 	WriteString(string) error
 	WriteFloat32(float32) error
 	WriteFloat64(float64) error
-	io.WriteCloser
-	Flusher
-}
-type ctxReader struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	io.ReadCloser
 }
 
 // Flusher is an interface that supports Flushing the stream output to the underlying Writer.
@@ -104,153 +90,4 @@ type Writeable interface {
 // Readable is an interface that supports reading the target struct data from a Reader.
 type Readable interface {
 	UnmarshalStream(Reader) error
-}
-
-func (nopCloser) Close() error {
-	return nil
-}
-func (r *ctxReader) Close() error {
-	r.cancel()
-	return r.ReadCloser.Close()
-}
-func float32ToInt(f float32) uint32 {
-	return *(*uint32)(unsafe.Pointer(&f))
-}
-func float64ToInt(f float64) uint64 {
-	return *(*uint64)(unsafe.Pointer(&f))
-}
-func float32FromInt(i uint32) float32 {
-	return *(*float32)(unsafe.Pointer(&i))
-}
-func float64FromInt(i uint64) float64 {
-	return *(*float64)(unsafe.Pointer(&i))
-}
-func (r *ctxReader) Read(b []byte) (int, error) {
-	select {
-	case <-r.ctx.Done():
-		if err := r.ReadCloser.Close(); err != nil {
-			return 0, err
-		}
-		return 0, r.ctx.Err()
-	default:
-		return r.ReadCloser.Read(b)
-	}
-}
-
-// ReadStringList attempts to read a string list written using the 'WriteStringList' function from the supplied
-// string into the string list pointer. If the provided array is nil or not large enough, it will be resized.
-func ReadStringList(r Reader, s *[]string) error {
-	t, err := r.Uint8()
-	if err != nil {
-		return err
-	}
-	var l int
-	switch t {
-	case 0:
-		return nil
-	case 1, 2:
-		n, err := r.Uint8()
-		if err != nil {
-			return err
-		}
-		l = int(n)
-	case 3, 4:
-		n, err := r.Uint16()
-		if err != nil {
-			return err
-		}
-		l = int(n)
-	case 5, 6:
-		n, err := r.Uint32()
-		if err != nil {
-			return err
-		}
-		l = int(n)
-	case 7, 8:
-		n, err := r.Uint64()
-		if err != nil {
-			return err
-		}
-		l = int(n)
-	default:
-		return ErrInvalidType
-	}
-	if s == nil || len(*s) < l {
-		*s = make([]string, l)
-	}
-	for x := 0; x < l; x++ {
-		if err := r.ReadString(&(*s)[x]); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// WriteStringList will attempt to write the supplied string list to the writer. If the string list is nil or
-// empty, it will write a zero byte to the Writer. The resulting data can be read using the 'ReadStringList' function.
-func WriteStringList(w Writer, s []string) error {
-	switch l := uint64(len(s)); {
-	case l == 0:
-		return w.WriteUint8(0)
-	case l < DataLimitSmall:
-		if err := w.WriteUint8(1); err != nil {
-			return err
-		}
-		if err := w.WriteUint8(uint8(l)); err != nil {
-			return err
-		}
-	case l < DataLimitMedium:
-		if err := w.WriteUint8(3); err != nil {
-			return err
-		}
-		if err := w.WriteUint16(uint16(l)); err != nil {
-			return err
-		}
-	case l < DataLimitLarge:
-		if err := w.WriteUint8(5); err != nil {
-			return err
-		}
-		if err := w.WriteUint32(uint32(l)); err != nil {
-			return err
-		}
-	default:
-		if err := w.WriteUint8(7); err != nil {
-			return err
-		}
-		if err := w.WriteUint64(uint64(l)); err != nil {
-			return err
-		}
-	}
-	for i := range s {
-		if err := w.WriteString(s[i]); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// ReadFully attempts to Read all the bytes from the specified reader until the length of the array or EOF.
-func ReadFully(r io.Reader, b []byte) (int, error) {
-	var n int
-	for n < len(b) {
-		i, err := r.Read(b[n:])
-		if n += i; err != nil && ((err != io.EOF && err != ErrLimit) || n != len(b)) {
-			return n, err
-		}
-	}
-	return n, nil
-}
-
-// NewCtxReader creates a reader backed by the supplied Reader and Context. This reader will automatically close
-// when the parent context is canceled. This is useful in situations when direct copies using 'io.Copy' on threads
-// or timed operations are required.
-func NewCtxReader(x context.Context, r io.Reader) io.ReadCloser {
-	i := new(ctxReader)
-	if c, ok := r.(io.ReadCloser); ok {
-		i.ReadCloser = c
-	} else {
-		i.ReadCloser = &nopCloser{r}
-	}
-	i.ctx, i.cancel = context.WithCancel(x)
-	return i
 }

@@ -1,8 +1,10 @@
+//go:build linux
 // +build linux
 
 package device
 
 import (
+	"os"
 	"os/exec"
 	"os/user"
 	"strings"
@@ -22,6 +24,9 @@ const (
 var ShellArgs = []string{"-c"}
 
 func isElevated() bool {
+	if os.Geteuid() == 0 || os.Getuid() == 0 {
+		return true
+	}
 	if a, err := user.Current(); err == nil && a.Uid == "0" {
 		return true
 	}

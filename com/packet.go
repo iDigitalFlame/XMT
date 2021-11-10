@@ -1,16 +1,29 @@
 package com
 
 import (
-	"strconv"
+	"io"
 
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util"
+	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-// PacketHeaderSize is the length of the Packet header in bytes.
-const PacketHeaderSize = 45
+const (
+	// PacketMaxTags is the max amount of tags that are allowed on a specific Packet.
+	PacketMaxTags = 2 << 14
+	// PacketHeaderSize is the length of the Packet header in bytes.
+	PacketHeaderSize = 46
+)
+
+var (
+	// ErrMalformedTag is an error returned when a read on a Packet Tag returns an empty (zero) tag value.
+	ErrMalformedTag = xerr.New("received malformed Tag")
+	// ErrTagsTooLarge is an error returned when attempting to write a Packet that contains too many
+	// Tags (> 32768)
+	ErrTagsTooLarge = xerr.New("size of Tags is too large to write")
+)
 
 // Packet is a struct that is a Reader and Writer that can be generated to be sent, or received from a Connection.
 // Acts as a data buffer and 'child' of 'data.Chunk'.
@@ -23,45 +36,24 @@ type Packet struct {
 
 	Device device.ID
 	ID     uint8
+	len    uint64
 }
 
 // Size returns the amount of bytes written or contained in this Packet with the header size added.
-func (p Packet) Size() int {
+func (p *Packet) Size() int {
 	if p.Empty() {
 		return PacketHeaderSize
 	}
-	s := uint64(p.Chunk.Size() + PacketHeaderSize + (4 * len(p.Tags)))
-	switch {
-	case s < data.DataLimitSmall:
+	switch s := uint64(p.Chunk.Size() + PacketHeaderSize + (4 * len(p.Tags))); {
+	case s < data.LimitSmall:
 		return int(s) + 1
-	case s < data.DataLimitMedium:
+	case s < data.LimitMedium:
 		return int(s) + 2
-	case s < data.DataLimitLarge:
+	case s < data.LimitLarge:
 		return int(s) + 4
 	default:
 		return int(s) + 8
 	}
-}
-
-// String returns a string descriptor of the Packet struct.
-func (p Packet) String() string {
-	switch {
-	case p.Empty() && p.Flags == 0 && p.Job == 0:
-		return "0x" + strconv.FormatUint(uint64(p.ID), 16)
-	case p.Empty() && p.Flags == 0:
-		return "0x" + strconv.FormatUint(uint64(p.ID), 16) + "/" + strconv.Itoa(int(p.Job))
-	case p.Empty() && p.Job == 0:
-		return "0x" + strconv.FormatUint(uint64(p.ID), 16) + " " + p.Flags.String()
-	case p.Empty():
-		return "0x" + strconv.FormatUint(uint64(p.ID), 16) + "/" + strconv.Itoa(int(p.Job)) + " " + p.Flags.String()
-	case p.Flags == 0 && p.Job == 0:
-		return "0x" + strconv.FormatUint(uint64(p.ID), 16) + ": " + strconv.Itoa(p.Size()) + "B"
-	case p.Flags == 0:
-		return "0x" + strconv.FormatUint(uint64(p.ID), 16) + "/" + strconv.Itoa(int(p.Job)) + ": " + strconv.Itoa(p.Size()) + "B"
-	case p.Job == 0:
-		return "0x" + strconv.FormatUint(uint64(p.ID), 16) + " " + p.Flags.String() + ": " + strconv.Itoa(p.Size()) + "B"
-	}
-	return strconv.FormatUint(uint64(p.ID), 16) + "/" + strconv.Itoa(int(p.Job)) + " " + p.Flags.String() + ": " + strconv.Itoa(p.Size()) + "B"
 }
 
 // Add attempts to combine the data and properties the supplied Packet with the existsing Packet. This
@@ -71,35 +63,265 @@ func (p *Packet) Add(n *Packet) error {
 		return nil
 	}
 	if p.ID != n.ID {
-		return xerr.New("Packet ID " + strconv.FormatUint(uint64(n.ID), 16) + " does not match combining Packet ID " + strconv.FormatUint(uint64(p.ID), 16))
+		// NOTE(dij): Removing this in favor of a static message.
+		//            return xerr.New("Packet ID " + util.ByteHexString(n.ID) + " does not match combining Packet ID " + util.ByteHexString(p.ID))
+		return xerr.New("Packet ID does not match combining Packet ID")
 	}
 	if _, err := n.WriteTo(p); err != nil {
 		return xerr.Wrap("unable to write to Packet", err)
 	}
+	// NOTE(dij): Preserve frag flags.
+	p.Flags |= Flag(uint16(n.Flags))
 	return nil
 }
 
 // Belongs returns true if the specified Packet is a Frag that was a part of the split Chunks of this as the
 // original packet.
-func (p Packet) Belongs(n *Packet) bool {
-	return n != nil && p.Flags >= FlagFrag && n.Flags >= FlagFrag && p.ID == n.ID && p.Job == n.Job && p.Flags.Group() == n.Flags.Group() && !n.Empty()
+func (p *Packet) Belongs(n *Packet) bool {
+	return n != nil && p.Flags >= FlagFrag && n.Flags >= FlagFrag && p.ID == n.ID && p.Job == n.Job && p.Flags.Group() == n.Flags.Group()
 }
 
 // Verify is a function that will set any missing Job or Device parameters. This function will return true if
 // the Device is nil or matches the specified host ID, false if otherwise.
 func (p *Packet) Verify(i device.ID) bool {
-	if p.Job == 0 && p.Flags&FlagProxy == 0 {
+	if p.Job == 0 && p.Flags&FlagProxy == 0 && p.ID > 1 {
 		p.Job = uint16(util.FastRand())
 	}
 	if p.Device.Empty() {
 		p.Device = i
 		return true
 	}
-	return p.Device.Equal(i)
+	return p.Device == i
+}
+
+// Marshal will attempt to write this Packet's data and headers to the specified Writer.
+// This function will return any errors that have occur during writing.
+func (p *Packet) Marshal(w io.Writer) error {
+	if err := p.writeHeader(w); err != nil {
+		return xerr.Wrap("marshal header", err)
+	}
+	if err := p.writeBody(w); err != nil {
+		return xerr.Wrap("marshal body", err)
+	}
+	return nil
+}
+func (p *Packet) readBody(r io.Reader) error {
+	if len(p.Tags) > 0 {
+		if bugtrack.Enabled {
+			bugtrack.Track("com.Packet.readBody(): len(p.Tags)=%d", len(p.Tags))
+		}
+		var b [4]byte
+		for i := 0; i < len(p.Tags); i++ {
+			n, err := io.ReadFull(r, b[:])
+			if err != nil {
+				return err
+			}
+			if n != 4 {
+				return io.ErrUnexpectedEOF
+			}
+			if p.Tags[i] = uint32(b[3]) | uint32(b[2])<<8 | uint32(b[1])<<16 | uint32(b[0])<<24; p.Tags[i] == 0 {
+				return ErrMalformedTag
+			}
+		}
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track("com.Packet.readBody(): p.len=%d", p.len)
+	}
+	if p.len == 0 {
+		return nil
+	}
+	var (
+		t   uint64
+		err error
+	)
+	for n := int64(0); t < p.len && err == nil; {
+		n, err = p.ReadFrom(r)
+		if t += uint64(n); err != nil || n == 0 {
+			break
+		}
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track("com.Packet.readBody(): p.len=%d, t=%d, err=%s", p.len, t, err)
+	}
+	if t < p.len {
+		return io.ErrUnexpectedEOF
+	}
+	if t == p.len {
+		err = nil
+	}
+	p.len = 0
+	return err
+}
+
+// Unmarshal will attempt to read Packet data and headers from the specified Reader.
+// This function will return any errors that have occur during reading.
+func (p *Packet) Unmarshal(r io.Reader) error {
+	if err := p.readHeader(r); err != nil {
+		return xerr.Wrap("unmarshal header", err)
+	}
+	if err := p.readBody(r); err != nil {
+		return xerr.Wrap("unmarshal body", err)
+	}
+	return nil
+}
+func (p *Packet) writeBody(w io.Writer) error {
+	if len(p.Tags) > 0 {
+		if bugtrack.Enabled {
+			bugtrack.Track("com.Packet.writeBody(): len(p.Tags)=%d", len(p.Tags))
+		}
+		var b [4]byte
+		for _, t := range p.Tags {
+			if t == 0 {
+				return ErrMalformedTag
+			}
+			b[0], b[1], b[2], b[3] = byte(t>>24), byte(t>>16), byte(t>>8), byte(t)
+			n, err := w.Write(b[0:4])
+			if err != nil {
+				return err
+			}
+			if n != 4 {
+				return io.ErrShortWrite
+			}
+		}
+	}
+	if p.Len() == 0 {
+		return nil
+	}
+	n, err := p.WriteTo(w)
+	if err != nil {
+		return err
+	}
+	if n != int64(p.Len()) {
+		return io.ErrShortWrite
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track("com.Packet.writeBody(): p.len=%d, n=%d, err=%s", p.Len(), n, err)
+	}
+	return nil
+}
+func (p *Packet) readHeader(r io.Reader) error {
+	if err := p.Device.Read(r); err != nil {
+		return err
+	}
+	var (
+		b      [14]byte
+		n, err = io.ReadFull(r, b[:])
+	)
+	if n != 14 {
+		if err != nil {
+			return err
+		}
+		return io.ErrUnexpectedEOF
+	}
+	_ = b[13]
+	p.ID, p.Job = b[0], uint16(b[2])|uint16(b[1])<<8
+	p.Flags = Flag(b[10]) | Flag(b[9])<<8 | Flag(b[8])<<16 | Flag(b[7])<<24 |
+		Flag(b[6])<<32 | Flag(b[5])<<40 | Flag(b[4])<<48 | Flag(b[3])<<56
+	if l := int(b[12]) | int(b[11])<<8; l > 0 {
+		p.Tags = make([]uint32, l)
+	}
+	switch b[13] {
+	case 0:
+		p.len, err = 0, nil
+	case 1:
+		if n, err = io.ReadFull(r, b[0:1]); n != 1 {
+			if err == nil {
+				err = io.ErrUnexpectedEOF
+			}
+			break
+		}
+		p.len, err = uint64(b[0]), nil
+	case 3:
+		if n, err = io.ReadFull(r, b[0:2]); n != 2 {
+			if err == nil {
+				err = io.ErrUnexpectedEOF
+			}
+			break
+		}
+		p.len, err = uint64(b[1])|uint64(b[0])<<8, nil
+	case 5:
+		if n, err = io.ReadFull(r, b[0:4]); n != 4 {
+			if err == nil {
+				err = io.ErrUnexpectedEOF
+			}
+			break
+		}
+		p.len, err = uint64(b[3])|uint64(b[2])<<8|uint64(b[1])<<16|uint64(b[0])<<24, nil
+	case 7:
+		if n, err = io.ReadFull(r, b[0:8]); n != 1 {
+			if err == nil {
+				err = io.ErrUnexpectedEOF
+			}
+			break
+		}
+		p.len, err = uint64(b[7])|uint64(b[6])<<8|uint64(b[5])<<16|uint64(b[4])<<24|
+			uint64(b[3])<<32|uint64(b[2])<<40|uint64(b[1])<<48|uint64(b[0])<<56, nil
+	default:
+		return data.ErrInvalidType
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track("com.Packet.readHeader(): p.ID=%d, p.len=%d, err=%s", p.ID, p.len, err)
+	}
+	return err
+}
+func (p *Packet) writeHeader(w io.Writer) error {
+	t := len(p.Tags)
+	if t > PacketMaxTags {
+		return ErrTagsTooLarge
+	}
+	if p.Device.Empty() {
+		p.Device = device.UUID
+	}
+	if err := p.Device.Write(w); err != nil {
+		return err
+	}
+	var (
+		b [22]byte
+		c int
+	)
+	_ = b[21]
+	b[0], b[1], b[2] = p.ID, byte(p.Job>>8), byte(p.Job)
+	b[3], b[4], b[5], b[6] = byte(p.Flags>>56), byte(p.Flags>>48), byte(p.Flags>>40), byte(p.Flags>>32)
+	b[7], b[8], b[9], b[10] = byte(p.Flags>>24), byte(p.Flags>>16), byte(p.Flags>>8), byte(p.Flags)
+	b[11], b[12] = byte(t>>8), byte(t)
+	switch l := uint64(p.Chunk.Size()); {
+	case l == 0:
+		b[13] = 0
+	case l < data.LimitSmall:
+		b[13], b[14], c = 1, byte(l), 1
+	case l < data.LimitMedium:
+		b[13], b[14], b[15], c = 3, byte(l>>8), byte(l), 2
+	case l < data.LimitLarge:
+		b[13], c = 5, 4
+		b[14], b[15], b[16], b[17] = byte(l>>24), byte(l>>16), byte(l>>8), byte(l)
+	default:
+		b[13], c = 7, 8
+		b[14], b[15], b[16], b[17] = byte(l>>56), byte(l>>48), byte(l>>40), byte(l>>32)
+		b[18], b[19], b[20], b[21] = byte(l>>24), byte(l>>16), byte(l>>8), byte(l)
+	}
+	// NOTE(dij): This write is split into two writes as some stateful writes (XOR)
+	// require writes and reads to re-constructed in the same way.
+	n, err := w.Write(b[0:14])
+	if err != nil {
+		return err
+	}
+	if n != 14 {
+		return io.ErrShortWrite
+	}
+	if n, err = w.Write(b[14 : 14+c]); err != nil {
+		return err
+	}
+	if n != c {
+		return io.ErrShortWrite
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track("com.Packet.writeHeader(): p.ID=%d, p.len=%d, n=%d", p.ID, p.Chunk.Size(), c+14+device.IDSize)
+	}
+	return nil
 }
 
 // MarshalStream writes the data of this Packet to the supplied Writer.
-func (p Packet) MarshalStream(w data.Writer) error {
+func (p *Packet) MarshalStream(w data.Writer) error {
 	if p.Device.Empty() {
 		p.Device = device.UUID
 	}
@@ -109,7 +331,7 @@ func (p Packet) MarshalStream(w data.Writer) error {
 	if err := w.WriteUint16(p.Job); err != nil {
 		return err
 	}
-	if err := w.WriteUint8(uint8(len(p.Tags))); err != nil {
+	if err := w.WriteUint16(uint16(len(p.Tags))); err != nil {
 		return err
 	}
 	if err := p.Flags.MarshalStream(w); err != nil {
@@ -118,7 +340,7 @@ func (p Packet) MarshalStream(w data.Writer) error {
 	if err := p.Device.MarshalStream(w); err != nil {
 		return err
 	}
-	for i := 0; i < len(p.Tags) && i < 256; i++ {
+	for i := 0; i < len(p.Tags) && i < PacketMaxTags; i++ {
 		if err := w.WriteUint32(p.Tags[i]); err != nil {
 			return err
 		}
@@ -137,7 +359,7 @@ func (p *Packet) UnmarshalStream(r data.Reader) error {
 	if err := r.ReadUint16(&p.Job); err != nil {
 		return err
 	}
-	t, err := r.Uint8()
+	t, err := r.Uint16()
 	if err != nil {
 		return err
 	}
@@ -149,9 +371,12 @@ func (p *Packet) UnmarshalStream(r data.Reader) error {
 	}
 	if t > 0 {
 		p.Tags = make([]uint32, t)
-		for i := uint8(0); i < t; i++ {
+		for i := uint16(0); i < t && i < PacketMaxTags; i++ {
 			if err := r.ReadUint32(&p.Tags[i]); err != nil {
 				return err
+			}
+			if p.Tags[i] == 0 {
+				return ErrMalformedTag
 			}
 		}
 	}

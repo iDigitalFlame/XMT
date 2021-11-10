@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"unsafe"
+	"encoding/json"
 
 	"github.com/iDigitalFlame/xmt/data"
 )
@@ -15,12 +15,20 @@ const (
 	Empty = boolean(0)
 )
 
-// RandomParent is a Filter that can be used by default to select ANY random process on the target device to
-// be used as the parent process without crteating a new Filter struct.
-var RandomParent = &Filter{Fallback: false}
+var (
+	// AnyParent will attempt to locate a parent process that may be elevated
+	// based on the current process permissions.
+	//
+	// This one will fallback to non-elevated if all checks fail.
+	AnyParent = (&Filter{Fallback: true}).SetElevated(true)
+	// RandomParent is a Filter that can be used by default to select ANY random
+	// process on the target device to be used as the parent process without
+	// creating a new Filter struct.
+	RandomParent = &Filter{Fallback: false}
+)
 
 // Filter is a struct that can be used to set the Parent process for many types of
-// 'cmd.Runnable' compatable interfaces.
+// 'Runnable' compatable interfaces.
 //
 // Each option can be set directly or chained using the function calls which all return
 // the struct for chain usage.
@@ -28,12 +36,14 @@ var RandomParent = &Filter{Fallback: false}
 // This struct can be serialized into JSON or written using a Stream Marshaler.
 type Filter struct {
 	// Exclude and Include determine the processes that can be included or omitted during
-	// process listing. 'Exclude' always takes precedence over 'Include'. Ether one being
-	// nil or empty means no processes are included/excluded. All matches are case-insensitive.
+	// process listing. 'Exclude' always takes precedence over 'Include'.
+	//
+	// Ether one being nil or empty means no processes are included/excluded.
+	// All matches are case-insensitive.
 	Exclude []string `json:"exclude,omitempty"`
 	Include []string `json:"include,omitempty"`
 	// PID will attempt to select the PID to be used for the parent.
-	// If set to zero, it will be ignored. Values of <5 are not valid!
+	// If set to zero, it will be ignored. Values less than 5 are not valid!
 	PID uint32 `json:"pid,omitempty"`
 	// Fallback specifies if the opts routine should try again with less constaints
 	// than the previous attempt. All attempts will still respect the 'Exclude' and
@@ -63,7 +73,17 @@ func B(f bool) *Filter {
 	return &Filter{Fallback: f}
 }
 
-// Clear clears the Filter settings, except for 'Fallback' and return the Filter struct.
+// I is a shortcut for '&Filter{Include: s}'
+func I(s ...string) *Filter {
+	return &Filter{Include: s}
+}
+
+// E is a shortcut for '&Filter{Exclude: s}'
+func E(s ...string) *Filter {
+	return &Filter{Exclude: s}
+}
+
+// Clear clears the Filter settings, except for 'Fallback' and returns itself.
 func (f *Filter) Clear() *Filter {
 	f.PID, f.Session, f.Elevated, f.Exclude, f.Include = 0, Empty, Empty, nil, nil
 	return f
@@ -75,7 +95,7 @@ func (f *Filter) SetPID(p uint32) *Filter {
 	return f
 }
 
-// SetSession sets the Session setting to 'True' or 'False' and returns the Filter struct.
+// SetSession sets the Session setting to 'True' or 'False' and returns itself.
 func (f *Filter) SetSession(s bool) *Filter {
 	if s {
 		f.Session = True
@@ -85,7 +105,7 @@ func (f *Filter) SetSession(s bool) *Filter {
 	return f
 }
 
-// SetElevated sets the Elevated setting to 'True' or 'False' and returns the Filter struct.
+// SetElevated sets the Elevated setting to 'True' or 'False' and returns itself.
 func (f *Filter) SetElevated(e bool) *Filter {
 	if e {
 		f.Elevated = True
@@ -95,10 +115,32 @@ func (f *Filter) SetElevated(e bool) *Filter {
 	return f
 }
 
-// SetFallback sets the Fallback setting and returns the Filter struct.
+// SetFallback sets the Fallback setting and returns itself.
 func (f *Filter) SetFallback(i bool) *Filter {
 	f.Fallback = i
 	return f
+}
+
+// MarshalJSON will attempt to convert the data in this Filter into the
+// returned JSON byte array.
+func (f Filter) MarshalJSON() ([]byte, error) {
+	m := map[string]interface{}{"fallback": f.Fallback}
+	if f.PID != 0 {
+		m["pid"] = f.PID
+	}
+	if f.Session > Empty {
+		m["session"] = f.Session
+	}
+	if f.Elevated > Empty {
+		m["elevated"] = f.Elevated
+	}
+	if len(f.Exclude) > 0 {
+		m["exclude"] = f.Elevated
+	}
+	if len(f.Include) > 0 {
+		m["include"] = f.Include
+	}
+	return json.Marshal(m)
 }
 func (b boolean) MarshalJSON() ([]byte, error) {
 	switch b {
@@ -109,6 +151,48 @@ func (b boolean) MarshalJSON() ([]byte, error) {
 	default:
 	}
 	return []byte(`""`), nil
+}
+
+// UnmarshalJSON will attempt to parse the supplied JSON into this Filter.
+func (f *Filter) UnmarshalJSON(b []byte) error {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(b, &m); err != nil {
+		return err
+	}
+	if len(m) == 0 {
+		return nil
+	}
+	if v, ok := m["pid"]; ok {
+		if err := json.Unmarshal(v, &f.PID); err != nil {
+			return err
+		}
+	}
+	if v, ok := m["session"]; ok {
+		if err := json.Unmarshal(v, &f.Session); err != nil {
+			return err
+		}
+	}
+	if v, ok := m["elevated"]; ok {
+		if err := json.Unmarshal(v, &f.Elevated); err != nil {
+			return err
+		}
+	}
+	if v, ok := m["exclude"]; ok {
+		if err := json.Unmarshal(v, &f.Exclude); err != nil {
+			return err
+		}
+	}
+	if v, ok := m["include"]; ok {
+		if err := json.Unmarshal(v, &f.Include); err != nil {
+			return err
+		}
+	}
+	if v, ok := m["fallback"]; ok {
+		if err := json.Unmarshal(v, &f.Fallback); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 func (b *boolean) UnmarshalJSON(d []byte) error {
 	if len(d) == 0 {
@@ -139,20 +223,20 @@ func (b *boolean) UnmarshalJSON(d []byte) error {
 	return nil
 }
 
-// SetInclude sets the Inclusion list and returns the Filter struct.
+// SetInclude sets the Inclusion list and returns itself.
 func (f *Filter) SetInclude(n ...string) *Filter {
 	f.Include = n
 	return f
 }
 
-// SetExclude sets the Exclusion list and returns the Filter struct.
+// SetExclude sets the Exclusion list and returns itself.
 func (f *Filter) SetExclude(n ...string) *Filter {
 	f.Exclude = n
 	return f
 }
 
-// MarshalStream will attempt to write the Filter data to the supplied Writer and return any
-// errors that may occur.
+// MarshalStream will attempt to write the Filter data to the supplied Writer
+// and return any errors that may occur.
 func (f Filter) MarshalStream(w data.Writer) error {
 	if err := w.WriteUint32(f.PID); err != nil {
 		return err
@@ -175,8 +259,8 @@ func (f Filter) MarshalStream(w data.Writer) error {
 	return nil
 }
 
-// UnmarshalStream will attempt to read the Filter data from the supplied Reader and return any
-// errors that may occur.
+// UnmarshalStream will attempt to read the Filter data from the supplied Reader
+// and return any errors that may occur.
 func (f *Filter) UnmarshalStream(r data.Reader) error {
 	if err := r.ReadUint32(&f.PID); err != nil {
 		return err
@@ -184,10 +268,10 @@ func (f *Filter) UnmarshalStream(r data.Reader) error {
 	if err := r.ReadBool(&f.Fallback); err != nil {
 		return err
 	}
-	if err := r.ReadUint8((*uint8)(unsafe.Pointer(&f.Session))); err != nil {
+	if err := r.ReadUint8((*uint8)((&f.Session))); err != nil {
 		return err
 	}
-	if err := r.ReadUint8((*uint8)(unsafe.Pointer(&f.Elevated))); err != nil {
+	if err := r.ReadUint8((*uint8)((&f.Elevated))); err != nil {
 		return err
 	}
 	if err := data.ReadStringList(r, &f.Exclude); err != nil {

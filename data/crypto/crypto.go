@@ -21,12 +21,12 @@ type writer struct {
 	c Writer
 }
 
-// Reader is an interface that supports reading bytes from a Reader through the specified Cipher.
+// Reader is an interface that supports reading bytes from a Reader through the wrapped Cipher.
 type Reader interface {
 	Read(io.Reader, []byte) (int, error)
 }
 
-// Writer is an interface that supports writing bytes to a Writer through the specified Cipher.
+// Writer is an interface that supports writing bytes to a Writer through the wrapped Cipher.
 type Writer interface {
 	Flush(io.Writer) error
 	Write(io.Writer, []byte) (int, error)
@@ -63,58 +63,40 @@ func (w *writer) Write(b []byte) (int, error) {
 	return w.c.Write(w.w, b)
 }
 
-// NewReader creates a data.Reader type from the specified Cipher and Reader.
-func NewReader(c Reader, r io.Reader) data.Reader {
+// NewReader creates a io.ReadCloser type from the specified Cipher and Reader.
+func NewReader(c Reader, r io.Reader) io.Reader {
 	if c == nil {
-		return data.NewReader(r)
+		return r
 	}
-	return data.NewReader(&reader{c: c, r: r})
+	return &reader{c: c, r: r}
 }
 
-// NewWriter creates a data.Writer type from the specified Cipher and Writer.
-func NewWriter(c Writer, w io.Writer) data.Writer {
+// NewWriter creates a io.WriteCloser type from the specified Cipher and Writer.
+func NewWriter(c Writer, w io.Writer) io.WriteCloser {
 	if c == nil {
-		return data.NewWriter(w)
+		return data.WriteCloser(w)
 	}
-	return data.NewWriter(&writer{c: c, w: w})
+	return &writer{c: c, w: w}
 }
 
-// DecryptReader creates a data.Reader type from the specified block Cipher, IV and Reader.
+// Decrypter creates a data.Reader type from the specified block Cipher, IV and Reader.
+//
 // This is used to Decrypt data. This function returns an error if the blocksize of the Block does not equal
 // the length of the supplied IV.
-func DecryptReader(b cipher.Block, iv []byte, r io.Reader) (data.Reader, error) {
+func Decrypter(b cipher.Block, iv []byte, r io.Reader) (io.ReadCloser, error) {
 	if len(iv) != b.BlockSize() {
 		return nil, xerr.New("blocksize (" + strconv.Itoa(b.BlockSize()) + ") must equal IV size (" + strconv.Itoa(len(iv)) + ")")
 	}
-	return data.NewReader(&cipher.StreamReader{R: r, S: cipher.NewCFBDecrypter(b, iv)}), nil
+	return io.NopCloser(&cipher.StreamReader{R: r, S: cipher.NewCFBDecrypter(b, iv)}), nil
 }
 
-// DecryptWriter creates a data.Writer type from the specified block Cipher, IV and Writer.
-// This is used to Decrypt data. This function returns an error if the blocksize of the Block does not equal
-// the length of the supplied IV.
-func DecryptWriter(b cipher.Block, iv []byte, w io.Writer) (data.Writer, error) {
-	if len(iv) != b.BlockSize() {
-		return nil, xerr.New("blocksize (" + strconv.Itoa(b.BlockSize()) + ") must equal IV size (" + strconv.Itoa(len(iv)) + ")")
-	}
-	return data.NewWriter(&cipher.StreamWriter{W: w, S: cipher.NewCFBDecrypter(b, iv)}), nil
-}
-
-// EncryptReader creates a data.Reader type from the specified block Cipher, IV and Reader.
+// Encrypter creates a data.Reader type from the specified block Cipher, IV and Writer.
+//
 // This is used to Encrypt data. This function returns an error if the blocksize of the Block does not equal
 // the length of the supplied IV.
-func EncryptReader(b cipher.Block, iv []byte, r io.Reader) (data.Reader, error) {
+func Encrypter(b cipher.Block, iv []byte, w io.Writer) (io.WriteCloser, error) {
 	if len(iv) != b.BlockSize() {
 		return nil, xerr.New("blocksize (" + strconv.Itoa(b.BlockSize()) + ") must equal IV size (" + strconv.Itoa(len(iv)) + ")")
 	}
-	return data.NewReader(&cipher.StreamReader{R: r, S: cipher.NewCFBEncrypter(b, iv)}), nil
-}
-
-// EncryptWriter creates a data.Reader type from the specified block Cipher, IV and Writer.
-// This is used to Encrypt data. This function returns an error if the blocksize of the Block does not equal
-// the length of the supplied IV.
-func EncryptWriter(b cipher.Block, iv []byte, w io.Writer) (data.Writer, error) {
-	if len(iv) != b.BlockSize() {
-		return nil, xerr.New("blocksize (" + strconv.Itoa(b.BlockSize()) + ") must equal IV size (" + strconv.Itoa(len(iv)) + ")")
-	}
-	return data.NewWriter(&cipher.StreamWriter{W: w, S: cipher.NewCFBEncrypter(b, iv)}), nil
+	return &cipher.StreamWriter{W: w, S: cipher.NewCFBEncrypter(b, iv)}, nil
 }

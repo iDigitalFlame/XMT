@@ -11,7 +11,7 @@ import (
 
 func TestGuardian() {
 	if len(os.Args) == 2 {
-		ok, err := man.Wake(os.Args[1], os.Args[0])
+		ok, err := man.Sentinel{Paths: []string{os.Args[0]}}.Wake(os.Args[1])
 		if err != nil {
 			fmt.Println("error", err)
 		}
@@ -26,7 +26,7 @@ func TestGuardian() {
 
 	var (
 		x, c   = context.WithCancel(context.Background())
-		g, err = man.GuardContext(x, "testguard")
+		g, err = man.GuardContext(x, man.Pipe, "testguard")
 	)
 	if err != nil {
 		panic(err)

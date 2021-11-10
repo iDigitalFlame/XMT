@@ -5,6 +5,9 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
+
+	"github.com/iDigitalFlame/xmt/util"
 )
 
 const (
@@ -16,6 +19,9 @@ const (
 	Unix deviceOS = 0x2
 	// Mac represents the MacOS/BSD family of Operating Systems
 	Mac deviceOS = 0x3
+	// Unsupported represents a device type that does not have direct support
+	// any may not work properly.
+	Unsupported deviceOS = 0x4
 
 	// Arch64 represents the 64-bit chipset family.
 	Arch64 deviceArch = 0x0
@@ -31,7 +37,15 @@ const (
 	ArchUnknown deviceArch = 0x5
 )
 
-var envExp = regexp.MustCompile(`%[\w\d()_-]+%|\$[\w\d_-]+|\$\{[[\w\d_-]+\}`)
+var (
+	envExp = regexp.MustCompile(`%[\w\d()_-]+%|\$[\w\d_-]+|\$\{[[\w\d_-]+\}`)
+
+	builders = sync.Pool{
+		New: func() interface{} {
+			return new(util.Builder)
+		},
+	}
+)
 
 type deviceOS uint8
 type deviceArch uint8
@@ -55,11 +69,19 @@ func getArch() deviceArch {
 // Expand attempts to determine environment variables from the current session and translate them from
 // the supplied string. This function supports both Windows (%var%) and *nix ($var or ${var}) variable substitutions.
 func Expand(s string) string {
+	if len(s) == 0 {
+		return s
+	}
+	if len(s) >= 2 && s[0] == '~' && s[1] == '/' {
+		// Account for shell expansion.
+		s = "$HOME" + s[1:]
+	}
 	v := envExp.FindAllStringIndex(s, -1)
 	if len(v) == 0 {
 		return s
 	}
-	b := builders.Get().(*strings.Builder)
+	b := builders.Get().(*util.Builder)
+	b.Grow(len(s))
 	b.WriteString(s[:v[0][0]])
 	for i := range v {
 		if i > 0 {
@@ -81,8 +103,7 @@ func Expand(s string) string {
 		b.WriteString(e)
 	}
 	b.WriteString(s[v[len(v)-1][1]:])
-	r := b.String()
-	b.Reset()
+	r := b.Output()
 	builders.Put(b)
 	return r
 }
@@ -107,6 +128,8 @@ func (d deviceOS) String() string {
 		return "Unix/BSD"
 	case Mac:
 		return "MacOS"
+	case Unsupported:
+		return "Unsupported"
 	}
 	return "Unknown"
 }

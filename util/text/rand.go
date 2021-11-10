@@ -1,6 +1,7 @@
 package text
 
 import (
+	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/util"
 )
 
@@ -66,6 +67,9 @@ func (r random) StringEx(t set, m, x int) string {
 		n = m
 	} else {
 		n = m + r.s.Intn(x)
+	}
+	if n > data.MaxSlice {
+		n = data.MaxSlice
 	}
 	s := make([]byte, n)
 	for i, c, x := n-1, r.s.Int63(), max; i >= 0; {

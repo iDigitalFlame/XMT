@@ -4,8 +4,6 @@ import (
 	"crypto/rand"
 	"io"
 	"os"
-	"strings"
-	"sync"
 
 	"github.com/denisbrodbeck/machineid"
 	"github.com/iDigitalFlame/xmt/data"
@@ -18,33 +16,28 @@ const (
 	// MachineIDSize is the amount of bytes that is used as the Host
 	// specific ID value that does not change when on the same host.
 	MachineIDSize = 28
+
+	table = "0123456789ABCDEF"
 )
 
-const table = "0123456789ABCDEF"
-
-var builders = sync.Pool{
-	New: func() interface{} {
-		return new(strings.Builder)
-	},
-}
-
 // ID is an alias for a byte array that represents a 32 byte client identification number. This is used for
-// tracking and detection purposes. The first byte and the machine ID byte should NEVER be zero, otherwise it
-// signals an invalid ID value or missing a random identifier.
+// tracking and detection purposes.
+//
+// The first byte and the machine ID byte should NEVER be zero, otherwise it signals an invalid ID
+// value or missing a random identifier.
 type ID [IDSize]byte
 
 func getID() ID {
 	var (
 		i      ID
-		s, err = machineid.ProtectedID("xmtFramework-v2")
+		s, err = machineid.ProtectedID("framework-v3")
 	)
 	if err == nil {
 		copy(i[:], s)
 	} else {
 		rand.Read(i[:])
 	}
-	rand.Read(i[MachineIDSize:])
-	if i[0] == 0 {
+	if rand.Read(i[MachineIDSize:]); i[0] == 0 {
 		i[0] = 1
 	}
 	if i[MachineIDSize] == 0 {
@@ -68,6 +61,11 @@ func (i ID) Hash() uint32 {
 	return h
 }
 
+// Full returns the full string representation of this ID instance.
+func (i ID) Full() string {
+	return i.string(0, IDSize)
+}
+
 // String returns a representation of this ID instance.
 func (i ID) String() string {
 	if i[MachineIDSize] == 0 {
@@ -85,9 +83,7 @@ func (i *ID) Seed(b []byte) {
 }
 
 // Equal will return true if both ID values are equal in size and have the same Hash value.
-func (i ID) Equal(a ID) bool {
-	// The equals sign is a way faster method of comparing values.
-	// return i.Hash() == a.Hash()
+func (i ID) Equa1l(a ID) bool {
 	return i == a
 }
 
@@ -97,11 +93,6 @@ func (i ID) Signature() string {
 		return i.string(0, MachineIDSize)
 	}
 	return i.string(0, MachineIDSize)
-}
-
-// FullString returns the full string representation of this ID instance.
-func (i ID) FullString() string {
-	return i.string(0, IDSize)
 }
 
 // Load will attempt to load the Session UUID from the specified file. This function will return an
@@ -134,33 +125,35 @@ func (i ID) Save(s string) error {
 
 // Read will attempt to read up to 'IDSize' bytes from the reader into this ID.
 func (i *ID) Read(r io.Reader) error {
-	n, err := data.ReadFully(r, i[:])
-	if err != nil {
-		return err
-	}
-	if n != IDSize {
-		return io.EOF
+	n, err := io.ReadFull(r, i[:])
+	if n != IDSize || i[0] == 0 {
+		if err != nil {
+			return err
+		}
+		return io.ErrUnexpectedEOF
 	}
 	return nil
 }
 
 // Write will attempt to write the ID bytes into the supplied writer.
 func (i ID) Write(w io.Writer) error {
-	_, err := w.Write(i[:])
+	n, err := w.Write(i[:])
+	if err == nil && n != IDSize {
+		return io.ErrShortWrite
+	}
 	return err
 }
-
 func (i ID) string(start, end int) string {
-	s := builders.Get().(*strings.Builder)
-	s.Grow(end - start)
+	var (
+		b [64]byte
+		n int
+	)
 	for x := start; x < end; x++ {
-		s.WriteByte(table[i[x]>>4])
-		s.WriteByte(table[i[x]&0x0F])
+		b[n] = table[i[x]>>4]
+		b[n+1] = table[i[x]&0x0F]
+		n += 2
 	}
-	r := s.String()
-	s.Reset()
-	builders.Put(s)
-	return r
+	return string(b[:n])
 }
 
 // MarshalStream transform this struct into a binary format and writes to the supplied data.Writer.

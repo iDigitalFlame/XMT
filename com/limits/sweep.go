@@ -1,3 +1,4 @@
+//go:build !nosweep
 // +build !nosweep
 
 package limits
@@ -7,6 +8,8 @@ import (
 	"runtime/debug"
 	"sync/atomic"
 	"time"
+
+	"github.com/iDigitalFlame/xmt/util/bugtrack"
 )
 
 var enabled uint32
@@ -21,6 +24,9 @@ func MemorySweep() {
 }
 func sweep(t time.Duration) {
 	for {
+		if bugtrack.Enabled {
+			bugtrack.Track("limits.sweep(): Starting GC and Free.")
+		}
 		runtime.GC()
 		debug.FreeOSMemory()
 		time.Sleep(t)
@@ -36,6 +42,12 @@ func MemorySweepEx(d time.Duration) {
 	if d <= 0 || atomic.LoadUint32(&enabled) == 1 {
 		return
 	}
+	debug.SetGCPercent(60)
+	debug.SetTraceback("none")
+	runtime.SetCPUProfileRate(0)
+	runtime.SetBlockProfileRate(0)
+	runtime.SetMutexProfileFraction(0)
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	atomic.StoreUint32(&enabled, 1)
 	go sweep(d)
 }

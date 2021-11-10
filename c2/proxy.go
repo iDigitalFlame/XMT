@@ -2,10 +2,12 @@ package c2
 
 import (
 	"context"
+	"io"
 	"net"
-	"sync/atomic"
+	"sync"
+	"time"
 
-	"github.com/PurpleSec/logx"
+	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util/xerr"
@@ -14,47 +16,73 @@ import (
 // Proxy is a struct that controls a Proxied connection between a client and a server and allows for packets to be
 // routed through a current established Session.
 type Proxy struct {
-	connection
 	listener net.Listener
-	ch       chan waker
-	parent   *Session
-	clients  []uint32
-	done     uint32
-}
-type proxySwarm struct {
-	new      chan *proxyClient
-	close    chan uint32
-	clients  map[uint32]*proxyClient
-	register chan func()
-	closers  []func()
+	connection
+
+	clients map[uint32]*proxyClient
+	ch      chan waker
+	close   chan uint32
+	parent  *Session
+	cancel  context.CancelFunc
+
+	lock  sync.RWMutex
+	state state
 }
 type proxyClient struct {
-	send  chan *com.Packet
-	peek  *com.Packet
-	ID    device.ID
-	ready uint32
+	send, chn chan *com.Packet
+	wake      chan waker
+	peek      *com.Packet
+	ID        device.ID
+	state     state
 }
 
 // Wait will block until the current Proxy is closed and shutdown.
 func (p *Proxy) Wait() {
 	<-p.ch
 }
-func (p *Proxy) listen() {
-	if Logging {
-		p.log.Trace("[%s:Proxy] Starting listen %q...", p.parent.ID, p.listener)
+func (p *Proxy) prune() {
+	for {
+		select {
+		case <-p.ch:
+			return
+		case <-p.ctx.Done():
+			return
+		case i := <-p.close:
+			p.lock.RLock()
+			if _, ok := p.clients[i]; ok {
+				if delete(p.clients, i); cout.Enabled {
+					p.log.Debug("[%s/Proxy] Removed closed Session 0x%X.", p.parent.ID, i)
+				}
+			}
+			p.lock.RUnlock()
+		}
 	}
-	for atomic.LoadUint32(&p.done) == flagOpen {
+}
+func (p *Proxy) listen() {
+	if cout.Enabled {
+		p.log.Info("[%s/Proxy] Starting listen on %q..", p.parent.ID, p.listener)
+	}
+	go p.prune()
+	for {
+		select {
+		case <-p.ctx.Done():
+			p.state.Set(stateClosing)
+		default:
+		}
+		if p.state.Closing() {
+			break
+		}
 		c, err := p.listener.Accept()
 		if err != nil {
-			if p.done > flagOpen {
+			if p.state.Closing() {
 				break
 			}
 			e, ok := err.(net.Error)
 			if ok && e.Timeout() {
 				continue
 			}
-			if Logging {
-				p.parent.log.Error("[%s:Proxy] Received error during Listener accept: %s!", p.parent.ID, err.Error())
+			if cout.Enabled {
+				p.parent.log.Error("[%s/P] Error during Listener accept: %s!", p.parent.ID, err)
 			}
 			if ok && !e.Timeout() && !e.Temporary() {
 				break
@@ -64,323 +92,332 @@ func (p *Proxy) listen() {
 		if c == nil {
 			continue
 		}
-		if Logging {
-			p.log.Trace("[%s:Proxy] Received a connection from %q...", p.parent.ID, c.RemoteAddr().String())
+		if cout.Enabled {
+			p.log.Trace("[%s/P] Received a connection from %q..", p.parent.ID, c.RemoteAddr())
 		}
-		go p.handle(c)
+		go handle(p.log, c, p, c.RemoteAddr().String())
 	}
-	if Logging {
-		p.parent.log.Debug("[%s:Proxy] Stopping Listener...", p.parent.ID)
+	if cout.Enabled {
+		p.parent.log.Debug("[%s/P] Stopping Listener..", p.parent.ID)
 	}
-	p.cancel()
+	for _, v := range p.clients {
+		v.Close()
+	}
+	if p.cancel(); !p.state.WakeClosed() {
+		p.state.Set(stateWakeClose)
+		close(p.close)
+	}
 	p.listener.Close()
-	if p.done < flagOption {
-		for i := range p.clients {
-			p.parent.swarm.close <- p.clients[i]
-		}
-	}
-	atomic.StoreUint32(&p.done, flagFinished)
-	p.ctx, p.cancel, p.log = nil, nil, nil
-	p.w, p.t, p.s, p.Mux = nil, nil, nil, nil
-	p.parent, p.clients, p.listener = nil, nil, nil
+	p.state.Set(stateClosed)
+	p.parent.proxy = nil
+	p.parent = nil
 	close(p.ch)
 }
-func (p *Proxy) shutdown() {
-	if atomic.LoadUint32(&p.done) != flagOpen {
-		return
-	}
-	atomic.StoreUint32(&p.done, flagOption)
-	p.listener.Close()
-	p.Wait()
-}
-func (s *proxySwarm) Close() {
-	for k, c := range s.clients {
-		c.peek = nil
-		close(c.send)
-		delete(s.clients, k)
-	}
-	for i := range s.closers {
-		s.closers[i]()
-		s.closers[i] = nil
-	}
-	close(s.new)
-	close(s.close)
-	s.new, s.close = nil, nil
-	s.clients, s.closers = nil, nil
+func (p *Proxy) clientLock() {
+	p.lock.RLock()
 }
 
 // Close stops the operation of the Proxy and any Sessions that may be connected. Resources used with this
 // Proxy will be freed up for reuse.
 func (p *Proxy) Close() error {
-	if atomic.LoadUint32(&p.done) > flagOpen {
+	if p.state.Closed() {
 		return nil
 	}
-	atomic.StoreUint32(&p.done, flagClose)
+	p.state.Set(stateClosing)
 	err := p.listener.Close()
-	p.Wait()
+	p.cancel()
+	<-p.ch
 	return err
+}
+func (c *proxyClient) Close() {
+	if !c.state.SendClosed() {
+		c.state.Set(stateSendClose)
+		close(c.send)
+	}
+	if !c.state.WakeClosed() {
+		c.state.Set(stateWakeClose)
+		close(c.wake)
+	}
+	c.state.Set(stateClosed)
+	c.state.Unset(stateChannelValue)
+	c.state.Unset(stateChannelUpdated)
+	c.state.Unset(stateChannel)
+	c.peek = nil
+}
+func (p *Proxy) clientUnlock() {
+	p.lock.RUnlock()
 }
 
 // IsActive returns true if the Proxy is still able to send and receive Packets.
-func (p Proxy) IsActive() bool {
-	return p.done == flagOpen
+func (p *Proxy) IsActive() bool {
+	return !p.state.Closing()
 }
-func (s *proxySwarm) process() {
-	for len(s.new) > 0 {
-		n := <-s.new
-		s.clients[n.ID.Hash()] = n
+func (p *Proxy) tags() []uint32 {
+	if len(p.clients) == 0 {
+		return nil
 	}
-	for len(s.close) > 0 {
-		var (
-			i     = <-s.close
-			c, ok = s.clients[i]
-		)
-		if ok {
-			c.peek = nil
-			close(c.send)
-			delete(s.clients, i)
-		}
-	}
-	for len(s.register) > 0 {
-		s.closers = append(s.closers, <-s.register)
-	}
-}
-func (p *Proxy) handle(c net.Conn) {
-	if !p.handlePacket(c, false) {
-		c.Close()
-		return
-	}
-	if Logging {
-		p.log.Debug("[%s:Proxy] %s: Triggered Channel mode, holding open Channel!", p.parent.ID, c.RemoteAddr().String())
-	}
-	for atomic.LoadUint32(&p.done) == flagOpen {
-		if !p.handlePacket(c, true) {
-			break
-		}
-	}
-	if Logging {
-		p.log.Debug("[%s:Proxy] %s: Closing Channel..", p.parent.ID, c.RemoteAddr().String())
-	}
-	c.Close()
-}
-func (s proxySwarm) tags() []uint32 {
-	t := make([]uint32, 0, len(s.clients))
-	for i := range s.clients {
-		t = append(t, i)
-	}
-	return t
-}
-func (s *proxySwarm) accept(n *com.Packet) bool {
-	if len(s.clients) == 0 {
-		return false
-	}
-	c, ok := s.clients[n.Device.Hash()]
-	if !ok {
-		return false
-	}
-	c.send <- n
-	atomic.StoreUint32(&c.ready, 1)
-	return true
-}
-func (c *proxyClient) next(i bool) (*com.Packet, error) {
-	if c.peek == nil && len(c.send) == 0 {
-		atomic.StoreUint32(&c.ready, 0)
-		if i {
-			return nil, nil
-		}
-		return &com.Packet{ID: MvNop, Device: c.ID}, nil
-	}
-	var (
-		p   *com.Packet
-		err error
-	)
-	if c.peek != nil {
-		p, c.peek = c.peek, nil
-	} else {
-		p = <-c.send
-	}
-	if len(c.send) == 0 && p.Verify(c.ID) {
-		if p.ID != MvNop {
-			atomic.StoreUint32(&c.ready, 1)
-		}
-		return p, nil
-	}
-	if p, c.peek, err = nextPacket(wake, c.send, p, c.ID); err != nil {
-		return nil, err
-	}
-	atomic.StoreUint32(&c.ready, 1)
-	return p, nil
-}
-func (p *Proxy) handlePacket(c net.Conn, o bool) bool {
-	d, err := readPacket(c, p.w, p.t)
-	if err != nil {
-		if Logging {
-			p.log.Warning("[%s:Proxy] %s: Error occurred during Packet read: %s!", p.parent.ID, c.RemoteAddr().String(), err.Error())
-		}
-		return false
-	}
-	z := p.resolveTags(c.RemoteAddr().String(), p.parent.ID, d.Device, o, d.Tags)
-	if d.Flags&com.FlagMultiDevice == 0 {
-		if s := p.client(c, d); s != nil {
-			n, err := s.next(false)
-			if err != nil {
-				if Logging {
-					p.log.Warning("[%s:Proxy:%s] %s: Received an error retriving Packet data: %s!", p.parent.ID, s.ID, c.RemoteAddr().String(), err.Error())
-				}
-				return d.Flags&com.FlagChannel != 0
-			}
-			if len(z) > 0 {
-				if Logging {
-					p.log.Trace("[%s:Proxy:%s] %s: Resolved Tags added %d Packets!", p.parent.ID, s.ID, c.RemoteAddr().String(), len(z))
-				}
-				u := &com.Packet{ID: MvMultiple, Flags: com.FlagMulti | com.FlagMultiDevice}
-				n.MarshalStream(u)
-				for i := 0; i < len(z); i++ {
-					z[i].MarshalStream(u)
-				}
-				u.Flags.SetLen(uint16(len(z) + 1))
-				u.Close()
-				n = u
-			}
-			if Logging {
-				p.log.Trace("[%s:Proxy:%s] %s: Sending Packet %q to client...", p.parent.ID, s.ID, c.RemoteAddr().String(), n.String())
-			}
-			if err = writePacket(c, p.w, p.t, n); err != nil {
-				if Logging {
-					p.log.Warning("[%s:Proxy:%s] %s: Received an error writing data to client: %s!", p.parent.ID, s.ID, c.RemoteAddr().String(), err.Error())
-				}
-				return o
-			}
-		}
-		return d.Flags&com.FlagChannel != 0
-	}
-	x := d.Flags.Len()
-	if x == 0 {
-		if Logging {
-			p.log.Warning("[%s:Proxy:%s] %s: Received an invalid multi Packet!", p.parent.ID, d.Device, c.RemoteAddr().String())
-		}
-		return d.Flags&com.FlagChannel != 0
-	}
-	var (
-		i, t uint16
-		n    *com.Packet
-		m    = &com.Packet{ID: MvMultiple, Flags: com.FlagMulti | com.FlagMultiDevice}
-	)
-	for ; i < x && p.parent.done == 0; i++ {
-		n = new(com.Packet)
-		if err := n.UnmarshalStream(d); err != nil {
-			if Logging {
-				p.log.Warning("[%s:Proxy:%s] %s: Received an error when attempting to read a Packet: %s!", p.parent.ID, d.Device, c.RemoteAddr().String(), err.Error())
-			}
-			return d.Flags&com.FlagChannel != 0
-		}
-		s := p.client(c, n)
-		if s == nil {
+	t := make([]uint32, 0, len(p.clients))
+	p.lock.RLock()
+	for i := range p.clients {
+		if !p.clients[i].state.Tag() {
 			continue
 		}
-		if r, err := s.next(false); err != nil {
-			if Logging {
-				p.log.Warning("[%s:Proxy:%s] %s: Received an error retriving Packet data: %s!", p.parent.ID, s.ID, c.RemoteAddr().String(), err.Error())
-			}
-		} else {
-			r.MarshalStream(m)
-		}
-		n.Clear()
-		t++
+		t = append(t, i)
 	}
-	if len(z) > 0 {
-		if Logging {
-			p.log.Trace("[%s:Proxy:%s] %s: Resolved Tags added %d Packets!", p.parent.ID, d.Device, c.RemoteAddr().String(), len(z))
-		}
-		for i := 0; i < len(z); i++ {
-			z[i].MarshalStream(m)
-		}
-		t += uint16(len(z))
-	}
-	m.Flags.SetLen(t)
-	if m.Close(); Logging {
-		p.log.Trace("[%s:Proxy:%s] %s: Sending Packet %q to client...", p.parent.ID, d.Device, c.RemoteAddr().String(), m.String())
-	}
-	if err := writePacket(c, p.w, p.t, m); err != nil {
-		if Logging {
-			p.log.Warning("[%s:Proxy:%s] %s: Received an error writing data to client: %s!", p.parent.ID, d.Device, c.RemoteAddr().String(), err.Error())
-		}
-	}
-	return d.Flags&com.FlagChannel != 0
+	p.lock.RUnlock()
+	return t
 }
-func (p *Proxy) client(c net.Conn, d *com.Packet) *proxyClient {
-	if Logging {
-		p.log.Trace("[%s:Proxy:%s] %s: Received a packet %q...", p.parent.ID, d.Device, c.RemoteAddr().String(), d.String())
+func (p *Proxy) prefix() string {
+	return p.parent.ID.String() + "/P"
+}
+func (c *proxyClient) chanWake() {
+	if c.state.WakeClosed() || len(c.wake) >= cap(c.wake) {
+		return
 	}
-	if p.parent.done != 0 {
-		return nil
+	select {
+	case c.wake <- wake:
+	default:
 	}
-	d.Flags |= com.FlagProxy
-	var (
-		i     = d.Device.Hash()
-		s, ok = p.parent.swarm.clients[i]
-	)
+}
+
+// Address returns the string representation of the address the Listener is bound to.
+func (p *Proxy) Address() string {
+	return p.listener.Addr().String()
+}
+func (p *Proxy) wrapper() Wrapper {
+	return p.w
+}
+func (c *proxyClient) name() string {
+	return c.ID.String()
+}
+func (c *proxyClient) chanWakeClear() {
+	if c.state.WakeClosed() {
+		return
+	}
+	for len(c.wake) > 0 {
+		<-c.wake // Drain waker
+	}
+}
+func (p *Proxy) clientClear(i uint32) {
+	v, ok := p.clients[i]
 	if !ok {
-		if d.ID != MvHello {
-			if len(p.parent.swarm.new) == 0 {
-				if d.Device.Empty() {
-					return nil
-				}
-				if Logging {
-					p.log.Warning("[%s:Proxy:%s] %s: Received a non-hello Packet from a unregistered client!", p.parent.ID, d.Device, c.RemoteAddr().String())
-				}
-				if err := writePacket(c, p.w, p.t, &com.Packet{ID: MvRegister}); err != nil {
-					if Logging {
-						p.log.Warning("[%s:Proxy:%s] %s: Received an error writing data to client: %s!", p.parent.ID, d.Device, c.RemoteAddr().String(), err.Error())
-					}
-				}
-			}
-			return nil
+		return
+	}
+	v.chn = nil
+	v.state.Unset(stateChannelProxy)
+}
+func (p *Proxy) transform() Transform {
+	return p.t
+}
+func (c *proxyClient) chanStop() bool {
+	return c.state.ChannelCanStop()
+}
+func (c *proxyClient) chanStart() bool {
+	return c.state.ChannelCanStart()
+}
+func (c *proxyClient) update(_ string) {
+	c.state.Set(stateSeen)
+}
+func (c *proxyClient) chanRunning() bool {
+	return c.state.Channel()
+}
+func (c *proxyClient) stateSet(v uint32) {
+	c.state.Set(v)
+}
+func (c *proxyClient) stateUnset(v uint32) {
+	c.state.Unset(v)
+}
+func (p *Proxy) accept(n *com.Packet) bool {
+	if len(p.clients) == 0 {
+		return false
+	}
+	p.lock.RLock()
+	c, ok := p.clients[n.Device.Hash()]
+	if p.lock.RUnlock(); !ok {
+		return false
+	}
+	if isPacketNoP(n) {
+		return true
+	}
+	c.queue(n)
+	c.state.Set(stateReady)
+	return true
+}
+func (c *proxyClient) queue(n *com.Packet) {
+	if c.state.SendClosed() {
+		return
+	}
+	if n.Device.Empty() {
+		panic("proxy found empty ID" + n.String())
+		//n.Device = s.ID
+	}
+	if c.chn != nil {
+		select {
+		case c.chn <- n:
+		default:
 		}
-		s = &proxyClient{
-			ID:    d.Device,
+		return
+	}
+	select {
+	case c.send <- n:
+	default:
+	}
+}
+func (c *proxyClient) clientID() device.ID {
+	return c.ID
+}
+func (c *proxyClient) pick(i bool) *com.Packet {
+	if c.peek != nil {
+		n := c.peek
+		c.peek = nil
+		return n
+	}
+	if len(c.send) > 0 {
+		return <-c.send
+	}
+	if i {
+		return nil
+	}
+	if !c.state.Channel() {
+		return &com.Packet{Device: c.ID}
+	}
+	select {
+	case <-c.wake:
+		return nil
+	case n := <-c.send:
+		return n
+	}
+}
+func (c *proxyClient) next(i bool) *com.Packet {
+	n := c.pick(i)
+	if n == nil {
+		c.state.Unset(stateReady)
+		return nil
+	}
+	if len(c.send) == 0 && n.Verify(c.ID) {
+		if isPacketNoP(n) {
+			c.state.Set(stateReady)
+		} else {
+			c.state.Unset(stateReady)
+		}
+		return n
+	}
+	if n, c.peek = nextPacket(wake, c.send, n, c.ID, n.Tags); isPacketNoP(n) {
+		c.state.Set(stateReady)
+	} else {
+		c.state.Unset(stateReady)
+	}
+	return n
+}
+func (c *proxyClient) deadlineRead() time.Time {
+	return empty
+}
+func (c *proxyClient) deadlineWrite() time.Time {
+	return empty
+}
+func (c *proxyClient) sender() chan *com.Packet {
+	return c.send
+}
+func (p *Proxy) clientGet(i uint32) (connHost, bool) {
+	v, ok := p.clients[i]
+	return v, ok
+}
+func (p *Proxy) clientSet(i uint32, c chan *com.Packet) {
+	v, ok := p.clients[i]
+	if !ok {
+		return
+	}
+	if v.chn != nil {
+		return
+	}
+	v.state.Set(stateChannelProxy)
+	for v.chn = c; len(v.send) > 0; {
+		select {
+		case c <- (<-v.send):
+		default:
+		}
+	}
+}
+func (p *Proxy) notify(h connHost, n *com.Packet) error {
+	if isPacketNoP(n) {
+		return nil
+	}
+	p.parent.queue(n)
+	return nil
+}
+func (p *Proxy) talk(a string, n *com.Packet) (*conn, error) {
+	if n.Device.Empty() || p.parent.state.Closing() {
+		return nil, io.ErrShortBuffer
+	}
+	n.Flags |= com.FlagProxy
+	if cout.Enabled {
+		p.log.Debug("[%s/P:%s] %s: Received a Packet %q..", p.parent.ID, n.Device, a, n)
+	}
+	p.lock.RLock()
+	var (
+		i     = n.Device.Hash()
+		c, ok = p.clients[i]
+	)
+	if p.lock.RUnlock(); !ok {
+		if n.ID != SvHello {
+			if cout.Enabled {
+				p.log.Warning("[%s/P:%s] %s: Received a non-hello Packet from a unregistered client!", p.parent.ID, n.Device, a)
+			}
+			var f com.Flag
+			if n.Flags&com.FlagFrag != 0 {
+				f.SetPosition(0)
+				f.SetLen(n.Flags.Len())
+				f.SetGroup(n.Flags.Group())
+			}
+			return &conn{next: &com.Packet{ID: SvRegister, Flags: f, Device: n.Device}}, nil
+		}
+		c = &proxyClient{
+			ID:    n.Device,
 			send:  make(chan *com.Packet, cap(p.parent.send)),
-			ready: 1,
+			wake:  make(chan waker, 1),
+			state: state(stateReady),
 		}
-		p.parent.send <- d
-		p.parent.swarm.new <- s
-		p.clients = append(p.clients, d.Device.Hash())
-		if err := writePacket(c, p.w, p.t, &com.Packet{ID: MvComplete, Device: d.Device, Job: d.Job}); err != nil {
-			if Logging {
-				p.log.Warning("[%s:Proxy:%s] %s: Received an error writing data to client: %s!", p.parent.ID, d.Device, c.RemoteAddr().String(), err.Error())
-			}
+		p.lock.Lock()
+		p.clients[i] = c
+		if p.lock.Unlock(); cout.Enabled {
+			p.log.Info("[%s/P:%s] %s: New client registered as %q hash 0x%X.", p.parent.ID, c.ID, a, c.ID, i)
 		}
-		if Logging {
-			p.log.Debug("[%s:Proxy:%s] %s: New client registered as %q hash 0x%X.", p.parent.ID, s.ID, c.RemoteAddr().String(), s.ID, i)
-		}
-		return nil
+		p.parent.queue(n)
+		c.queue(&com.Packet{ID: SvComplete, Device: n.Device, Job: n.Job})
 	}
-	switch {
-	case d.ID == MvShutdown:
-		p.parent.swarm.close <- i
-		p.parent.send <- d
-		if err := writePacket(c, p.w, p.t, &com.Packet{ID: MvShutdown, Device: d.Device, Job: d.Job}); err != nil {
-			if Logging {
-				p.log.Warning("[%s:Proxy:%s] %s: Received an error writing data to client: %s!", p.parent.ID, d.Device, c.RemoteAddr().String(), err.Error())
-			}
+	if c.state.Set(stateSeen); n.ID == SvShutdown {
+		select {
+		case p.close <- i:
+		default:
 		}
-		return nil
-	case d.ID != MvNop || d.Flags&com.FlagMultiDevice != 0:
-		atomic.StoreUint32(&s.ready, 1)
-		p.parent.send <- d
+		p.parent.queue(n)
+		return &conn{next: &com.Packet{ID: SvShutdown, Device: n.Device, Job: n.Job}}, nil
 	}
-	return s
+	v, err := p.resolve(c, a, n.Tags)
+	if err != nil {
+		return nil, err
+	}
+	if err = v.process(p.log, p, a, n, false); err != nil {
+		return nil, err
+	}
+	return v, nil
 }
 
 // Proxy establishes a new listening Proxy connection using the supplied listener that will send any received
 // Packets "upstream" via the current Session. Packets destined for hosts connected to this proxy will be routed
 // back and forth on this Session. This function will return a wrapped 'ErrUnable' if this is not a client Session.
-func (s *Session) Proxy(b string, c listener, p *Profile) (*Proxy, error) {
+func (s *Session) Proxy(b string, c Accepter, p Profile) (*Proxy, error) {
 	if s.parent != nil {
-		return nil, xerr.Wrap("must be a client session", ErrUnable)
+		return nil, xerr.New("must be a client session")
+	}
+	// TODO: Eventually this will be removed :P
+	if s.proxy != nil {
+		return nil, xerr.New("only a single Proxy per session can be active")
 	}
 	if c == nil && p != nil {
-		c = convertHintListen(p.hint)
+		if v, ok := p.(hinter); ok {
+			c = v.Listener()
+		}
 	}
 	if c == nil {
 		return nil, ErrNoConnector
@@ -392,57 +429,87 @@ func (s *Session) Proxy(b string, c listener, p *Profile) (*Proxy, error) {
 	if h == nil {
 		return nil, xerr.New("unable to listen on " + b)
 	}
-	if s.log == nil {
-		s.log = logx.NOP
-	}
-	l := &Proxy{
+	v := &Proxy{
 		ch:         make(chan waker, 1),
+		close:      make(chan uint32, 8),
 		parent:     s,
+		clients:    make(map[uint32]*proxyClient),
 		listener:   h,
 		connection: connection{s: s.s, log: s.log, w: s.w, t: s.t},
 	}
 	if p != nil {
-		l.w, l.t = p.Wrapper, p.Transform
+		v.w, v.t = p.Wrapper(), p.Transform()
 	}
-	if l.ctx, l.cancel = context.WithCancel(s.ctx); Logging {
-		l.log.Debug("[%s] Added Proxy Listener on %q!", s.ID, b)
+	if v.ctx, v.cancel = context.WithCancel(s.ctx); cout.Enabled {
+		s.log.Info("[%s] Added Proxy Listener on %q!", s.ID, b)
 	}
-	if s.swarm == nil {
-		s.swarm = &proxySwarm{
-			new:      make(chan *proxyClient, 64),
-			close:    make(chan uint32, 64),
-			clients:  make(map[uint32]*proxyClient),
-			register: make(chan func(), 16),
-		}
-	}
-	s.swarm.register <- l.shutdown
-	go l.listen()
-	return l, nil
+	s.proxy = v
+	go v.listen()
+	return v, nil
 }
-func (p *Proxy) resolveTags(a string, l, i device.ID, o bool, t []uint32) []*com.Packet {
-	var y []*com.Packet
-	for x := 0; x < len(t); x++ {
-		if Logging {
-			p.log.Trace("[%s:%s] %s: Received a Tag 0x%X...", l, i, a, t[x])
-		}
-		s, ok := p.parent.swarm.clients[t[x]]
-		if !ok {
-			if Logging {
-				p.log.Warning("[%s:%s] %s: Received an invalid Tag 0x%X!", l, i, a, t[x])
-			}
-			continue
-		}
-		n, err := s.next(true)
-		if err != nil {
-			if Logging {
-				p.log.Warning("[%s:%s] %s: Received an error retriving Packet data: %s!", l, i, a, err.Error())
-			}
-			continue
-		}
-		if n == nil {
-			continue
-		}
-		y = append(y, n)
+func (p *Proxy) resolve(s *proxyClient, a string, t []uint32) (*conn, error) {
+	if len(t) == 0 {
+		return &conn{host: s}, nil
 	}
-	return y
+	c := &conn{
+		add:  make([]*com.Packet, 0, len(t)),
+		subs: make(map[uint32]bool, len(t)),
+		host: s,
+	}
+	return c, c.resolve(p.log, s, p, a, t, false)
+}
+func (p *Proxy) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *com.Packet, error) {
+	if n.Device.Empty() || p.state.Closing() {
+		return nil, 0, nil, io.ErrShortBuffer
+	}
+	if cout.Enabled {
+		p.log.Trace("[%s/P:%s/M] %s: Received a Packet %q..", p.parent.ID, n.Device, a, n)
+	}
+	p.lock.RLock()
+	var (
+		i     = n.Device.Hash()
+		c, ok = p.clients[i]
+	)
+	if p.lock.RUnlock(); !ok {
+		if n.ID != SvHello {
+			if cout.Enabled {
+				p.log.Warning("[%s/P:%s/M] %s: Received a non-hello Packet from a unregistered client!", p.parent.ID, n.Device, a)
+			}
+			var f com.Flag
+			if n.Flags&com.FlagFrag != 0 {
+				f.SetPosition(0)
+				f.SetLen(n.Flags.Len())
+				f.SetGroup(n.Flags.Group())
+			}
+			return nil, 0, &com.Packet{ID: SvRegister, Flags: f, Device: n.Device}, nil
+		}
+		c = &proxyClient{
+			ID:    n.Device,
+			send:  make(chan *com.Packet, cap(p.parent.send)),
+			wake:  make(chan waker, 1),
+			state: state(stateReady),
+		}
+		p.lock.Lock()
+		p.clients[i] = c
+		if p.lock.Unlock(); cout.Enabled {
+			p.log.Info("[%s/P:%s/M] %s: New client registered as %q hash 0x%X.", p.parent.ID, c.ID, a, c.ID, i)
+		}
+		c.queue(&com.Packet{ID: SvComplete, Device: n.Device, Job: n.Job})
+	}
+	switch c.state.Set(stateSeen); {
+	case isPacketNoP(n):
+		p.parent.queue(n)
+		c.state.Set(stateReady)
+	case n.ID == SvShutdown:
+		select {
+		case p.close <- i:
+		default:
+		}
+		p.parent.queue(n)
+		return nil, 0, &com.Packet{ID: SvShutdown, Device: n.Device, Job: n.Job}, nil
+	}
+	if o {
+		return c, i, nil, nil
+	}
+	return c, i, c.next(true), nil
 }

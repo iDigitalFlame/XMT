@@ -1,3 +1,4 @@
+//go:build s_medium
 // +build s_medium
 
 package limits

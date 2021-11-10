@@ -1,3 +1,4 @@
+//go:build freebsd || netbsd || openbsd || dragonfly || solaris
 // +build freebsd netbsd openbsd dragonfly solaris
 
 package device
@@ -22,6 +23,9 @@ const (
 var ShellArgs = []string{"-c"}
 
 func isElevated() bool {
+	if os.Geteuid() == 0 || os.Getuid() == 0 {
+		return true
+	}
 	if a, err := user.Current(); err == nil && a.Uid == "0" {
 		return true
 	}

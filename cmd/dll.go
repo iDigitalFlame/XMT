@@ -2,28 +2,26 @@ package cmd
 
 import (
 	"context"
-	"strconv"
 	"time"
 )
 
-// DLL is a struct that can be used to reflectively load a DLL into the memory of a selected process.
-// Similar to the Code struct, this struct can only be used on Windows devices and will return 'ErrNoWindows'
-// on non-Windows devices.
+// DLL is a struct that can be used to reflectively load a DLL into the memory
+// of a selected process. Similar to the Assembly struct, this struct can only
+// be used on Windows devices and will return 'ErrNoWindows' on non-Windows devices.
+//
+// The 'SetParent*' function will attempt to set the target that loads the DLL.
+// If none are specified, the DLL will be loaded into the current process.
 type DLL struct {
-	ctx context.Context
-	err error
-	ch  chan finished
-
-	Path string
-	base
-	handle uintptr
-
+	Path    string
+	t       thread
 	Timeout time.Duration
-	exit    uint32
 }
 
-// Run will start the DLL and wait until it completes. This function will return the same errors as the 'Start'
-// function if they occur or the 'Wait' function if any errors occur during DLL runtime.
+// Run will start the DLL thread and wait until it completes. This function
+// will return the same errors as the 'Start' function if they occur or the
+// 'Wait' function if any errors occur during thread runtime.
+//
+// Always returns nil on non-Windows devices.
 func (d *DLL) Run() error {
 	if err := d.Start(); err != nil {
 		return err
@@ -31,68 +29,92 @@ func (d *DLL) Run() error {
 	return d.Wait()
 }
 
-// Error returns any errors that may have occurred during the DLL operation.
-func (d DLL) Error() error {
-	return d.err
+// Stop will attempt to terminate the currently running thread.
+//
+// Always returns nil on non-Windows devices.
+func (d *DLL) Stop() error {
+	return d.t.Stop()
 }
 
-// Wait will block until the DLL completes or is terminated by a call to Stop. This function will return
-// 'ErrNotCompleted' if the DLL has not been started
+// Wait will block until the thread completes or is terminated by a call to
+// Stop.
+//
+// This function will return 'ErrNotStarted' if the thread has not been started.
 func (d *DLL) Wait() error {
-	if d.handle == 0 {
-		return ErrNotCompleted
+	if !d.t.Running() {
+		if err := d.Start(); err != nil {
+			return err
+		}
 	}
-	<-d.ch
-	return d.err
+	return d.t.Wait()
 }
 
-// NewDLL creates a new DLL instance that uses the supplied string as the DLL file path. Similar to '&DLL{Path: p}'.
+// NewDLL creates a new DLL instance that uses the supplied string as the DLL
+// file path. Similar to '&DLL{Path: p}'.
 func NewDLL(p string) *DLL {
 	return &DLL{Path: p}
 }
 
-// Running returns true if the current DLL is running, false otherwise.
+// Running returns true if the current thread is running, false otherwise.
 func (d *DLL) Running() bool {
-	if d.handle == 0 {
-		return false
-	}
-	select {
-	case <-d.ch:
-		return false
-	default:
-		return true
-	}
+	return d.t.Running()
 }
 
-// String returns the formatted size/handle of the DLL data.
-func (d DLL) String() string {
-	if d.handle > 0 {
-		return "DLL[" + strconv.FormatUint(uint64(d.handle), 16) + ", " + d.base.String() + "] " + d.Path
-	}
-	return "DLL " + d.Path
+// String returns a string representation of the thread's data, such as the pointer
+// and memory addresses.
+func (d *DLL) String() string {
+	return "DLL " + d.t.String()
 }
 
-// ExitCode returns the Exit Code of the process. If the DLL is still running or has not been started, this
-// function returns an 'ErrNotCompleted' error.
-func (d DLL) ExitCode() (int32, error) {
-	if d.handle > 0 && d.Running() {
-		return 0, ErrNotCompleted
-	}
-	return int32(d.exit), nil
+// SetSuspended will delay the execution of this thread and will put the
+// thread in a suspended state until it is resumed using a Resume call.
+//
+// This function has no effect if the device is not running Windows.
+func (d *DLL) SetSuspended(s bool) {
+	d.t.SetSuspended(s)
 }
 
-// Handle returns the handle of the current running DLL. The return is a uintptr that can converted into a
-// Handle. This function returns an error if the DLL was not started. The handle is not expected to be valid
-// after the DLL exits or is terminated.
-func (d DLL) Handle() (uintptr, error) {
-	if d.handle == 0 {
-		return 0, ErrNotCompleted
-	}
-	return d.handle, nil
+// ExitCode returns the Exit Code of the thread. If the thread is still running or
+// has not been started, this function returns an 'ErrNotCompleted' error.
+func (d *DLL) ExitCode() (int32, error) {
+	return d.t.ExitCode()
 }
 
-// NewDllContext creates a new DLL instance that uses the supplied string as the DLL file path.
-// This function accepts a context that can be used to control the cancelation of this DLL.
+// Handle returns the handle of the current running thread. The return is a uintptr
+// that can converted into a Handle.
+//
+// This function returns an error if the thread was not started. The handle is
+// not expected to be valid after the thread exits or is terminated.
+func (d *DLL) Handle() (uintptr, error) {
+	return d.t.Handle()
+}
+
+// NewDLLBytes creates a new DLL instance that uses the supplied raw bytes as
+// the binary data to construct the DLL on disk to be executed.
+//
+// NOTE(dij): This function does a write to disk.
+// TODO(dij): In a future release, make this into a reflective loader.
+func NewDLLBytes(b []byte) (*DLL, error) {
+	return NewDLLBytesContext(context.Background(), b)
+}
+
+// NewDllContext creates a new DLL instance that uses the supplied string as
+// the DLL file path.
+//
+// This function accepts a context that can be used to control the cancelation
+// of the thread.
 func NewDllContext(x context.Context, p string) *DLL {
-	return &DLL{Path: p, ctx: x}
+	return &DLL{Path: p, t: thread{ctx: x}}
+}
+
+// NewDLLBytesContext creates a new DLL instance that uses the supplied raw bytes
+// as the binary data to construct the DLL on disk to be executed.
+//
+// NOTE(dij): This function does a write to disk.
+// TODO(dij): In a future release, make this into a reflective loader.
+//
+// This function accepts a context that can be used to control the cancelation
+// of the thread.
+func NewDLLBytesContext(x context.Context, b []byte) (*DLL, error) {
+	return nil, nil
 }

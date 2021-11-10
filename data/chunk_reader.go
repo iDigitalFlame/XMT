@@ -91,7 +91,7 @@ func (c *Chunk) Bytes() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	var l int
+	var l uint64
 	switch t {
 	case 0:
 		return nil, nil
@@ -100,34 +100,42 @@ func (c *Chunk) Bytes() ([]byte, error) {
 		if err2 != nil {
 			return nil, err2
 		}
-		l = int(n)
+		l = uint64(n)
 	case 3, 4:
 		n, err2 := c.Uint16()
 		if err2 != nil {
 			return nil, err2
 		}
-		l = int(n)
+		l = uint64(n)
 	case 5, 6:
 		n, err2 := c.Uint32()
 		if err2 != nil {
 			return nil, err2
 		}
-		l = int(n)
+		l = uint64(n)
 	case 7, 8:
 		n, err2 := c.Uint64()
 		if err2 != nil {
 			return nil, err2
 		}
-		l = int(n)
+		l = n
 	default:
 		return nil, ErrInvalidType
+	}
+	if l == 0 {
+		// NOTE(dij): Technically we should return (nil, nil)
+		//            But! Our spec states that 0 size should be ID:0
+		//            NOT ID:0,SIZE:0. So something made a fucky wucky here.
+		return nil, io.ErrUnexpectedEOF
+	}
+	if l > MaxSlice {
+		return nil, ErrTooLarge
 	}
 	var (
 		n int
 		b = make([]byte, l)
 	)
-	//if n, err = ReadFully(c, b); err != nil && ((err != io.EOF && err != ErrLimit) || n != l) {
-	if n, err = ReadFully(c, b); err != nil {
+	if n, err = io.ReadFull(c, b); err != nil {
 		switch {
 		case err == io.EOF:
 		case err == ErrLimit:
@@ -135,8 +143,7 @@ func (c *Chunk) Bytes() ([]byte, error) {
 			return nil, err
 		}
 	}
-	//println("RI < ", l, "|", n)
-	if n != l {
+	if uint64(n) != l {
 		return b[:n], io.EOF
 	}
 	return b, nil
@@ -262,6 +269,16 @@ func (c *Chunk) Float64() (float64, error) {
 		return 0, nil
 	}
 	return float64FromInt(v), nil
+}
+
+// ReadBytes reads the value from the Chunk payload buffer.
+func (c *Chunk) ReadBytes(p *[]byte) error {
+	v, err := c.Bytes()
+	if err != nil {
+		return err
+	}
+	*p = v
+	return nil
 }
 
 // StringVal reads the value from the Chunk payload buffer.

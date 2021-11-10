@@ -27,10 +27,6 @@ func NewWriter(w io.Writer) Writer {
 func (w *writer) WriteInt(n int) error {
 	return w.WriteUint64(uint64(n))
 }
-func (w *writer) small(b ...byte) error {
-	_, err := w.w.Write(b)
-	return err
-}
 func (w *writer) WriteUint(n uint) error {
 	return w.WriteUint64(uint64(n))
 }
@@ -53,55 +49,74 @@ func (w *writer) WriteInt64(n int64) error {
 	return w.WriteUint64(uint64(n))
 }
 func (w *writer) WriteUint8(n uint8) error {
-	return w.small(byte(n))
+	v, err := w.w.Write([]byte{byte(n)})
+	if err == nil && v != 1 {
+		return io.ErrShortWrite
+	}
+	return err
 }
 func (w *writer) WriteBytes(b []byte) error {
 	switch l := uint64(len(b)); {
 	case l == 0:
-		return w.small(0)
-	case l < DataLimitSmall:
-		if err := w.WriteUint8(1); err != nil {
-			return err
+		v, err := w.w.Write([]byte{0})
+		if err == nil && v != 1 {
+			return io.ErrShortWrite
 		}
-		if err := w.WriteUint8(uint8(l)); err != nil {
+		return err
+	case l < LimitSmall:
+		if v, err := w.w.Write([]byte{1, byte(l)}); err != nil {
 			return err
+		} else if v != 2 {
+			return io.ErrShortWrite
 		}
-	case l < DataLimitMedium:
-		if err := w.WriteUint8(3); err != nil {
+	case l < LimitMedium:
+		if v, err := w.w.Write([]byte{3, byte(l >> 8), byte(l)}); err != nil {
 			return err
+		} else if v != 3 {
+			return io.ErrShortWrite
 		}
-		if err := w.WriteUint16(uint16(l)); err != nil {
+	case l < LimitLarge:
+		if v, err := w.w.Write([]byte{5, byte(l >> 24), byte(l >> 16), byte(l >> 8), byte(l)}); err != nil {
 			return err
-		}
-	case l < DataLimitLarge:
-		if err := w.WriteUint8(5); err != nil {
-			return err
-		}
-		if err := w.WriteUint32(uint32(l)); err != nil {
-			return err
+		} else if v != 5 {
+			return io.ErrShortWrite
 		}
 	default:
-		if err := w.WriteUint8(7); err != nil {
-			return err
-		}
-		if err := w.WriteUint64(uint64(l)); err != nil {
-			return err
+		if v, err := w.w.Write([]byte{
+			7, byte(l >> 56), byte(l >> 48), byte(l >> 40), byte(l >> 32),
+			byte(l >> 24), byte(l >> 16), byte(l >> 8), byte(l),
+		}); err != nil {
+			return nil
+		} else if v != 9 {
+			return io.ErrShortWrite
 		}
 	}
 	_, err := w.w.Write(b)
 	return err
 }
 func (w *writer) WriteUint16(n uint16) error {
-	return w.small(byte(n>>8), byte(n))
+	v, err := w.w.Write([]byte{byte(n >> 8), byte(n)})
+	if err == nil && v != 2 {
+		return io.ErrShortWrite
+	}
+	return err
 }
 func (w *writer) WriteUint32(n uint32) error {
-	return w.small(byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
+	v, err := w.w.Write([]byte{byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n)})
+	if err == nil && v != 4 {
+		return io.ErrShortWrite
+	}
+	return err
 }
 func (w *writer) WriteUint64(n uint64) error {
-	return w.small(
-		byte(n>>56), byte(n>>48), byte(n>>40), byte(n>>32),
-		byte(n>>24), byte(n>>16), byte(n>>8), byte(n),
-	)
+	v, err := w.w.Write([]byte{
+		byte(n >> 56), byte(n >> 48), byte(n >> 40), byte(n >> 32),
+		byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n),
+	})
+	if err == nil && v != 8 {
+		return io.ErrShortWrite
+	}
+	return err
 }
 func (w *writer) WriteString(s string) error {
 	return w.WriteBytes([]byte(s))

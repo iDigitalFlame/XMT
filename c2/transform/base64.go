@@ -3,67 +3,94 @@ package transform
 import (
 	"encoding/base64"
 	"io"
+	"sync"
+
+	"github.com/iDigitalFlame/xmt/util/bugtrack"
 )
 
-// Base64 is a transform that auto converts the data to and from Base64 encoding. This instance does not include
-// any shifting.
-const Base64 = b64(0)
+// Base64 is a transform that auto converts the data to and from Base64
+// encoding. This instance does not include any shifting.
+const Base64 = B64(0)
 
-type b64 byte
+const bufMax = 2 << 14
 
-// Value is an interface that can modify the data BEFORE it is written or AFTER is read from a Connection.
-// Transforms may be used to mask and unmask communications as benign protocols such as DNS, FTP or HTTP. This
-// is just a compatibility interface to prevent import dependency cycles
-type Value interface {
-	Read(io.Writer, []byte) error
-	Write(io.Writer, []byte) error
+var bufs = sync.Pool{
+	New: func() interface{} {
+		b := make([]byte, 512, bufMax)
+		return &b
+	},
 }
 
-// Base64Shift returns a Base64 Transform that also shifts the bytes by the specified amount before writes
-// and after reads. This is useful for evading detection by avoiding commonly flagged Base64 values.
-func Base64Shift(n int) Value {
-	return b64(n)
+// B64 is the underlying type for the Base64 Transform. This Transform encodes
+// data into a Base64 string before the final write to the output.
+type B64 byte
+
+// B64Shift returns a Base64 Transform that also shifts the bytes by the
+// specified amount before writes and after reads. This is useful for evading
+// detection by avoiding commonly flagged Base64 values.
+func B64Shift(n int) B64 {
+	return B64(n)
 }
-func (b b64) Read(w io.Writer, p []byte) error {
-	var (
-		i []byte
-		c = base64.StdEncoding.DecodedLen(len(p))
-	)
-	if c < dnsSize {
-		i = *bufs.Get().(*[]byte)
-		defer bufs.Put(&i)
-	} else {
-		i = make([]byte, c)
-	}
-	n, err := base64.StdEncoding.Decode(i, p)
-	if err != nil {
+
+// Read satisfies the Transform interface requirements.
+func (b B64) Read(p []byte, w io.Writer) error {
+	n := base64.StdEncoding.DecodedLen(len(p))
+	if n > bufMax {
+		if bugtrack.Enabled {
+			bugtrack.Track("transform.B64.Read(): Creating non-heap buffer, n=%d, bufMax=%d", n, bufMax)
+		}
+		var (
+			o   = make([]byte, n)
+			err = decodeShift(w, byte(b), p, &o)
+		)
+		o = nil
 		return err
 	}
-	if b != 0 {
-		for x := 0; x < n && x < len(i); x++ {
-			i[x] -= byte(b)
+	o := bufs.Get().(*[]byte)
+	if len(*o) < n {
+		if bugtrack.Enabled {
+			bugtrack.Track("transform.B64.Read(): Increasing heap buffer size len(*o)=%d, n=%d", len(*o), n)
 		}
+		*o = append(*o, make([]byte, n-len(*o))...)
 	}
-	_, err = w.Write(i[:n])
+	err := decodeShift(w, byte(b), p, o)
+	bufs.Put(o)
 	return err
 }
-func (b b64) Write(w io.Writer, p []byte) error {
+
+// Write satisfies the Transform interface requirements.
+func (b B64) Write(p []byte, w io.Writer) error {
 	if b != 0 {
 		for i := range p {
 			p[i] += byte(b)
 		}
 	}
 	var (
-		c = base64.StdEncoding.EncodedLen(len(p))
-		o []byte
+		e      = base64.NewEncoder(base64.StdEncoding, w)
+		c, err = e.Write(p)
 	)
-	if c < dnsSize {
-		o = *bufs.Get().(*[]byte)
-		defer bufs.Put(&o)
-	} else {
-		o = make([]byte, c)
+	if e.Close(); c != len(p) {
+		return io.ErrShortWrite
 	}
-	base64.StdEncoding.Encode(o, p)
-	_, err := w.Write(o[:c])
+	e = nil
 	return err
+}
+func decodeShift(w io.Writer, b byte, p []byte, o *[]byte) error {
+	n, err := base64.StdEncoding.Decode(*o, p)
+	if err != nil {
+		return err
+	}
+	if b != 0 {
+		for x := 0; x < n; x++ {
+			(*o)[x] -= b
+		}
+	}
+	c, err := w.Write((*o)[:n])
+	if err != nil {
+		return err
+	}
+	if c != n {
+		return io.ErrShortWrite
+	}
+	return nil
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/iDigitalFlame/xmt/c2/task"
 	"github.com/iDigitalFlame/xmt/cmd"
+	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 	"github.com/skx/monkey/evaluator"
 	"github.com/skx/monkey/lexer"
@@ -36,8 +37,8 @@ var (
 
 type monkeyEngine uint8
 type monkeyScript struct {
-	c strings.Builder
 	*object.Environment
+	c util.Builder
 }
 
 func init() {

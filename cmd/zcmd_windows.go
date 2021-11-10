@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package cmd
@@ -5,8 +6,8 @@ package cmd
 import (
 	"io"
 	"os"
-	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"unicode/utf16"
 	"unsafe"
@@ -20,8 +21,12 @@ const secStandard uint32 = windows.PROCESS_TERMINATE | windows.SYNCHRONIZE |
 	windows.PROCESS_SUSPEND_RESUME | windows.PROCESS_DUP_HANDLE
 
 var (
+	secProtect uint64 = 0x100100000000
+
 	dllKernel32 = windows.NewLazySystemDLL("kernel32.dll")
 
+	funcNtResumeProcess     = dllNtdll.NewProc("NtResumeProcess")
+	funcNtSuspendProcess    = dllNtdll.NewProc("NtSuspendProcess")
 	funcRtlCloneUserProcess = dllNtdll.NewProc("RtlCloneUserProcess")
 
 	funcLoadLibrary                       = dllKernel32.NewProc(loadLibFunc)
@@ -29,7 +34,11 @@ var (
 	funcCreateProcess                     = dllKernel32.NewProc("CreateProcessW")
 	funcCreateProcessAsUser               = dllKernel32.NewProc("CreateProcessAsUserW")
 	funcUpdateProcThreadAttribute         = dllKernel32.NewProc("UpdateProcThreadAttribute")
+	funcDeleteProcThreadAttributeList     = dllKernel32.NewProc("DeleteProcThreadAttributeList")
 	funcInitializeProcThreadAttributeList = dllKernel32.NewProc("InitializeProcThreadAttributeList")
+
+	verOnce   sync.Once
+	verPast61 bool
 )
 
 type file interface {
@@ -53,6 +62,8 @@ type imageInfo struct {
 	_, _, _ uint8
 	_, _, _ uint32
 }
+
+// DO NOT REORDER
 type processInfo struct {
 	Length          uint32
 	Process, Thread uintptr
@@ -61,7 +72,7 @@ type processInfo struct {
 }
 type closer windows.Handle
 type startupAttrs struct {
-	_, _, _, _, _, _ uint64
+	_, _, _, _, _, _, _, _, _ uint64
 }
 
 // DO NOT REORDER
@@ -70,38 +81,6 @@ type startupInfoEx struct {
 	AttributeList *startupAttrs
 }
 
-func (p *Process) wait() {
-	var (
-		x   = make(chan error)
-		err error
-	)
-	go func(u chan error, z windows.Handle) {
-		u <- wait(z)
-		close(u)
-	}(x, p.opts.info.Process)
-	select {
-	case err = <-x:
-	case <-p.ctx.Done():
-	}
-	if err != nil {
-		p.stopWith(err)
-		return
-	}
-	if p.ctx.Err() != nil {
-		p.stopWith(p.ctx.Err())
-		return
-	}
-	err = windows.GetExitCodeProcess(p.opts.info.Process, &p.exit)
-	if atomic.StoreUint32(&p.once, 2); err != nil {
-		p.stopWith(err)
-		return
-	}
-	if p.exit != 0 {
-		p.stopWith(&ExitError{Exit: p.exit})
-		return
-	}
-	p.stopWith(nil)
-}
 func (o *options) close() {
 	for i := range o.closers {
 		o.closers[i].Close()
@@ -120,6 +99,43 @@ func wait(h windows.Handle) error {
 	}
 	return nil
 }
+func (p *Process) wait(e *startupInfoEx) {
+	var (
+		x   = make(chan error)
+		err error
+	)
+	go func() {
+		x <- wait(p.opts.info.Process)
+		close(x)
+	}()
+	select {
+	case err = <-x:
+	case <-p.ctx.Done():
+	}
+	if e != nil {
+		funcDeleteProcThreadAttributeList.Call(uintptr(unsafe.Pointer(e.AttributeList)))
+		e.AttributeList = nil
+		e = nil
+	}
+	if err != nil {
+		p.stopWith(exitStopped, err)
+		return
+	}
+	if err2 := p.ctx.Err(); err2 != nil {
+		p.stopWith(exitStopped, err2)
+		return
+	}
+	err = windows.GetExitCodeProcess(p.opts.info.Process, &p.exit)
+	if atomic.StoreUint32(&p.cookie, 2); err != nil {
+		p.stopWith(exitStopped, err)
+		return
+	}
+	if p.exit != 0 {
+		p.stopWith(p.exit, &ExitError{Exit: p.exit})
+		return
+	}
+	p.stopWith(p.exit, nil)
+}
 func createEnv(s []string) (*uint16, error) {
 	if len(s) == 0 {
 		return nil, nil
@@ -127,7 +143,7 @@ func createEnv(s []string) (*uint16, error) {
 	var t, i, l int
 	for _, s := range s {
 		if q := strings.IndexByte(s, 61); q <= 0 {
-			return nil, xerr.New(`invalid environment string "` + s + `"`)
+			return nil, xerr.New(`invalid env string "` + s + `"`)
 		}
 		t += len(s) + 1
 	}
@@ -147,13 +163,13 @@ func (o *options) startInfo() (*windows.StartupInfo, error) {
 	if len(o.Title) > 0 {
 		var err error
 		if s.Title, err = windows.UTF16PtrFromString(o.Title); err != nil {
-			return nil, xerr.Wrap(`cannot convert title "`+o.Title+`"`, err)
+			return nil, xerr.Wrap("cannot convert title", err)
 		}
 	}
 	o.parent, o.closers = 0, nil
 	return s, nil
 }
-func (o *options) readHandle(r io.Reader, m bool) (windows.Handle, error) {
+func (o *options) reader(r io.Reader, m bool) (windows.Handle, error) {
 	if !m && r == nil {
 		return 0, nil
 	}
@@ -171,15 +187,15 @@ func (o *options) readHandle(r io.Reader, m bool) (windows.Handle, error) {
 		default:
 			x, y, err := os.Pipe()
 			if err != nil {
-				return 0, xerr.Wrap("cannot open os pipe", err)
+				return 0, xerr.Wrap("cannot create pipe", err)
 			}
 			h = x.Fd()
 			o.closers = append(o.closers, x)
 			o.closers = append(o.closers, y)
-			go func(r1 io.Reader, w1 io.WriteCloser) {
-				io.Copy(w1, r1)
-				w1.Close()
-			}(r, y)
+			go func() {
+				io.Copy(y, r)
+				y.Close()
+			}()
 		}
 		if h == 0 {
 			return 0, nil
@@ -201,12 +217,12 @@ func (o *options) readHandle(r io.Reader, m bool) (windows.Handle, error) {
 		v = o.parent
 	}
 	if err = windows.DuplicateHandle(windows.CurrentProcess(), windows.Handle(h), v, &n, 0, true, windows.DUPLICATE_SAME_ACCESS); err != nil {
-		return 0, xerr.Wrap("cannot duplicate handle 0x"+strconv.FormatUint(uint64(h), 16), err)
+		return 0, xerr.Wrap("DuplicateHandle", err)
 	}
 	o.closers = append(o.closers, closer(n))
 	return n, nil
 }
-func (o *options) writeHandle(w io.Writer, m bool) (windows.Handle, error) {
+func (o *options) writer(w io.Writer, m bool) (windows.Handle, error) {
 	if !m && w == nil {
 		return 0, nil
 	}
@@ -224,15 +240,15 @@ func (o *options) writeHandle(w io.Writer, m bool) (windows.Handle, error) {
 		default:
 			x, y, err := os.Pipe()
 			if err != nil {
-				return 0, xerr.Wrap("cannot open os pipe", err)
+				return 0, xerr.Wrap("cannot create pipe", err)
 			}
 			h = y.Fd()
 			o.closers = append(o.closers, x)
 			o.closers = append(o.closers, y)
-			go func(r1 io.ReadCloser, w1 io.Writer) {
-				io.Copy(w1, r1)
-				r1.Close()
-			}(x, w)
+			go func() {
+				io.Copy(w, x)
+				x.Close()
+			}()
 		}
 		if h == 0 {
 			return 0, nil
@@ -254,27 +270,40 @@ func (o *options) writeHandle(w io.Writer, m bool) (windows.Handle, error) {
 		v = o.parent
 	}
 	if err = windows.DuplicateHandle(windows.CurrentProcess(), windows.Handle(h), v, &n, 0, true, windows.DUPLICATE_SAME_ACCESS); err != nil {
-		return 0, xerr.Wrap("cannot duplicate handle 0x"+strconv.FormatUint(uint64(h), 16), err)
+		return 0, xerr.Wrap("DuplicateHandle", err)
 	}
 	o.closers = append(o.closers, closer(n))
 	return n, nil
 }
-func newParentEx(p windows.Handle, i *windows.StartupInfo) (*startupInfoEx, error) {
+func parentEx(p windows.Handle, i *windows.StartupInfo) (*startupInfoEx, error) {
 	var (
-		s uint64
-		x startupInfoEx
+		s, w uint64
+		c    uintptr
+		x    startupInfoEx
 	)
-	// Maybe add the PROCESS_MITIGATION_POLICY blocking DLLs from injecting into us here.
-	// This would double the attribute list size.
-	if _, _, err := funcInitializeProcThreadAttributeList.Call(0, 1, 0, uintptr(unsafe.Pointer(&s))); s < 48 {
-		return nil, xerr.Wrap("winapi InitializeProcThreadAttributeList error", err)
+	if protectEnable {
+		verOnce.Do(func() {
+			if v, err := windows.GetVersion(); err == nil && v > 0 {
+				if m := byte(v & 0xFF); m >= 6 {
+					verPast61 = byte((v&0xFFFF)>>8) >= 1
+				}
+			}
+		})
+	}
+	if protectEnable && verPast61 {
+		w, c = 72, 2
+	} else {
+		w, c = 48, 1
+	}
+	if _, _, err := funcInitializeProcThreadAttributeList.Call(0, c, 0, uintptr(unsafe.Pointer(&s))); s < w {
+		return nil, xerr.Wrap("InitializeProcThreadAttributeList", err)
 	}
 	x.AttributeList = new(startupAttrs)
 	r, _, err := funcInitializeProcThreadAttributeList.Call(
-		uintptr(unsafe.Pointer(x.AttributeList)), 1, 0, uintptr(unsafe.Pointer(&s)),
+		uintptr(unsafe.Pointer(x.AttributeList)), c, 0, uintptr(unsafe.Pointer(&s)),
 	)
 	if r == 0 {
-		return nil, xerr.Wrap("winapi InitializeProcThreadAttributeList error", err)
+		return nil, xerr.Wrap("InitializeProcThreadAttributeList", err)
 	}
 	if i != nil {
 		x.StartupInfo = *i
@@ -285,7 +314,18 @@ func newParentEx(p windows.Handle, i *windows.StartupInfo) (*startupInfoEx, erro
 		uintptr(unsafe.Pointer(&p)), uintptr(unsafe.Sizeof(p)), 0, 0,
 	)
 	if r == 0 {
-		return nil, xerr.Wrap("winapi UpdateProcThreadAttribute error", err)
+		funcDeleteProcThreadAttributeList.Call(uintptr(unsafe.Pointer(x.AttributeList)))
+		return nil, xerr.Wrap("UpdateProcThreadAttribute", err)
+	}
+	if protectEnable && verPast61 {
+		r, _, err = funcUpdateProcThreadAttribute.Call(
+			uintptr(unsafe.Pointer(x.AttributeList)), 0, 0x00020007,
+			uintptr(unsafe.Pointer(&secProtect)), uintptr(unsafe.Sizeof(secProtect)), 0, 0,
+		)
+		if r == 0 {
+			funcDeleteProcThreadAttributeList.Call(uintptr(unsafe.Pointer(x.AttributeList)))
+			return nil, xerr.Wrap("UpdateProcThreadAttribute", err)
+		}
 	}
 	return &x, nil
 }
@@ -297,17 +337,17 @@ func run(name, cmd, dir string, p, t *windows.SecurityAttributes, f uint32, e *u
 	)
 	if len(name) > 0 {
 		if n, err = windows.UTF16PtrFromString(name); err != nil {
-			return xerr.Wrap(`cannot convert "`+name+`"`, err)
+			return xerr.Wrap("cannot convert name", err)
 		}
 	}
 	if len(cmd) > 0 {
 		if c, err = windows.UTF16PtrFromString(cmd); err != nil {
-			return xerr.Wrap(`cannot convert "`+cmd+`"`, err)
+			return xerr.Wrap("cannot convert cmd", err)
 		}
 	}
 	if len(dir) > 0 {
 		if d, err = windows.UTF16PtrFromString(dir); err != nil {
-			return xerr.Wrap(`cannot convert "`+dir+`"`, err)
+			return xerr.Wrap("cannot convert directory", err)
 		}
 	}
 	if e != nil {
@@ -340,7 +380,7 @@ func run(name, cmd, dir string, p, t *windows.SecurityAttributes, f uint32, e *u
 		)
 	}
 	if r == 0 {
-		return xerr.Wrap("winapi CreateProcess error", err)
+		return xerr.Wrap("CreateProcess", err)
 	}
 	return nil
 }

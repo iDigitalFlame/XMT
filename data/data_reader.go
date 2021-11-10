@@ -4,7 +4,7 @@ import "io"
 
 type reader struct {
 	r   io.Reader
-	buf []byte
+	buf [8]byte
 }
 
 func (r *reader) Close() error {
@@ -16,7 +16,7 @@ func (r *reader) Close() error {
 
 // NewReader creates a simple Reader struct from the base io.Reader provided.
 func NewReader(r io.Reader) Reader {
-	return &reader{r: r, buf: make([]byte, 8)}
+	return &reader{r: r}
 }
 func (r *reader) Int() (int, error) {
 	v, err := r.Uint64()
@@ -90,7 +90,7 @@ func (r *reader) Bytes() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	var l int
+	var l uint64
 	switch t {
 	case 0:
 		return nil, nil
@@ -99,33 +99,42 @@ func (r *reader) Bytes() ([]byte, error) {
 		if err2 != nil {
 			return nil, err2
 		}
-		l = int(n)
+		l = uint64(n)
 	case 3, 4:
 		n, err2 := r.Uint16()
 		if err2 != nil {
 			return nil, err2
 		}
-		l = int(n)
+		l = uint64(n)
 	case 5, 6:
 		n, err2 := r.Uint32()
 		if err2 != nil {
 			return nil, err2
 		}
-		l = int(n)
+		l = uint64(n)
 	case 7, 8:
 		n, err2 := r.Uint64()
 		if err2 != nil {
 			return nil, err2
 		}
-		l = int(n)
+		l = uint64(n)
 	default:
 		return nil, ErrInvalidType
+	}
+	if l == 0 {
+		// NOTE(dij): Technically we should return (nil, nil)
+		//            But! Our spec states that 0 size should be ID:0
+		//            NOT ID:0,SIZE:0. So something made a fucky wucky here.
+		return nil, io.ErrUnexpectedEOF
+	}
+	if l > MaxSlice {
+		return nil, ErrTooLarge
 	}
 	var (
 		b = make([]byte, l)
 		n int
 	)
-	if n, err = ReadFully(r.r, b); err != nil {
+	if n, err = io.ReadFull(r.r, b); err != nil {
 		switch {
 		case err == io.EOF:
 		case err == ErrLimit:
@@ -133,10 +142,7 @@ func (r *reader) Bytes() ([]byte, error) {
 			return nil, err
 		}
 	}
-	//if err != nil && ((err != io.EOF && err != ErrLimit) || n != l) {
-	//	return nil, err
-	//}
-	if n != l {
+	if uint64(n) != l {
 		return b[:n], io.EOF
 	}
 	return b, nil
@@ -167,7 +173,7 @@ func (r *reader) ReadBool(p *bool) error {
 }
 func (r *reader) Uint16() (uint16, error) {
 	_ = r.buf[1]
-	n, err := ReadFully(r.r, r.buf[0:2])
+	n, err := io.ReadFull(r.r, r.buf[0:2])
 	if err != nil {
 		return 0, err
 	}
@@ -178,7 +184,7 @@ func (r *reader) Uint16() (uint16, error) {
 }
 func (r *reader) Uint32() (uint32, error) {
 	_ = r.buf[3]
-	n, err := ReadFully(r.r, r.buf[0:4])
+	n, err := io.ReadFull(r.r, r.buf[0:4])
 	if err != nil {
 		return 0, err
 	}
@@ -189,7 +195,7 @@ func (r *reader) Uint32() (uint32, error) {
 }
 func (r *reader) Uint64() (uint64, error) {
 	_ = r.buf[7]
-	n, err := ReadFully(r.r, r.buf)
+	n, err := io.ReadFull(r.r, r.buf[:])
 	if err != nil {
 		return 0, err
 	}
@@ -244,6 +250,14 @@ func (r *reader) Float64() (float64, error) {
 		return 0, nil
 	}
 	return float64FromInt(v), nil
+}
+func (r *reader) ReadBytes(p *[]byte) error {
+	v, err := r.Bytes()
+	if err != nil {
+		return err
+	}
+	*p = v
+	return nil
 }
 func (r *reader) Read(b []byte) (int, error) {
 	return r.r.Read(b)

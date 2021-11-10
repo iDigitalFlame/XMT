@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/iDigitalFlame/xmt/com/limits"
+	"github.com/iDigitalFlame/xmt/util/bugtrack"
 )
 
 type ipStream struct {
@@ -18,24 +18,24 @@ type ipListener struct {
 	proto byte
 }
 type ipConnector struct {
-	dialer *net.Dialer
-	proto  byte
+	net.Dialer
+	proto byte
 }
 
-func (i ipListener) String() string {
-	return "IP:" + strconv.Itoa(int(i.proto)) + "[" + i.Addr().String() + "]"
+func (i *ipListener) String() string {
+	return "IP:" + strconv.Itoa(int(i.proto)) + "/" + i.Addr().String()
 }
 
 // NewIP creates a new simple IP based connector with the supplied timeout and protocol number.
-func NewIP(p byte, t time.Duration) Connector {
-	return &ipConnector{proto: p, dialer: &net.Dialer{Timeout: t, KeepAlive: t, DualStack: true}}
+func NewIP(t time.Duration, p byte) Connector {
+	return &ipConnector{proto: p, Dialer: net.Dialer{Timeout: t, KeepAlive: t, DualStack: true}}
 }
 func (i *ipStream) Read(b []byte) (int, error) {
-	if i.timeout > 0 {
-		i.Conn.SetReadDeadline(time.Now().Add(i.timeout))
-	}
 	n, err := i.udpStream.Read(b)
 	if n > 20 {
+		if bugtrack.Enabled {
+			bugtrack.Track("com.ipStream.Read(): Cutting off IP header n=%d, after n=%d", n, n-20)
+		}
 		copy(b, b[20:])
 		n -= 20
 	}
@@ -44,27 +44,26 @@ func (i *ipStream) Read(b []byte) (int, error) {
 	}
 	return n, err
 }
-func (i ipConnector) Connect(s string) (net.Conn, error) {
-	c, err := i.dialer.Dial("ip:"+strconv.Itoa(int(i.proto)), s)
+func (i *ipConnector) Connect(s string) (net.Conn, error) {
+	c, err := i.Dial("ip:"+strconv.Itoa(int(i.proto)), s)
 	if err != nil {
 		return nil, err
 	}
-	return &ipStream{udpStream{timeout: i.dialer.Timeout, Conn: c}}, nil
+	return &ipStream{udpStream{Conn: c}}, nil
 }
-func (i ipConnector) Listen(s string) (net.Listener, error) {
+func (i *ipConnector) Listen(s string) (net.Listener, error) {
 	c, err := ListenConfig.ListenPacket(context.Background(), "ip:"+strconv.Itoa(int(i.proto)), s)
 	if err != nil {
 		return nil, err
 	}
-	l := &ipListener{
-		proto: i.proto,
-		Listener: &udpListener{
-			buf:     make([]byte, limits.Buffer),
-			delete:  make(chan string, 32),
-			socket:  c,
-			active:  make(map[string]*udpConn),
-			timeout: i.dialer.Timeout,
-		},
+	l := &udpListener{
+		new:  make(chan *udpConn, 16),
+		del:  make(chan udpAddr, 16),
+		cons: make(map[udpAddr]*udpConn),
+		sock: c,
 	}
-	return l, nil
+	l.ctx, l.cancel = context.WithCancel(context.Background())
+	go l.purge()
+	go l.listen()
+	return &ipListener{proto: i.proto, Listener: l}, nil
 }

@@ -1,23 +1,13 @@
 package com
 
-import (
-	"strconv"
-	"strings"
-	"sync"
-
-	"github.com/iDigitalFlame/xmt/data"
-)
+import "github.com/iDigitalFlame/xmt/data"
 
 const (
-	// FlagData is a flag used to indicate that Hello/Echo/Sleep packets
-	// also include additional data to be read.
-	FlagData Flag = 1 << iota
 	// FlagFrag is a flag used to indicate that the packet is part of a
-	// fragment group (PacketGroup) and the server should re-assemble the packet
-	// before preforming actions on it.
-	FlagFrag
+	// fragment group and the server should re-assemble the packet before preforming actions on it.
+	FlagFrag = 1 << iota
 	// FlagMulti is a flag used to indicate that the packet is a container
-	// for multiple packets, auto addded by a processing agent.
+	// for multiple packets, auto added by a processing agent. This Flag also carries the 'FlagFrag' flag.
 	FlagMulti
 	// FlagProxy is a flag used to indicate that the packet was sent from another client
 	// acting as a forwarding proxy.
@@ -28,9 +18,11 @@ const (
 	// FlagChannel is a flag used to signify that the connection should be converted into/from a single
 	// channel connection. This means that the connection is kept alive and the client will not poll the server.
 	// This flag will be present on the top level multi-packet if included in a single packet inside. This flag will
-	// take affect on each hop that it goes through. Incompatible with 'FlagOneshot'. Has to be used once per connection.
-	// Currently Disabled.
+	// take affect on each hop that it goes through. Incompatible with 'FlagOneshot'. Can only be used once per connection.
 	FlagChannel
+	// FlagChannelEnd is a flag used to signify that a Channel connection should be terminated. Unlike the 'FlagChannel'
+	// option, this will only affect the targeted hop. Incompatible with 'FlagOneshot'. Can only be used once per connection.
+	FlagChannelEnd
 	// FlagOneshot is used to signal that the Packet contains information and should not be used to
 	// create or re-establish a session.
 	FlagOneshot
@@ -40,20 +32,16 @@ const (
 	FlagMultiDevice
 )
 
-var stringBuf = sync.Pool{
-	New: func() interface{} {
-		return new(strings.Builder)
-	},
-}
-
 // Flag is a bitwise integer that represents important
 // information about the packet that its assigned to.
 //
 // Mapping
+//
 // 64        56        48        40        32        24        16         8         0
 //  | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 |
 //  |    Frag Total     |   Frag Position   |   Frag Group ID   |       Flags       |
 //  |                         Frag Data                         |                   |
+//
 type Flag uint64
 
 // Clear clears all Frag and Multi related data values.
@@ -79,47 +67,6 @@ func (f *Flag) Unset(n Flag) {
 // Group returns the fragment group ID that this packet is part of.
 func (f Flag) Group() uint16 {
 	return uint16(f >> 16)
-}
-
-// String returns a character representation of this Flag.
-func (f Flag) String() string {
-	b := stringBuf.Get().(*strings.Builder)
-	if f&FlagData != 0 {
-		b.WriteRune('D')
-	}
-	if f&FlagFrag != 0 {
-		b.WriteRune('F')
-	}
-	if f&FlagMulti != 0 {
-		b.WriteRune('M')
-	}
-	if f&FlagProxy != 0 {
-		b.WriteRune('P')
-	}
-	if f&FlagError != 0 {
-		b.WriteRune('E')
-	}
-	if f&FlagChannel != 0 {
-		b.WriteRune('C')
-	}
-	if f&FlagOneshot != 0 {
-		b.WriteRune('O')
-	}
-	if f&FlagMultiDevice != 0 {
-		b.WriteRune('X')
-	}
-	if b.Len() == 0 {
-		b.WriteString("V" + strconv.FormatUint(uint64(f), 16))
-	}
-	if f&FlagMulti != 0 {
-		b.WriteString("[" + strconv.Itoa(int(f.Len())) + "]")
-	} else if f&FlagFrag != 0 {
-		b.WriteString("[" + strconv.FormatUint(uint64(f.Group()), 16) + ":" + strconv.Itoa(int(f.Position()+1)) + "/" + strconv.Itoa(int(f.Len())) + "]")
-	}
-	s := b.String()
-	b.Reset()
-	stringBuf.Put(b)
-	return s
 }
 
 // Position represents position of this packet in a fragment group.
@@ -149,10 +96,5 @@ func (f Flag) MarshalStream(w data.Writer) error {
 
 // UnmarshalStream reads the data of this Flag from the supplied Reader.
 func (f *Flag) UnmarshalStream(r data.Reader) error {
-	n, err := r.Uint64()
-	if err != nil {
-		return err
-	}
-	*f = Flag(n)
-	return nil
+	return r.ReadUint64((*uint64)(f))
 }

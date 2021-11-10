@@ -6,34 +6,27 @@ import (
 	"time"
 )
 
-type unixConnector struct {
-	tcpConnector
-}
+type unixConnector tcpConnector
 
 // NewUNIX creates a new simple UNIX socket based connector with the supplied timeout.
-func NewUNIX(t time.Duration) (Connector, error) {
-	n, err := newConnector(netUNIX, t, nil)
-	if err != nil {
-		return nil, err
-	}
-	return &unixConnector{tcpConnector: *n}, nil
+func NewUNIX(t time.Duration) Connector {
+	return unixConnector(tcpConnector{Dialer: net.Dialer{Timeout: t, KeepAlive: t, DualStack: true}})
 }
 func (u unixConnector) Connect(s string) (net.Conn, error) {
-	return newConn(netUNIX, s, u.tcpConnector)
-}
-func (u unixConnector) Listen(s string) (net.Listener, error) {
-	c, err := newListener(netUNIX, s, u.tcpConnector)
-	if err != nil {
-		return nil, err
-	}
-	return &tcpListener{timeout: u.tcpConnector.dialer.Timeout, Listener: c}, nil
+	return newStreamConn("unix", s, tcpConnector(u))
 }
 
 // NewSecureUNIX creates a new simple TLS wrapped UNIX socket based connector with the supplied timeout.
-func NewSecureUNIX(t time.Duration, c *tls.Config) (Connector, error) {
-	n, err := newConnector(netUNIX, t, c)
+func NewSecureUNIX(t time.Duration, c *tls.Config) Connector {
+	if t < 0 {
+		t = DefaultTimeout
+	}
+	return unixConnector(tcpConnector{tls: c, Dialer: net.Dialer{Timeout: t, KeepAlive: t, DualStack: true}})
+}
+func (u unixConnector) Listen(s string) (net.Listener, error) {
+	c, err := newStreamListener("unix", s, tcpConnector(u))
 	if err != nil {
 		return nil, err
 	}
-	return &unixConnector{tcpConnector: *n}, nil
+	return &tcpListener{timeout: u.Timeout, Listener: c}, nil
 }

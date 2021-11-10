@@ -1,4 +1,6 @@
+//go:build s_nofrag
 // +build s_nofrag
+
 // This tag "s_nofrag" can be used to enable/disable the Fragment system (by allowing a Zero frag value).
 // While disabling fragments can show improvements in packet speed, it breaks stateless (ie: non-TCP/UNIX)
 // connection buffers.

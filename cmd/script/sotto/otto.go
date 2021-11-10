@@ -2,12 +2,12 @@ package sotto
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/c2/task"
 	"github.com/iDigitalFlame/xmt/cmd"
+	"github.com/iDigitalFlame/xmt/util"
 	"github.com/robertkrimen/otto"
 )
 
@@ -27,8 +27,8 @@ var (
 
 type ottoEngine uint8
 type ottoScript struct {
-	c strings.Builder
 	*otto.Otto
+	c util.Builder
 }
 
 // Register is a simple shortcut for 'task.RegisterEngine(uint8(Otto), Otto)'.
@@ -37,7 +37,7 @@ func Register() error {
 }
 func newOtto() *ottoScript {
 	i := &ottoScript{Otto: otto.New()}
-	i.Otto.Interrupt = make(chan func(), 1)
+	i.Interrupt = make(chan func(), 1)
 	if c, err := i.Get("console"); err == nil {
 		c.Object().Set("log", i.log)
 	}

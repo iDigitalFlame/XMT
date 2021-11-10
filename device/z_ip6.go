@@ -1,3 +1,4 @@
+//go:build !no6
 // +build !no6
 
 package device

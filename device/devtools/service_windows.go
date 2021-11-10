@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package devtools
@@ -8,6 +9,8 @@ import (
 
 	"golang.org/x/sys/windows/svc"
 )
+
+const backoff = 100 * time.Millisecond
 
 // Service is a struct that assists in running a Windows service. This struct can be created and given functions
 // to run.
@@ -30,13 +33,23 @@ type Service struct {
 func (s *Service) Run() error {
 	return s.RunContext(context.Background())
 }
+func executeCatch(f func()) (fail bool) {
+	if f == nil {
+		return false
+	}
+	defer func() {
+		if recover() != nil {
+			fail = true
+		}
+	}()
+	f()
+	return false
+}
 
 // RunContext will trigger the service to start and will block until the service completes. Will always returns
 // 'ErrNoWindows' on non-Windows devices. This function allows to pass a Context to cancel the running service.
 func (s *Service) RunContext(x context.Context) error {
-	if s != nil {
-		s.ctx = x
-	}
+	s.ctx = x
 	return svc.Run(s.Name, s)
 }
 
@@ -44,17 +57,19 @@ func (s *Service) RunContext(x context.Context) error {
 // call the 'Service.Run' function.
 func (s *Service) Execute(_ []string, c <-chan svc.ChangeRequest, x chan<- svc.Status) (bool, uint32) {
 	x <- svc.Status{State: svc.StartPending}
-	defer func(z chan<- svc.Status) {
-		recover()
-		z <- svc.Status{State: svc.StopPending}
-	}(x)
-	if s.Start != nil {
-		s.Start()
-	}
-	if s.Exec == nil {
-		x <- svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown}
-		time.Sleep(100 * time.Millisecond)
+	if executeCatch(s.Start) {
+		time.Sleep(backoff)
 		x <- svc.Status{State: svc.StopPending}
+		return false, 1
+	}
+	x <- svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown}
+	if s.Exec == nil {
+		r := executeCatch(s.End)
+		time.Sleep(backoff)
+		x <- svc.Status{State: svc.StopPending}
+		if r {
+			return false, 1
+		}
 		return false, 0
 	}
 	if s.ctx == nil {
@@ -63,13 +78,14 @@ func (s *Service) Execute(_ []string, c <-chan svc.ChangeRequest, x chan<- svc.S
 	var (
 		t    *time.Ticker
 		w    <-chan time.Time
+		e    bool
 		z, f = context.WithCancel(s.ctx)
 	)
 	if s.Interval <= 0 {
-		go func(o *Service, q context.CancelFunc) {
-			o.Exec()
-			q()
-		}(s, f)
+		go func() {
+			e = executeCatch(s.Exec)
+			f()
+		}()
 	} else {
 		t = time.NewTicker(s.Interval)
 		w = t.C
@@ -81,14 +97,16 @@ func (s *Service) Execute(_ []string, c <-chan svc.ChangeRequest, x chan<- svc.S
 			switch r.Cmd {
 			case svc.Interrogate:
 				x <- r.CurrentStatus
-				time.Sleep(100 * time.Millisecond)
+				time.Sleep(backoff)
 				x <- r.CurrentStatus
 			case svc.Stop, svc.Shutdown:
 				goto cleanup
 			default:
 			}
 		case <-w:
-			s.Exec()
+			if e = executeCatch(s.Exec); e {
+				goto cleanup
+			}
 		case <-z.Done():
 			goto cleanup
 		}
@@ -98,8 +116,8 @@ cleanup:
 	if f(); t != nil {
 		t.Stop()
 	}
-	if s.End != nil {
-		s.End()
+	if executeCatch(s.End) || e {
+		return false, 1
 	}
 	return false, 0
 }

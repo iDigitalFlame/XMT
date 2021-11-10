@@ -2,44 +2,21 @@ package crypto
 
 import (
 	"crypto/sha512"
-	"hash"
 	"math/rand"
-	"sync"
 	"time"
 )
 
-const defaultSource int64 = 0x123456789F
-
-var hashers = sync.Pool{
-	New: func() interface{} {
-		return sha512.New()
-	},
-}
-
-/*
-// Source is an interface that supports seed assistance in Ciphers and other cryptographic functions.
-type Source interface {
-	Reset() error
-	Next(uint16) uint16
-}
-*/
+const defaultSource int64 = 0x123456789FABCD
 
 // MultiSource is a struct that is a random Source that can use multiple source providers and spreads
 // the calls among them in a random manner.
 type MultiSource struct {
 	rng  *rand.Rand
-	s    []rand.Source
+	s    []rand.Source64
 	seed int64
 }
-
-// SHA512 returns the SHA512 value of the provided byte array. This function is not recommended for big arrays.
-func SHA512(b []byte) []byte {
-	h := hashers.Get().(hash.Hash)
-	h.Write(b)
-	r := h.Sum(nil)
-	h.Reset()
-	hashers.Put(h)
-	return r
+type stringer interface {
+	String() string
 }
 
 // Int63 returns a int64 number between zero and the max value.
@@ -56,10 +33,18 @@ func (m *MultiSource) Seed(n int64) {
 	m.rng.Seed(n)
 }
 
+// Uint64 returns a pseudo-random 64-bit value as a uint64.
+func (m *MultiSource) Uint64() uint64 {
+	if len(m.s) == 0 {
+		return m.rng.Uint64()
+	}
+	return m.s[m.rng.Intn(len(m.s))].Uint64()
+}
+
 // Add will append the Source values to this MultiSource instance.
-func (m *MultiSource) Add(s ...rand.Source) {
+func (m *MultiSource) Add(s ...rand.Source64) {
 	if m.s == nil {
-		m.s = make([]rand.Source, 0, len(s))
+		m.s = make([]rand.Source64, 0, len(s))
 	}
 	for i := range s {
 		m.seed += s[i].Int63()
@@ -70,12 +55,12 @@ func (m *MultiSource) Add(s ...rand.Source) {
 
 // NewSource creates a random Source from the provided interface.
 // This function supports all types of Golang primitives.
-func NewSource(seed interface{}) rand.Source {
+func NewSource(seed interface{}) rand.Source64 {
 	return NewSourceEx(4, seed)
 }
 
 // NewMultiSource creates a new MultiSource struct instance.
-func NewMultiSource(s ...rand.Source) *MultiSource {
+func NewMultiSource(s ...rand.Source64) *MultiSource {
 	m := &MultiSource{rng: rand.New(rand.NewSource(defaultSource))}
 	if len(s) > 0 {
 		m.Add(s...)
@@ -86,7 +71,7 @@ func NewMultiSource(s ...rand.Source) *MultiSource {
 // NewSourceEx creates a random Source from the provided interface.
 // This function supports all types of Golang primitives. This function
 // allows for supplying the rounds value, which defaults to the value of 4.
-func NewSourceEx(rounds int, seed interface{}) rand.Source {
+func NewSourceEx(rounds int, seed interface{}) rand.Source64 {
 	var s int64
 	if rounds <= 0 {
 		rounds = 1
@@ -121,25 +106,34 @@ func NewSourceEx(rounds int, seed interface{}) rand.Source {
 	case time.Duration:
 		s = int64(i)
 	default:
-		var b []byte
+		h := sha512.New()
 		switch x := seed.(type) {
 		case []byte:
-			b = x
+			h.Write(x)
 		case string:
-			b = []byte(x)
+			h.Write([]byte(x))
+		case stringer:
+			h.Write([]byte(x.String()))
 		default:
 			// b = []byte(fmt.Sprintf("%s", seed))
-			// Removing the need for "fmt" here.
-			// I don't think this is used enough to
-			// Adding as static instead.
-			b = []byte("<invalid>")
+			// NOTE(dij):
+			//    Removing the need for "fmt" here.
+			//    I don't think this is used enough to
+			//    Adding as static instead.
+			h.Write([]byte("[invalid]"))
 		}
-		for _, v := range SHA512(b) {
+		for _, v := range h.Sum(nil) {
 			s += int64(v)
 		}
+		h = nil
+	}
+	if s == 0 {
+		return rand.NewSource(defaultSource).(rand.Source64)
 	}
 	for x := 0; x < rounds; x++ {
 		s = s + (s * 2)
 	}
-	return rand.NewSource(s)
+	// NOTE(dij): The underlying type here is '*rand.rngSource' which supports Source64.
+	//            If this panics, there is some else extremely wrong.
+	return rand.NewSource(s).(rand.Source64)
 }

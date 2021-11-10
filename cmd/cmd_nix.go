@@ -1,3 +1,4 @@
+//go:build !windows
 // +build !windows
 
 package cmd
@@ -9,7 +10,6 @@ import (
 	"syscall"
 
 	"github.com/iDigitalFlame/xmt/device/devtools"
-	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 const (
@@ -28,49 +28,54 @@ func (options) close() {}
 func (p *Process) wait() {
 	err := p.opts.Wait()
 	if _, ok := err.(*exec.ExitError); err != nil && !ok {
-		p.stopWith(err)
+		p.stopWith(exitStopped, err)
 		return
 	}
-	if p.ctx.Err() != nil {
+	if err2 := p.ctx.Err(); err2 != nil {
+		p.stopWith(exitStopped, err2)
 		return
 	}
-	if p.opts.ProcessState != nil {
+	if atomic.StoreUint32(&p.cookie, 2); p.opts.ProcessState != nil {
 		p.exit = uint32(p.opts.ProcessState.ExitCode())
-		atomic.StoreUint32(&p.once, 2)
 	}
 	if p.exit != 0 {
-		p.stopWith(&ExitError{Exit: p.exit})
+		p.stopWith(p.exit, &ExitError{Exit: p.exit})
 		return
 	}
-	p.stopWith(nil)
+	p.stopWith(p.exit, nil)
 }
 
-// Fork will attempt to use built-in system utilities to fork off the process into a separate, but similar process.
-// If successful, this function will return the PID of the new process.
-func Fork() (uint32, error) {
-	return 0, xerr.New("currently unimplemented on *nix systems (WIP)")
-}
-
-// Pid returns the current process PID. This function returns zero if the process has not been started.
-func (p Process) Pid() uint64 {
+// Pid returns the current process PID. This function returns zero if the
+// process has not been started.
+func (p *Process) Pid() uint32 {
 	if !p.isStarted() {
 		return 0
 	}
-	return uint64(p.opts.Process.Pid)
-}
-func (p *Process) kill() error {
-	p.exit = exitStopped
-	if p.opts.Process == nil {
-		return nil
+	if p.opts.ProcessState != nil {
+		return uint32(p.opts.ProcessState.Pid())
 	}
-	if err := p.opts.Process.Kill(); err != nil {
-		return err
-	}
-	return nil
+	return uint32(p.opts.Process.Pid)
 }
 
-// SetUID will set the process UID at runtime. This function takes the numerical UID value. Use '-1' to disable this
-// setting. The UID value is validated at runtime. This function has no effect on Windows devices.
+// Resume will attempt to resume this process. This will attempt to resume
+// the process using an OS-dependent syscall.
+//
+// This will not affect already running processes.
+func (p *Process) Resume() error {
+	if !p.isStarted() || p.opts.Process == nil {
+		return ErrNotStarted
+	}
+	if !p.Running() {
+		return nil
+	}
+	return p.opts.Process.Signal(syscall.SIGCONT)
+}
+
+// SetUID will set the process UID at runtime. This function takes the numerical
+// UID value. Use '-1' to disable this setting. The UID value is validated at
+// runtime.
+//
+// This function has no effect on Windows devices.
 func (p *Process) SetUID(i int32) {
 	if i < 0 {
 		p.flags, p.opts.uid = p.flags&^flagSetUID, 0
@@ -80,8 +85,10 @@ func (p *Process) SetUID(i int32) {
 	}
 }
 
-// SetGID will set the process GID at runtime. This function takes the numerical GID value. Use '-1' to disable this
-// setting. The GID value is validated at runtime. This function has no effect on Windows devices.
+// SetGID will set the process GID at runtime. This function takes the numerical
+// GID value. Use '-1' to disable this setting. The GID value is validated at runtime.
+//
+//This function has no effect on Windows devices.
 func (p *Process) SetGID(i int32) {
 	if i < 0 {
 		p.flags, p.opts.gid = p.flags&^flagSetGID, 0
@@ -90,10 +97,98 @@ func (p *Process) SetGID(i int32) {
 		p.flags |= flagSetGID
 	}
 }
-func (p Process) isStarted() bool {
-	return p.opts.Cmd != nil
+
+// Suspend will attempt to suspend this process. This will attempt to suspend
+// the process using an OS-dependent syscall.
+//
+// This will not affect already suspended processes.
+func (p *Process) Suspend() error {
+	if !p.isStarted() || p.opts.Process == nil {
+		return ErrNotStarted
+	}
+	if !p.Running() {
+		return nil
+	}
+	return p.opts.Process.Signal(syscall.SIGSTOP)
 }
-func startProcess(p *Process) error {
+func (p *Process) isStarted() bool {
+	return p.opts.Cmd != nil && p.opts.Cmd.Process != nil
+}
+
+// ResumeProcess will attempt to resume the process via it's PID. This will
+// attempt to resume the process using an OS-dependent syscall.
+//
+// This will not affect already running processes.
+func ResumeProcess(p uint32) error {
+	return syscall.Kill(int(p), syscall.SIGCONT)
+}
+
+// SuspendProcess will attempt to suspend the process via it's PID. This will
+// attempt to suspend the process using an OS-dependent syscall.
+//
+// This will not affect already suspended processes.
+func SuspendProcess(p uint32) error {
+	return syscall.Kill(int(p), syscall.SIGSTOP)
+}
+
+// SetNoWindow will hide or show the window of the newly spawned process.
+//
+// This function has no effect on commands that do not generate windows or
+// if the device is not running Windows.
+func (Process) SetNoWindow(_ bool) {}
+
+// SetDetached will detach or detach the console of the newly spawned process
+// from the parent. This function has no effect on non-console commands. Setting
+// this to true disables SetNewConsole.
+//
+// This function has no effect if the device is not running Windows.
+func (Process) SetDetached(_ bool) {}
+
+// SetParent will instruct the Process to choose a parent with the supplied
+// process Filter. If the Filter is nil this will use the current process (default).
+// Setting the Parent process will automatically set 'SetNewConsole' to true
+//
+// This function has no effect if the device is not running Windows.
+func (Process) SetParent(_ *Filter) {}
+
+// SetFlags will set the startup Flag values used for Windows programs. This
+// function overrites many of the 'Set*' functions.
+func (p *Process) SetFlags(f uint32) {
+	p.flags = f
+}
+
+// SetSuspended will delay the execution of this Process and will put the
+// process in a suspended state until it is resumed using a Resume call.
+//
+// This function has no effect if the device is not running Windows.
+func (Process) SetSuspended(_ bool) {}
+
+// SetNewConsole will allocate a new console for the newly spawned process.
+// This console output will be independent of the parent process.
+//
+// This function has no effect if the device is not running Windows.
+func (Process) SetNewConsole(_ bool) {}
+
+// SetFullscreen will set the window fullscreen state of the newly spawned process.
+// This function has no effect on commands that do not generate windows.
+//
+// This function has no effect if the device is not running Windows.
+func (Process) SetFullscreen(_ bool) {}
+
+// SetChroot will set the process Chroot directory at runtime. This function
+// takes the directory path as a string value. Use an empty string "" to
+// disable this setting. The specified Path value is validated at runtime.
+//
+// This function has no effect on Windows devices.
+func (p *Process) SetChroot(s string) {
+	if len(s) == 0 {
+		p.flags, p.opts.root = p.flags&^flagSetChroot, ""
+	} else {
+		p.flags |= flagSetChroot
+		p.opts.root = s
+	}
+}
+func (p *Process) start(_ bool) error {
 	if len(p.Args) == 1 {
 		p.opts.Cmd = exec.CommandContext(p.ctx, p.Args[0])
 	} else {
@@ -127,72 +222,51 @@ func startProcess(p *Process) error {
 	go p.wait()
 	return nil
 }
-
-// SetParent will instruct the Process to choose a parent with the supplied process Filter. If the Filter is nil
-// this will use the current process (default). This function has no effect if the device is not running Windows.
-// Setting the Parent process will automatically set 'SetNewConsole' to true.
-func (*Process) SetParent(_ *Filter) {}
-
-// SetNoWindow will hide or show the window of the newly spawned process. This function has no effect
-// on commands that do not generate windows. This function has no effect if the device is not running Windows.
-func (*Process) SetNoWindow(_ bool) {}
-
-// SetDetached will detach or detach the console of the newly spawned process from the parent. This function
-// has no effect on non-console commands. Setting this to true disables SetNewConsole. This function has no effect
-// if the device is not running Windows.
-func (*Process) SetDetached(_ bool) {}
-
-// SetFlags will set the startup Flag values used for Windows programs. This function overrites many
-// of the 'Set*' functions.
-func (p *Process) SetFlags(f uint32) {
-	p.flags = f
-}
-
-// SetSuspended will delay the execution of this Process and will put the process in a suspended state until it
-// is resumed using a Resume call. This function has no effect if the device is not running Windows.
-func (*Process) SetSuspended(_ bool) {}
-
-// SetChroot will set the process Chroot directory at runtime. This function takes the directory path as a string
-// value. Use an empty string "" to disable this setting. The specified Path value is validated at runtime. This
-// function has no effect on Windows devices.
-func (p *Process) SetChroot(s string) {
-	if len(s) == 0 {
-		p.flags, p.opts.root = p.flags&^flagSetChroot, ""
-	} else {
-		p.flags |= flagSetChroot
-		p.opts.root = s
+func (p *Process) kill(e uint32) error {
+	if p.exit = e; p.opts.Process == nil {
+		return nil
 	}
+	if err := p.opts.Process.Kill(); err != nil {
+		return err
+	}
+	return nil
 }
 
-// SetNewConsole will allocate a new console for the newly spawned process. This console output will be
-// independent of the parent process. This function has no effect if the device is not running Windows.
-func (*Process) SetNewConsole(_ bool) {}
-
-// SetFullscreen will set the window fullscreen state of the newly spawned process. This function has no effect
-// on commands that do not generate windows. This function has no effect if the device is not running Windows.
-func (*Process) SetFullscreen(_ bool) {}
-
-// SetWindowDisplay will set the window display mode of the newly spawned process. This function has no effect
-// on commands that do not generate windows. This function has no effect if the device is not running Windows.
+// SetWindowDisplay will set the window display mode of the newly spawned process.
+// This function has no effect on commands that do not generate windows.
+//
 // See the 'SW_*' values in winuser.h or the Golang windows package documentation for more details.
-func (*Process) SetWindowDisplay(_ int) {}
+//
+// This function has no effect if the device is not running Windows.
+func (Process) SetWindowDisplay(_ int) {}
 
-// SetWindowTitle will set the title of the new spawned window to the the specified string. This function
-// has no effect on commands that do not generate windows. This function has no effect if the device is not
-// running Windows.
-func (*Process) SetWindowTitle(_ string) {}
+// SetWindowTitle will set the title of the new spawned window to the the
+// specified string. This function has no effect on commands that do not
+// generate windows. Setting the value to an empty string will unset this
+// setting.
+//
+// This function has no effect if the device is not running Windows.
+func (Process) SetWindowTitle(_ string) {}
 
-// Handle returns the handle of the current running Process. The return is a uintptr that can converted into a Handle.
-// This function returns an error if the Process was not started. The handle is not expected to be valid after the
-// Process exits or is terminated. This function always returns 'ErrNoWindows' on non-Windows devices.
+// Handle returns the handle of the current running Process. The return is a
+// uintptr that can converted into a Handle.
+//
+// This function returns an error if the Process was not started. The handle
+// is not expected to be valid after the Process exits or is terminated.
+//
+// This function always returns 'ErrNoWindows' on non-Windows devices.
 func (Process) Handle() (uintptr, error) {
 	return 0, devtools.ErrNoWindows
 }
 
-// SetWindowSize will set the window display size of the newly spawned process. This function has no effect
-// on commands that do not generate windows. This function has no effect if the device is not running Windows.
-func (*Process) SetWindowSize(_, _ uint32) {}
+// SetWindowSize will set the window display size of the newly spawned process.
+// This function has no effect on commands that do not generate windows.
+//
+// This function has no effect if the device is not running Windows.
+func (Process) SetWindowSize(_, _ uint32) {}
 
-// SetWindowPosition will set the window postion of the newly spawned process. This function has no effect
-// on commands that do not generate windows. This function has no effect if the device is not running Windows.
-func (*Process) SetWindowPosition(_, _ uint32) {}
+// SetWindowPosition will set the window postion of the newly spawned process.
+// This function has no effect on commands that do not generate windows.
+//
+// This function has no effect if the device is not running Windows.
+func (Process) SetWindowPosition(_, _ uint32) {}

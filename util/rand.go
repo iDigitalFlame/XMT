@@ -1,7 +1,7 @@
 package util
 
 import (
-	// Import unsafe to use faster "cputicks" function instead of "time.Now().UnixNano()"
+	// Import unsafe to use faster "cputicks" and "fastrand" functions
 	_ "unsafe"
 )
 

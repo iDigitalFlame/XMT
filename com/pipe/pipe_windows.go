@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package pipe
@@ -10,6 +11,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/iDigitalFlame/xmt/device/devtools"
 	"golang.org/x/sys/windows"
 )
 
@@ -19,8 +21,10 @@ const (
 	// This can be applied to the ListenPerm function.
 	PermEveryone = "D:PAI(A;;FA;;;WD)(A;;FA;;;SY)"
 
-	retry   = 100 * time.Millisecond
-	network = "pipe"
+	retry = 100 * time.Millisecond
+
+	pipeBuffer  = 50
+	pipeTimeout = 512
 )
 
 var (
@@ -36,17 +40,11 @@ var (
 	dllKernel32 = windows.NewLazySystemDLL("kernel32.dll")
 
 	funcWaitNamedPipe       = dllKernel32.NewProc("WaitNamedPipeW")
-	funcCreateNamedPipe     = dllKernel32.NewProc("CreateNamedPipeW")
 	funcConnectNamedPipe    = dllKernel32.NewProc("ConnectNamedPipe")
 	funcDisconnectNamedPipe = dllKernel32.NewProc("DisconnectNamedPipe")
 )
 
 type addr string
-type conn struct {
-	read, write time.Time
-	addr        addr
-	handle      windows.Handle
-}
 type wait struct {
 	err error
 	n   uint32
@@ -56,11 +54,22 @@ type errno struct {
 	m string
 	t bool
 }
-type listener struct {
+
+// Listener is a struct that fulfils the 'net.Listener' interface, but used for
+// Windows named pipes.
+type Listener struct {
 	overlap        *windows.Overlapped
 	addr           addr
 	active, handle windows.Handle
 	done           uint32
+}
+
+// PipeConn is a struct that implements a Windows Pipe connection. This is similar to the 'net.Conn'
+// interface except it adds the 'Impersonate' function, which is only from the 'AcceptPipe' function.
+type PipeConn struct {
+	read, write time.Time
+	addr        addr
+	handle      windows.Handle
 }
 
 // Format will ensure the path for this Pipe socket fits the proper OS based pathname. Valid pathnames will be
@@ -69,16 +78,13 @@ func Format(s string) string {
 	if len(s) > 2 && s[0] == '\\' && s[1] == '\\' {
 		return s
 	}
-	return `\\.\pipe\` + s
+	return `\\.\pipe` + "\\" + s
 }
 func (e errno) Cause() error {
 	return e.e
 }
 func (addr) Network() string {
-	return network
-}
-func (c *conn) Close() error {
-	return windows.CloseHandle(c.handle)
+	return "pipe"
 }
 func (a addr) String() string {
 	return string(a)
@@ -93,17 +99,29 @@ func (e errno) Unwrap() error {
 	return e.e
 }
 func (e errno) String() string {
-	return e.m
+	if e.e == nil {
+		return e.m
+	}
+	return e.m + ": " + e.e.Error()
 }
 func (e errno) Temporary() bool {
 	return e.t
 }
-func (l *listener) Close() error {
+
+// Close releases the associated Pipe's resources. The handle is no longer considered valid after
+// a call to this function.
+func (c *PipeConn) Close() error {
+	err := windows.CloseHandle(c.handle)
+	c.handle = 0
+	return err
+}
+
+// Close closes the listener. Any blocked Accept operations will be unblocked and return errors.
+func (l *Listener) Close() error {
 	if atomic.LoadUint32(&l.done) == 1 {
 		return nil
 	}
-	atomic.StoreUint32(&l.done, 1)
-	if l.handle > 0 {
+	if atomic.StoreUint32(&l.done, 1); l.handle > 0 {
 		if r, _, err := funcDisconnectNamedPipe.Call(uintptr(l.handle)); r == 0 {
 			return err
 		}
@@ -126,13 +144,33 @@ func (l *listener) Close() error {
 	}
 	return nil
 }
-func (l listener) Addr() net.Addr {
+
+// String returns a string representation of this listener.
+func (l *Listener) String() string {
+	return "PIPE/" + string(l.addr)
+}
+
+// Addr returns the listener's network address.
+func (l *Listener) Addr() net.Addr {
 	return l.addr
 }
-func (c conn) LocalAddr() net.Addr {
+
+// Impersonate will attempt to call 'ImpersonatePipeToken' which, if successful, will set the token of this
+// Thread to the Pipe's connected client token. A call to 'devtools.RevertToSelf()' will reset the token.
+func (c *PipeConn) Impersonate() error {
+	if c.handle == 0 {
+		return nil
+	}
+	return devtools.ImpersonatePipeToken(uintptr(c.handle))
+}
+
+// LocalAddr returns the Pipe's local endpoint address.
+func (c *PipeConn) LocalAddr() net.Addr {
 	return c.addr
 }
-func (c conn) RemoteAddr() net.Addr {
+
+// RemoteAddr returns the Pipe's remote endpoint address.
+func (c *PipeConn) RemoteAddr() net.Addr {
 	return c.addr
 }
 
@@ -142,29 +180,56 @@ func (c conn) RemoteAddr() net.Addr {
 func Dial(path string) (net.Conn, error) {
 	return DialContext(context.Background(), path)
 }
-func (c *conn) Read(b []byte) (int, error) {
+
+// Listen returns a net.Listener that will listen for new connections on the Named Pipe path specified or any
+// errors that may occur during listener creation. Pipe names are in the form of "\\<computer>\pipe\<path>".
+func Listen(path string) (*Listener, error) {
+	return ListenSecurity(path, nil)
+}
+
+// Accept waits for and returns the next connection to the listener.
+func (l *Listener) Accept() (net.Conn, error) {
+	return l.AcceptPipe()
+}
+
+// Read implements the 'net.Conn' interface.
+func (c *PipeConn) Read(b []byte) (int, error) {
+	if c.handle == 0 {
+		return 0, ErrClosed
+	}
 	var (
 		a   uint32
 		o   = new(windows.Overlapped)
 		err error
 	)
 	if o.HEvent, err = windows.CreateEvent(nil, 1, 1, nil); err != nil {
-		return 0, &errno{m: "could not create pipe event", e: err}
+		return 0, &errno{m: "could not create Pipe event", e: err}
 	}
 	return c.finish(windows.ReadFile(c.handle, b, &a, o), int(a), c.read, o)
 }
-func (c *conn) Write(b []byte) (int, error) {
+
+// Write implements the 'net.Conn' interface.
+func (c *PipeConn) Write(b []byte) (int, error) {
 	var (
 		a   uint32
 		o   = new(windows.Overlapped)
 		err error
 	)
 	if o.HEvent, err = windows.CreateEvent(nil, 1, 1, nil); err != nil {
-		return 0, &errno{m: "could not create pipe event", e: err}
+		return 0, &errno{m: "could not create Pipe event", e: err}
 	}
 	return c.finish(windows.WriteFile(c.handle, b, &a, o), int(a), c.write, o)
 }
-func (l *listener) Accept() (net.Conn, error) {
+
+// SetDeadline implements the 'net.Conn' interface.
+func (c *PipeConn) SetDeadline(t time.Time) error {
+	c.read, c.write = t, t
+	return nil
+}
+
+// AcceptPipe waits for and returns the next connection to the listener. This function returns a the real type
+// of 'PipeConn' that can be used for the 'Impersonate' function.
+func (l *Listener) AcceptPipe() (*PipeConn, error) {
 	if atomic.LoadUint32(&l.done) == 1 {
 		return nil, ErrClosed
 	}
@@ -173,8 +238,8 @@ func (l *listener) Accept() (net.Conn, error) {
 		err error
 	)
 	if l.handle == 0 {
-		if h, err = createPipe(l.addr, nil, 50, 512, false); err != nil {
-			return nil, &errno{m: "could not create pipe", e: err}
+		if h, err = create(l.addr, nil, pipeBuffer, pipeTimeout, false); err != nil {
+			return nil, &errno{m: "could not create Pipe", e: err}
 		}
 	} else {
 		h, l.handle = l.handle, 0
@@ -182,7 +247,7 @@ func (l *listener) Accept() (net.Conn, error) {
 	o := new(windows.Overlapped)
 	if o.HEvent, err = windows.CreateEvent(nil, 1, 1, nil); err != nil {
 		windows.CloseHandle(h)
-		return nil, &errno{m: "could not create pipe event", e: err}
+		return nil, &errno{m: "could not create Pipe event", e: err}
 	}
 	r, _, err := funcConnectNamedPipe.Call(uintptr(h), uintptr(unsafe.Pointer(o)))
 	if err == windows.ERROR_IO_PENDING || err == windows.ERROR_IO_INCOMPLETE {
@@ -199,30 +264,27 @@ func (l *listener) Accept() (net.Conn, error) {
 	}
 	if r == 0 && err != nil && err != windows.ERROR_PIPE_CONNECTED {
 		windows.CloseHandle(h)
-		return nil, &errno{m: "could not connect pipe: " + err.Error(), e: err}
+		return nil, &errno{m: "could not connect Pipe", e: err}
 	}
-	return &conn{addr: l.addr, handle: h}, nil
-}
-func (c *conn) SetDeadline(t time.Time) error {
-	c.read, c.write = t, t
-	return nil
+	return &PipeConn{addr: l.addr, handle: h}, nil
 }
 
-// Listen returns a net.Listener that will listen for new connections on the Named Pipe path specified or any
-// errors that may occur during listener creation. Pipe names are in the form of "\\<computer>\pipe\<path>".
-func Listen(path string) (net.Listener, error) {
-	return ListenSecurity(path, nil)
-}
-func (c *conn) SetReadDeadline(t time.Time) error {
+// SetReadDeadline implements the 'net.Conn' interface.
+func (c *PipeConn) SetReadDeadline(t time.Time) error {
 	c.read = t
 	return nil
 }
-func (c *conn) SetWriteDeadline(t time.Time) error {
+
+// SetWriteDeadline implements the 'net.Conn' interface.
+func (c *PipeConn) SetWriteDeadline(t time.Time) error {
 	c.write = t
 	return nil
 }
-func connectPipe(path string, t uint32) (*conn, error) {
-	n, err := windows.UTF16PtrFromString(string(path))
+func connect(path string, t uint32) (*PipeConn, error) {
+	if len(path) == 0 || len(path) > 255 {
+		return nil, &errno{m: "invalid Pipe path length"}
+	}
+	n, err := windows.UTF16PtrFromString(path)
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +292,8 @@ func connectPipe(path string, t uint32) (*conn, error) {
 	if r == 0 {
 		return nil, err
 	}
-	h, err := windows.CreateFile(n,
+	h, err := windows.CreateFile(
+		n,
 		windows.GENERIC_READ|windows.GENERIC_WRITE,
 		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE,
 		nil,
@@ -241,14 +304,13 @@ func connectPipe(path string, t uint32) (*conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &conn{addr: addr(path), handle: h}, nil
-
+	return &PipeConn{addr: addr(path), handle: h}, nil
 }
 
-// ListenPerms returns a net.Listener that will listen for new connections on the Named Pipe path specified or any
+// ListenPerms returns a Listener that will listen for new connections on the Named Pipe path specified or any
 // errors that may occur during listener creation. Pipe names are in the form of "\\<computer>\pipe\<path>".
 // This function allows for specifying a SDDL string used to set the permissions of the listeneing Pipe.
-func ListenPerms(path, perms string) (net.Listener, error) {
+func ListenPerms(path, perms string) (*Listener, error) {
 	var (
 		s   = windows.SecurityAttributes{InheritHandle: 1}
 		err error
@@ -267,12 +329,12 @@ func ListenPerms(path, perms string) (net.Listener, error) {
 // blocks for the specified amount of time and will return 'Errtimeout' if the timeout is reached.
 func DialTimeout(path string, t time.Duration) (net.Conn, error) {
 	for n, d := time.Now(), time.Now().Add(t); n.Before(d); n = time.Now() {
-		c, err := connectPipe(path, uint32(d.Sub(n)/time.Millisecond))
+		c, err := connect(path, uint32(d.Sub(n)/time.Millisecond))
 		if err == nil {
 			return c, nil
 		}
 		if err == windows.ERROR_BAD_PATHNAME {
-			return nil, &errno{m: `invalid pipe path "` + path + `"`, e: err}
+			return nil, &errno{m: `invalid Pipe path "` + path + `"`, e: err}
 		}
 		if err == windows.ERROR_SEM_TIMEOUT {
 			return nil, ErrTimeout
@@ -303,9 +365,12 @@ func DialContext(x context.Context, path string) (net.Conn, error) {
 			default:
 			}
 		}
-		c, err := connectPipe(path, windows.INFINITE)
+		c, err := connect(path, 250)
 		if err == nil {
 			return c, nil
+		}
+		if err == windows.ERROR_SEM_TIMEOUT {
+			return nil, ErrTimeout
 		}
 		if err == windows.ERROR_BAD_PATHNAME {
 			return nil, &errno{m: `invalid pipe path "` + path + `"`, e: err}
@@ -327,28 +392,29 @@ func complete(h windows.Handle, o *windows.Overlapped) (uint32, error) {
 	)
 	return n, err
 }
-func waitComplete(w chan<- wait, h windows.Handle, o *windows.Overlapped) {
-	n, err := complete(h, o)
-	w <- wait{n: n, err: err}
+func waitComplete(w chan<- wait, h windows.Handle, o *windows.Overlapped, s *uint32) {
+	if n, err := complete(h, o); atomic.LoadUint32(s) == 0 {
+		w <- wait{n: n, err: err}
+	}
 }
 
 // ListenSecurity returns a net.Listener that will listen for new connections on the Named Pipe path specified or any
 // errors that may occur during listener creation. Pipe names are in the form of "\\<computer>\pipe\<path>".
 // This function allows for specifying a SecurityAttributes object used to set the permissions of the listeneing Pipe.
-func ListenSecurity(path string, p *windows.SecurityAttributes) (net.Listener, error) {
+func ListenSecurity(path string, p *windows.SecurityAttributes) (*Listener, error) {
 	var (
 		a      = addr(path)
-		l, err = createPipe(a, p, 50, 512, true)
+		l, err = create(a, p, pipeBuffer, pipeTimeout, true)
 	)
 	if err != nil {
 		if err == windows.ERROR_INVALID_NAME {
-			return nil, &errno{m: `invalid pipe path "` + path + `"`, e: err}
+			return nil, &errno{m: `invalid Pipe path "` + path + `"`, e: err}
 		}
 		return nil, &errno{m: err.Error(), e: err}
 	}
-	return &listener{addr: a, handle: l}, nil
+	return &Listener{addr: a, handle: l}, nil
 }
-func (c *conn) finish(e error, a int, t time.Time, o *windows.Overlapped) (int, error) {
+func (c *PipeConn) finish(e error, a int, t time.Time, o *windows.Overlapped) (int, error) {
 	if e == windows.ERROR_BROKEN_PIPE {
 		windows.CloseHandle(o.HEvent)
 		return a, io.EOF
@@ -359,6 +425,7 @@ func (c *conn) finish(e error, a int, t time.Time, o *windows.Overlapped) (int, 
 	}
 	var (
 		z *time.Timer
+		s uint32
 		f <-chan time.Time
 		w = make(chan wait, 1)
 	)
@@ -366,7 +433,7 @@ func (c *conn) finish(e error, a int, t time.Time, o *windows.Overlapped) (int, 
 		z = time.NewTimer(time.Until(t))
 		f = z.C
 	}
-	go waitComplete(w, c.handle, o)
+	go waitComplete(w, c.handle, o, &s)
 	select {
 	case <-f:
 		windows.CancelIoEx(c.handle, o)
@@ -374,6 +441,7 @@ func (c *conn) finish(e error, a int, t time.Time, o *windows.Overlapped) (int, 
 	case d := <-w:
 		a, e = int(d.n), d.err
 	}
+	atomic.StoreUint32(&s, 1)
 	if close(w); e == windows.ERROR_BROKEN_PIPE {
 		e = io.EOF
 	}
@@ -383,10 +451,10 @@ func (c *conn) finish(e error, a int, t time.Time, o *windows.Overlapped) (int, 
 	windows.CloseHandle(o.HEvent)
 	return a, e
 }
-func createPipe(path addr, p *windows.SecurityAttributes, t, l uint32, f bool) (windows.Handle, error) {
+func create(path addr, p *windows.SecurityAttributes, t, l uint32, f bool) (windows.Handle, error) {
 	var (
-		m      = 0x00000003 | 0x00040000 | windows.FILE_FLAG_OVERLAPPED
-		n, err = windows.UTF16PtrFromString(string(path))
+		m      uint32 = 0x00000003 | 0x00040000 | windows.FILE_FLAG_OVERLAPPED
+		n, err        = windows.UTF16PtrFromString(string(path))
 	)
 	if err != nil {
 		return 0, err
@@ -394,13 +462,9 @@ func createPipe(path addr, p *windows.SecurityAttributes, t, l uint32, f bool) (
 	if f {
 		m |= 0x00080000
 	}
-	r, _, err := funcCreateNamedPipe.Call(
-		uintptr(unsafe.Pointer(n)), uintptr(m), 0, 0xFF,
-		uintptr(l), uintptr(l), uintptr(t),
-		uintptr(unsafe.Pointer(p)),
-	)
-	if r == uintptr(windows.InvalidHandle) {
+	h, err := windows.CreateNamedPipe(n, m, 0, 0xFF, l, l, t, p)
+	if err != nil || h == windows.InvalidHandle {
 		return 0, err
 	}
-	return windows.Handle(r), nil
+	return h, nil
 }

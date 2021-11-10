@@ -6,78 +6,27 @@ import (
 	"github.com/iDigitalFlame/xmt/util/text"
 )
 
-// DefaultGenerator is the generator used if no generator is provided when a client attempts a
-// connection. The default values are a URL for an news post, Windows host and a Firefox version 86 user agent.
-var DefaultGenerator = Generator{
-	URL:   text.Matcher("/news/post/%d/"),
-	Agent: text.Matcher("Mozilla/5.0 (Windows NT 10; WOW64; rv:86.0) Gecko/20101%100d Firefox/86.0"),
-}
+// RuleAny is a Rule that can be used to match any Request that comes in.
+//
+// Useful for debugging.
+var RuleAny = Rule{URL: text.MatchAny, Host: text.MatchAny, Agent: text.MatchAny}
 
 // Rule is a struct that represents a rule set used by the Web server to determine
 // the difference between normal and C2 traffic.
 type Rule struct {
-	URL, Host, Agent matcher
+	URL, Host, Agent Matcher
+	Headers          map[string]Matcher
 }
 
-// Generator is a struct that is composed of three separate Stringer interfaces. These are called
-// via their 'String' function to specify the User-Agent, URL and Host string values. They can be set to
-// static strings using the 'text.String' wrapper. This struct can be used as a C2 client connector. If
-// the Client property is not set, the DefaultClient value will be used.
-type Generator struct {
-	URL, Host, Agent stringer
-}
-type matcher interface {
+// Matcher is a utility interface that takes a single 'MatchString(string) bool'
+// function and reports true if the string matches.
+type Matcher interface {
 	MatchString(string) bool
 }
-type stringer interface {
-	String() string
-}
 
-// Reset sets all the Generator values to nil. This allows for an empty Generator to be used.
-func (g *Generator) Reset() {
-	g.URL, g.Host, g.Agent = nil, nil, nil
-}
-
-// Rule will attempt to generate a Rule that matches this generator using the current configuration.
-// Rules will only be added if the settings implement the 'MatchString(string) bool' function. Otherwise, the
-// specified rule configuration will be empty.
-func (g Generator) Rule() Rule {
-	var r Rule
-	if g.URL != nil {
-		if m, ok := g.URL.(matcher); ok {
-			r.URL = m
-		} else if m, ok := g.URL.(text.Matcher); ok {
-			r.URL = m.Match()
-		} else {
-			r.URL = text.Matcher(g.URL.String()).Match()
-		}
-	}
-	if g.Host != nil {
-		if m, ok := g.Host.(matcher); ok {
-			r.Host = m
-		} else if m, ok := g.Host.(text.Matcher); ok {
-			r.Host = m.Match()
-		} else {
-			r.Host = text.Matcher(g.Host.String()).Match()
-		}
-	}
-	if g.Agent != nil {
-		if m, ok := g.Agent.(matcher); ok {
-			r.Agent = m
-		} else if m, ok := g.Agent.(text.Matcher); ok {
-			r.Agent = m.Match()
-		} else {
-			r.Agent = text.Matcher(g.Agent.String()).Match()
-		}
-	}
-	return r
-}
-func (g Generator) empty() bool {
-	return g.Agent == nil && g.Host == nil && g.URL == nil
-}
-func (r Rule) checkMatch(c *http.Request) bool {
+func (r Rule) match(c *http.Request) bool {
 	if r.Host == nil && r.URL == nil && r.Agent == nil {
-		return false
+		return true
 	}
 	if r.Host != nil && !r.Host.MatchString(c.Host) {
 		return false
@@ -88,21 +37,35 @@ func (r Rule) checkMatch(c *http.Request) bool {
 	if r.Agent != nil && !r.Agent.MatchString(c.UserAgent()) {
 		return false
 	}
-	return true
-}
-func (g Generator) prepRequest(r *http.Request) {
-	if g.URL != nil {
-		s := g.URL.String()
-		if len(s) > 0 && s[0] != '/' {
-			r.URL.Path = "/" + s
-		} else {
-			r.URL.Path = s
+	if r.Headers != nil && len(r.Headers) > 0 {
+		if len(c.Header) == 0 {
+			return false
+		}
+		for k, v := range r.Headers {
+			if h, ok := c.Header[k]; !ok || len(h) == 0 || !v.MatchString(h[0]) {
+				return false
+			}
 		}
 	}
-	if g.Host != nil {
-		r.Host = g.Host.String()
+	return true
+}
+
+// Header adds the matcher too the Rule's header set.
+// This function will create the headers map if it's nil.
+func (r *Rule) Header(k string, v Matcher) {
+	if r.Headers == nil {
+		r.Headers = make(map[string]Matcher)
 	}
-	if g.Agent != nil {
-		r.Header.Set("User-Agent", g.Agent.String())
+	r.Headers[k] = v
+}
+func matchAll(r *http.Request, s []Rule) bool {
+	if len(s) == 0 {
+		return false
 	}
+	for i := range s {
+		if !s[i].match(r) {
+			return false
+		}
+	}
+	return true
 }

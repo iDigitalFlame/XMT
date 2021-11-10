@@ -4,47 +4,35 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"io"
-	"io/ioutil"
+
+	"github.com/iDigitalFlame/xmt/data"
 )
 
 const (
 	// Hex is the Hex encoding Wrapper. This wraps the binary data as hex values.
-	Hex = Simple(0x1)
-
+	Hex = simple(0x1)
 	// Base64 is the Base64 Wrapper. This wraps the binary data as a Base64 byte string. This may be
 	// combined with the Base64 transfrom.
-	Base64 = Simple(0x2)
+	Base64 = simple(0x2)
 )
 
-// Simple is an alias that allows for wrapping multiple types of simple mathematic-based Wrappers. This alias
-// implements the 'c2.Wrapper' interface.
-type Simple uint8
-type nopCloser struct {
-	io.Writer
-}
+type simple uint8
 
-func (nopCloser) Close() error {
-	return nil
-}
-
-// Wrap satisfies the Wrapper interface.
-func (s Simple) Wrap(w io.WriteCloser) (io.WriteCloser, error) {
+func (s simple) Unwrap(r io.Reader) (io.Reader, error) {
 	switch s {
 	case Hex:
-		return &nopCloser{hex.NewEncoder(w)}, nil
+		return hex.NewDecoder(r), nil
+	case Base64:
+		return base64.NewDecoder(base64.StdEncoding, r), nil
+	}
+	return r, nil
+}
+func (s simple) Wrap(w io.WriteCloser) (io.WriteCloser, error) {
+	switch s {
+	case Hex:
+		return data.WriteCloser(hex.NewEncoder(w)), nil
 	case Base64:
 		return base64.NewEncoder(base64.StdEncoding, w), nil
 	}
-	return nil, nil
-}
-
-// Unwrap satisfies the Wrapper interface.
-func (s Simple) Unwrap(r io.ReadCloser) (io.ReadCloser, error) {
-	switch s {
-	case Hex:
-		return ioutil.NopCloser(hex.NewDecoder(r)), nil
-	case Base64:
-		return ioutil.NopCloser(base64.NewDecoder(base64.StdEncoding, r)), nil
-	}
-	return nil, nil
+	return w, nil
 }

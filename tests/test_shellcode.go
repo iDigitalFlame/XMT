@@ -8,7 +8,7 @@ import (
 )
 
 func TestShellcode() {
-	c := &cmd.Code{
+	c := &cmd.Assembly{
 		Data: []byte{},
 	}
 

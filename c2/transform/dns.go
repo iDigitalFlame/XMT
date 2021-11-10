@@ -3,11 +3,12 @@ package transform
 import (
 	"io"
 	"strings"
-	"sync"
 
 	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
+
+// TODO(dij): Rewrite this whole POS
 
 const (
 	dnsSize      = 512
@@ -39,13 +40,6 @@ var (
 	// if the byte array supplied is smaller than the required byte size to
 	// Transform into a DNS packet.
 	ErrInvalidLength = xerr.New("length of byte array is invalid")
-
-	bufs = sync.Pool{
-		New: func() interface{} {
-			b := make([]byte, dnsSize)
-			return &b
-		},
-	}
 )
 
 // DNSClient is a Transform struct that attempts to mask C2 traffic in the form of DNS request packets.
@@ -66,7 +60,7 @@ func (d DNSClient) domain() string {
 }
 
 // Read satisfies the Transform interface requirements.
-func (d *DNSClient) Read(w io.Writer, b []byte) error {
+func (d *DNSClient) Read(b []byte, w io.Writer) error {
 	if len(b) < 16 {
 		return ErrInvalidLength
 	}
@@ -98,9 +92,9 @@ func (d *DNSClient) Read(w io.Writer, b []byte) error {
 
 // Write satisfies the Transform interface requirements.
 //
-// TODO: Write a checksum function to calculate the valid DNS checksum of the packet (structure is OK, but wireshark
-// shows no checksum code). -idf
-func (d *DNSClient) Write(w io.Writer, b []byte) error {
+// TODO(dij): Write a checksum function to calculate the valid DNS checksum of the packet
+//            (structure is OK, but wireshark shows no checksum code).
+func (d *DNSClient) Write(b []byte, w io.Writer) error {
 	if len(b) == 0 {
 		return ErrInvalidLength
 	}

