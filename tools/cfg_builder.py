@@ -302,9 +302,11 @@ def _str_to_dur(s):
                 break
             i += 1
         if i == 0:
-            raise ValueError("str2dur: missing time unit")
-        u = s[:i]
-        s = s[i:]
+            # raise ValueError("str2dur: missing time unit")
+            u = "s"
+        else:
+            u = s[:i]
+            s = s[i:]
         del i
         if u not in UNITS:
             raise ValueError("str2dur: unknown unit")

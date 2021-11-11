@@ -4,6 +4,8 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device/devtools"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 const timeout = time.Second * 15
@@ -140,6 +143,33 @@ func Cwd(d string) *com.Packet {
 	n.WriteString(d)
 	return n
 }
+func rawParse(r string) (*url.URL, error) {
+	var (
+		i   = strings.IndexRune(r, '/')
+		u   *url.URL
+		err error
+	)
+	if i == 0 && len(r) > 2 && r[1] != '/' {
+		u, err = url.Parse("/" + r)
+	} else if i == -1 || i+1 >= len(r) || r[i+1] != '/' {
+		u, err = url.Parse("//" + r)
+	} else {
+		u, err = url.Parse(r)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if len(u.Host) == 0 {
+		return nil, xerr.New(`parse "` + r + `": empty host field`)
+	}
+	if u.Host[len(u.Host)-1] == ':' {
+		return nil, xerr.New(`parse "` + r + `": invalid port specified`)
+	}
+	if len(u.Scheme) == 0 {
+		u.Scheme = "http"
+	}
+	return u, nil
+}
 func request(r *http.Request) (*http.Response, error) {
 	client.Do(func() {
 		client.v = &http.Client{
@@ -156,5 +186,9 @@ func request(r *http.Request) (*http.Response, error) {
 			},
 		}
 	})
+	var err error
+	if r.URL, err = rawParse(r.URL.String()); err != nil {
+		return nil, err
+	}
 	return client.v.Do(r)
 }

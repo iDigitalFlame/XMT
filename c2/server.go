@@ -464,7 +464,7 @@ func (s *Server) ListenContext(x context.Context, n, b string, c Accepter, p Pro
 	l.ctx, l.cancel = context.WithCancel(x)
 	s.new <- l
 	if cout.Enabled {
-		s.log.Info("[%s] Added Listener on %q!", x, b)
+		s.log.Info("[%s] Added Listener on %q!", k, b)
 	}
 	go l.listen()
 	return l, nil

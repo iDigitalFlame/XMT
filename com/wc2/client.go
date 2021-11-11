@@ -117,6 +117,9 @@ func rawParse(r string) (*url.URL, error) {
 	if u.Host[len(u.Host)-1] == ':' {
 		return nil, xerr.New(`parse "` + r + `": invalid port specified`)
 	}
+	if len(u.Scheme) == 0 {
+		u.Scheme = "http"
+	}
 	return u, nil
 }
 
@@ -162,9 +165,6 @@ func connect(t *Target, c *http.Client, a string) (net.Conn, error) {
 	u, err := rawParse(a)
 	if err != nil {
 		return nil, err
-	}
-	if len(u.Scheme) == 0 {
-		u.Scheme = "http"
 	}
 	r, _ := http.NewRequest(http.MethodGet, "", nil)
 	if r.URL = u; t != nil && !t.empty() {
