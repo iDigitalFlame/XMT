@@ -178,6 +178,7 @@ func handle(l *cout.Log, c net.Conn, h connServer, a string) {
 				l.Warning("[%s:%s] %s: Error processing Oneshot: %s!", h.prefix(), n.Device, a, err)
 			}
 		}
+		return
 	}
 	if cout.Enabled {
 		l.Debug("[%s:%s] %s: Received Packet %q (non-channel).", h.prefix(), n.Device, a, n)

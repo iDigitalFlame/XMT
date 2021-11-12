@@ -12,6 +12,7 @@ import (
 	"github.com/PurpleSec/escape"
 	"github.com/PurpleSec/routex"
 	"github.com/iDigitalFlame/xmt/c2"
+	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/device"
 )
 
@@ -165,7 +166,24 @@ func NewContext(x context.Context, c *c2.Server, key string) *Server {
 		Auth:    key,
 		Timeout: timeout,
 	}
-	s.c.New, s.c.Oneshot = s.cache.new, s.cache.catch
+	if s.c.New != nil {
+		f := c.New
+		s.c.New = func(v *c2.Session) {
+			f(v)
+			s.cache.new(v)
+		}
+	} else {
+		s.c.New = s.cache.new
+	}
+	if s.c.Oneshot != nil {
+		f := c.Oneshot
+		s.c.Oneshot = func(n *com.Packet) {
+			f(n)
+			s.cache.catch(n)
+		}
+	} else {
+		s.c.Oneshot = s.cache.catch
+	}
 	s.ctx, s.cancel = context.WithCancel(x)
 	s.BaseContext = s.context
 	s.mux = routex.NewContext(x)

@@ -164,7 +164,7 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 		case l != nil && l.s.Oneshot != nil:
 			l.s.events <- event{p: n, pf: l.s.Oneshot}
 		case s != nil && s.s.Oneshot != nil:
-			s.s.events <- event{p: n, pf: l.s.Oneshot}
+			s.s.events <- event{p: n, pf: s.s.Oneshot}
 		}
 		return nil
 	}
