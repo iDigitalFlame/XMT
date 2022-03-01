@@ -7,18 +7,14 @@ import (
 	"context"
 	"net"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/iDigitalFlame/xmt/com"
+	"github.com/iDigitalFlame/xmt/util/crypt"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
-
-// PermEveryone is the Linux permission string used in sockets to allow anyone to write and read
-// to the listening socket. This can be used for socket communcation between privilege boundaries.
-// This can be applied to the ListenPerm function.
-const PermEveryone = "0766"
 
 var dialer = new(net.Dialer)
 
@@ -26,77 +22,62 @@ type listener struct {
 	net.Listener
 }
 
-// Format will ensure the path for this Pipe socket fits the proper OS based pathname. Valid pathnames will be
-// returned without any changes.
-func Format(s string) string {
-	if !filepath.IsAbs(s) {
-		var (
-			p      = "/run/" + s
-			f, err = os.OpenFile("/run/"+s, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400)
-		)
-		if err != nil {
-			return "/tmp/" + s
-		}
-		f.Close()
-		os.Remove(p)
-		return p
-	}
-	return s
-}
-func (l *listener) String() string {
-	return "PIPE/" + l.Addr().String()
-}
-
-// Dial connects to the specified Pipe path. This function will return a net.Conn instance or any errors that may
-// occur during the connection attempt. Pipe names are in the form of "/<path>". This function blocks indefinitely.
-// Use the DialTimeout or DialContext to specify a control method.
+// Dial connects to the specified Pipe path. This function will return a 'net.Conn'
+// instance or any errors that may occur during the connection attempt.
+//
+// Pipe names are in the form of "/<path>".
+//
+// This function blocksindefinitely. Use the DialTimeout or DialContext to specify
+// a control method.
 func Dial(path string) (net.Conn, error) {
-	return dialer.Dial("unix", path)
+	return dialer.Dial(crypt.Unix, path)
 }
 
-// Listen returns a net.Listener that will listen for new connections on the Named Pipe path specified or any
-// errors that may occur during listener creation. Pipe names are in the form of "/<path>".
+// Listen returns a 'net.Listener' that will listen for new connections on the
+// Named Pipe path specified or any errors that may occur during listener
+// creation.
+//
+// Pipe names are in the form of "/<path>".
 func Listen(path string) (net.Listener, error) {
-	l, err := net.Listen("unix", path)
-	if err != nil {
-		return nil, err
-	}
-	return &listener{l}, nil
+	return ListenPermsContext(context.Background(), path, "")
 }
 func stringToDec(s string) (os.FileMode, error) {
 	if v, err := strconv.ParseInt(s, 8, 32); err == nil {
 		return os.FileMode(v), nil
 	}
 	var p os.FileMode
-	for i, c := range strings.ToLower(s) {
+	for i, c := range s {
 		switch {
-		case i < 3 && c == 'u':
+		case i < 3 && (c == 'u' || c == 'U'):
 			p |= os.ModeSetuid
-		case i < 3 && c == 'g':
+		case i < 3 && (c == 'g' || c == 'G'):
 			p |= os.ModeSetgid
-		case i == 0 && c == 't':
+		case i == 0 && (c == 't' || c == 'T'):
 			p |= os.ModeSticky
-		case i < 3 && c == 'r':
+		case i < 3 && (c == 'r' || c == 'R'):
 			p |= 0400
-		case i < 3 && c == 'w':
+		case i < 3 && (c == 'w' || c == 'W'):
 			p |= 0200
-		case i < 3 && c == 'x':
+		case i < 3 && (c == 'x' || c == 'X'):
 			p |= 0100
-		case i >= 3 && i < 6 && c == 'r':
+		case i >= 3 && i < 6 && (c == 'r' || c == 'R'):
 			p |= 0040
-		case i >= 3 && i < 6 && c == 'w':
+		case i >= 3 && i < 6 && (c == 'w' || c == 'W'):
 			p |= 0020
-		case i >= 3 && i < 6 && c == 'x':
+		case i >= 3 && i < 6 && (c == 'x' || c == 'X'):
 			p |= 0010
-		case i >= 6 && c == 'r':
+		case i >= 6 && (c == 'r' || c == 'R'):
 			p |= 0004
-		case i >= 6 && c == 'w':
+		case i >= 6 && (c == 'w' || c == 'W'):
 			p |= 0002
-		case i >= 6 && c == 'x':
+		case i >= 6 && (c == 'x' || c == 'X'):
 			p |= 0001
 		case c == '-' || c == ' ':
-		case c != 'r' && c != 'x' && c != 'w':
-			return 0, xerr.New(`invalid permission string "` + s + `"`)
+		case c != 'r' && c != 'R' && c != 'x' && c != 'X' && c != 'w' && c != 'W':
+			if xerr.Concat {
+				return 0, xerr.Sub(`invalid permission "`+s+`"`, 0xD)
+			}
+			return 0, xerr.Sub("invalid permissions", 0xD)
 		}
 	}
 	return p, nil
@@ -108,7 +89,10 @@ func getPerms(s string) (os.FileMode, int, int, error) {
 	}
 	v := strings.Split(s, ";")
 	if len(v) > 3 {
-		return 0, -1, -1, xerr.New(`invalid permission "` + s + `" size ` + strconv.Itoa(len(v)))
+		if xerr.Concat {
+			return 0, -1, -1, xerr.Sub(`invalid permission "`+s+`" size `+strconv.Itoa(len(v)), 0x10)
+		}
+		return 0, -1, -1, xerr.Sub("invalid permission size", 0x10)
 	}
 	var (
 		u, g   = -1, -1
@@ -119,22 +103,74 @@ func getPerms(s string) (os.FileMode, int, int, error) {
 	}
 	if len(v) == 3 {
 		if g, err = strconv.Atoi(v[2]); err != nil {
-			return 0, -1, -1, xerr.Wrap(`invalid GID "`+v[2]+`"`, err)
+			return 0, -1, -1, xerr.Wrap("invalid GID", err)
 		}
 	}
 	if len(v) == 2 {
 		if u, err = strconv.Atoi(v[1]); err != nil {
-			return 0, -1, -1, xerr.Wrap(`invalid UID "`+v[1]+`"`, err)
+			return 0, -1, -1, xerr.Wrap("invalid UID", err)
 		}
 	}
 	return p, u, g, nil
 }
 
-// ListenPerms returns a net.Listener that will listen for new connections on the Named Pipe path specified or any
-// errors that may occur during listener creation. Pipe names are in the form of "/<path>". This function allows
-// for specifying a SDDL string used to set the permissions of the listeneing Pipe.
+// ListenPerms returns a Listener that will listen for new connections on the
+// Named Pipe path specified or any errors that may occur during listener
+// creation.
+//
+// Pipe names are in the form of "/<path>".
+//
+// This function allows for specifying a Linux permissions string used to set the
+// permissions of the listeneing Pipe.
 func ListenPerms(path, perms string) (net.Listener, error) {
-	l, err := net.Listen("unix", path)
+	return ListenPermsContext(context.Background(), path, perms)
+}
+
+// DialTimeout connects to the specified Pipe path. This function will return a
+// net.Conn instance or any errors that may occur during the connection attempt.
+//
+// Pipe names are in the form of "/<path>".
+//
+// This function blocks for the specified amount of time and will return 'Errtimeout'
+// if the timeout is reached.
+func DialTimeout(path string, t time.Duration) (net.Conn, error) {
+	return net.DialTimeout(crypt.Unix, path, t)
+}
+
+// DialContext connects to the specified Pipe path. This function will return a
+// net.Conn instance or any errors that may occur during the connection attempt.
+//
+// Pipe names are in the form of "/<path>".
+//
+// This function blocks until the supplied context is cancled and will return the
+// context's Err() if the cancel occurs before the connection.
+func DialContext(x context.Context, path string) (net.Conn, error) {
+	return dialer.DialContext(x, crypt.Unix, path)
+}
+
+// ListenContext returns a 'net.Listener' that will listen for new connections
+// on the Named Pipe path specified or any errors that may occur during listener
+// creation.
+//
+// Pipe names are in the form of "/<path>".
+//
+// The provided Context can be used to cancel the Listener.
+func ListenContext(x context.Context, path string) (net.Listener, error) {
+	return ListenPermsContext(x, path, "")
+}
+
+// ListenPermsContext returns a Listener that will listen for new connections on
+// the Named Pipe path specified or any errors that may occur during listener
+// creation.
+//
+// Pipe names are in the form of "/".
+//
+// This function allows for specifying a Linux permissions string used to set the
+// permissions of the listeneing Pipe.
+//
+// The provided Context can be used to cancel the Listener.
+func ListenPermsContext(x context.Context, path, perms string) (net.Listener, error) {
+	l, err := com.ListenConfig.Listen(x, crypt.Unix, path)
 	if err != nil {
 		return nil, err
 	}
@@ -149,26 +185,12 @@ func ListenPerms(path, perms string) (net.Listener, error) {
 	if m > 0 {
 		if err := os.Chmod(path, m); err != nil {
 			l.Close()
-			return nil, xerr.Wrap(`unable to set permissions on "`+path+`"`, err)
+			return nil, err
 		}
 	}
 	if err := os.Chown(path, u, g); err != nil {
 		l.Close()
-		return nil, xerr.Wrap(`unable to set ownership on "`+path+`"`, err)
+		return nil, err
 	}
 	return &listener{l}, nil
-}
-
-// DialTimeout connects to the specified Pipe path. This function will return a net.Conn instance or any errors that
-// may occur during the connection attempt. Pipe names are in the form of "/<path>". This function blocks for the
-//specified amount of time and will return 'Errtimeout' if the timeout is reached.
-func DialTimeout(path string, t time.Duration) (net.Conn, error) {
-	return net.DialTimeout("unix", path, t)
-}
-
-// DialContext connects to the specified Pipe path. This function will return a net.Conn instance or any errors that
-// may occur during the connection attempt. Pipe names are in the form of "/<path>. This function blocks until the
-// supplied context is cancled and will return the context's Err() if the cancel occurs before the connection.
-func DialContext(x context.Context, path string) (net.Conn, error) {
-	return dialer.DialContext(x, "unix", path)
 }

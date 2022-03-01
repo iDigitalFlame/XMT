@@ -13,16 +13,18 @@ const size = 128
 var (
 	chains = sync.Pool{
 		New: func() interface{} {
-			b := make([]byte, size+1)
+			var b [size + 1]byte
+			// b := make([]byte, size+1)
 			return &b
 		},
 	}
 	tables = sync.Pool{
 		New: func() interface{} {
-			b := make([][]byte, size+1)
-			for i := 0; i < len(b); i++ {
-				b[i] = make([]byte, 256)
-			}
+			// b := make([][]byte, size+1)
+			// for i := 0; i < len(b); i++ {
+			// 	b[i] = make([]byte, 256)
+			// }
+			var b [size + 1][256]byte
 			return &b
 		},
 	}
@@ -114,37 +116,10 @@ func (e *CBK) Deshuffle(b []byte) {
 		}
 	}
 }
-func clear(b *[]byte, z *[][]byte) {
-	for i := 0; i < len(*b); i++ {
-		(*b)[i] = 0
-	}
-	if chains.Put(b); z != nil {
-		tables.Put(z)
-	}
-}
-func (e *CBK) cipherTable(b *[]byte) {
-	(*b)[0] = byte(uint16(e.index+1)*uint16(e.D+1) + e.adjust(uint16(e.D)))
-	for i := byte(1); i < byte(len(*b))-1; i++ {
-		switch {
-		case i <= 6:
-			if i%2 == 0 {
-				(*b)[i] = byte(uint16(e.index) - uint16(e.A) + uint16(e.B-(i-e.C)) + uint16(i) - e.adjust(uint16(e.A)))
-			} else {
-				(*b)[i] = byte(uint16(e.index) - uint16(e.A) + uint16(e.B-(i-3)) + uint16(i) - e.adjust(uint16(e.A)))
-			}
-		case i > 6 && i <= 11:
-			(*b)[i] = byte(uint16(e.C) - uint16(e.B) + uint16((e.index+1)*i) + e.adjust(uint16(e.C)))
-		case i > 11:
-			(*b)[i] = byte(e.adjust(uint16(e.B+e.C)) + uint16(e.D) - uint16(len((*b))-1) - uint16(e.D) + uint16(e.A-e.C))
-		}
-	}
-	(*b)[len(*b)-1] = byte(e.adjust(uint16(e.B+e.C)) + uint16(e.index) - uint16(len((*b))-1) - uint16(e.D) + uint16(e.A-e.C))
-}
 func (e *CBK) adjust(i uint16) uint16 {
 	if e.Source != nil {
 		return uint16(e.Source.Int63() * int64(i+1))
 	}
-	//return uint16(math.Max(float64((e.A^e.B)-e.C)*float64(i+1), 1))
 	if n := ((uint16(e.A) ^ uint16(e.B)) - uint16(e.C)) * (i + 1); n > 1 {
 		return n
 	}
@@ -172,7 +147,7 @@ func (e *CBK) Flush(w io.Writer) error {
 }
 func (e *CBK) scramble(b []byte, d bool) {
 	var (
-		o    = chains.Get().(*[]byte)
+		o    = chains.Get().(*[size + 1]byte)
 		x    = e.adjust(uint16(e.A*e.B) + uint16(e.D))
 		y    = e.adjust(uint16((e.C-e.D)*e.A) + x + e.adjust(uint16(e.index)))
 		z    = e.adjust(uint16(byte(x*y) + e.B - byte(e.D*e.index)))
@@ -206,6 +181,24 @@ func (e *CBK) scramble(b []byte, d bool) {
 	}
 	clear(o, nil)
 }
+func (e *CBK) cipherTable(b *[size + 1]byte) {
+	(*b)[0] = byte(uint16(e.index+1)*uint16(e.D+1) + e.adjust(uint16(e.D)))
+	for i := byte(1); i < byte(len(*b))-1; i++ {
+		switch {
+		case i <= 6:
+			if i%2 == 0 {
+				(*b)[i] = byte(uint16(e.index) - uint16(e.A) + uint16(e.B-(i-e.C)) + uint16(i) - e.adjust(uint16(e.A)))
+			} else {
+				(*b)[i] = byte(uint16(e.index) - uint16(e.A) + uint16(e.B-(i-3)) + uint16(i) - e.adjust(uint16(e.A)))
+			}
+		case i > 6 && i <= 11:
+			(*b)[i] = byte(uint16(e.C) - uint16(e.B) + uint16((e.index+1)*i) + e.adjust(uint16(e.C)))
+		case i > 11:
+			(*b)[i] = byte(e.adjust(uint16(e.B+e.C)) + uint16(e.D) - uint16(len((*b))-1) - uint16(e.D) + uint16(e.A-e.C))
+		}
+	}
+	(*b)[len(*b)-1] = byte(e.adjust(uint16(e.B+e.C)) + uint16(e.index) - uint16(len((*b))-1) - uint16(e.D) + uint16(e.A-e.C))
+}
 func (e *CBK) readInput(r io.Reader) (int, error) {
 	n, err := io.ReadFull(r, e.buf)
 	if n <= 0 {
@@ -221,8 +214,8 @@ func (e *CBK) readInput(r io.Reader) (int, error) {
 		e.index = 0
 	}
 	var (
-		t = chains.Get().(*[]byte)
-		c = tables.Get().(*[][]byte)
+		t = chains.Get().(*[size + 1]byte)
+		c = tables.Get().(*[size + 1][256]byte)
 	)
 	e.cipherTable(t)
 	e.Deshuffle(e.buf)
@@ -291,8 +284,8 @@ func (e *CBK) flushOutput(w io.Writer) (int, error) {
 	}
 	e.buf[e.total] = byte(e.pos)
 	var (
-		t = chains.Get().(*[]byte)
-		c = tables.Get().(*[][]byte)
+		t = chains.Get().(*[size + 1]byte)
+		c = tables.Get().(*[size + 1][256]byte)
 	)
 	e.cipherTable(t)
 	for x := 0; x < len(*c); x++ {
@@ -310,6 +303,41 @@ func (e *CBK) flushOutput(w io.Writer) (int, error) {
 	n, err := w.Write(e.buf)
 	clear(t, c)
 	return n, err
+}
+
+// NewCBKSource returns a new CBK Cipher with the A, B, C, D, BlockSize values specified.
+func NewCBKSource(a, b, c, d, sz byte) (*CBK, error) {
+	switch sz {
+	case 0:
+		sz = size
+	case 16, 32, 64, 128:
+	default:
+		return nil, xerr.Sub("block size must be between 16 and 128 and a power of two", 0x10)
+	}
+	return &CBK{A: byte(a), B: byte(b), C: byte(c), D: byte(d), buf: make([]byte, sz+1), total: -1}, nil
+}
+func clear(b *[size + 1]byte, z *[size + 1][256]byte) {
+	for i := 0; i < len(*b); i++ {
+		(*b)[i] = 0
+	}
+	if chains.Put(b); z != nil {
+		tables.Put(z)
+	}
+}
+
+// NewCBKEx returns a new CBK Cipher with the D value, BlockSize and Entropy source specified. The other
+// A, B and C values are randomally generated at runtime.
+func NewCBKEx(d int, sz int, src source) (*CBK, error) {
+	switch sz {
+	case 0:
+		sz = size
+	case 16, 32, 64, 128:
+	default:
+		return nil, xerr.Sub("block size must be between 16 and 128 and a power of two", 0x10)
+	}
+	c := &CBK{D: byte(d), buf: make([]byte, sz+1), total: -1, Source: src}
+	c.Reset()
+	return c, nil
 }
 
 // Read reads the contents of the Reader to the byte array after decrypting with this Cipher.
@@ -374,31 +402,4 @@ func (e *CBK) Write(w io.Writer, b []byte) (int, error) {
 		return n - (e.total - o), err
 	}
 	return n, err
-}
-
-// NewCBKSource returns a new CBK Cipher with the A, B, C, D, BlockSize values specified.
-func NewCBKSource(a, b, c, d, sz byte) (*CBK, error) {
-	switch sz {
-	case 0:
-		sz = size
-	case 16, 32, 64, 128:
-	default:
-		return nil, xerr.New("block size must be between 16 and 128 and a power of two")
-	}
-	return &CBK{A: byte(a), B: byte(b), C: byte(c), D: byte(d), buf: make([]byte, sz+1), total: -1}, nil
-}
-
-// NewCBKEx returns a new CBK Cipher with the D value, BlockSize and Entropy source specified. The other
-// A, B and C values are randomally generated at runtime.
-func NewCBKEx(d int, sz int, src source) (*CBK, error) {
-	switch sz {
-	case 0:
-		sz = size
-	case 16, 32, 64, 128:
-	default:
-		return nil, xerr.New("block size must be between 16 and 128 and a power of two")
-	}
-	c := &CBK{D: byte(d), buf: make([]byte, sz+1), total: -1, Source: src}
-	c.Reset()
-	return c, nil
 }

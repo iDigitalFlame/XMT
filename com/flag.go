@@ -4,39 +4,50 @@ import "github.com/iDigitalFlame/xmt/data"
 
 const (
 	// FlagFrag is a flag used to indicate that the packet is part of a
-	// fragment group and the server should re-assemble the packet before preforming actions on it.
+	// fragment group and the server should re-assemble the packet before
+	// preforming actions on it.
 	FlagFrag = 1 << iota
 	// FlagMulti is a flag used to indicate that the packet is a container
-	// for multiple packets, auto added by a processing agent. This Flag also carries the 'FlagFrag' flag.
+	// for multiple packets, auto added by a processing agent. This Flag also
+	// carries the 'FlagFrag' flag.
 	FlagMulti
-	// FlagProxy is a flag used to indicate that the packet was sent from another client
-	// acting as a forwarding proxy.
+	// FlagProxy is a flag used to indicate that the packet was sent from another
+	// client acting as a forwarding proxy.
 	FlagProxy
 	// FlagError is a flag used to indicate that the packet indicates that an error
-	// condition has occurred. The contents of the Packet can be used to understand the error cause.
+	// condition has occurred. The contents of the Packet can be used to
+	// understand the error cause.
 	FlagError
-	// FlagChannel is a flag used to signify that the connection should be converted into/from a single
-	// channel connection. This means that the connection is kept alive and the client will not poll the server.
-	// This flag will be present on the top level multi-packet if included in a single packet inside. This flag will
-	// take affect on each hop that it goes through. Incompatible with 'FlagOneshot'. Can only be used once per connection.
+	// FlagChannel is a flag used to signify that the connection should be converted
+	// into/from a single channel connection. This means that the connection is
+	// kept alive and the client will not poll the server.
+	//
+	// This flag will be present on the top level multi-packet if included in a
+	// single packet inside. This flag will take affect on each hop that it goes
+	// through.
+	//
+	// Incompatible with 'FlagOneshot'. Can only be used once per single connection.
 	FlagChannel
-	// FlagChannelEnd is a flag used to signify that a Channel connection should be terminated. Unlike the 'FlagChannel'
-	// option, this will only affect the targeted hop. Incompatible with 'FlagOneshot'. Can only be used once per connection.
+	// FlagChannelEnd is a flag used to signify that a Channel connection should
+	// be terminated. Unlike the 'FlagChannel' option, this will only affect the
+	// targeted hop.
+	//
+	// Incompatible with 'FlagOneshot'. Can only be used once per single connection.
 	FlagChannelEnd
-	// FlagOneshot is used to signal that the Packet contains information and should not be used to
-	// create or re-establish a session.
+	// FlagOneshot is used to signal that the Packet contains information and
+	// should not be used to create or re-establish a session.
 	FlagOneshot
-	// FlagMultiDevice is used to determine if the Multi packet contains Packets with separate device IDs.
-	// This is used to speed up processing and allows packets that are all destined for the same host to be
-	// batch processed.
+	// FlagMultiDevice is used to determine if the Multi packet contains Packets
+	// with separate device IDs. This is used to speed up processing and allows
+	// packets that are all destined for the same host to be batch processed.
 	FlagMultiDevice
 )
 
 // Flag is a bitwise integer that represents important
 // information about the packet that its assigned to.
 //
-// Mapping
 //
+// Mapping
 // 64        56        48        40        32        24        16         8         0
 //  | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 |
 //  |    Frag Total     |   Frag Position   |   Frag Group ID   |       Flags       |

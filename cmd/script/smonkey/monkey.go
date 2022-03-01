@@ -1,3 +1,5 @@
+// Package smonkey is a mapping for the Monkey (github.com/skx/monkey) Scripting
+// engine.
 package smonkey
 
 import (
@@ -162,7 +164,7 @@ func println(e *object.Environment, a ...object.Object) object.Object {
 func InvokeEx(x context.Context, m map[string]interface{}, s string) (string, error) {
 	p := parser.New(lexer.New(s))
 	if len(p.Errors()) != 0 {
-		return "", xerr.New(strings.Join(p.Errors(), ";"))
+		return "", xerr.Sub(strings.Join(p.Errors(), ";"), 0x1)
 	}
 	var (
 		d = p.ParseProgram()
@@ -229,7 +231,7 @@ func InvokeEx(x context.Context, m map[string]interface{}, s string) (string, er
 		err error
 	)
 	if o.Type() == object.ERROR_OBJ {
-		err = xerr.New(o.Inspect())
+		err = xerr.Sub(o.Inspect(), 0x1)
 	} else {
 		r = o.Inspect()
 	}

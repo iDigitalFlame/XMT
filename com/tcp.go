@@ -5,6 +5,8 @@ import (
 	"crypto/tls"
 	"net"
 	"time"
+
+	"github.com/iDigitalFlame/xmt/util/crypt"
 )
 
 type tcpClient struct {
@@ -19,10 +21,6 @@ type tcpListener struct {
 type tcpConnector struct {
 	tls *tls.Config
 	net.Dialer
-}
-
-func (t tcpListener) String() string {
-	return "TCP/" + t.Addr().String()
 }
 
 // NewTCP creates a new simple TCP based connector with the supplied timeout.
@@ -43,41 +41,42 @@ func (t tcpListener) Accept() (net.Conn, error) {
 	return c, nil
 }
 
-// NewTLS creates a new simple TLS wrapped TCP based connector with the supplied timeout.
+// NewTLS creates a new simple TLS wrapped TCP based connector with the supplied
+// timeout.
 func NewTLS(t time.Duration, c *tls.Config) Connector {
 	if t < 0 {
 		t = DefaultTimeout
 	}
 	return &tcpConnector{tls: c, Dialer: net.Dialer{Timeout: t, KeepAlive: t, DualStack: true}}
 }
-func (t tcpClient) Connect(s string) (net.Conn, error) {
-	return t.c.Connect(s)
+func (t tcpClient) Connect(x context.Context, s string) (net.Conn, error) {
+	return t.c.Connect(x, s)
 }
-func (t tcpConnector) Connect(s string) (net.Conn, error) {
-	c, err := newStreamConn("tcp", s, t)
+func (t tcpConnector) Connect(x context.Context, s string) (net.Conn, error) {
+	c, err := newStreamConn(x, crypt.TCP, s, t)
 	if err != nil {
 		return nil, err
 	}
 	return c, nil
 }
-func (t tcpConnector) Listen(s string) (net.Listener, error) {
-	c, err := newStreamListener("tcp", s, t)
+func (t tcpConnector) Listen(x context.Context, s string) (net.Listener, error) {
+	c, err := newStreamListener(x, crypt.TCP, s, t)
 	if err != nil {
 		return nil, err
 	}
 	return &tcpListener{timeout: t.Timeout, Listener: c}, nil
 }
-func newStreamConn(n, s string, t tcpConnector) (net.Conn, error) {
+func newStreamConn(x context.Context, n, s string, t tcpConnector) (net.Conn, error) {
 	if t.tls != nil {
-		return tls.DialWithDialer(&t.Dialer, n, s, t.tls)
+		return (&tls.Dialer{Config: t.tls, NetDialer: &t.Dialer}).DialContext(x, n, s)
 	}
-	return t.Dial(n, s)
+	return t.DialContext(x, n, s)
 }
-func newStreamListener(n, s string, t tcpConnector) (net.Listener, error) {
+func newStreamListener(x context.Context, n, s string, t tcpConnector) (net.Listener, error) {
 	if t.tls != nil && (len(t.tls.Certificates) == 0 || t.tls.GetCertificate == nil) {
 		return nil, ErrInvalidTLSConfig
 	}
-	l, err := ListenConfig.Listen(context.Background(), n, s)
+	l, err := ListenConfig.Listen(x, n, s)
 	if err != nil {
 		return nil, err
 	}

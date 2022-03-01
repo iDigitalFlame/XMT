@@ -1,7 +1,7 @@
 package cfg
 
 import (
-	"io"
+	"sort"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/c2"
@@ -11,37 +11,12 @@ import (
 	"github.com/iDigitalFlame/xmt/com/pipe"
 	"github.com/iDigitalFlame/xmt/com/wc2"
 	"github.com/iDigitalFlame/xmt/data/crypto"
-	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/text"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-// Len returns the length of this Config instance. This is the same as
-// 'len(c)'.
-func (c Config) Len() int {
-	return len(c)
-}
-
-// Bytes returns the byte version of this Config. This is the same as casting
-// the Config instance as '[]byte(c)'.
-func (c Config) Bytes() []byte {
-	return []byte(c)
-}
-
-// String returns a string representation of the data included in this
-// Config instance. Each separate setting will be seperated by commas.
-func (c Config) String() string {
-	if len(c) == 0 || c[0] == 0 {
-		return ""
-	}
-	var b util.Builder
-	for i := 0; i >= 0 && i < len(c); i = c.next(i) {
-		if i > 0 {
-			b.WriteString(",")
-		}
-		b.WriteString(cBit(c[i]).String())
-	}
-	return b.Output()
+func init() {
+	c2.ProfileParser = Raw
 }
 func (c Config) next(i int) int {
 	if i > len(c) {
@@ -50,16 +25,21 @@ func (c Config) next(i int) int {
 	switch cBit(c[i]) {
 	case WrapHex, WrapZlib, WrapGzip, WrapBase64:
 		fallthrough
-	case ConnectTCP, ConnectTLS, ConnectUDP, ConnectICMP, ConnectPipe, ConnectTLSNoVerify, TransformB64:
+	case SelectorLastValid, SelectorRoundRobin, SelectorRandom:
+		fallthrough
+	case Seperator, ConnectTCP, ConnectTLS, ConnectUDP, ConnectICMP, ConnectPipe, ConnectTLSNoVerify, TransformB64:
 		return i + 1
-	case valIP, valB64Shift, valJitter, valTLSx:
+	case valIP, valB64Shift, valJitter, valWeight, valTLSx:
 		return i + 2
 	case valCBK:
 		return i + 6
 	case valSleep:
 		return i + 9
 	case valWC2:
-		_ = c[8]
+		if i+7 >= len(c) {
+			return -1
+		}
+		_ = c[i+7]
 		n := i + 8 + (int(c[i+2]) | int(c[i+1])<<8) + (int(c[i+4]) | int(c[i+3])<<8) + (int(c[i+6]) | int(c[i+5])<<8)
 		if _ = c[n]; c[i+7] == 0 {
 			return n
@@ -69,69 +49,221 @@ func (c Config) next(i int) int {
 		}
 		return n
 	case valXOR, valHost:
-		_ = c[3]
+		if i+2 >= len(c) {
+			return -1
+		}
+		_ = c[i+2]
 		return i + 3 + int(c[i+2]) | int(c[i+1])<<8
 	case valAES:
-		_ = c[3]
+		if i+2 >= len(c) {
+			return -1
+		}
+		_ = c[i+2]
 		return i + 3 + int(c[i+1]) + int(c[i+2])
 	case valMuTLS:
-		_ = c[8]
+		if i+7 >= len(c) {
+			return -1
+		}
+		_ = c[i+7]
 		return i + 8 + (int(c[i+3]) | int(c[i+2])<<8) + (int(c[i+5]) | int(c[i+4])<<8) + (int(c[i+7]) | int(c[i+6])<<8)
 	case valTLSxCA:
-		_ = c[4]
+		if i+3 >= len(c) {
+			return -1
+		}
+		_ = c[i+3]
 		return i + 4 + int(c[i+3]) | int(c[i+2])<<8
 	case valTLSCert:
-		_ = c[6]
+		if i+4 >= len(c) {
+			return -1
+		}
+		_ = c[i+4]
 		return i + 6 + (int(c[i+3]) | int(c[i+2])<<8) + (int(c[i+5]) | int(c[i+4])<<8)
 	}
 	return -1
 }
 
-// Write will attempt to write the contents of this Config instance to the
-// specified Writer.
+// Validate is similar to the 'Build' function but will instead only validate
+// that the supplied Config will build into a Profile without returning an
+// error. The error returned (if not nil) will be the same as the error returned
+// during a Build call.
 //
-// This function will return any errors that occurred during the write.
-// This is a NOP if this Config is empty.
-func (c Config) Write(w io.Writer) error {
+// This function will return an 'ErrInvalidSetting' if any value in this Config
+// instance is invalid or 'ErrMultipleConnections' if more than one connection
+// is contained in this Config.
+//
+// The similar error 'ErrMultipleTransforms' is similar to 'ErrMultipleConnections'
+// but applies to Transforms, if more than one Transform is contained.
+//
+// Multiple 'c2.Wrapper' instances will be combined into a 'c2.MultiWrapper' in
+// the order they are found.
+//
+// Other functions that may return errors on creation, like encryption wrappers
+// for example, will stop the build process and will return that wrapped error.
+func (c Config) Validate() error {
 	if len(c) == 0 {
 		return nil
 	}
-	n, err := w.Write(c)
-	if err == nil && n != len(c) {
-		return io.ErrShortWrite
+	var (
+		n   int
+		err error
+	)
+	for i := 0; i < len(c); i = n {
+		if n, err = c.validate(i); err != nil {
+			return err
+		}
+		if n-i == 1 && c[i] == byte(Seperator) {
+			continue
+		}
 	}
-	return err
+	return nil
 }
 
 // Build will attempt to generate a 'c2.Profile' interface from this Config
 // instance.
 //
 // This function will return an 'ErrInvalidSetting' if any value in this Config
-// instance is invalid or 'ErrMultipleHints' if more than one connection hint
+// instance is invalid or 'ErrMultipleConnections' if more than one connection
 // is contained in this Config.
 //
-// The similar error 'ErrMultipleTransforms' is similar to 'ErrMultipleHints'
-// but applies to Transforms.
+// The similar error 'ErrMultipleTransforms' is similar to 'ErrMultipleConnections'
+// but applies to Transforms, if more than one Transform is contained.
 //
-// Multiple 'cw.Wrapper' instances will be combined into a 'c2.MultiWrapper' in
+// Multiple 'c2.Wrapper' instances will be combined into a 'c2.MultiWrapper' in
 // the order they are found.
 //
 // Other functions that may return errors on creation, like encryption wrappers
-// for example, will stop the build process and will return that error.
+// for example, will stop the build process and will return that wrapped error.
 func (c Config) Build() (c2.Profile, error) {
+	if len(c) == 0 {
+		return nil, nil
+	}
 	var (
-		p profile
-		w []c2.Wrapper
+		e   []*profile
+		n   int
+		v   *profile
+		s   int8
+		g   uint8
+		err error
 	)
-	for i, n := 0, 0; n >= 0 && n < len(c); i = n {
+	for i := 0; i < len(c); i = n {
+		if v, n, s, err = c.build(i); err != nil {
+			return nil, err
+		}
+		if v == nil || (n-i == 1 && c[i] == byte(Seperator)) {
+			continue
+		}
+		if e = append(e, v); s >= 0 {
+			g = uint8(s)
+		}
+		v = nil
+	}
+	if len(e) == 0 {
+		return nil, nil
+	}
+	if len(e) == 1 {
+		e[0].src = c
+		return e[0], nil
+	}
+	r := &Group{sel: g, entries: e, src: c}
+	sort.Sort(r)
+	return r, nil
+}
+func (c Config) validate(x int) (int, error) {
+	var (
+		n    int
+		p, t bool
+	)
+loop:
+	for i := x; n >= 0 && n < len(c); i = n {
 		if n = c.next(i); n == i || n > len(c) || n == -1 {
 			n = len(c)
 		}
 		switch _ = c[n-1]; cBit(c[i]) {
+		case Seperator:
+			break loop
 		case invalid:
-			return nil, ErrInvalidSetting
+			return -1, ErrInvalidSetting
+		case valHost, valSleep, valJitter, valWeight:
+			if len(c) <= n {
+				return -1, ErrInvalidSetting
+			}
+		case SelectorRoundRobin, SelectorLastValid, SelectorRandom:
+		case ConnectTCP, ConnectTLS, ConnectUDP, ConnectICMP, ConnectPipe, ConnectTLSNoVerify:
+			fallthrough
+		case valTLSx, valMuTLS, valTLSxCA, valTLSCert:
+			if p {
+				return -1, ErrMultipleConnections
+			}
+			p = true
+		case valIP:
+			if p {
+				return -1, ErrMultipleConnections
+			}
+			if c[i+1] == 0 {
+				return -1, ErrInvalidSetting
+			}
+			p = true
+		case valWC2:
+			if p {
+				return -1, ErrMultipleConnections
+			}
+			if c[i+7] > 0 {
+				var (
+					q = (int(c[i+2]) | int(c[i+1])<<8) + i + 8 + (int(c[i+4]) | int(c[i+3])<<8)
+					v = q + (int(c[i+6]) | int(c[i+5])<<8)
+				)
+				for j := 0; v < n && q < n && j < n; {
+					q, j = v+2, int(c[v])+v+2
+					if v = int(c[v+1]) + j; q == j {
+						return -1, ErrInvalidSetting
+					}
+				}
+			}
+			p = true
+		case WrapHex, WrapZlib, WrapGzip, WrapBase64, valXOR, valCBK:
+		case valAES:
+			var (
+				v = int(c[i+1]) + i + 3
+				z = int(c[i+2]) + v
+			)
+			switch v - (i + 3) {
+			case 16, 24, 32:
+			default:
+				return -1, ErrInvalidSetting
+			}
+			if z-v != 16 {
+				return -1, ErrInvalidSetting
+			}
+		case TransformB64, valDNS, valB64Shift:
+			if t {
+				return -1, ErrMultipleTransforms
+			}
+			t = true
+		default:
+			return -1, ErrInvalidSetting
+		}
+	}
+	return n, nil
+}
+func (c Config) build(x int) (*profile, int, int8, error) {
+	var (
+		p profile
+		w []c2.Wrapper
+		n int
+		z int8 = -1
+	)
+loop:
+	for i := x; n >= 0 && n < len(c); i = n {
+		if n = c.next(i); n == i || n > len(c) || n == -1 {
+			n = len(c)
+		}
+		switch _ = c[n-1]; cBit(c[i]) {
+		case Seperator:
+			break loop
+		case invalid:
+			return nil, -1, -1, ErrInvalidSetting
 		case valHost:
-			p.host = string(c[i+3 : (int(c[i+2])|int(c[i+1])<<8)+i+3])
+			p.hosts = append(p.hosts, string(c[i+3:(int(c[i+2])|int(c[i+1])<<8)+i+3]))
 		case valSleep:
 			p.sleep = time.Duration(
 				uint64(c[i+8]) | uint64(c[i+7])<<8 | uint64(c[i+6])<<16 | uint64(c[i+5])<<24 |
@@ -141,88 +273,97 @@ func (c Config) Build() (c2.Profile, error) {
 				p.sleep = c2.DefaultSleep
 			}
 		case valJitter:
-			if p.jitter = c[i+1]; p.jitter > 100 {
+			if p.jitter = int8(c[i+1]); p.jitter > 100 {
 				p.jitter = 100
 			}
+		case valWeight:
+			if p.weight = c[i+1]; p.weight > 100 {
+				p.weight = 100
+			}
+		case SelectorLastValid:
+			fallthrough
+		case SelectorRoundRobin:
+			fallthrough
+		case SelectorRandom:
+			z = int8(c[i] - byte(SelectorLastValid))
 		case ConnectTCP:
-			if p.c != nil {
-				return nil, xerr.Wrap("tcp", ErrMultipleHints)
+			if p.conn != nil {
+				return nil, -1, -1, xerr.Wrap("tcp", ErrMultipleConnections)
 			}
-			p.c = com.TCP
+			p.conn = com.TCP
 		case ConnectTLS:
-			if p.c != nil {
-				return nil, xerr.Wrap("tls", ErrMultipleHints)
+			if p.conn != nil {
+				return nil, -1, -1, xerr.Wrap("tls", ErrMultipleConnections)
 			}
-			p.c = com.TLS
+			p.conn = com.TLS
 		case ConnectUDP:
-			if p.c != nil {
-				return nil, xerr.Wrap("udp", ErrMultipleHints)
+			if p.conn != nil {
+				return nil, -1, -1, xerr.Wrap("udp", ErrMultipleConnections)
 			}
-			p.c = com.UDP
+			p.conn = com.UDP
 		case ConnectICMP:
-			if p.c != nil {
-				return nil, xerr.Wrap("icmp", ErrMultipleHints)
+			if p.conn != nil {
+				return nil, -1, -1, xerr.Wrap("icmp", ErrMultipleConnections)
 			}
-			p.c = com.ICMP
+			p.conn = com.ICMP
 		case ConnectPipe:
-			if p.c != nil {
-				return nil, xerr.Wrap("pipe", ErrMultipleHints)
+			if p.conn != nil {
+				return nil, -1, -1, xerr.Wrap("pipe", ErrMultipleConnections)
 			}
-			p.c = pipe.Pipe
+			p.conn = pipe.Pipe
 		case ConnectTLSNoVerify:
-			if p.c != nil {
-				return nil, xerr.Wrap("tls-insecure", ErrMultipleHints)
+			if p.conn != nil {
+				return nil, -1, -1, xerr.Wrap("tls-insecure", ErrMultipleConnections)
 			}
-			p.c = com.TLSInsecure
+			p.conn = com.TLSInsecure
 		case valIP:
-			if p.c != nil {
-				return nil, xerr.Wrap("ip", ErrMultipleHints)
+			if p.conn != nil {
+				return nil, -1, -1, xerr.Wrap("ip", ErrMultipleConnections)
 			}
 			if c[i+1] == 0 {
-				return nil, xerr.Wrap("ip", ErrInvalidSetting)
+				return nil, -1, -1, xerr.Wrap("ip", ErrInvalidSetting)
 			}
-			p.c = com.NewIP(com.DefaultTimeout, c[i+1])
-		case valWC2:
-			if p.c != nil {
-				return nil, xerr.Wrap("wc2", ErrMultipleHints)
+			p.conn = com.NewIP(com.DefaultTimeout, c[i+1])
+		case valWC2: // NOTE(dij): Add an entry for a WC2 listener list of proxy redirects
+			if p.conn != nil {
+				return nil, -1, -1, xerr.Wrap("wc2", ErrMultipleConnections)
 			}
 			var (
-				v, z = (int(c[i+2]) | int(c[i+1])<<8) + i + 8, i + 8
+				v, q = (int(c[i+2]) | int(c[i+1])<<8) + i + 8, i + 8
 				t    wc2.Target
 			)
-			if v > z {
-				t.URL = text.Matcher(c[z:v])
+			if v > q {
+				t.URL = text.Matcher(c[q:v])
 			}
-			if v, z = (int(c[i+4])|int(c[i+3])<<8)+v, v; v > z {
-				t.Host = text.Matcher(c[z:v])
+			if v, q = (int(c[i+4])|int(c[i+3])<<8)+v, v; v > q {
+				t.Host = text.Matcher(c[q:v])
 			}
-			if v, z = (int(c[i+6])|int(c[i+5])<<8)+v, v; v > z {
-				t.Agent = text.Matcher(c[z:v])
+			if v, q = (int(c[i+6])|int(c[i+5])<<8)+v, v; v > q {
+				t.Agent = text.Matcher(c[q:v])
 			}
-			if c[i+7] == 0 {
-				continue
-			}
-			t.Headers = make(map[string]wc2.Stringer, c[i+7])
-			for j := 0; v < n && z < n && j < n; {
-				z, j = v+2, int(c[v])+v+2
-				if v = int(c[v+1]) + j; z == j {
-					return nil, xerr.Wrap("wc2", ErrInvalidSetting)
+			if c[i+7] > 0 {
+				t.Headers = make(map[string]wc2.Stringer, c[i+7])
+				for j := 0; v < n && q < n && j < n; {
+					q, j = v+2, int(c[v])+v+2
+					if v = int(c[v+1]) + j; q == j {
+						return nil, -1, -1, xerr.Wrap("wc2", ErrInvalidSetting)
+					}
+					t.Header(string(c[q:j]), text.Matcher(c[j:v]))
 				}
-				t.Header(string(c[z:j]), text.Matcher(c[j:v]))
 			}
-			p.c = wc2.NewClient(com.DefaultTimeout, &t)
+			p.conn = wc2.NewClient(com.DefaultTimeout, &t)
 		case valTLSx:
-			if p.c != nil {
-				return nil, xerr.Wrap("tls-ex", ErrInvalidSetting)
+			if p.conn != nil {
+				return nil, -1, -1, xerr.Wrap("tls-ex", ErrMultipleConnections)
 			}
 			t, err := com.NewTLSConfig(false, uint16(c[i+1]), nil, nil, nil)
 			if err != nil {
-				return nil, xerr.Wrap("tls-ex", err)
+				return nil, -1, -1, xerr.Wrap("tls-ex", err)
 			}
-			p.c = com.NewTLS(com.DefaultTimeout, t)
+			p.conn = com.NewTLS(com.DefaultTimeout, t)
 		case valMuTLS:
-			if p.c != nil {
-				return nil, xerr.Wrap("mtls", ErrInvalidSetting)
+			if p.conn != nil {
+				return nil, -1, -1, xerr.Wrap("mtls", ErrMultipleConnections)
 			}
 			var (
 				a      = (int(c[i+3]) | int(c[i+2])<<8) + i + 8
@@ -231,24 +372,24 @@ func (c Config) Build() (c2.Profile, error) {
 				t, err = com.NewTLSConfig(true, uint16(c[i+1]), c[i+8:a], c[a:b], c[b:k])
 			)
 			if err != nil {
-				return nil, xerr.Wrap("mtls", err)
+				return nil, -1, -1, xerr.Wrap("mtls", err)
 			}
-			p.c = com.NewTLS(com.DefaultTimeout, t)
+			p.conn = com.NewTLS(com.DefaultTimeout, t)
 		case valTLSxCA:
-			if p.c != nil {
-				return nil, xerr.Wrap("tls-ca", ErrInvalidSetting)
+			if p.conn != nil {
+				return nil, -1, -1, xerr.Wrap("tls-ca", ErrMultipleConnections)
 			}
 			var (
 				a      = (int(c[i+3]) | int(c[i+2])<<8) + i + 4
 				t, err = com.NewTLSConfig(false, uint16(c[i+1]), c[i+4:a], nil, nil)
 			)
 			if err != nil {
-				return nil, xerr.Wrap("tls-ca", err)
+				return nil, -1, -1, xerr.Wrap("tls-ca", err)
 			}
-			p.c = com.NewTLS(com.DefaultTimeout, t)
+			p.conn = com.NewTLS(com.DefaultTimeout, t)
 		case valTLSCert:
-			if p.c != nil {
-				return nil, xerr.Wrap("tls-cert", ErrInvalidSetting)
+			if p.conn != nil {
+				return nil, -1, -1, xerr.Wrap("tls-cert", ErrInvalidSetting)
 			}
 			var (
 				b      = (int(c[i+3]) | int(c[i+2])<<8) + i + 6
@@ -256,9 +397,9 @@ func (c Config) Build() (c2.Profile, error) {
 				t, err = com.NewTLSConfig(true, uint16(c[i+1]), nil, c[i+6:b], c[b:k])
 			)
 			if err != nil {
-				return nil, xerr.Wrap("tls-cert", err)
+				return nil, -1, -1, xerr.Wrap("tls-cert", err)
 			}
-			p.c = com.NewTLS(com.DefaultTimeout, t)
+			p.conn = com.NewTLS(com.DefaultTimeout, t)
 		case WrapHex:
 			w = append(w, wrapper.Hex)
 		case WrapZlib:
@@ -279,27 +420,29 @@ func (c Config) Build() (c2.Profile, error) {
 				b, err = crypto.NewAes(c[i+3 : v])
 			)
 			if err != nil {
-				return nil, xerr.Wrap("aes", err)
+				return nil, -1, -1, xerr.Wrap("aes", err)
 			}
 			u, err := wrapper.Block(b, c[v:z])
 			if err != nil {
-				return nil, xerr.Wrap("aes", err)
+				return nil, -1, -1, xerr.Wrap("aes", err)
 			}
 			w = append(w, u)
 		case TransformB64:
 			if p.t != nil {
-				return nil, xerr.Wrap("base64T", ErrMultipleTransforms)
+				return nil, -1, -1, xerr.Wrap("base64T", ErrMultipleTransforms)
 			}
 			p.t = transform.Base64
 		case valDNS:
 			if p.t != nil {
-				return nil, xerr.Wrap("dns", ErrMultipleTransforms)
+				return nil, -1, -1, xerr.Wrap("dns", ErrMultipleTransforms)
 			}
 		case valB64Shift:
 			if p.t != nil {
-				return nil, xerr.Wrap("b64S", ErrMultipleTransforms)
+				return nil, -1, -1, xerr.Wrap("b64S", ErrMultipleTransforms)
 			}
 			p.t = transform.B64(c[i+1])
+		default:
+			return nil, -1, -1, ErrInvalidSetting
 		}
 	}
 	if len(w) > 1 {
@@ -307,5 +450,5 @@ func (c Config) Build() (c2.Profile, error) {
 	} else if len(w) == 1 {
 		p.w = w[0]
 	}
-	return &p, nil
+	return &p, n, z, nil
 }

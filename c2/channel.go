@@ -15,9 +15,17 @@ import (
 
 const sleepMod = 5
 
-// ErrInvalidPacketCount is returned when attempting to read a packet marked
-// as multi or frag an the total count returned is zero.
-var ErrInvalidPacketCount = xerr.New("frag/multi total is zero on a frag/multi packet")
+var (
+	// ErrMalformedPacket is an error returned by various Packet reading
+	// functions when a Packet is attempted to be passed that is nil or invalid.
+	//
+	// Invalid Packets are packets that do not have a proper ID value or contain
+	// an empty device ID.
+	ErrMalformedPacket = xerr.Sub("empty or nil Packet", 0x9)
+	// ErrInvalidPacketCount is returned when attempting to read a packet marked
+	// as multi or frag an the total count returned is zero.
+	ErrInvalidPacketCount = xerr.Sub("frag/multi total is zero on a frag/multi packet", 0xE)
+)
 
 type conn struct {
 	host connHost
@@ -63,11 +71,13 @@ func (c *conn) close() {
 	c.add, c.next, c.subs = nil, nil, nil
 }
 func (s *Session) channelRead(x net.Conn) {
+	if bugtrack.Enabled {
+		defer bugtrack.Recover("c2.Session.channelRead()")
+	}
 	if cout.Enabled {
 		s.log.Info("[%s:C->S:R] %s: Started Channel writer.", s.ID, s.host)
 	}
 	for x.SetReadDeadline(empty); s.state.Channel(); x.SetReadDeadline(empty) {
-		// HERE
 		n, err := readPacket(x, s.w, s.t)
 		if err != nil {
 			if cout.Enabled {
@@ -113,14 +123,11 @@ func (s *Session) channelWrite(x net.Conn) {
 		if cout.Enabled {
 			s.log.Debug("[%s:C->S:W] %s: Sending Packet %q.", s.ID, s.host, n)
 		}
-		// HERE
 		if err := writePacket(x, s.w, s.t, n); err != nil {
 			if n.Clear(); cout.Enabled {
 				if errors.Is(err, net.ErrClosed) {
-					if cout.Enabled {
-						s.log.Info("[%s:C->S:W] %s: Write channel socket closed.", s.ID, s.host)
-					}
-				} else if cout.Enabled {
+					s.log.Info("[%s:C->S:W] %s: Write channel socket closed.", s.ID, s.host)
+				} else {
 					s.log.Error("[%s:C->S:W] %s: Error attempting to write Packet: %s!", s.ID, s.host, err)
 				}
 			}
@@ -160,6 +167,7 @@ func (c *conn) stop(h connServer, x net.Conn) {
 }
 func handle(l *cout.Log, c net.Conn, h connServer, a string) {
 	if bugtrack.Enabled {
+		defer bugtrack.Recover("c2.handle()")
 		bugtrack.Track("c2.handle(): a=%s, h=%T, attempting to read a Packet.", a, h)
 	}
 	n, err := readPacket(c, h.wrapper(), h.transform())
@@ -225,6 +233,9 @@ func (c *conn) start(l *cout.Log, h connServer, x net.Conn, a string) {
 	c.stop(h, x)
 }
 func (c *conn) channelRead(l *cout.Log, h connServer, a string, x net.Conn) {
+	if bugtrack.Enabled {
+		defer bugtrack.Recover("c2.conn.channelRead()")
+	}
 	if cout.Enabled {
 		l.Info("[%s:%s:S->C:R] %s: Started Channel reader.", h.prefix(), c.host.name(), a)
 	}
@@ -290,10 +301,8 @@ func (c *conn) channelWrite(l *cout.Log, h connServer, a string, x net.Conn) {
 		if err := writePacket(x, h.wrapper(), h.transform(), n); err != nil {
 			if n.Clear(); cout.Enabled {
 				if errors.Is(err, net.ErrClosed) {
-					if cout.Enabled {
-						l.Info("[%s:%s:S->C:W] %s: Write channel socket closed.", h.prefix(), c.host.name(), a)
-					}
-				} else if cout.Enabled {
+					l.Info("[%s:%s:S->C:W] %s: Write channel socket closed.", h.prefix(), c.host.name(), a)
+				} else {
 					l.Error("[%s:%s:S->C:W] %s: Error attempting to write Packet: %s!", h.prefix(), c.host.name(), a, err)
 				}
 			}

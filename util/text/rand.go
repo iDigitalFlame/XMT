@@ -1,3 +1,13 @@
+// Package text is a simple package for generating random string values with
+// complex requirements and regular expressions.
+//
+// This package exposes a 'Rand' struct that can be used to generate multiple
+// types of string values.
+//
+// The other exported types allow for generation of mutable expressions that can
+// be used to generate matching regular expression values. These work well with
+// any package that works with stringers, such as the "wc2" package.
+//
 package text
 
 import (
@@ -9,7 +19,6 @@ const (
 	max        = 63 / size
 	size       = 6
 	mask       = 1<<size - 1
-	alpha      = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	lenUpper   = 52
 	lenLower   = 26
 	lenNumbers = 78
@@ -20,15 +29,20 @@ const (
 var Rand = &random{s: util.Rand}
 
 var (
-	// All represents the string instruction set that contains all alpha-numeric characters.
+	// All represents the string instruction set that contains all alpha-numeric
+	// characters.
 	All set = [2]byte{0, 62}
-	// Upper represents the string instruction set that contains only uppercase non-numeric characters.
+	// Upper represents the string instruction set that contains only uppercase
+	// non-numeric characters.
 	Upper set = [2]byte{26, 52}
-	// Lower represents the string instruction set that contains only lowercase non-numeric characters.
+	// Lower represents the string instruction set that contains only lowercase
+	// non-numeric characters.
 	Lower set = [2]byte{0, 26}
-	// Numbers represents the string instruction set that contains only numeric characters.
+	// Numbers represents the string instruction set that contains only numeric
+	// characters.
 	Numbers set = [2]byte{52, 62}
-	// Characters represents the string instruction set that contains mixed case non-numeric characters.
+	// Characters represents the string instruction set that contains mixed case
+	// non-numeric characters.
 	Characters set = [2]byte{0, 52}
 )
 
@@ -40,6 +54,9 @@ type random struct {
 	}
 }
 
+func (s set) String(n int) string {
+	return Rand.StringEx(s, n, n)
+}
 func (r random) String(n int) string {
 	return r.StringEx(All, n, n)
 }

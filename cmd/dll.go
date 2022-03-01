@@ -60,10 +60,13 @@ func (d *DLL) Running() bool {
 	return d.t.Running()
 }
 
-// String returns a string representation of the thread's data, such as the pointer
-// and memory addresses.
-func (d *DLL) String() string {
-	return "DLL " + d.t.String()
+// Release will attempt to release the resources for this DLL instance,
+// including handles.
+//
+// After the first call to this function, all other function calls will fail
+// with errors. Repeated calls to this function return nil and are a NOP.
+func (d *DLL) Release() error {
+	return d.t.Release()
 }
 
 // SetSuspended will delay the execution of this thread and will put the
@@ -72,6 +75,13 @@ func (d *DLL) String() string {
 // This function has no effect if the device is not running Windows.
 func (d *DLL) SetSuspended(s bool) {
 	d.t.SetSuspended(s)
+}
+
+// Done returns a channel that's closed when this DLL completes
+//
+// This can be used to monitor a DLL's status using a select statement.
+func (d *DLL) Done() <-chan struct{} {
+	return d.t.Done()
 }
 
 // ExitCode returns the Exit Code of the thread. If the thread is still running or

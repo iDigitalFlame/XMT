@@ -7,148 +7,111 @@ import (
 	"unsafe"
 
 	"github.com/iDigitalFlame/xmt/com/pipe"
+	"github.com/iDigitalFlame/xmt/device/winapi"
 	"github.com/iDigitalFlame/xmt/util/xerr"
-	"golang.org/x/sys/windows"
-)
-
-var (
-	dllKernel32 = windows.NewLazySystemDLL("kernel32.dll")
-
-	funcOpenSemaphore   = dllKernel32.NewProc("OpenSemaphoreW")
-	funcCreateMailslot  = dllKernel32.NewProc("CreateMailslotW")
-	funcCreateSemaphore = dllKernel32.NewProc("CreateSemaphoreW")
 )
 
 type objListener uintptr
 
 func (objListener) Listen() {}
-
 func (l objListener) Close() error {
-	return windows.CloseHandle(windows.Handle(l))
+	return winapi.CloseHandle(uintptr(l))
 }
 func mutexCheck(s string) (bool, error) {
 	if len(s) == 0 || len(s) > 248 {
-		return false, xerr.New("invalid Mutex name")
+		return false, xerr.Sub("invalid name", 0xA)
 	}
 	if s[0] != '\\' {
-		s = "Global\\" + s
+		s = prefix + s
 	}
-	n, err := windows.UTF16PtrFromString(s)
+	m, err := winapi.OpenMutex(0x120000, false, s)
 	if err != nil {
-		return false, xerr.Wrap("could not convert Mutex name", err)
+		return false, err
 	}
-	m, err := windows.OpenMutex(windows.READ_CONTROL|windows.SYNCHRONIZE, false, n)
-	if err != nil {
-		return false, xerr.Wrap("could not open Mutex", err)
-	}
-	if m == 0 || m == windows.InvalidHandle {
-		return false, xerr.New("could not open Mutex: (unknown error)")
-	}
-	windows.CloseHandle(m)
+	winapi.CloseHandle(m)
 	return true, nil
 }
 func eventCheck(s string) (bool, error) {
 	if len(s) == 0 || len(s) > 248 {
-		return false, xerr.New("invalid Event name")
+		return false, xerr.Sub("invalid name", 0xA)
 	}
 	if s[0] != '\\' {
-		s = "Global\\" + s
+		s = prefix + s
 	}
-	n, err := windows.UTF16PtrFromString(s)
+	e, err := winapi.OpenEvent(0x120000, false, s)
 	if err != nil {
-		return false, xerr.Wrap("could not convert Event name", err)
+		return false, err
 	}
-	e, err := windows.OpenEvent(windows.READ_CONTROL|windows.SYNCHRONIZE, false, n)
-	if err != nil {
-		return false, xerr.Wrap("could not open Event", err)
-	}
-	if e == 0 || e == windows.InvalidHandle {
-		return false, xerr.New("could not open Event: (unknown error)")
-	}
-	windows.CloseHandle(e)
+	winapi.CloseHandle(e)
 	return true, nil
 }
 func mailslotCheck(s string) (bool, error) {
 	if len(s) == 0 || len(s) > 243 {
-		return false, xerr.New("invalid Mailslot name")
+		return false, xerr.Sub("invalid name", 0xA)
 	}
 	if len(s) < 4 || (s[0] != '\\' && s[1] != '\\' && s[2] != '.' && s[3] != '\\') {
-		s = `\\.\mailslot` + "\\" + s
+		s = slot + s
 	}
-	n, err := windows.UTF16PtrFromString(s)
+	m, err := winapi.CreateFile(s, 0xc0000000, 0x3, nil, 0x3, 0, 0)
 	if err != nil {
-		return false, xerr.Wrap("could not convert Mailslot name", err)
+		return false, err
 	}
-	m, err := windows.CreateFile(
-		n, windows.GENERIC_READ|windows.GENERIC_WRITE,
-		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE,
-		nil, windows.OPEN_EXISTING, 0, 0,
-	)
-	if m == 0 || err != nil {
-		return false, xerr.Wrap("could not open Mailslot", err)
-	}
-	windows.CloseHandle(m)
+	winapi.CloseHandle(m)
 	return true, nil
 }
 func semaphoreCheck(s string) (bool, error) {
 	if len(s) == 0 || len(s) > 248 {
-		return false, xerr.New("invalid Semaphore name")
+		return false, xerr.Sub("invalid name", 0xA)
 	}
 	if s[0] != '\\' {
-		s = "Global\\" + s
+		s = prefix + s
 	}
-	n, err := windows.UTF16PtrFromString(s)
+	r, err := winapi.OpenSemaphore(0x120000, false, s)
 	if err != nil {
-		return false, xerr.Wrap("could not convert Semaphore name", err)
+		return false, err
 	}
-	r, _, err := funcOpenSemaphore.Call(windows.READ_CONTROL|windows.SYNCHRONIZE, 0, uintptr(unsafe.Pointer(n)))
-	if r == 0 || r == uintptr(windows.InvalidHandle) {
-		return false, xerr.Wrap("could not open Semaphore", err)
-	}
-	windows.CloseHandle(windows.Handle(r))
+	winapi.CloseHandle(r)
 	return true, nil
 }
 func mutexCreate(s string) (listener, error) {
 	if len(s) == 0 || len(s) > 248 {
-		return nil, xerr.New("invalid Mutex name")
+		return nil, xerr.Sub("invalid name", 0xA)
 	}
 	if s[0] != '\\' {
-		s = "Global\\" + s
+		s = prefix + s
 	}
-	n, err := windows.UTF16PtrFromString(s)
-	if err != nil {
-		return nil, xerr.Wrap("could not convert Mutex name", err)
-	}
-	v := windows.SecurityAttributes{InheritHandle: 1}
-	if v.SecurityDescriptor, err = windows.SecurityDescriptorFromString(pipe.PermEveryone); err != nil {
+	var (
+		v   = winapi.SecurityAttributes{InheritHandle: 1}
+		err error
+	)
+	if v.SecurityDescriptor, err = winapi.SecurityDescriptorFromString(pipe.PermEveryone); err != nil {
 		return nil, err
 	}
 	v.Length = uint32(unsafe.Sizeof(s))
-	m, err := windows.CreateMutex(&v, true, n)
+	m, err := winapi.CreateMutex(&v, true, s)
 	if err != nil {
-		return nil, xerr.Wrap("could not create Mutex", err)
+		return nil, err
 	}
 	return objListener(m), nil
 }
 func eventCreate(s string) (listener, error) {
 	if len(s) == 0 || len(s) > 248 {
-		return nil, xerr.New("invalid Event name")
+		return nil, xerr.Sub("invalid name", 0xA)
 	}
 	if s[0] != '\\' {
-		s = "Global\\" + s
+		s = prefix + s
 	}
-	n, err := windows.UTF16PtrFromString(s)
-	if err != nil {
-		return nil, xerr.Wrap("could not convert Event name", err)
-	}
-	v := windows.SecurityAttributes{InheritHandle: 1}
-	if v.SecurityDescriptor, err = windows.SecurityDescriptorFromString(pipe.PermEveryone); err != nil {
+	var (
+		v   = winapi.SecurityAttributes{InheritHandle: 1}
+		err error
+	)
+	if v.SecurityDescriptor, err = winapi.SecurityDescriptorFromString(pipe.PermEveryone); err != nil {
 		return nil, err
 	}
 	v.Length = uint32(unsafe.Sizeof(s))
-	e, err := windows.CreateEvent(&v, 1, 1, n)
+	e, err := winapi.CreateEvent(&v, true, true, s)
 	if err != nil {
-		return nil, xerr.Wrap("could not create Event", err)
+		return nil, err
 	}
 	return objListener(e), nil
 }
@@ -163,49 +126,47 @@ func (o objSync) check(s string) (bool, error) {
 	case Semaphore:
 		return semaphoreCheck(s)
 	}
-	return false, xerr.New("invalid object type")
+	return false, xerr.Sub("invalid value", 0xD)
 }
 func mailslotCreate(s string) (listener, error) {
 	if len(s) == 0 || len(s) > 243 {
-		return nil, xerr.New("invalid Mailslot name")
+		return nil, xerr.Sub("invalid name", 0xA)
 	}
 	if len(s) < 4 || (s[0] != '\\' && s[1] != '\\' && s[2] != '.' && s[3] != '\\') {
-		s = `\\.\mailslot` + "\\" + s
+		s = slot + s
 	}
-	n, err := windows.UTF16PtrFromString(s)
-	if err != nil {
-		return nil, xerr.Wrap("could not convert Mailslot name", err)
-	}
-	v := windows.SecurityAttributes{InheritHandle: 1}
-	if v.SecurityDescriptor, err = windows.SecurityDescriptorFromString(pipe.PermEveryone); err != nil {
+	var (
+		v   = winapi.SecurityAttributes{InheritHandle: 1}
+		err error
+	)
+	if v.SecurityDescriptor, err = winapi.SecurityDescriptorFromString(pipe.PermEveryone); err != nil {
 		return nil, err
 	}
 	v.Length = uint32(unsafe.Sizeof(s))
-	r, _, err := funcCreateMailslot.Call(uintptr(unsafe.Pointer(n)), 0, ^uintptr(0), uintptr(unsafe.Pointer(&v)))
-	if r == 0 || r == uintptr(windows.InvalidHandle) || err == windows.ERROR_ALREADY_EXISTS {
-		return nil, xerr.Wrap("could not create Mailslot", err)
+	r, err := winapi.CreateMailslot(s, 0, -1, &v)
+	if err != nil {
+		return nil, err
 	}
 	return objListener(r), nil
 }
 func semaphoreCreate(s string) (listener, error) {
 	if len(s) == 0 || len(s) > 248 {
-		return nil, xerr.New("invalid Semaphore name")
+		return nil, xerr.Sub("invalid name", 0xA)
 	}
 	if s[0] != '\\' {
-		s = "Global\\" + s
+		s = prefix + s
 	}
-	n, err := windows.UTF16PtrFromString(s)
-	if err != nil {
-		return nil, xerr.Wrap("could not convert Semaphore name", err)
-	}
-	v := windows.SecurityAttributes{InheritHandle: 1}
-	if v.SecurityDescriptor, err = windows.SecurityDescriptorFromString(pipe.PermEveryone); err != nil {
+	var (
+		v   = winapi.SecurityAttributes{InheritHandle: 1}
+		err error
+	)
+	if v.SecurityDescriptor, err = winapi.SecurityDescriptorFromString(pipe.PermEveryone); err != nil {
 		return nil, err
 	}
 	v.Length = uint32(unsafe.Sizeof(s))
-	r, _, err := funcCreateSemaphore.Call(uintptr(unsafe.Pointer(&v)), 0, 1, uintptr(unsafe.Pointer(n)))
-	if r == 0 || err == windows.ERROR_ALREADY_EXISTS {
-		return nil, xerr.Wrap("could not create Semaphore", err)
+	r, err := winapi.CreateSemaphore(&v, 0, 1, s)
+	if err != nil {
+		return nil, err
 	}
 	return objListener(r), nil
 }
@@ -220,5 +181,5 @@ func (o objSync) create(s string) (listener, error) {
 	case Semaphore:
 		return semaphoreCreate(s)
 	}
-	return nil, xerr.New("invalid object type")
+	return nil, xerr.Sub("invalid type", 0xC)
 }

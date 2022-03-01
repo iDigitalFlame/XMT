@@ -1,51 +1,89 @@
 package c2
 
 import (
+	"context"
 	"io"
 	"net"
 	"time"
+
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 const (
-	// DefaultSleep is the default sleep Time when the provided sleep value is empty or negative.
+	// DefaultSleep is the default sleep Time when the provided sleep value is
+	// empty or negative.
 	DefaultSleep = time.Duration(60) * time.Second
 
-	// DefaultJitter is the default Jitter value when the provided jitter value is negative.
-	DefaultJitter uint8 = 5
+	// DefaultJitter is the default Jitter value when the provided jitter value
+	// is negative.
+	DefaultJitter uint8 = 10
+)
+
+var (
+	// ProfileParser is a package level constant to be used when performing
+	// Migrations. This function will take the resulting byte array and Marshal
+	// it into a working c2 Profile interface.
+	//
+	// This function starts out as empty and will return an error.
+	//
+	// In order to use this properly, import the "cfg" package using a blank
+	// import (if not already in use) as it will set this value on load.
+	ProfileParser func([]byte) (Profile, error) = func(b []byte) (Profile, error) {
+		return nil, xerr.Sub("no Profile parser loaded", 0x8)
+	}
+
+	// ErrNotAListener is an error that can be returned by a call to a Profile's
+	// 'Listen' function when that operation is disabled.
+	ErrNotAListener = xerr.Sub("not a listener", 0x8)
+	// ErrNotAConnector is an error that can be returned by a call to a
+	// Profile's 'Connect' function when that operation is disabled.
+	ErrNotAConnector = xerr.Sub("not a connector", 0x8)
 )
 
 // Static is a simple static Profile implementation.
-// If 'S' or 'J' are omitted or zero values, they will be replaced with the
-// DefaultJitter and DefaultSleep values.
 //
-// This struct DOES NOT fill any hinter interfaces!
+// This struct fills all the simple values for a Profile without anything
+// Fancy.
+//
+// The single letter attributes represent the values that are used.
+//
+// If 'S' or 'J' are omitted or zero values, they will be replaced with the
+// DefaultJitter and DefaultSleep values respectively.
+//
+// If the 'L' or 'C' values are omitted or nil, they will disable that function
+// of this Profile.
 type Static struct {
 	// W is the Wrapper
 	W Wrapper
 	// T is the Transform
 	T Transform
+	// L is the Acceptor or Server Listener Connector
+	L Accepter
+	// C is the Connector or Client Connector
+	C Connector
+	// H is the Target Host or Listen Address
+	H string
 	// S is the Sleep duration
 	S time.Duration
 	// J is the Jitter percentage
-	J uint8
-}
-type hinter interface {
-	Host() string
-	Listener() Accepter
-	Connector() Connector
+	J int8
 }
 
-// Profile is an interface that defines a C2 profile. This is used for defining the specifics that will
-// be used to listen by servers and for connections by clients.
+// Profile is an interface that defines a C2 connection.
+//
+// This is used for setting the specifics that wil be used to listen by servers
+// and for connections by clients.
 type Profile interface {
-	Jitter() uint8
-	Wrapper() Wrapper
+	Jitter() int8
+	Switch(bool) bool
 	Sleep() time.Duration
-	Transform() Transform
+	Next() (string, Wrapper, Transform)
+	Connect(context.Context, string) (net.Conn, error)
+	Listen(context.Context, string) (net.Listener, error)
 }
 
-// Wrapper is an interface that wraps the binary streams into separate stream types. This allows for using
-// encryption or compression (or both!).
+// Wrapper is an interface that wraps the binary streams into separate stream
+// types. This allows for using encryption or compression (or both!).
 type Wrapper interface {
 	Unwrap(io.Reader) (io.Reader, error)
 	Wrap(io.WriteCloser) (io.WriteCloser, error)
@@ -55,48 +93,68 @@ type stackCloser struct {
 	io.WriteCloser
 }
 
-// Accepter is an interface that can be used to create listening sockets. This interface
-// defines a single function that returns a listener based on a single accept address string.
+// Accepter is an interface that can be used to create listening sockets.
+//
+// This interface defines a single function that returns a listener based on an
+// accept address string.
+//
+// The supplied Context can be used to close the listening socket.
 type Accepter interface {
-	Listen(string) (net.Listener, error)
+	Listen(context.Context, string) (net.Listener, error)
 }
 
-// Connector is an interface that can be used to connect to listening sockets. This interface defines
-// a single function that returns a Connected socket based on the single connection string.
+// Connector is an interface that can be used to connect to listening sockets.
+//
+// This interface defines a single function that returns a Connected socket
+// based on the connection string.
+//
+// The supplied Context can be used to close the connecting socket or interrupt
+// blocking connections.
 type Connector interface {
-	Connect(string) (net.Conn, error)
+	Connect(context.Context, string) (net.Conn, error)
 }
 
-// Transform is an interface that can modify the data BEFORE it is written or AFTER is read from a Connection.
-// Transforms may be used to mask and unmask communications as benign protocols such as DNS, FTP or HTTP.
+// Transform is an interface that can modify the data BEFORE it is written or
+// AFTER is read from a Connection.
+//
+// Transforms may be used to mask and unmask communications as benign protocols
+// such as DNS, FTP or HTTP.
 type Transform interface {
 	Read([]byte, io.Writer) error
 	Write([]byte, io.Writer) error
 }
 
-// MultiWrapper is an alias for an array of Wrappers. This will preform the wrapper/unwrapping operations in the
-// order of the array. This is automatically created by a Config instance when multiple Wrappers are present.
+// MultiWrapper is an alias for an array of Wrappers.
+//
+// This will preform the wrapper/unwrapping operations in the order of the
+// array.
+//
+// This is automatically created by some Profile instances when multiple
+// Wrappers are present.
 type MultiWrapper []Wrapper
 
-// ConnectFunc is a wrapper alias that will fulfil the client interface and allow using a single function
-// instead of creating a struct to create connections. This can be used in all Server 'Connect' function calls.
-type ConnectFunc func(string) (net.Conn, error)
-
-// ListenerFunc is a wrapper alias that will fulfil the listener interface and allow using a single function
-// instead of creating a struct to create listeners. This can be used in all Server 'Listen' function calls.
-type ListenerFunc func(string) (net.Listener, error)
-
 // Jitter fulfils the Profile interface.
-func (s Static) Jitter() uint8 {
-	if s.J == 0 || s.J > 100 {
-		return DefaultJitter
+func (s Static) Jitter() int8 {
+	if s.J < 0 || s.J > 100 {
+		return int8(DefaultJitter)
 	}
 	return s.J
 }
 
-// Wrapper fulfils the Profile interface.
-func (s Static) Wrapper() Wrapper {
-	return s.W
+// Switch is function that will indicate to the caller if the 'Next' function
+// needs to be called. Calling this function has the potential to advanced the
+// Profile group, if avaliable.
+//
+// The supplied boolean must be true if the last call to 'Connect' ot 'Listen'
+// resulted in an error or if a forced switch if warrented.
+// This indicates to the Profile is "dirty" and a switchover must be done.
+//
+// It is recommended to call the 'Next' function after if the result of this
+// function is true.
+//
+// Static Profile vairants may always return 'false' to prevent allocations.
+func (Static) Switch(_ bool) bool {
+	return false
 }
 func (s *stackCloser) Close() error {
 	if err := s.WriteCloser.Close(); err != nil {
@@ -105,7 +163,12 @@ func (s *stackCloser) Close() error {
 	return s.s.Close()
 }
 
-// Sleep fulfils the Profile interface.
+// Sleep returns a value that indicates the amount of time a Session should wait
+// before attempting communication again, modified by Jitter (if enabled).
+//
+// Sleep MUST be greater than zero (0), any value that is zero or less is
+// ignored and indicates that this profile does not set a Sleep value and will
+// use the system default '60s'.
 func (s Static) Sleep() time.Duration {
 	if s.S <= 0 {
 		return DefaultSleep
@@ -113,19 +176,14 @@ func (s Static) Sleep() time.Duration {
 	return s.S
 }
 
-// Transform fulfils the Profile interface.
-func (s Static) Transform() Transform {
-	return s.T
-}
-
-// Connect fulfills the serverClient interface.
-func (c ConnectFunc) Connect(a string) (net.Conn, error) {
-	return c(a)
-}
-
-// Listen fulfills the serverListener interface.
-func (l ListenerFunc) Listen(a string) (net.Listener, error) {
-	return l(a)
+// Next is a function call that can be used to grab the Profile's current target
+// along with the appropriate Wrapper and Transform.
+//
+// Implementations of a Profile are recommend to ensure that this function does
+// not affect how the Profile currently works until a call to 'Switch' as this
+// WILL be called on startup of a Session.
+func (s Static) Next() (string, Wrapper, Transform) {
+	return s.H, s.W, s.T
 }
 
 // Unwrap satisfies the Wrapper interface.
@@ -156,4 +214,34 @@ func (m MultiWrapper) Wrap(w io.WriteCloser) (io.WriteCloser, error) {
 		o = &stackCloser{s: o, WriteCloser: k}
 	}
 	return o, nil
+}
+
+// Connect is a function that will preform a Connection attempt against the
+// supplied address string.
+//
+// This function may return an error if a connection could not be made or if
+// this Profile does not support Client-side connections.
+//
+// It is recommended for implementations to implement using the passed Context
+// to stop in-flight calls.
+func (s Static) Connect(x context.Context, a string) (net.Conn, error) {
+	if s.C == nil {
+		return nil, ErrNotAConnector
+	}
+	return s.C.Connect(x, a)
+}
+
+// Listen is a function that will attempt to create a listening connection on
+// the supplied address string.
+//
+// This function may return an error if a listener could not be created or if
+// this Profile does not support Server-side connections.
+//
+// It is recommended for implementations to implement using the passed Context
+// to stop running Listeners.
+func (s Static) Listen(x context.Context, a string) (net.Listener, error) {
+	if s.L == nil {
+		return nil, ErrNotAListener
+	}
+	return s.L.Listen(x, a)
 }

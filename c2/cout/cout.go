@@ -1,16 +1,19 @@
-//go:build !client
-// +build !client
+//go:build !implant
+// +build !implant
 
 package cout
 
 import "github.com/PurpleSec/logx"
 
-// Enabled is a compile time constant that can be used to disable/enable the logx Logger and prevent any
-// un-needed fmt calls as the client does not /naturally/ need to produce output. Only needed for debug
-// purposes
+// Enabled is a compile time constant that can be used to disable/enable the
+// logx Logger and prevent any un-needed fmt calls as the client does not
+// /naturally/ need to produce output.
+//
+// Only needed for debug purposes.
 const Enabled = true
 
-// Log is an interface for any type of struct that supports standard Logging functions.
+// Log is an interface for any type of struct that supports standard Logging
+// functions.
 type Log struct {
 	logx.Log
 }
@@ -20,8 +23,8 @@ func New(l logx.Log) *Log {
 	return &Log{Log: l}
 }
 
-// Set updates the internal logger. This function is a NOP if the logger is nil or logging is not
-// enabled via the 'client' build tag.
+// Set updates the internal logger. This function is a NOP if the logger is nil
+// or logging is not enabled via the 'client' build tag.
 func (l *Log) Set(v logx.Log) {
 	if l == nil {
 		return

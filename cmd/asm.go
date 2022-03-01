@@ -64,10 +64,13 @@ func (a *Assembly) Running() bool {
 	return a.t.Running()
 }
 
-// String returns a string representation of the thread's data, such as the pointer
-// and memory addresses.
-func (a *Assembly) String() string {
-	return "ASM" + a.t.String()
+// Release will attempt to release the resources for this Assembly thread,
+// including handles.
+//
+// After the first call to this function, all other function calls will fail
+// with errors. Repeated calls to this function return nil and are a NOP.
+func (a *Assembly) Release() error {
+	return a.t.Release()
 }
 
 // SetSuspended will delay the execution of this thread and will put the

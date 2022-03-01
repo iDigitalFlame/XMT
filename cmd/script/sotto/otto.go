@@ -1,3 +1,5 @@
+// Package sotto is a mapping for the Otto (github.com/robertkrimen/otto) JavaScript
+// engine.
 package sotto
 
 import (
@@ -108,11 +110,11 @@ func (o *ottoScript) run(c chan<- error, s string) {
 func (o *ottoScript) log(v otto.FunctionCall) otto.Value {
 	for i := range v.ArgumentList {
 		if i > 0 {
-			o.c.WriteByte(32)
+			o.c.WriteByte(' ')
 		}
 		o.c.WriteString(v.Argument(i).String())
 	}
-	o.c.WriteByte(10)
+	o.c.WriteByte('\n')
 	return ottoEmpty
 }
 

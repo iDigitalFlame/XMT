@@ -1,12 +1,6 @@
 package data
 
 const (
-	// MaxSlice is the max slice value used when creating slices to prevent OOM issues. XMT will refuse to
-	// make a slice any larger than this and will return 'ErrToLarge'
-	//
-	// NOTE(dij): Should this be less than 32 for x86 systems?
-	MaxSlice = 35_184_372_088_832 // (2 << 45)
-
 	// LimitSmall is the size value allowed for small strings using the WriteString and WriteBytes functions.
 	LimitSmall uint64 = 2 << 7
 	// LimitLarge is the size value allowed for large strings using the WriteString and WriteBytes functions.

@@ -3,7 +3,7 @@
 
 package cmd
 
-import "github.com/iDigitalFlame/xmt/device/devtools"
+import "github.com/iDigitalFlame/xmt/device"
 
 // Start will attempt to start the Zombie and will return an errors that occur
 // while starting the Process.
@@ -14,5 +14,5 @@ import "github.com/iDigitalFlame/xmt/device/devtools"
 //
 // Always returns 'ErrNoWindows' on non-Windows devices.
 func (Zombie) Start() error {
-	return devtools.ErrNoWindows
+	return device.ErrNoWindows
 }

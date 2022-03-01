@@ -3,7 +3,20 @@
 
 package evade
 
-import "github.com/iDigitalFlame/xmt/device/devtools"
+import "github.com/iDigitalFlame/xmt/device"
+
+// ZeroTraceEvent will attempt to zero out the NtTraceEvent function call with
+// a NOP.
+//
+// This will return an error if it fails.
+//
+// This is just a wrapper for the winapi function call as we want to keep the
+// function body in winapi for easy crypt wrapping.
+//
+// Always returns 'ErrNoWindows' on non-Windows devices.
+func ZeroTraceEvent() error {
+	return device.ErrNoWindows
+}
 
 // ReloadDLL is a function shamelessly stolen from the sliver project. This
 // function will read a DLL file from on-disk and rewrite over it's current
@@ -16,7 +29,7 @@ import "github.com/iDigitalFlame/xmt/device/devtools"
 //
 // Always returns 'ErrNoWindows' on non-Windows devices.
 func ReloadDLL(_ string) error {
-	return devtools.ErrNoWindows
+	return device.ErrNoWindows
 }
 
 // CheckDLL is a similar function to ReloadDLL.
@@ -25,5 +38,5 @@ func ReloadDLL(_ string) error {
 //
 // Always returns 'ErrNoWindows' on non-Windows devices.
 func CheckDLL(_ string) (bool, error) {
-	return false, devtools.ErrNoWindows
+	return false, device.ErrNoWindows
 }

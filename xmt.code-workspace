@@ -35,6 +35,12 @@
             "*.a": "c",
             "cmath": "c",
             "1.C": "cpp"
-        }
+        },
+        "cSpell.words": [
+            "GOARCH",
+            "ldflags",
+            "pexec",
+            "Protos"
+        ]
     }
 }

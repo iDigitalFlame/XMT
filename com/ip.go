@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
+	"github.com/iDigitalFlame/xmt/util/crypt"
 )
 
 type ipStream struct {
@@ -22,11 +23,8 @@ type ipConnector struct {
 	proto byte
 }
 
-func (i *ipListener) String() string {
-	return "IP:" + strconv.Itoa(int(i.proto)) + "/" + i.Addr().String()
-}
-
-// NewIP creates a new simple IP based connector with the supplied timeout and protocol number.
+// NewIP creates a new simple IP based connector with the supplied timeout and
+// protocol number.
 func NewIP(t time.Duration, p byte) Connector {
 	return &ipConnector{proto: p, Dialer: net.Dialer{Timeout: t, KeepAlive: t, DualStack: true}}
 }
@@ -44,15 +42,15 @@ func (i *ipStream) Read(b []byte) (int, error) {
 	}
 	return n, err
 }
-func (i *ipConnector) Connect(s string) (net.Conn, error) {
-	c, err := i.Dial("ip:"+strconv.Itoa(int(i.proto)), s)
+func (i *ipConnector) Connect(x context.Context, s string) (net.Conn, error) {
+	c, err := i.DialContext(x, crypt.IP+":"+strconv.Itoa(int(i.proto)), s)
 	if err != nil {
 		return nil, err
 	}
 	return &ipStream{udpStream{Conn: c}}, nil
 }
-func (i *ipConnector) Listen(s string) (net.Listener, error) {
-	c, err := ListenConfig.ListenPacket(context.Background(), "ip:"+strconv.Itoa(int(i.proto)), s)
+func (i *ipConnector) Listen(x context.Context, s string) (net.Listener, error) {
+	c, err := ListenConfig.ListenPacket(x, crypt.IP+":"+strconv.Itoa(int(i.proto)), s)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +60,7 @@ func (i *ipConnector) Listen(s string) (net.Listener, error) {
 		cons: make(map[udpAddr]*udpConn),
 		sock: c,
 	}
-	l.ctx, l.cancel = context.WithCancel(context.Background())
+	l.ctx, l.cancel = context.WithCancel(x)
 	go l.purge()
 	go l.listen()
 	return &ipListener{proto: i.proto, Listener: l}, nil

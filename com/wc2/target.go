@@ -6,12 +6,14 @@ import (
 	"github.com/iDigitalFlame/xmt/util/text"
 )
 
-// TargetEmpty is a Target that does not have anything set and will not mutate a Request.
+// TargetEmpty is a Target that does not have anything set and will not mutate a
+// Request.
 var TargetEmpty Target
 
-// Target is a struct that is composed of three separate Stringer interfaces. These are called
-// via their 'String' function to specify the User-Agent, URL and Host string values. They can be set to
-// static strings using the 'text.String' wrapper. This struct can be used as a C2 client connector. If
+// Target is a struct that is composed of three separate Stringer interfaces.
+// These are called via their 'String' function to specify the User-Agent, URL
+// and Host string values. They can be set to static strings using the
+// 'text.String' wrapper. This struct can be used as a C2 client connector. If
 // the Client property is not set, the DefaultClient value will be used.
 type Target struct {
 	_                [0]func()
@@ -25,7 +27,8 @@ type Stringer interface {
 	String() string
 }
 
-// Reset sets all the Target values to nil. This allows for an empty Target to be used.
+// Reset sets all the Target values to nil. This allows for an empty Target to
+// be used.
 func (t *Target) Reset() {
 	if t.URL, t.Host, t.Agent = nil, nil, nil; t.Headers != nil && len(t.Headers) > 0 {
 		for k := range t.Headers {
@@ -34,10 +37,12 @@ func (t *Target) Reset() {
 	}
 }
 
-// Rule will attempt to generate a Rule that matches this generator using the current configuration.
+// Rule will attempt to generate a Rule that matches this generator using the
+// current configuration.
 //
-// Rules will only be added if the settings implement the 'MatchString(string) bool' function. Otherwise, the
-// specified rule will attempt to match using a Text Matcher.
+// Rules will only be added if the settings implement the 'MatchString(string) bool'
+// function. Otherwise, the specified rule will attempt to match using a Text
+// Matcher.
 //
 // Empty Target return an empty rule.
 func (t Target) Rule() Rule {
@@ -102,7 +107,7 @@ func (t *Target) mutate(r *http.Request) {
 		r.Host = t.Host.String()
 	}
 	if t.Agent != nil {
-		r.Header.Set("User-Agent", t.Agent.String())
+		r.Header.Set(userAgent, t.Agent.String())
 	}
 	for k, v := range t.Headers {
 		r.Header.Set(k, v.String())
@@ -110,6 +115,7 @@ func (t *Target) mutate(r *http.Request) {
 }
 
 // Header adds the stringer too the Target's header set.
+//
 // This function will create the headers map if it's nil.
 func (t *Target) Header(k string, v Stringer) {
 	if t.Headers == nil {

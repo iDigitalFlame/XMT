@@ -1,22 +1,29 @@
 package cfg
 
-import (
-	"time"
-)
+import "time"
 
 const (
+	// Seperator is an entry that can be used to create Groups in Config instances.
+	//
+	// It is recommended to use the 'AddGroup' functions instead, but this can
+	// be used to create more advanced Groupings.
+	Seperator = cBit(0xFA)
+
 	invalid = cBit(0)
 
 	valHost   = cBit(0xA0)
 	valSleep  = cBit(0xA1)
 	valJitter = cBit(0xA2)
+	valWeight = cBit(0xAE)
 )
 
 type cBit byte
 type cBytes []byte
 
-// Setting is an interface represents a C2 Profile setting in binary form. This can be used inside to generate
-// a C2 Profile from binary data or write a Profile to a binary stream or from a JSON payload.
+// Setting is an interface represents a C2 Profile setting in binary form.
+//
+// This can be used inside to generate a C2 Profile from binary data or write
+// a Profile to a binary stream or from a JSON payload.
 type Setting interface {
 	id() cBit
 	args() []byte
@@ -35,19 +42,34 @@ func (c cBytes) id() cBit {
 	return cBit(c[0])
 }
 
-// Jitter returns a Setting that will specify the Jitter setting of the generated Profile. Only Jitter values from
-// zero to one-hundred [0-100] are valid.
+// Weight returns a Setting that will specify the Weight of the generated
+// Profile. Weight is taken into account when multiple Profiles are included to
+// make a multi-profile.
+//
+// This option MUST be included in the Group to take effect. Not including this
+// will set the value to zero (0). Multiple values in a Group will take
+// the last value.
+func Weight(w uint) Setting {
+	if w == 0 {
+		return nil
+	}
+	return cBytes{byte(valWeight), byte(w)}
+}
+
+// Jitter returns a Setting that will specify the Jitter setting of the generated
+// Profile. Only Jitter values from zero to one-hundred [0-100] are valid.
 //
 // Other values are ignored and replaced with the default.
 func Jitter(n uint) Setting {
 	return cBytes{byte(valJitter), byte(n)}
 }
 
-// Host will return a Setting that will specify a host 'hint' to the profile, which can be used if the connecting
-// address is empty.
-//
+// Host will return a Setting that will specify a host setting to the profile.
 // If empty, this value is ignored.
 func Host(s string) Setting {
+	if len(s) == 0 {
+		return nil
+	}
 	n := len(s)
 	if n > 0xFFFF {
 		n = 0xFFFF
@@ -58,9 +80,12 @@ func (c cBytes) args() []byte {
 	return c
 }
 
-// Sleep returns a Setting that will specify the Sleep timeout setting of the generated Profile.
-// Values of zero and below are ignored.
+// Sleep returns a Setting that will specify the Sleep timeout setting of the
+// generated Profile. Values of zero and below are ignored.
 func Sleep(t time.Duration) Setting {
+	if t <= 0 {
+		return nil
+	}
 	return cBytes{
 		byte(valSleep), byte(t >> 56), byte(t >> 48), byte(t >> 40), byte(t >> 32),
 		byte(t >> 24), byte(t >> 16), byte(t >> 8), byte(t),

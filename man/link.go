@@ -14,6 +14,7 @@ import (
 	"github.com/iDigitalFlame/xmt/com/pipe"
 	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
+	"github.com/iDigitalFlame/xmt/util/crypt"
 )
 
 const (
@@ -34,25 +35,25 @@ const (
 	// This Linker uses Windows Mutexes to determine Guardian status.
 	//
 	// This Linker type is only avaliable on Windows devices.
-	// non-Windows devices will always return a 'devtools.ErrNoWindows' error.
+	// non-Windows devices will always return a 'device.ErrNoWindows' error.
 	Mutex = objSync(0)
 	// Event is a Linker type that can be used with a Guardian.
 	// This Linker uses Windows Events to determine Guardian status.
 	//
 	// This Linker type is only avaliable on Windows devices.
-	// non-Windows devices will always return a 'devtools.ErrNoWindows' error.
+	// non-Windows devices will always return a 'device.ErrNoWindows' error.
 	Event = objSync(1)
 	// Semaphore is a Linker type that can be used with a Guardian.
 	// This Linker uses Windows Semaphores to determine Guardian status.
 	//
 	// This Linker type is only avaliable on Windows devices.
-	// non-Windows devices will always return a 'devtools.ErrNoWindows' error.
+	// non-Windows devices will always return a 'device.ErrNoWindows' error.
 	Semaphore = objSync(2)
 	// Mailslot is a Linker type that can be used with a Guardian.
 	// This Linker uses Windows MailslotS to determine Guardian status.
 	//
 	// This Linker type is only avaliable on Windows devices.
-	// non-Windows devices will always return a 'devtools.ErrNoWindows' error.
+	// non-Windows devices will always return a 'device.ErrNoWindows' error.
 	Mailslot = objSync(3)
 )
 
@@ -111,22 +112,9 @@ func netHandleConn(c net.Conn) {
 }
 func (n netSync) String() string {
 	if n {
-		return "pipe"
+		return crypt.Pipe
 	}
-	return "tcp"
-}
-func (o objSync) String() string {
-	switch o {
-	case Mutex:
-		return "mutex"
-	case Event:
-		return "event"
-	case Mailslot:
-		return "mailslot"
-	case Semaphore:
-		return "semaphore"
-	}
-	return "mutex"
+	return crypt.TCP
 }
 func (n *netListener) Close() error {
 	atomic.StoreUint32(&n.done, 1)
@@ -137,10 +125,10 @@ func formatTCPName(s string) string {
 		return s
 	}
 	if _, err := strconv.ParseUint(s, 10, 16); err == nil {
-		return "localhost:" + s
+		return local + s
 	}
 	h := uint32(2166136261)
-	for x := range s {
+	for x := 0; x < len(s); x++ {
 		h *= 16777619
 		h ^= uint32(s[x])
 	}
@@ -148,7 +136,7 @@ func formatTCPName(s string) string {
 	if v < 1024 {
 		v += 1024
 	}
-	return "localhost:" + strconv.FormatUint(uint64(v), 10)
+	return local + strconv.FormatUint(uint64(v), 10)
 }
 func netCheckConn(c net.Conn) (bool, error) {
 	var (
@@ -176,7 +164,7 @@ func (n netSync) check(s string) (bool, error) {
 	if n {
 		c, err = pipe.DialTimeout(pipe.Format(s), timeout)
 	} else {
-		c, err = net.DialTimeout("tcp", formatTCPName(s), timeout)
+		c, err = net.DialTimeout(crypt.TCP, formatTCPName(s), timeout)
 	}
 	if err != nil {
 		return false, nil
@@ -193,7 +181,7 @@ func (n netSync) create(s string) (listener, error) {
 	if n {
 		l, err = pipe.ListenPerms(pipe.Format(s), pipe.PermEveryone)
 	} else {
-		l, err = com.ListenConfig.Listen(context.Background(), "tcp", formatTCPName(s))
+		l, err = com.ListenConfig.Listen(context.Background(), crypt.TCP, formatTCPName(s))
 	}
 	if err != nil {
 		return nil, err

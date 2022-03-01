@@ -15,7 +15,8 @@ type device struct {
 }
 type hardware uint64
 
-// Network is a basic listing of network interfaces.  Used to store and refresh interface lists.
+// Network is a basic listing of network interfaces. Used to store and refresh
+// interface lists.
 type Network []device
 
 // Len returns the number of detected interfaces detected.
@@ -39,8 +40,11 @@ func (h hardware) String() string {
 	return string(b[:v])
 }
 
-// Refresh collects the interfaces connected to this system and fills this Network object with the information.
-// If previous Network information is contained in this Network object, it is cleared before filling.
+// Refresh collects the interfaces connected to this system and fills this
+// Network object with the information.
+//
+// If previous Network information is contained in this Network object, it is
+// cleared before filling.
 func (n *Network) Refresh() error {
 	if len(*n) > 0 {
 		*n = (*n)[0:0]
@@ -150,12 +154,11 @@ func (n *Network) UnmarshalStream(r data.Reader) error {
 	if err != nil {
 		return err
 	}
-	for ; l > 0; l-- {
-		var d device
-		if err := d.UnmarshalStream(r); err != nil {
+	*n = make(Network, l)
+	for x := uint8(0); x < l; x++ {
+		if err := (*n)[x].UnmarshalStream(r); err != nil {
 			return err
 		}
-		*n = append(*n, d)
 	}
 	return nil
 }

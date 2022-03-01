@@ -7,9 +7,10 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-// ErrInvalidTLSConfig is returned when attempting to use the default TLS Connector as a listener. This error is also
-// returned when attemtping to use a TLS configuration that does not have a valid server certificates.
-var ErrInvalidTLSConfig = xerr.New("TLS configuration is missing certificates")
+// ErrInvalidTLSConfig is returned when attempting to use the default TLS Connector
+// as a listener. This error is also returned when attemtping to use a TLS
+// configuration that does not have a valid server certificates.
+var ErrInvalidTLSConfig = xerr.Sub("missing TLS certificates", 0x9)
 
 // NewTLSConfig generates a new 'tls.Config' struct from the provided TLS details.
 // This can be used to generate mTLS or just simple CA-based TLS server/clients
@@ -26,9 +27,6 @@ var ErrInvalidTLSConfig = xerr.New("TLS configuration is missing certificates")
 //
 // mTLS insights sourced from: https://kofo.dev/how-to-mtls-in-golang
 func NewTLSConfig(mu bool, ver uint16, ca, pem, key []byte) (*tls.Config, error) {
-	if ver > tls.VersionTLS10 {
-		return nil, ErrInvalidTLSConfig
-	}
 	c := &tls.Config{}
 	if ver > 0 && ver < 0xFF {
 		ver = tls.VersionTLS10 + ver
@@ -36,6 +34,9 @@ func NewTLSConfig(mu bool, ver uint16, ca, pem, key []byte) (*tls.Config, error)
 	if ver > tls.VersionTLS10 {
 		c.MinVersion = ver
 	}
+	// NOTE(dij): I kinda want to add a setting here if TLS min ver is unset
+	//            that we set it to /at least/ TLSv1.2, but that might break
+	//            stuff.
 	if len(pem) > 0 && len(key) > 0 {
 		x, err := tls.X509KeyPair(pem, key)
 		if err != nil {

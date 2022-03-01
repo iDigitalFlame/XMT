@@ -8,13 +8,12 @@ import (
 
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/com"
-	"github.com/iDigitalFlame/xmt/util"
+	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-var wake waker
+var wake struct{}
 
-type waker struct{}
 type event struct {
 	s  *Session
 	p  *com.Packet
@@ -29,19 +28,32 @@ type cluster struct {
 	data []*com.Packet
 	max  uint16
 }
+type eventer chan event
 type connection struct {
 	s   *Server
 	w   Wrapper
 	t   Transform
+	m   messager
+	p   Profile
 	ctx context.Context
 	log *cout.Log
 }
-type stringer interface {
-	String() string
+type messager interface {
+	close()
+	count() int
+	queue(event)
+}
+type runnable interface {
+	Pid() uint32
+	Start() error
+	Release() error
 }
 type notifier interface {
 	accept(uint16)
 	frag(uint16, uint16, uint16)
+}
+type marshaler interface {
+	MarshalBinary() (data []byte, err error)
 }
 type readerTimeout struct {
 	c net.Conn
@@ -49,24 +61,51 @@ type readerTimeout struct {
 	i bool
 }
 
+func (*Server) close() {}
+func (e eventer) close() {
+	close(e)
+}
 func (c *cluster) Len() int {
 	return len(c.data)
 }
-func (waker) accept(_ uint16) {
+func (e eventer) count() int {
+	return len(e)
+}
+func (s *Server) count() int {
+	return len(s.events)
+}
+func (e eventer) queue(x event) {
+	e <- x
 }
 func (c *cluster) Swap(i, j int) {
 	c.data[i], c.data[j] = c.data[j], c.data[i]
 }
-func (waker) frag(_, _, _ uint16) {
+func (e eventer) listen(s *Session) {
+	if bugtrack.Enabled {
+		defer bugtrack.Recover("c2.eventer.listen()")
+	}
+	if cout.Enabled {
+		s.log.Info("Client-side event processing thread started!")
+	}
+	for {
+		select {
+		case <-s.ctx.Done():
+			s.Remove()
+			s.Close()
+			return
+		case v := <-e:
+			v.process(s.log)
+		}
+	}
 }
-func (e *event) process(l *cout.Log) {
-	defer func(x *cout.Log) {
+func (e event) process(l *cout.Log) {
+	defer func() {
 		if err := recover(); err != nil {
 			if cout.Enabled {
-				x.Error("Server event processing function recovered from a panic: %s!", err)
+				l.Error("Server event processing function recovered from a panic: %s!", err)
 			}
 		}
-	}(l)
+	}()
 	switch {
 	case e.af != nil && e.p != nil && e.s != nil: // Direct client side packet handler.
 		if e.af(e.p) && e.s.Receive == nil { // Handled and Receive is nil, clear and break.
@@ -113,8 +152,6 @@ func (e *event) process(l *cout.Log) {
 	case e.jf != nil && e.j != nil: // Job Update handler
 		e.jf(e.j)
 	}
-	e.p, e.s, e.j = nil, nil, nil
-	e.af, e.pf, e.sf, e.jf, e.hf = nil, nil, nil, nil, nil
 }
 func (c *cluster) done() *com.Packet {
 	if len(c.data) == 0 {
@@ -142,7 +179,7 @@ func (c *cluster) add(p *com.Packet) error {
 		return nil
 	}
 	if len(c.data) > 0 && !c.data[0].Belongs(p) {
-		return xerr.New("Packet ID " + util.ByteHexString(p.ID) + " does not match the combining ID")
+		return xerr.Sub("packet ID does not match the supplied ID", 0xD)
 	}
 	if p.Flags.Len() > c.max {
 		c.max = p.Flags.Len()

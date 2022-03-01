@@ -9,7 +9,7 @@ import (
 	"github.com/iDigitalFlame/xmt/man"
 )
 
-func TestGuardian() {
+func testGuardian() {
 	if len(os.Args) == 2 {
 		ok, err := man.Sentinel{Paths: []string{os.Args[0]}}.Wake(os.Args[1])
 		if err != nil {

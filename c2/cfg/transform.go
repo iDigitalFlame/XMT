@@ -1,6 +1,7 @@
 package cfg
 
-// TransformB64 is a Setting that enables the Base64 Transform for the generated Profile.
+// TransformB64 is a Setting that enables the Base64 Transform for the generated
+// Profile.
 const TransformB64 = cBit(0xE0)
 
 const (
@@ -8,9 +9,15 @@ const (
 	valB64Shift = cBit(0xE2)
 )
 
-// TransformDNS returns a Setting that will apply the DNS Transform to the generated Profile. If any DNS Domains
-// are specified, they will be used in the Transform. If a Transform Setting is already contained in the parent
-// Config, a 'ErrMultipleTransforms' error will be returned when the 'Profile' function is called.
+// TransformDNS returns a Setting that will apply the DNS Transform to the
+// generated Profile. If any DNS Domains are specified, they will be used in the
+// Transform.
+//
+// If a Transform Setting is already contained in the current Config Group, a
+// 'ErrMultipleTransforms' error will be returned when the 'Profile' function
+// is called.
+//
+// TODO(dij): Fix this shit.
 func TransformDNS(n ...string) Setting {
 	s := cBytes{byte(valDNS), 0}
 	if len(s) == 0 {
@@ -33,9 +40,13 @@ func TransformDNS(n ...string) Setting {
 	return s
 }
 
-// TransformB64Shift returns a Setting that will apply the Base64 Shift Transform to the generated Profile.
-// The specified number will be the shift index of the Transform. If a Transform Setting is already contained
-// in the parent Config, a 'ErrMultipleTransforms' error will be returned when the 'Profile' function is called.
+// TransformB64Shift returns a Setting that will apply the Base64 Shift Transform
+// to the generated Profile. The specified number will be the shift index of the
+// Transform.
+//
+// If a Transform Setting is already contained in the current Config Group, a
+// 'ErrMultipleTransforms' error will be returned when the 'Profile' function is
+// called.
 func TransformB64Shift(s int) Setting {
 	return cBytes{byte(valB64Shift), byte(s)}
 }

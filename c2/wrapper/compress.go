@@ -25,15 +25,14 @@ var (
 			return w
 		},
 	}
-	zlibReaderPool = sync.Pool{New: func() interface{} { return nil }}
-
 	gzipWriterPool = sync.Pool{
 		New: func() interface{} {
 			w, _ := gzip.NewWriterLevel(nil, compLevel)
 			return w
 		},
 	}
-	gzipReaderPool = sync.Pool{New: func() interface{} { return nil }}
+
+	zlibReaderPool, gzipReaderPool sync.Pool
 )
 
 type compress uint8

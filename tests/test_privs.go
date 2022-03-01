@@ -4,11 +4,11 @@ import (
 	"fmt"
 
 	"github.com/iDigitalFlame/xmt/cmd"
-	"github.com/iDigitalFlame/xmt/device/devtools"
+	"github.com/iDigitalFlame/xmt/device"
 )
 
-func TestPrivs() {
-	if err := devtools.AdjustPrivileges("SeShutdownPrivilege", "SeUndockPrivilege"); err != nil {
+func testPrivs() {
+	if err := device.AdjustPrivileges("SeShutdownPrivilege", "SeUndockPrivilege"); err != nil {
 		panic(err)
 	}
 

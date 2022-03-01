@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/iDigitalFlame/xmt/data"
-	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -35,15 +34,15 @@ type Engine interface {
 //  ID: <Supplied>
 //
 //  Input:
-//      - string (script)
+//      string (script)
 //  Output:
-//      - string (output)
+//      string (output)
 func RegisterEngine(i uint8, s Engine) error {
 	if i < 21 {
-		return xerr.New("script mapping ID is invalid")
+		return xerr.Sub("mapping ID is invalid", 0xE)
 	}
 	if Mappings[i] != nil {
-		return xerr.New("script mapping ID is currently in use")
+		return xerr.Sub("mapping ID is already exists", 0x15)
 	}
 	Mappings[i] = func(x context.Context, r data.Reader, w data.Writer) error {
 		c, err := r.StringVal()
@@ -58,15 +57,4 @@ func RegisterEngine(i uint8, s Engine) error {
 		return nil
 	}
 	return nil
-}
-func createEnvironment() map[string]interface{} {
-	return map[string]interface{}{
-		"OS":       device.OS.String(),
-		"ID":       device.UUID.String(),
-		"PID":      device.Local.PID,
-		"PPID":     device.Local.PPID,
-		"OSVER":    device.Version,
-		"ADMIN":    device.Local.Elevated,
-		"HOSTNAME": device.Local.Hostname,
-	}
 }

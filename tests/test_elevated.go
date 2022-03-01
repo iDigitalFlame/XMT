@@ -4,9 +4,10 @@ import (
 	"os"
 
 	"github.com/iDigitalFlame/xmt/cmd"
+	"github.com/iDigitalFlame/xmt/cmd/filter"
 )
 
-func TestElevated() {
+func testElevated() {
 
 	if len(os.Args) <= 1 {
 		os.Stderr.WriteString("usage: " + os.Args[0] + " <command>\n")
@@ -21,7 +22,7 @@ func TestElevated() {
 	}
 
 	x := cmd.NewProcess(os.Args[1:]...)
-	x.SetParent(&cmd.Filter{Include: []string{"TrustedInstaller.exe"}, Elevated: cmd.True})
+	x.SetParent(&filter.Filter{Include: []string{"TrustedInstaller.exe"}, Elevated: filter.True})
 
 	b, err := x.CombinedOutput()
 

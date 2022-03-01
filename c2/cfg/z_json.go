@@ -1,10 +1,9 @@
-//go:build !binonly
-// +build !binonly
+//go:build !nojson
+// +build !nojson
 
 package cfg
 
 import (
-	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"strconv"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/PurpleSec/escape"
+	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -23,12 +23,22 @@ type mapper map[string]json.RawMessage
 
 func (c cBit) String() string {
 	switch c {
+	case Seperator:
+		return "|"
 	case valHost:
 		return "host"
 	case valSleep:
 		return "sleep"
 	case valJitter:
 		return "jitter"
+	case valWeight:
+		return "weight"
+	case SelectorLastValid:
+		return "select-last"
+	case SelectorRoundRobin:
+		return "select-round-robin"
+	case SelectorRandom:
+		return "select-random"
 	case ConnectTCP:
 		return "tcp"
 	case ConnectTLS:
@@ -84,6 +94,14 @@ func bitFromName(s string) cBit {
 		return valSleep
 	case "jitter":
 		return valJitter
+	case "weight":
+		return valWeight
+	case "select-last":
+		return SelectorLastValid
+	case "select-round-robin":
+		return SelectorRoundRobin
+	case "select-random":
+		return SelectorRandom
 	case "tcp":
 		return ConnectTCP
 	case "tls":
@@ -132,6 +150,29 @@ func bitFromName(s string) cBit {
 	return invalid
 }
 
+// String returns a string representation of the data included in this Config
+// instance. Each separate setting will be seperated by commas.
+func (c Config) String() string {
+	if len(c) == 0 || c[0] == 0 {
+		return ""
+	}
+	var b util.Builder
+	for i, x := 0, cBit(c[0]); i >= 0 && i < len(c); {
+		b.WriteString(x.String())
+		if i = c.next(i); i < 0 || i >= len(c) {
+			break
+		}
+		if x == Seperator {
+			x = cBit(c[i])
+			continue
+		}
+		if x = cBit(c[i]); i >= 0 && i < len(c) && x != Seperator {
+			b.WriteByte(',')
+		}
+	}
+	return b.Output()
+}
+
 // JSON will combine the supplied settings into a JSON payload and returned in
 // a byte slice. This will return any validation errors during conversion.
 //
@@ -147,23 +188,36 @@ func JSON(s ...Setting) ([]byte, error) {
 // setting or data value is encountered during conversion.
 func (c Config) MarshalJSON() ([]byte, error) {
 	var (
-		b bytes.Buffer
+		b util.Builder
 		x cBit
 	)
 	b.WriteByte('[')
-	for i, n := 0, 0; n >= 0 && n < len(c); i = n {
+	for i, n, z := 0, 0, false; n >= 0 && n < len(c); i = n {
+		if i == 0 || x == Seperator {
+			b.WriteByte('[')
+		}
 		if x = cBit(c[i]); x == invalid {
 			return nil, ErrInvalidSetting
 		}
 		if n = c.next(i); n == i || n > len(c) || n == -1 {
 			n = len(c)
 		}
-		if i > 0 {
+		if x == Seperator {
+			if n == len(c) {
+				break
+			}
+			b.WriteString("],")
+			z = true
+			continue
+		}
+		if i > 0 && !z {
 			b.WriteByte(',')
 		}
 		b.WriteString(`{"type":"` + x.String() + `"`)
-		switch x {
+		switch z = false; x {
 		case WrapHex, WrapZlib, WrapGzip, WrapBase64:
+			fallthrough
+		case SelectorLastValid, SelectorRoundRobin, SelectorRandom:
 			fallthrough
 		case ConnectTCP, ConnectTLS, ConnectUDP, ConnectICMP, ConnectPipe, ConnectTLSNoVerify:
 			fallthrough
@@ -171,7 +225,7 @@ func (c Config) MarshalJSON() ([]byte, error) {
 			goto end
 		}
 		b.WriteString(`,"args":`)
-		switch _ = c[n]; x {
+		switch _ = c[n-1]; x {
 		case valHost:
 			b.WriteString(escape.JSON(string(c[i+3 : (int(c[i+2])|int(c[i+1])<<8)+i+3])))
 		case valSleep:
@@ -179,7 +233,7 @@ func (c Config) MarshalJSON() ([]byte, error) {
 				uint64(c[i+8]) | uint64(c[i+7])<<8 | uint64(c[i+6])<<16 | uint64(c[i+5])<<24 |
 					uint64(c[i+4])<<32 | uint64(c[i+3])<<40 | uint64(c[i+2])<<48 | uint64(c[i+1])<<56,
 			).String()))
-		case valJitter, valIP, valTLSx, valB64Shift:
+		case valJitter, valWeight, valIP, valTLSx, valB64Shift:
 			b.WriteString(strconv.FormatUint(uint64(c[i+1]), 10))
 		case valWC2:
 			var (
@@ -312,10 +366,8 @@ func (c Config) MarshalJSON() ([]byte, error) {
 	end:
 		b.WriteByte('}')
 	}
-	b.WriteByte(']')
-	o := b.Bytes()
-	b.Reset()
-	return o, nil
+	b.WriteString("]]")
+	return []byte(b.Output()), nil
 }
 
 // UnmarshalJSON will attempt to convert the JSON data provided into this Config
@@ -324,203 +376,223 @@ func (c Config) MarshalJSON() ([]byte, error) {
 // Errors during parsing or formatting will be returned along with the
 // 'ErrInvalidSetting' error if parsed data contains invalid values.
 func (c *Config) UnmarshalJSON(b []byte) error {
-	var m []config
-	if err := json.Unmarshal(b, &m); err != nil {
+	var h []json.RawMessage
+	if err := json.Unmarshal(b, &h); err != nil {
 		return err
 	}
-	if len(m) == 9 {
+	if len(h) == 0 {
 		return nil
 	}
-	r := make([]Setting, len(m))
-	for i := range m {
-		switch x := bitFromName(m[i].Type); x {
-		case invalid:
-			return ErrInvalidSetting
-		case WrapHex, WrapZlib, WrapGzip, WrapBase64:
-			fallthrough
-		case ConnectTCP, ConnectTLS, ConnectUDP, ConnectICMP, ConnectPipe, ConnectTLSNoVerify:
-			fallthrough
-		case TransformB64:
-			r = append(r, x)
-		case valHost:
-			var s string
-			if err := json.Unmarshal(m[i].Args, &s); err != nil {
-				return xerr.Wrap("host", err)
-			}
-			r = append(r, Host(s))
-		case valSleep:
-			var s string
-			if err := json.Unmarshal(m[i].Args, &s); err != nil {
-				return xerr.Wrap("sleep", err)
-			}
-			d, err := time.ParseDuration(s)
-			if err != nil {
-				return xerr.Wrap("sleep", err)
-			}
-			r = append(r, Sleep(d))
-		case valJitter:
-			var v uint8
-			if err := json.Unmarshal(m[i].Args, &v); err != nil {
-				return xerr.Wrap("jitter", err)
-			}
-			r = append(r, cBytes{byte(valJitter), v})
-		case valIP:
-			var v uint8
-			if err := json.Unmarshal(m[i].Args, &v); err != nil {
-				return xerr.Wrap("ip", err)
-			}
-			r = append(r, cBytes{byte(valIP), v})
-		case valWC2:
-			var z mapper
-			if err := json.Unmarshal(m[i].Args, &z); err != nil {
-				return xerr.Wrap("wc2", err)
-			}
-			var (
-				u, h, a string
-				j       map[string]string
-			)
-			if err := z.Unmarshal("url", false, &u); err != nil {
-				return err
-			}
-			if err := z.Unmarshal("host", false, &h); err != nil {
-				return err
-			}
-			if err := z.Unmarshal("agent", false, &a); err != nil {
-				return err
-			}
-			if d, ok := z["headers"]; ok {
-				if err := json.Unmarshal(d, &j); err != nil {
+	r := make([]Setting, 0, len(h)*4)
+	for k := range h {
+		var m []config
+		if err := json.Unmarshal(h[k], &m); err != nil {
+			return err
+		}
+		if len(m) == 0 {
+			continue
+		}
+		for i := range m {
+			switch x := bitFromName(m[i].Type); x {
+			case invalid:
+				return ErrInvalidSetting
+			case WrapHex, WrapZlib, WrapGzip, WrapBase64:
+				fallthrough
+			case SelectorLastValid, SelectorRoundRobin, SelectorRandom:
+				fallthrough
+			case ConnectTCP, ConnectTLS, ConnectUDP, ConnectICMP, ConnectPipe, ConnectTLSNoVerify:
+				fallthrough
+			case TransformB64:
+				r = append(r, x)
+			case valHost:
+				var s string
+				if err := json.Unmarshal(m[i].Args, &s); err != nil {
+					return xerr.Wrap("host", err)
+				}
+				r = append(r, Host(s))
+			case valSleep:
+				var s string
+				if err := json.Unmarshal(m[i].Args, &s); err != nil {
+					return xerr.Wrap("sleep", err)
+				}
+				d, err := time.ParseDuration(s)
+				if err != nil {
+					return xerr.Wrap("sleep", err)
+				}
+				r = append(r, Sleep(d))
+			case valJitter:
+				var v uint8
+				if err := json.Unmarshal(m[i].Args, &v); err != nil {
+					return xerr.Wrap("jitter", err)
+				}
+				r = append(r, cBytes{byte(valJitter), v})
+			case valWeight:
+				var v uint8
+				if err := json.Unmarshal(m[i].Args, &v); err != nil {
+					return xerr.Wrap("weight", err)
+				}
+				r = append(r, cBytes{byte(valWeight), v})
+			case valIP:
+				var v uint8
+				if err := json.Unmarshal(m[i].Args, &v); err != nil {
+					return xerr.Wrap("ip", err)
+				}
+				r = append(r, cBytes{byte(valIP), v})
+			case valWC2:
+				var z mapper
+				if err := json.Unmarshal(m[i].Args, &z); err != nil {
 					return xerr.Wrap("wc2", err)
 				}
-				for v := range j {
-					if len(v) == 0 {
-						return xerr.Wrap("wc2", ErrInvalidSetting)
+				var (
+					u, h, a string
+					j       map[string]string
+				)
+				if err := z.Unmarshal("url", false, &u); err != nil {
+					return err
+				}
+				if err := z.Unmarshal("host", false, &h); err != nil {
+					return err
+				}
+				if err := z.Unmarshal("agent", false, &a); err != nil {
+					return err
+				}
+				if d, ok := z["headers"]; ok {
+					if err := json.Unmarshal(d, &j); err != nil {
+						return xerr.Wrap("wc2", err)
+					}
+					for v := range j {
+						if len(v) == 0 {
+							return xerr.Wrap("wc2", ErrInvalidSetting)
+						}
 					}
 				}
-			}
-			r = append(r, ConnectWC2(u, h, a, j))
-		case valTLSx:
-			var v uint8
-			if err := json.Unmarshal(m[i].Args, &v); err != nil {
-				return xerr.Wrap("tls-ex", err)
-			}
-			r = append(r, cBytes{byte(valTLSx), v})
-		case valMuTLS:
-			var z mapper
-			if err := json.Unmarshal(m[i].Args, &z); err != nil {
-				return xerr.Wrap("mtls", err)
-			}
-			var (
-				a, p, k []byte
-				v       uint16
-			)
-			if err := z.Unmarshal("ca", false, &a); err != nil {
-				return xerr.Wrap("mtls", err)
-			}
-			if err := z.Unmarshal("pem", true, &p); err != nil {
-				return xerr.Wrap("mtls", err)
-			}
-			if err := z.Unmarshal("key", true, &k); err != nil {
-				return xerr.Wrap("mtls", err)
-			}
-			if d, ok := z["version"]; ok {
-				if err := json.Unmarshal(d, &v); err != nil {
+				r = append(r, ConnectWC2(u, h, a, j))
+			case valTLSx:
+				var v uint8
+				if err := json.Unmarshal(m[i].Args, &v); err != nil {
+					return xerr.Wrap("tls-ex", err)
+				}
+				r = append(r, cBytes{byte(valTLSx), v})
+			case valMuTLS:
+				var z mapper
+				if err := json.Unmarshal(m[i].Args, &z); err != nil {
 					return xerr.Wrap("mtls", err)
 				}
-			}
-			r = append(r, ConnectMuTLS(v, a, p, k))
-		case valTLSxCA:
-			var z mapper
-			if err := json.Unmarshal(m[i].Args, &z); err != nil {
-				return xerr.Wrap("tls-ca", err)
-			}
-			var (
-				a []byte
-				v uint16
-			)
-			if err := z.Unmarshal("ca", false, &a); err != nil {
-				return xerr.Wrap("tls-ca", err)
-			}
-			if d, ok := z["version"]; ok {
-				if err := json.Unmarshal(d, &v); err != nil {
+				var (
+					a, p, k []byte
+					v       uint16
+				)
+				if err := z.Unmarshal("ca", false, &a); err != nil {
+					return xerr.Wrap("mtls", err)
+				}
+				if err := z.Unmarshal("pem", true, &p); err != nil {
+					return xerr.Wrap("mtls", err)
+				}
+				if err := z.Unmarshal("key", true, &k); err != nil {
+					return xerr.Wrap("mtls", err)
+				}
+				if d, ok := z["version"]; ok {
+					if err := json.Unmarshal(d, &v); err != nil {
+						return xerr.Wrap("mtls", err)
+					}
+				}
+				r = append(r, ConnectMuTLS(v, a, p, k))
+			case valTLSxCA:
+				var z mapper
+				if err := json.Unmarshal(m[i].Args, &z); err != nil {
 					return xerr.Wrap("tls-ca", err)
 				}
-			}
-			r = append(r, ConnectTLSExCA(v, a))
-		case valTLSCert:
-			var z mapper
-			if err := json.Unmarshal(m[i].Args, &z); err != nil {
-				return xerr.Wrap("tls-cert", err)
-			}
-			var (
-				p, k []byte
-				v    uint16
-			)
-			if err := z.Unmarshal("pem", true, &p); err != nil {
-				return xerr.Wrap("tls-cert", err)
-			}
-			if err := z.Unmarshal("key", true, &k); err != nil {
-				return xerr.Wrap("tls-cert", err)
-			}
-			if d, ok := z["version"]; ok {
-				if err := json.Unmarshal(d, &v); err != nil {
+				var (
+					a []byte
+					v uint16
+				)
+				if err := z.Unmarshal("ca", false, &a); err != nil {
+					return xerr.Wrap("tls-ca", err)
+				}
+				if d, ok := z["version"]; ok {
+					if err := json.Unmarshal(d, &v); err != nil {
+						return xerr.Wrap("tls-ca", err)
+					}
+				}
+				r = append(r, ConnectTLSExCA(v, a))
+			case valTLSCert:
+				var z mapper
+				if err := json.Unmarshal(m[i].Args, &z); err != nil {
 					return xerr.Wrap("tls-cert", err)
 				}
-			}
-			r = append(r, ConnectTLSCerts(v, p, k))
-		case valXOR:
-			var (
-				v      = make([]byte, base64.StdEncoding.DecodedLen(len(m[i].Args)-2))
-				n, err = base64.StdEncoding.Decode(v, m[i].Args[1:len(m[i].Args)-1])
-			)
-			if err != nil {
-				return xerr.Wrap("xor", err)
-			}
-			r = append(r, WrapXOR(v[:n]))
-		case valCBK:
-			var z mapper
-			if err := json.Unmarshal(m[i].Args, &z); err != nil {
-				return xerr.Wrap("cbk", err)
-			}
-			var e, t, y, u, s uint8 = 0, 0, 0, 0, 128
-			if d, ok := z["size"]; ok {
-				if err := json.Unmarshal(d, &s); err != nil {
+				var (
+					p, k []byte
+					v    uint16
+				)
+				if err := z.Unmarshal("pem", true, &p); err != nil {
+					return xerr.Wrap("tls-cert", err)
+				}
+				if err := z.Unmarshal("key", true, &k); err != nil {
+					return xerr.Wrap("tls-cert", err)
+				}
+				if d, ok := z["version"]; ok {
+					if err := json.Unmarshal(d, &v); err != nil {
+						return xerr.Wrap("tls-cert", err)
+					}
+				}
+				r = append(r, ConnectTLSCerts(v, p, k))
+			case valXOR:
+				var (
+					v      = make([]byte, base64.StdEncoding.DecodedLen(len(m[i].Args)-2))
+					n, err = base64.StdEncoding.Decode(v, m[i].Args[1:len(m[i].Args)-1])
+				)
+				if err != nil {
+					return xerr.Wrap("xor", err)
+				}
+				r = append(r, WrapXOR(v[:n]))
+			case valCBK:
+				var z mapper
+				if err := json.Unmarshal(m[i].Args, &z); err != nil {
 					return xerr.Wrap("cbk", err)
 				}
+				var e, t, y, u, s uint8 = 0, 0, 0, 0, 128
+				if d, ok := z["size"]; ok {
+					if err := json.Unmarshal(d, &s); err != nil {
+						return xerr.Wrap("cbk", err)
+					}
+				}
+				if err := z.Unmarshal("A", true, &e); err != nil {
+					return xerr.Wrap("cbk", err)
+				}
+				if err := z.Unmarshal("B", true, &t); err != nil {
+					return xerr.Wrap("cbk", err)
+				}
+				if err := z.Unmarshal("C", true, &y); err != nil {
+					return xerr.Wrap("cbk", err)
+				}
+				if err := z.Unmarshal("D", true, &u); err != nil {
+					return xerr.Wrap("cbk", err)
+				}
+				r = append(r, cBytes{byte(valCBK), s, e, t, y, u})
+			case valAES:
+				var z mapper
+				if err := json.Unmarshal(m[i].Args, &z); err != nil {
+					return xerr.Wrap("aes", err)
+				}
+				var k, v []byte
+				if err := z.Unmarshal("iv", true, &v); err != nil {
+					return xerr.Wrap("aes", err)
+				}
+				if err := z.Unmarshal("key", true, &k); err != nil {
+					return xerr.Wrap("aes", err)
+				}
+				r = append(r, WrapAES(k, v))
+			case valDNS:
+			case valB64Shift:
+				var v uint8
+				if err := json.Unmarshal(m[i].Args, &v); err != nil {
+					return xerr.Wrap("b64S", err)
+				}
+				r = append(r, cBytes{byte(valB64Shift), v})
 			}
-			if err := z.Unmarshal("A", true, &e); err != nil {
-				return xerr.Wrap("cbk", err)
-			}
-			if err := z.Unmarshal("B", true, &t); err != nil {
-				return xerr.Wrap("cbk", err)
-			}
-			if err := z.Unmarshal("C", true, &y); err != nil {
-				return xerr.Wrap("cbk", err)
-			}
-			if err := z.Unmarshal("D", true, &u); err != nil {
-				return xerr.Wrap("cbk", err)
-			}
-			r = append(r, cBytes{byte(valCBK), s, e, t, y, u})
-		case valAES:
-			var z mapper
-			if err := json.Unmarshal(m[i].Args, &z); err != nil {
-				return xerr.Wrap("aes", err)
-			}
-			var k, v []byte
-			if err := z.Unmarshal("iv", true, &v); err != nil {
-				return xerr.Wrap("aes", err)
-			}
-			if err := z.Unmarshal("key", true, &k); err != nil {
-				return xerr.Wrap("aes", err)
-			}
-			r = append(r, WrapAES(k, v))
-		case valDNS:
-		case valB64Shift:
-			var v uint8
-			if err := json.Unmarshal(m[i].Args, &v); err != nil {
-				return xerr.Wrap("b64S", err)
-			}
-			r = append(r, cBytes{byte(valB64Shift), v})
+		}
+		if k+1 < len(h) {
+			r = append(r, Seperator)
 		}
 	}
 	*c = Bytes(r...)
@@ -533,7 +605,7 @@ func (c *config) UnmarshalJSON(b []byte) error {
 	}
 	v, ok := m["type"]
 	if !ok {
-		return xerr.New(`json: missing "type" string`)
+		return xerr.Sub(`missing "type" string`, 0xD)
 	}
 	if err := json.Unmarshal(v, &c.Type); err != nil {
 		return err
@@ -551,7 +623,10 @@ func (m mapper) Unmarshal(s string, r bool, v interface{}) error {
 		if !r {
 			return nil
 		}
-		return xerr.New(`value "` + s + `" was not found`)
+		if xerr.Concat {
+			return xerr.Sub(`"`+s+`" not found`, 0xD)
+		}
+		return xerr.Sub("key not found", 0xD)
 	}
 	return json.Unmarshal(d, v)
 }

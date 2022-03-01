@@ -40,7 +40,7 @@ func (r random) Int63n(n int64) int64 {
 }
 func (random) Read(p []byte) (int, error) {
 	for i := range p {
-		p[i] = (byte)(FastRand() % uint32(256))
+		p[i] = byte(FastRand() % uint32(256))
 	}
 	return len(p), nil
 }

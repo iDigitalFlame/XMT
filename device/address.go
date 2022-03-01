@@ -8,15 +8,20 @@ import (
 )
 
 // Address represents an encoded IPv4 or IPv6 address.
+// NOTE(dij): Might get replaced in Go1.18 with netip.Address
 //
-// The address struct was built on the great work from the great inet.af/netaddr package
-// thanks and great work y'all! Godoc: https://pkg.go.dev/inet.af/netaddr
+// The address struct was built on the great work from the great inet.af/netaddr
+// package thanks and great work y'all!
+//
+// GoDoc: https://pkg.go.dev/inet.af/netaddr
+//
 // https://tailscale.com/blog/netaddr-new-ip-type-for-go/
 type Address struct {
 	hi, low uint64
 }
 
-// Len returns the size of this IP address. It returns '32' for IPv4 and '128' for IPv6.
+// Len returns the size of this IP address. It returns '32' for IPv4 and '128'
+// for IPv6.
 func (a Address) Len() int {
 	if a.Is4() {
 		return 32
@@ -24,8 +29,8 @@ func (a Address) Len() int {
 	return 128
 }
 
-// Is4 returns true if this struct represents an IPv4 based address or an IPv4 address wrapped
-// in an IPv6 address.
+// Is4 returns true if this struct represents an IPv4 based address or an IPv4
+// address wrapped in an IPv6 address.
 func (a Address) Is4() bool {
 	return a.hi == 0 && a.low>>32 == 0xFFFF
 }
@@ -36,7 +41,9 @@ func (a Address) Is6() bool {
 }
 
 // IP returns a 'net.IP' copy of this address.
-// This may be zero or empty depending on the type of address value this struct contains.
+//
+// This may be zero or empty depending on the type of address value this struct
+// contains.
 func (a Address) IP() net.IP {
 	if a.Is4() {
 		return net.IP{byte(a.low >> 24), byte(a.low >> 16), byte(a.low >> 8), byte(a.low)}
@@ -49,7 +56,8 @@ func (a Address) IP() net.IP {
 	}
 }
 
-// FromIP  will create a new Address struct and set it's contents based on the value of the supplied 'net.IP'.
+// FromIP  will create a new Address struct and set it's contents based on the
+// value of the supplied 'net.IP'.
 func FromIP(i net.IP) *Address {
 	var a Address
 	a.Set(i)
@@ -61,7 +69,8 @@ func (a Address) IsZero() bool {
 	return a.hi == 0 && a.low == 0
 }
 
-// Set will set the internal values of this address to the specified 'net.IP' address.
+// Set will set the internal values of this address to the specified 'net.IP'
+// address.
 func (a *Address) Set(i net.IP) {
 	if len(i) == 0 {
 		return
@@ -78,9 +87,12 @@ func (a *Address) Set(i net.IP) {
 		uint64(i[11])<<32 | uint64(i[10])<<40 | uint64(i[9])<<48 | uint64(i[8])<<56
 }
 
-// ParseIP parses s as an IP address, returning the result. The string s can be in IPv4 dotted decimal ("192.0.2.1"),
-// IPv6 ("2001:db8::68"), or IPv4-mapped IPv6 ("::ffff:192.0.2.1") form. If s is not a valid textual representation
-// of an IP address, ParseIP returns nil.
+// ParseIP parses s as an IP address, returning the result. The string s can be
+// in IPv4 dotted decimal ("192.0.2.1"), IPv6 ("2001:db8::68"), or IPv4-mapped
+// IPv6 ("::ffff:192.0.2.1") form.
+//
+// If s is not a valid textual representation of an IP address, ParseIP returns
+// nil.
 func ParseIP(s string) *Address {
 	i := net.ParseIP(s)
 	if len(i) == 0 {
@@ -95,7 +107,7 @@ func ParseIP(s string) *Address {
 func (a Address) String() string {
 	if a.IsZero() {
 		if a.Is4() {
-			return "0.0.0.0"
+			return emptyIP
 		}
 		return "::"
 	}
@@ -144,8 +156,8 @@ func (a Address) String() string {
 	return string(b[:n])
 }
 
-// IsPrivate reports whether ip is a private address, according to RFC 1918 (IPv4 addresses)
-// and RFC 4193 (IPv6 addresses).
+// IsPrivate reports whether ip is a private address, according to RFC 1918
+// (IPv4 addresses) and RFC 4193 (IPv6 addresses).
 func (a Address) IsPrivate() bool {
 	if a.Is4() {
 		f, s := byte(a.low>>24), byte(a.low>>16)
@@ -176,17 +188,20 @@ func (a Address) grab(i uint8) uint16 {
 	return uint16(r >> ((3 - i%4) * 16))
 }
 
-// IsUnspecified reports whether ip is an unspecified address, either the IPv4 address "0.0.0.0"
-// or the IPv6 address "::". Same as 'IsZero'.
+// IsUnspecified reports whether ip is an unspecified address, either the IPv4
+// address "0.0.0.0" or the IPv6 address "::". Same as 'IsZero'.
 func (a Address) IsUnspecified() bool {
 	return a.hi == 0 && a.low == 0
 }
 
 // IsGlobalUnicast reports whether this is a global unicast address.
 //
-// The identification of global unicast addresses uses address type identification as defined in RFC 1122,
-// RFC 4632 and RFC 4291 with the exception of IPv4 directed broadcast addresses. It returns true even if
-// this is in IPv4 private address space or local IPv6 unicast address space.
+// The identification of global unicast addresses uses address type identification
+// as defined in RFC 1122, RFC 4632 and RFC 4291 with the exception of IPv4
+// directed broadcast addresses.
+//
+// It returns true even if this is in IPv4 private address space or local IPv6
+// unicast address space.
 func (a Address) IsGlobalUnicast() bool {
 	return !a.IsBroadcast() && !a.IsUnspecified() && !a.IsLoopback() && !a.IsMulticast() && !a.IsLinkLocalUnicast()
 }
@@ -226,7 +241,10 @@ func (a Address) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON implements the json.Unmarshaler interface.
 func (a *Address) UnmarshalJSON(b []byte) error {
 	if len(b) < 1 || b[len(b)-1] != '"' || b[0] != '"' {
-		return xerr.New(`invalid JSON value "` + string(b) + `"`)
+		if xerr.Concat {
+			return xerr.Sub(`invalid value "`+string(b)+`"`, 0xD)
+		}
+		return xerr.Sub("invalid value", 0xD)
 	}
 	if i := net.ParseIP(string(b[1 : len(b)-2])); i != nil {
 		a.Set(i)
@@ -261,7 +279,8 @@ func writeHex(b *[39]byte, v uint16, n int) int {
 	return n + 1
 }
 
-// IsInterfaceLocalMulticast reports whether this is an interface-local multicast address.
+// IsInterfaceLocalMulticast reports whether this is an interface-local multicast
+// address.
 func (a Address) IsInterfaceLocalMulticast() bool {
 	return a.Is6() && uint8(a.hi>>56) == 0xFF && uint8(a.hi>>48) == 1
 }

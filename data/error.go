@@ -1,6 +1,10 @@
 package data
 
-import "io"
+import (
+	"io"
+
+	"github.com/iDigitalFlame/xmt/util/xerr"
+)
 
 const (
 	// ErrTooLarge is raised if memory cannot be allocated to store data in a Chunk.
@@ -22,19 +26,33 @@ type dataError uint8
 type limitError struct{}
 
 func (limitError) Error() string {
-	return "buffer size limit reached"
+	if xerr.Concat {
+		return "buffer size limit reached"
+	}
+	return "92"
 }
 func (limitError) Unwrap() error {
 	return io.EOF
 }
 func (e dataError) Error() string {
+	if xerr.Concat {
+		switch e {
+		case ErrInvalidType:
+			return "could not find the buffer type"
+		case ErrInvalidIndex:
+			return "index provided is invalid"
+		case ErrTooLarge:
+			return "buffer size is too large"
+		}
+		return "unknown error"
+	}
 	switch e {
 	case ErrInvalidType:
-		return "could not find the buffer type"
+		return "93"
 	case ErrInvalidIndex:
-		return "index provided is invalid"
+		return "94"
 	case ErrTooLarge:
-		return "buffer size is too large"
+		return "95"
 	}
-	return "unknown error"
+	return "96"
 }

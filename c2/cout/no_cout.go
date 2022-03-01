@@ -1,5 +1,5 @@
-//go:build client
-// +build client
+//go:build implant
+// +build implant
 
 package cout
 

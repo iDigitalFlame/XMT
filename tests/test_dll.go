@@ -5,9 +5,10 @@ import (
 	"path/filepath"
 
 	"github.com/iDigitalFlame/xmt/cmd"
+	"github.com/iDigitalFlame/xmt/cmd/filter"
 )
 
-func TestDLL() {
+func testDLL() {
 	var (
 		e, _ = os.Executable()
 		p    = filepath.Dir(e)
@@ -18,9 +19,9 @@ func TestDLL() {
 
 	c := cmd.NewDLL(d)
 	if len(os.Args) >= 3 {
-		c.SetParent(cmd.F().SetInclude(os.Args[2]))
+		c.SetParent(filter.F().SetInclude(os.Args[2]))
 	} else {
-		c.SetParent(cmd.RandomParent)
+		c.SetParent(filter.Random)
 	}
 
 	var (

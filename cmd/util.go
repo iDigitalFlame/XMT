@@ -3,27 +3,21 @@ package cmd
 import (
 	"strconv"
 
+	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 var (
 	// ErrNotStarted is an error returned by multiple functions functions when attempting to access a
 	// Runnable function that requires the Runnable to be started first.
-	ErrNotStarted = xerr.New("process has not been started")
+	ErrNotStarted = xerr.Sub("process has not been started", 0x5)
 	// ErrEmptyCommand is an error returned when attempting to start a Runnable that has empty arguments.
-	ErrEmptyCommand = xerr.New("process arguments are empty")
+	ErrEmptyCommand = xerr.Sub("process arguments are empty", 0x17)
 	// ErrStillRunning is returned when attempting to access the exit code on a Runnable.
-	ErrStillRunning = xerr.New("process is still running")
+	ErrStillRunning = xerr.Sub("process is still running", 0x14)
 	// ErrAlreadyStarted is an error returned by the 'Start' or 'Run' functions when attempting to start
 	// a Runnable that has already been started via a 'Start' or 'Run' function call.
-	ErrAlreadyStarted = xerr.New("process has already been started")
-	// ErrNoProcessFound is returned by the SetParent* functions on Windows devices when a specified parent
-	// could not be found.
-	ErrNoProcessFound = xerr.New("could not find a suitable parent")
-
-	errStdinSet  = xerr.New("process Stdin already set")
-	errStderrSet = xerr.New("process Stderr already set")
-	errStdoutSet = xerr.New("process Stdout already set")
+	ErrAlreadyStarted = xerr.Sub("process has already been started", 0x15)
 )
 
 // ExitError is a type of error that is returned by the Wait and Run functions when a function
@@ -31,7 +25,6 @@ var (
 type ExitError struct {
 	Exit uint32
 }
-type finished interface{}
 
 // Runnable is an interface that helps support the type of structs that can be used for execution, such as
 // Assembly, DLL and Process, which share the same methods as this interface.
@@ -42,68 +35,42 @@ type Runnable interface {
 	Stop() error
 	Start() error
 	Running() bool
-	SetParent(*Filter)
+	Release() error
+	Handle() (uintptr, error)
 	ExitCode() (int32, error)
+	SetParent(*filter.Filter)
 }
 
-// Split will attempt to split the specified string based on the escape characters and spaces while attempting
-// to preserve anything that is not a splitting space. This will automatically detect quotes and backslashes. The
-// return result is a string array that can be used as args.
+// Split will attempt to split the specified string based on the escape characters
+// and spaces while attempting to preserve anything that is not a splitting space.
 //
-// TODO(dij): Refactor
-func Split(s string) []string {
+// This will automatically detect quotes and backslashes. The return result is a
+// string array that can be used as args.
+func Split(v string) []string {
 	var (
-		b       []rune
-		r       []string
-		l, e, i rune
+		r []string
+		s int
 	)
-	for _, c := range s {
+	for i, m := 0, byte(0); i < len(v); i++ {
 		switch {
-		case c == ' ' && i == 0 && e == 0 && len(b) > 0:
-			r, b = append(r, string(b)), nil
-		case c == '"' && i == 0 && e == 0:
-			fallthrough
-		case c == '\'' && i == 0 && e == 0:
-			i = c
-		case c == '"' && i == c && e == 0:
-			fallthrough
-		case c == '\'' && i == c && e == 0:
-			if len(b) > 0 {
-				r, b = append(r, string(b)), nil
-			}
-			i = 0
-		case c == ' ' && i == 0 && e > 0:
-			fallthrough
-		case c == '"' && i == 0 && e > 0:
-			fallthrough
-		case c == '\'' && i == 0 && e > 0:
-			b, e = append(b, c), 0
-		case c == '\\' && e > 0:
-			e = 0
-		case c == '\\' && e == 0:
-			e = c
-		case c == i && e > 0:
-			e = 0
-			fallthrough
-		default:
-			if e > 0 {
-				b = append(b, e)
-				e = 0
-			}
-			b = append(b, c)
+		case v[i] == '\\' && i+1 < len(v) && (v[i+1] == '"' || v[i+1] == '\''):
+			i++
+		case v[i] == ' ' && m == 0 && s == i:
+		case v[i] == ' ' && m == 0:
+			r, s = append(r, v[s:i]), i+1
+		case (v[i] == '"' || v[i] == '\'') && m == 0:
+			s, m = i+1, v[i]
+		case (v[i] == '"' || v[i] == '\'') && m == v[i]:
+			r, m, s = append(r, v[s:i]), 0, i+1
 		}
-		l = c
 	}
-	if i > 0 && (l == '"' || l == '\'') {
-		b = append(b, l)
-	}
-	if len(b) > 0 {
-		r = append(r, string(b))
+	if s < len(v) {
+		r = append(r, v[s:])
 	}
 	return r
 }
 
 // Error fulfills the error interface and retruns a formatted string that specifies the Process Exit Code.
 func (e ExitError) Error() string {
-	return "process exit: " + strconv.Itoa(int(e.Exit))
+	return "exit " + strconv.Itoa(int(e.Exit))
 }

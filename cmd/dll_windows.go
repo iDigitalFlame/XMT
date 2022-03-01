@@ -4,13 +4,10 @@
 package cmd
 
 import (
+	"github.com/iDigitalFlame/xmt/cmd/filter"
+	"github.com/iDigitalFlame/xmt/device/winapi"
 	"github.com/iDigitalFlame/xmt/util/xerr"
-	"golang.org/x/sys/windows"
 )
-
-// If DLL loading doesn't work correctly, you can switch "LoadLibraryW" (unicode)
-// for "LoadLibraryA" (ANSI/UTF-8).
-const loadLibFunc = "LoadLibraryW" // LoadLibraryA
 
 // Pid retruns the process ID of the owning process (the process running
 // the thread.)
@@ -35,20 +32,15 @@ func (d *DLL) Start() error {
 	if d.Running() {
 		return ErrAlreadyStarted
 	}
-	var b []byte
-	if loadLibFunc == "LoadLibraryW" {
-		p, err := windows.UTF16FromString(d.Path)
-		if err != nil {
-			return xerr.Wrap("could not convert path", err)
-		}
-		b = make([]byte, len(p)*2)
-		for i := 0; i < len(b); i += 2 {
-			b[i], b[i+1] = byte(p[i/2]), byte(p[i/2]>>8)
-		}
-	} else {
-		b = append([]byte(d.Path), 0)
+	p, err := winapi.UTF16FromString(d.Path)
+	if err != nil {
+		return xerr.Wrap("could not convert path", err)
 	}
-	if err := d.t.Start(0, d.Timeout, windows.Handle(funcLoadLibrary.Addr()), b); err != nil {
+	b := make([]byte, (len(p)*2)+1)
+	for i := 0; i < len(b); i += 2 {
+		b[i], b[i+1] = byte(p[i/2]), byte(p[i/2]>>8)
+	}
+	if err := d.t.Start(0, d.Timeout, winapi.LoadLibraryAddress(), b); err != nil {
 		return err
 	}
 	go d.t.wait()
@@ -59,6 +51,6 @@ func (d *DLL) Start() error {
 // Filter. If the Filter is nil this will use the current process (default).
 //
 // This function has no effect if the device is not running Windows.
-func (d *DLL) SetParent(f *Filter) {
+func (d *DLL) SetParent(f *filter.Filter) {
 	d.t.filter = f
 }

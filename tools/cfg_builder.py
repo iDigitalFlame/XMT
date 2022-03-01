@@ -1372,7 +1372,13 @@ class Builder(ArgumentParser):
                 continue
             if argv[i][0] != "-":
                 continue
-            if not a and argv[i].lower() == "--aes-iv":
+            if argv[i].lower() == "--aes":
+                if a:
+                    continue
+                a = True
+            if argv[i].lower() == "--aes-iv":
+                if a:
+                    continue
                 v = "aes"
                 a = True
             else:

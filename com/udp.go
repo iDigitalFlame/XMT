@@ -9,6 +9,7 @@ import (
 
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
+	"github.com/iDigitalFlame/xmt/util/crypt"
 )
 
 const (
@@ -21,12 +22,12 @@ const (
 var (
 	empty time.Time
 
-	udpWake     udpWaker
+	udpWake     struct{}
 	udpDeadline = new(udpErr)
 
 	buffers = sync.Pool{
 		New: func() interface{} {
-			b := make([]byte, udpLimit)
+			var b [udpLimit]byte
 			return &b
 		},
 	}
@@ -38,20 +39,19 @@ type udpConn struct {
 	addr        net.Addr
 	bufs        chan udpData
 	sock        *udpListener
-	wake        chan udpWaker
+	wake        chan struct{}
 	buf         []byte
 	dev         udpAddr
 	read, write time.Duration
 }
 type udpData struct {
-	b *[]byte
+	b *[udpLimit]byte
 	n int
 }
 type udpAddr struct {
-	device.Address
-	p uint16
+	device.Address // Go 1.18 Replace with netip.Addr
+	p              uint16
 }
-type udpWaker struct{}
 type udpStream struct {
 	net.Conn
 	buf         []byte
@@ -73,9 +73,6 @@ type udpConnector struct {
 	net.Dialer
 }
 
-func (udpErr) Error() string {
-	return "deadline exceeded"
-}
 func (udpErr) Timeout() bool {
 	return true
 }
@@ -88,8 +85,7 @@ func (l *udpListener) purge() {
 				delete(l.cons, d)
 				close(c.bufs)
 				close(c.wake)
-				c.bufs, c.wake = nil, nil
-				c.sock = nil
+				c.bufs, c.wake, c.sock = nil, nil, nil
 				c.lock.Unlock()
 			}
 			l.lock.Unlock()
@@ -105,8 +101,8 @@ func (l *udpListener) listen() {
 loop:
 	for l.sock.SetReadDeadline(empty); ; l.sock.SetReadDeadline(empty) {
 		var (
-			b         = buffers.Get().(*[]byte)
-			n, a, err = l.sock.ReadFrom(*b)
+			b         = buffers.Get().(*[udpLimit]byte)
+			n, a, err = l.sock.ReadFrom((*b)[:])
 		)
 		if bugtrack.Enabled {
 			bugtrack.Track("com.udpListener.listen(): Accept n=%d, a=%s, err=%s", n, a, err)
@@ -156,7 +152,7 @@ loop:
 		if bugtrack.Enabled {
 			bugtrack.Track("com.udpListener.listen(): New tracked conn a=%s", a)
 		}
-		c = &udpConn{dev: d, addr: a, sock: l, bufs: make(chan udpData, 256), wake: make(chan udpWaker, 1)}
+		c = &udpConn{dev: d, addr: a, sock: l, bufs: make(chan udpData, 256), wake: make(chan struct{}, 1)}
 		c.append(n, b, false)
 		go c.receive(l.ctx)
 		l.lock.Lock()
@@ -190,9 +186,6 @@ func (l *udpListener) Close() error {
 	err := l.sock.Close()
 	l.cancel()
 	return err
-}
-func (l *udpListener) String() string {
-	return "UDP/" + l.sock.LocalAddr().String()
 }
 func (l *udpListener) Addr() net.Addr {
 	return l.sock.LocalAddr()
@@ -341,6 +334,9 @@ func (s *udpStream) Read(b []byte) (int, error) {
 		)
 		for {
 			if len(s.buf) == 0 || len(s.buf)-s.size < udpLimit {
+				if bugtrack.Enabled {
+					bugtrack.Track("com.udpStream.Read(): Expanding socket buffer free=%d, len(s.buf)=%d, s.size=%d.", len(s.buf)-s.size, len(s.buf), s.size)
+				}
 				s.buf = append(s.buf, make([]byte, udpLimit)...)
 			}
 			if time.Sleep(readOp); s.read == 0 {
@@ -479,23 +475,6 @@ loop:
 	}
 	return nil, l.err
 }
-func (c *udpConn) append(n int, b *[]byte, w bool) {
-	if bugtrack.Enabled {
-		bugtrack.Track("com.udpCon.append(): n=%d, w=%t, len(c.buf)=%d", n, w, len(c.buf))
-	}
-	c.lock.Lock()
-	c.buf = append(c.buf, (*b)[:n]...)
-	c.lock.Unlock()
-	if buffers.Put(b); w {
-		select {
-		case c.wake <- udpWake:
-			if bugtrack.Enabled {
-				bugtrack.Track("com.udpCon.append(): Triggering wake.")
-			}
-		default:
-		}
-	}
-}
 func (s *udpStream) SetDeadline(t time.Time) error {
 	if t.IsZero() {
 		s.read, s.write = 0, 0
@@ -561,15 +540,32 @@ func (s *udpStream) SetWriteDeadline(t time.Time) error {
 	s.write = d
 	return s.Conn.SetWriteDeadline(t)
 }
-func (c *udpConnector) Connect(s string) (net.Conn, error) {
-	x, err := c.Dial("udp", s)
+func (c *udpConn) append(n int, b *[udpLimit]byte, w bool) {
+	if bugtrack.Enabled {
+		bugtrack.Track("com.udpCon.append(): n=%d, w=%t, len(c.buf)=%d", n, w, len(c.buf))
+	}
+	c.lock.Lock()
+	c.buf = append(c.buf, (*b)[:n]...)
+	c.lock.Unlock()
+	if buffers.Put(b); w {
+		select {
+		case c.wake <- udpWake:
+			if bugtrack.Enabled {
+				bugtrack.Track("com.udpCon.append(): Triggering wake.")
+			}
+		default:
+		}
+	}
+}
+func (c *udpConnector) Connect(x context.Context, s string) (net.Conn, error) {
+	v, err := c.DialContext(x, crypt.UDP, s)
 	if err != nil {
 		return nil, err
 	}
-	return &udpStream{Conn: x}, nil
+	return &udpStream{Conn: v}, nil
 }
-func (*udpConnector) Listen(s string) (net.Listener, error) {
-	c, err := ListenConfig.ListenPacket(context.Background(), "udp", s)
+func (*udpConnector) Listen(x context.Context, s string) (net.Listener, error) {
+	c, err := ListenConfig.ListenPacket(x, crypt.UDP, s)
 	if err != nil {
 		return nil, err
 	}
@@ -579,7 +575,7 @@ func (*udpConnector) Listen(s string) (net.Listener, error) {
 		cons: make(map[udpAddr]*udpConn),
 		sock: c,
 	}
-	l.ctx, l.cancel = context.WithCancel(context.Background())
+	l.ctx, l.cancel = context.WithCancel(x)
 	go l.purge()
 	go l.listen()
 	return l, nil

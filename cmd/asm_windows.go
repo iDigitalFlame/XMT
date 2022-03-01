@@ -3,6 +3,8 @@
 
 package cmd
 
+import "github.com/iDigitalFlame/xmt/cmd/filter"
+
 // Pid retruns the process ID of the owning process (the process running
 // the thread.)
 //
@@ -34,6 +36,6 @@ func (a *Assembly) Start() error {
 // process Filter. If the Filter is nil this will use the current process (default).
 //
 // This function has no effect if the device is not running Windows.
-func (a *Assembly) SetParent(f *Filter) {
+func (a *Assembly) SetParent(f *filter.Filter) {
 	a.t.filter = f
 }

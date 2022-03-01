@@ -1,37 +1,41 @@
 package cfg
 
 const (
-	// ConnectTCP will provide a TCP connection 'hint' to the generated Profile. Hints will suggest the connection
-	// type used if the connection setting in the 'Connect*', 'Oneshot' or 'Listen' functions is nil.
+	// ConnectTCP will provide a TCP connection setting to the generated Profile.
 	//
-	// If multiple connection hints are contained in a Config, a 'ErrMultipleHints' error will be returned.
+	// If multiple connections are contained in the current Config Group, a
+	// 'ErrMultipleConnections' error will be returned during a build.
 	ConnectTCP = cBit(0xC0)
-	// ConnectTLS will provide a TLS over TCP connection 'hint' to the generated Profile. Hints will suggest the
-	// connection type used if the connection setting in the 'Connect*', 'Oneshot' or 'Listen' functions is nil.
+	// ConnectTLS will provide a TLS over TCP connection setting to the generated
+	// Profile.
 	//
-	// If multiple connection hints are contained in a Config, a 'ErrMultipleHints' error will be returned.
+	// If multiple connections are contained in the current Config Group, a
+	// 'ErrMultipleConnections' error will be returned during a build.
+	//
 	// This hint cannot be used as a Listener.
 	ConnectTLS = cBit(0xC1)
-	// ConnectUDP will provide a UCO connection 'hint' to the generated Profile. Hints will suggest the connection
-	// type used if the connection setting in the 'Connect*', 'Oneshot' or 'Listen' functions is nil.
+	// ConnectUDP will provide a UCO connection setting to the generated Profile.
 	//
-	// If multiple connection hints are contained in a Config, a 'ErrMultipleHints' error will be returned.
+	// If multiple connections are contained in the current Config Group, a
+	// 'ErrMultipleConnections' error will be returned during a build.
 	ConnectUDP = cBit(0xC2)
-	// ConnectICMP will provide a ICMP connection 'hint' to the generated Profile. Hints will suggest the connection
-	// type used if the connection setting in the 'Connect*', 'Oneshot' or 'Listen' functions is nil. If multiple
-	// connection hints are contained in a Config, a 'ErrMultipleHints' will be returned.
+	// ConnectICMP will provide a ICMP connection setting to the generated Profile.
+	//
+	// If multiple connections are contained in the current Config Group, a
+	// 'ErrMultipleConnections' error will be returned during a build.
 	ConnectICMP = cBit(0xC3)
-	// ConnectPipe will provide a Pipe connection 'hint' to the generated Profile. Hints will suggest the connection
-	// type used if the connection setting in the 'Connect*', 'Oneshot' or 'Listen' functions is nil.
+	// ConnectPipe will provide a Pipe connection setting to the generated Profile.
 	//
-	// If multiple connection hints are contained in a Config, a 'ErrMultipleHints' error will be returned.
-	// This will NOT work on non-Windows hosts!
+	// If multiple connections are contained in the current Config Group, a
+	// 'ErrMultipleConnections' error will be returned during a build.
 	ConnectPipe = cBit(0xC4)
-	// ConnectTLSNoVerify will provide a TLS over TCP connection 'hint' to the generated Profile. Hints will suggest
-	// the connection type used if the connection setting in the 'Connect*', 'Oneshot' or 'Listen' functions is nil.
+	// ConnectTLSNoVerify will provide a TLS over TCP connection setting to the
+	// generated Profile.
 	//
-	// If multiple connection hints are contained in a Config, a 'ErrMultipleHints' error will be returned.
-	// This setting DOES NOT check the server certificate for validity. This hint cannot be used as a Listener.
+	// If multiple connections are contained in the current Config Group, a
+	// 'ErrMultipleConnections' error will be returned during a build.
+	//
+	// This hint cannot be used as a Listener.
 	ConnectTLSNoVerify = cBit(0xC5)
 )
 
@@ -44,33 +48,36 @@ const (
 	valTLSCert = cBit(0xB5)
 )
 
-// ConnectIP will provide a IP connection 'hint' to the generated Profile with the specified protocol number.
+// ConnectIP will provide a IP connection setting to the generated Profile with
+// the specified protocol number.
 //
-// Hints will suggest the connection type used if the connection setting in the 'Connect*', 'Shot' or 'Listen'
-// functions is nil. If multiple connection hints are contained in a Config, a 'ErrMultipleHints' will be returned.
+// If multiple connections are contained in the current Config Group, a
+// 'ErrMultipleConnections' error will be returned during a build.
 func ConnectIP(p uint) Setting {
 	return cBytes{byte(valIP), byte(p)}
 }
 
-// ConnectTLSEx will provide a TLS connection 'hint' to the generated Profile with the specified TLS minimum version
-// specified. Using the version value '0' will use the system default (same as the ConnectTLS option).
+// ConnectTLSEx will provide a TLS connection setting to the generated Profile
+// with the specified TLS minimum version specified. Using the version value '0'
+// will use the system default (same as the ConnectTLS option).
 //
-// Hints will suggest the connection type used if the connection setting in the 'Connect*', 'Shot' or 'Listen'
-// functions is nil. If multiple connection hints are contained in a Config, a 'ErrMultipleHints' will be returned.
+// If multiple connections are contained in the current Config Group, a
+// 'ErrMultipleConnections' error will be returned during a build.
 //
 // This hint cannot be used as a Listener.
 func ConnectTLSEx(ver uint16) Setting {
 	return cBytes{byte(valTLSx), byte(ver & 0xFF)}
 }
 
-// ConnectTLSExCA will provide a TLS connection 'hint' to the generated Profile with the specified TLS minimum version
-// and will use the specified PEM bytes as the Root CA to trust when connecting.
+// ConnectTLSExCA will provide a TLS connection setting to the generated Profile
+// with the specified TLS minimum version and will use the specified PEM bytes
+// as the Root CA to trust when connecting.
 //
-// Using the version value '0' will use the system default (same as the ConnectTLS option).
-// Empty PEM blocks will default to system root CAs.
+// Using the version value '0' will use the system default (same as the ConnectTLS
+// option). Empty PEM blocks will default to system root CAs.
 //
-// Hints will suggest the connection type used if the connection setting in the 'Connect*', 'Shot' or 'Listen'
-// functions is nil. If multiple connection hints are contained in a Config, a 'ErrMultipleHints' will be returned.
+// If multiple connections are contained in the current Config Group, a
+// 'ErrMultipleConnections' error will be returned during a build.
 //
 // This hint cannot be used as a Listener.
 func ConnectTLSExCA(ver uint16, ca []byte) Setting {
@@ -86,17 +93,18 @@ func ConnectTLSExCA(ver uint16, ca []byte) Setting {
 	return c
 }
 
-// ConnectTLSCerts will provide a TLS connection 'hint' to the generated Profile with the specified TLS config
-// that will allow for a Listener to use the specified PEM and Private Key data in PEM format for listening.
-// This will also work as a Connector and can use the specified certificate for TLS authentication.
+// ConnectTLSCerts will provide a TLS connection setting to the generated Profile
+// with the specified TLS config that will allow for a Listener to use the
+// specified PEM and Private Key data in PEM format for listening.
 //
-// Using the version value '0' will use the system default (same as the ConnectTLS option).
-// Empty PEM blocks will render and error on build.
+// This will also work as a Connector and can use the specified certificate for
+// TLS authentication.
 //
-// Hints will suggest the connection type used if the connection setting in the 'Connect*', 'Shot' or 'Listen'
-// functions is nil. If multiple connection hints are contained in a Config, a 'ErrMultipleHints' will be returned.
+// Using the version value '0' will use the system default (same as the ConnectTLS
+// option). Empty PEM blocks will render and error on build.
 //
-// This hint cannot be used as a Listener.
+// If multiple connections are contained in the current Config Group, a
+// 'ErrMultipleConnections' error will be returned during a build.
 func ConnectTLSCerts(ver uint16, pem, key []byte) Setting {
 	p, k := len(pem), len(key)
 	if p > 0xFFFF {
@@ -115,18 +123,18 @@ func ConnectTLSCerts(ver uint16, pem, key []byte) Setting {
 	return c
 }
 
-// ConnectMuTLS will provide a TLS connection 'hint' to the generated Profile with the specified TLS config
-// that will allow for a complete mTLS setup.
-// This can be used for Listeners and Connectors, but the CA PEM data provided MUST be able to validate the
-// client certificates, otherwise connections will fail.
+// ConnectMuTLS will provide a TLS connection setting to the generated Profile
+// with the specified TLS config that will allow for a complete mTLS setup.
 //
-// Using the version value '0' will use the system default (same as the ConnectTLS option).
-// Empty PEM blocks will render and error on build.
+// This can be used for Listeners and Connectors, but the CA PEM data provided
+// MUST be able to validate the client certificates, otherwise connections will
+// fail.
 //
-// Hints will suggest the connection type used if the connection setting in the 'Connect*', 'Shot' or 'Listen'
-// functions is nil. If multiple connection hints are contained in a Config, a 'ErrMultipleHints' will be returned.
+// Using the version value '0' will use the system default (same as the ConnectTLS
+// option). Empty PEM blocks will render and error on build.
 //
-// This hint cannot be used as a Listener.
+// If multiple connections are contained in the current Config Group, a
+// 'ErrMultipleConnections' error will be returned during a build.
 func ConnectMuTLS(ver uint16, ca, pem, key []byte) Setting {
 	a, p, k := len(ca), len(pem), len(key)
 	if a > 0xFFFF {
@@ -150,11 +158,11 @@ func ConnectMuTLS(ver uint16, ca, pem, key []byte) Setting {
 	return c
 }
 
-// ConnectWC2 will provide a WebC2 connection 'hint' to the generated Profile with the specified User-Agent, URL and
-// Host Matcher strings (strings can be empty).
+// ConnectWC2 will provide a WebC2 connection setting to the generated Profile
+// with the specified User-Agent, URL and Host Matcher strings (strings can be empty).
 //
-// Hints will suggest the connection type used if the connection setting in the 'Connect*', 'Shot' or 'Listen'
-// functions is nil. If multiple connection hints are contained in a Config, a 'ErrMultipleHints' will be returned.
+// If multiple connections are contained in the current Config Group, a
+// 'ErrMultipleConnections' error will be returned during a build.
 //
 // This hint cannot be used as a Listener.
 func ConnectWC2(url, host, agent string, headers map[string]string) Setting {

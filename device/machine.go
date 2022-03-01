@@ -19,7 +19,8 @@ type Machine struct {
 	Elevated bool
 }
 
-// MarshalStream transforms this struct into a binary format and writes to the supplied data.Writer.
+// MarshalStream transforms this struct into a binary format and writes to the
+// supplied data.Writer.
 func (m Machine) MarshalStream(w data.Writer) error {
 	if err := m.ID.MarshalStream(w); err != nil {
 		return err
@@ -54,7 +55,8 @@ func (m Machine) MarshalStream(w data.Writer) error {
 	return nil
 }
 
-// UnmarshalStream transforms this struct from a binary format that is read from the supplied data.Reader.
+// UnmarshalStream transforms this struct from a binary format that is read from
+// the supplied data.Reader.
 func (m *Machine) UnmarshalStream(r data.Reader) error {
 	if err := m.ID.UnmarshalStream(r); err != nil {
 		return err

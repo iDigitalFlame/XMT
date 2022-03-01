@@ -3,6 +3,8 @@
 
 package util
 
+import "math/rand"
+
 type random struct {
 	*rand.Rand
 }

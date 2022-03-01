@@ -1,0 +1,1415 @@
+{
+    "0": {
+        "value": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+        "tags": []
+    },
+    "1": {
+        "value": "(\\%(\\d+f?)?[dhcsuln])",
+        "tags": []
+    },
+    "2": {
+        "value": "ip",
+        "tags": []
+    },
+    "3": {
+        "value": "tcp",
+        "tags": []
+    },
+    "4": {
+        "value": "udp",
+        "tags": []
+    },
+    "5": {
+        "value": "unix",
+        "tags": []
+    },
+    "6": {
+        "value": "pipe",
+        "tags": []
+    },
+    "7": {
+        "value": "mutex",
+        "tags": []
+    },
+    "8": {
+        "value": "event",
+        "tags": []
+    },
+    "9": {
+        "value": "mailslot",
+        "tags": []
+    },
+    "10": {
+        "value": "semaphore",
+        "tags": []
+    },
+    "11": {
+        "value": "localhost:",
+        "tags": []
+    },
+    "12": {
+        "value": "*.so",
+        "tags": [
+            "!windows"
+        ]
+    },
+    "13": {
+        "value": "*.dll",
+        "tags": [
+            "windows"
+        ]
+    },
+    "14": {
+        "value": "*.exe",
+        "tags": [
+            "windows"
+        ]
+    },
+    "15": {
+        "value": "\\\\.\\mailslot\\",
+        "tags": [
+            "windows"
+        ]
+    },
+    "16": {
+        "value": "Global\\",
+        "tags": [
+            "windows"
+        ]
+    },
+    "17": {
+        "value": "$HOME",
+        "tags": []
+    },
+    "18": {
+        "value": "0.0.0.0",
+        "tags": []
+    },
+    "19": {
+        "value": "%[\\w\\d()_-]+%|\\$[\\w\\d_-]+|\\$\\{[[\\w\\d_-]+\\}",
+        "tags": []
+    },
+    "20": {
+        "value": "Windows",
+        "tags": []
+    },
+    "21": {
+        "value": "Linux",
+        "tags": []
+    },
+    "22": {
+        "value": "Unix/BSD",
+        "tags": []
+    },
+    "23": {
+        "value": "MacOS",
+        "tags": []
+    },
+    "24": {
+        "value": "Unsupported",
+        "tags": []
+    },
+    "25": {
+        "value": "Unknown",
+        "tags": []
+    },
+    "26": {
+        "value": "32bit",
+        "tags": []
+    },
+    "27": {
+        "value": "64bit",
+        "tags": []
+    },
+    "28": {
+        "value": "ARM",
+        "tags": []
+    },
+    "29": {
+        "value": "WASM",
+        "tags": []
+    },
+    "30": {
+        "value": "RiscV",
+        "tags": []
+    },
+    "31": {
+        "value": "MIPS",
+        "tags": []
+    },
+    "32": {
+        "value": "ARM64",
+        "tags": []
+    },
+    "33": {
+        "value": "PowerPC",
+        "tags": []
+    },
+    "34": {
+        "value": "/bin/sh",
+        "tags": [
+            "!windows",
+            "!js",
+            "!wasm"
+        ]
+    },
+    "35": {
+        "value": "-c",
+        "tags": [
+            "!windows",
+            "!js",
+            "!wasm"
+        ]
+    },
+    "36": {
+        "value": "pwsh",
+        "tags": [
+            "!windows",
+            "!js",
+            "!wasm"
+        ]
+    },
+    "37": {
+        "value": "/c",
+        "tags": [
+            "windows"
+        ]
+    },
+    "38": {
+        "value": "powershell.exe",
+        "tags": [
+            "windows"
+        ]
+    },
+    "39": {
+        "value": "ComSpec",
+        "tags": [
+            "windows"
+        ]
+    },
+    "40": {
+        "value": "WinDir",
+        "tags": [
+            "windows"
+        ]
+    },
+    "41": {
+        "value": "\\system32\\cmd.exe",
+        "tags": [
+            "windows"
+        ]
+    },
+    "42": {
+        "value": "%WinDir%\\system32\\cmd.exe",
+        "tags": [
+            "windows"
+        ]
+    },
+    "43": {
+        "value": "deadline exceeded",
+        "tags": []
+    },
+    "44": {
+        "value": "User-Agent",
+        "tags": []
+    },
+    "45": {
+        "value": "wc2",
+        "tags": []
+    },
+    "46": {
+        "value": "Upgrade",
+        "tags": []
+    },
+    "47": {
+        "value": "websocket",
+        "tags": null
+    },
+    "48": {
+        "value": "Connection",
+        "tags": []
+    },
+    "49": {
+        "value": "0766",
+        "tags": [
+            "!windows"
+        ]
+    },
+    "50": {
+        "value": "/run/",
+        "tags": [
+            "!windows"
+        ]
+    },
+    "51": {
+        "value": "/tmp/",
+        "tags": [
+            "!windows"
+        ]
+    },
+    "52": {
+        "value": "D:PAI(A;;FA;;;WD)(A;;FA;;;SY)",
+        "tags": [
+            "windows"
+        ]
+    },
+    "53": {
+        "value": "connection timeout",
+        "tags": [
+            "windows"
+        ]
+    },
+    "54": {
+        "value": "empty connection",
+        "tags": [
+            "windows"
+        ]
+    },
+    "55": {
+        "value": "\\\\.\\pipe\\",
+        "tags": [
+            "windows"
+        ]
+    },
+    "56": {
+        "value": ".text",
+        "tags": [
+            "windows"
+        ]
+    },
+    "57": {
+        "value": "C:\\Windows\\System32",
+        "tags": [
+            "windows"
+        ]
+    },
+    "58": {
+        "value": "fallback",
+        "tags": []
+    },
+    "59": {
+        "value": "pid",
+        "tags": []
+    },
+    "60": {
+        "value": "session",
+        "tags": []
+    },
+    "61": {
+        "value": "elevated",
+        "tags": []
+    },
+    "62": {
+        "value": "exclude",
+        "tags": []
+    },
+    "63": {
+        "value": "include",
+        "tags": []
+    },
+    "64": {
+        "value": "\"true\"",
+        "tags": []
+    },
+    "65": {
+        "value": "\"false\"",
+        "tags": []
+    },
+    "66": {
+        "value": "SYSTEMROOT",
+        "tags": [
+            "windows"
+        ]
+    },
+    "67": {
+        "value": "framework-v5",
+        "tags": []
+    },
+    "68": {
+        "value": "SOFTWARE\\Microsoft\\Cryptography",
+        "tags": [
+            "windows"
+        ]
+    },
+    "69": {
+        "value": "MachineGuid",
+        "tags": [
+            "windows"
+        ]
+    },
+    "70": {
+        "value": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion",
+        "tags": [
+            "windows"
+        ]
+    },
+    "71": {
+        "value": "Windows (?)",
+        "tags": [
+            "windows"
+        ]
+    },
+    "72": {
+        "value": "ProductName",
+        "tags": [
+            "windows"
+        ]
+    },
+    "73": {
+        "value": "CurrentBuild",
+        "tags": [
+            "windows"
+        ]
+    },
+    "74": {
+        "value": "ReleaseId",
+        "tags": [
+            "windows"
+        ]
+    },
+    "75": {
+        "value": "CurrentMajorVersionNumber",
+        "tags": [
+            "windows"
+        ]
+    },
+    "76": {
+        "value": "CurrentMinorVersionNumber",
+        "tags": [
+            "windows"
+        ]
+    },
+    "77": {
+        "value": "CurrentVersion",
+        "tags": [
+            "windows"
+        ]
+    },
+    "78": {
+        "value": "\\\\.\\PHYSICALDRIVE0",
+        "tags": [
+            "windows"
+        ]
+    },
+    "79": {
+        "value": "/etc",
+        "tags": [
+            "!windows",
+            "!js",
+            "!plan9",
+            "!darwin",
+            "!ios",
+            "plan9"
+        ]
+    },
+    "80": {
+        "value": "*release*",
+        "tags": [
+            "!windows",
+            "!js",
+            "!plan9",
+            "!darwin",
+            "!ios",
+            "plan9"
+        ]
+    },
+    "81": {
+        "value": "plan9",
+        "tags": [
+            "plan9"
+        ]
+    },
+    "82": {
+        "value": "/usr/sbin/ioreg",
+        "tags": [
+            "darwin",
+            "ios"
+        ]
+    },
+    "83": {
+        "value": "-rd1",
+        "tags": [
+            "darwin",
+            "ios"
+        ]
+    },
+    "84": {
+        "value": "IOPlatformExpertDevice",
+        "tags": [
+            "darwin",
+            "ios"
+        ]
+    },
+    "85": {
+        "value": "IOPlatformUUID",
+        "tags": [
+            "darwin",
+            "ios"
+        ]
+    },
+    "86": {
+        "value": "/usr/bin/sw_vers",
+        "tags": [
+            "darwin",
+            "ios"
+        ]
+    },
+    "87": {
+        "value": "PRODUCTNAME",
+        "tags": [
+            "darwin",
+            "ios"
+        ]
+    },
+    "88": {
+        "value": "BUILDVERSION",
+        "tags": [
+            "darwin",
+            "ios"
+        ]
+    },
+    "89": {
+        "value": "PRODUCTVERSION",
+        "tags": [
+            "darwin",
+            "ios"
+        ]
+    },
+    "90": {
+        "value": "/var/lib/dbus/machine-id",
+        "tags": [
+            "android",
+            "linux"
+        ]
+    },
+    "91": {
+        "value": "/etc/machine-id",
+        "tags": [
+            "android",
+            "linux"
+        ]
+    },
+    "92": {
+        "value": "ID",
+        "tags": []
+    },
+    "93": {
+        "value": "PRETTY_NAME",
+        "tags": [
+            "android",
+            "linux",
+            "aix",
+            "dragonfly",
+            "freebsd",
+            "hurd",
+            "illumos",
+            "nacl",
+            "netbsd",
+            "openbsd",
+            "plan9",
+            "solaris",
+            "zos"
+        ]
+    },
+    "94": {
+        "value": "NAME",
+        "tags": [
+            "android",
+            "linux",
+            "aix",
+            "dragonfly",
+            "freebsd",
+            "hurd",
+            "illumos",
+            "nacl",
+            "netbsd",
+            "openbsd",
+            "plan9",
+            "solaris",
+            "zos"
+        ]
+    },
+    "95": {
+        "value": "VERSION_ID",
+        "tags": [
+            "android",
+            "linux",
+            "aix",
+            "dragonfly",
+            "freebsd",
+            "hurd",
+            "illumos",
+            "nacl",
+            "netbsd",
+            "openbsd",
+            "plan9",
+            "solaris",
+            "zos"
+        ]
+    },
+    "96": {
+        "value": "VERSION",
+        "tags": [
+            "android",
+            "linux",
+            "aix",
+            "dragonfly",
+            "freebsd",
+            "hurd",
+            "illumos",
+            "nacl",
+            "netbsd",
+            "openbsd",
+            "plan9",
+            "solaris",
+            "zos"
+        ]
+    },
+    "97": {
+        "value": "JavaScript",
+        "tags": [
+            "wasm",
+            "js"
+        ]
+    },
+    "98": {
+        "value": "lsattr",
+        "tags": [
+            "aix",
+            "dragonfly",
+            "freebsd",
+            "hurd",
+            "illumos",
+            "nacl",
+            "netbsd",
+            "openbsd",
+            "plan9",
+            "solaris",
+            "zos"
+        ]
+    },
+    "99": {
+        "value": "-l",
+        "tags": [
+            "aix",
+            "dragonfly",
+            "freebsd",
+            "hurd",
+            "illumos",
+            "nacl",
+            "netbsd",
+            "openbsd",
+            "plan9",
+            "solaris",
+            "zos"
+        ]
+    },
+    "100": {
+        "value": "sys0",
+        "tags": [
+            "aix",
+            "dragonfly",
+            "freebsd",
+            "hurd",
+            "illumos",
+            "nacl",
+            "netbsd",
+            "openbsd",
+            "plan9",
+            "solaris",
+            "zos"
+        ]
+    },
+    "101": {
+        "value": "-a",
+        "tags": [
+            "aix",
+            "dragonfly",
+            "freebsd",
+            "hurd",
+            "illumos",
+            "nacl",
+            "netbsd",
+            "openbsd",
+            "plan9",
+            "solaris",
+            "zos"
+        ]
+    },
+    "102": {
+        "value": "os_uuid",
+        "tags": [
+            "aix",
+            "dragonfly",
+            "freebsd",
+            "hurd",
+            "illumos",
+            "nacl",
+            "netbsd",
+            "openbsd",
+            "plan9",
+            "solaris",
+            "zos"
+        ]
+    },
+    "103": {
+        "value": "-E",
+        "tags": [
+            "aix",
+            "dragonfly",
+            "freebsd",
+            "hurd",
+            "illumos",
+            "nacl",
+            "netbsd",
+            "openbsd",
+            "plan9",
+            "solaris",
+            "zos"
+        ]
+    },
+    "104": {
+        "value": "sysctl",
+        "tags": [
+            "aix",
+            "dragonfly",
+            "freebsd",
+            "hurd",
+            "illumos",
+            "nacl",
+            "netbsd",
+            "openbsd",
+            "plan9",
+            "solaris",
+            "zos"
+        ]
+    },
+    "105": {
+        "value": "-n",
+        "tags": [
+            "aix",
+            "dragonfly",
+            "freebsd",
+            "hurd",
+            "illumos",
+            "nacl",
+            "netbsd",
+            "openbsd",
+            "plan9",
+            "solaris",
+            "zos"
+        ]
+    },
+    "106": {
+        "value": "hw.uuid",
+        "tags": [
+            "aix",
+            "dragonfly",
+            "freebsd",
+            "hurd",
+            "illumos",
+            "nacl",
+            "netbsd",
+            "openbsd",
+            "plan9",
+            "solaris",
+            "zos"
+        ]
+    },
+    "107": {
+        "value": "/etc/hostid",
+        "tags": [
+            "aix",
+            "dragonfly",
+            "freebsd",
+            "hurd",
+            "illumos",
+            "nacl",
+            "netbsd",
+            "openbsd",
+            "plan9",
+            "solaris",
+            "zos"
+        ]
+    },
+    "108": {
+        "value": "kenv",
+        "tags": [
+            "aix",
+            "dragonfly",
+            "freebsd",
+            "hurd",
+            "illumos",
+            "nacl",
+            "netbsd",
+            "openbsd",
+            "plan9",
+            "solaris",
+            "zos"
+        ]
+    },
+    "109": {
+        "value": "-q",
+        "tags": [
+            "aix",
+            "dragonfly",
+            "freebsd",
+            "hurd",
+            "illumos",
+            "nacl",
+            "netbsd",
+            "openbsd",
+            "plan9",
+            "solaris",
+            "zos"
+        ]
+    },
+    "110": {
+        "value": "smbios.system.uuid",
+        "tags": [
+            "aix",
+            "dragonfly",
+            "freebsd",
+            "hurd",
+            "illumos",
+            "nacl",
+            "netbsd",
+            "openbsd",
+            "plan9",
+            "solaris",
+            "zos"
+        ]
+    },
+    "111": {
+        "value": "bsd",
+        "tags": [
+            "aix",
+            "dragonfly",
+            "freebsd",
+            "hurd",
+            "illumos",
+            "nacl",
+            "netbsd",
+            "openbsd",
+            "plan9",
+            "solaris",
+            "zos"
+        ]
+    },
+    "112": {
+        "value": "freebsd-version",
+        "tags": [
+            "aix",
+            "dragonfly",
+            "freebsd",
+            "hurd",
+            "illumos",
+            "nacl",
+            "netbsd",
+            "openbsd",
+            "plan9",
+            "solaris",
+            "zos"
+        ]
+    },
+    "113": {
+        "value": "-k",
+        "tags": [
+            "aix",
+            "dragonfly",
+            "freebsd",
+            "hurd",
+            "illumos",
+            "nacl",
+            "netbsd",
+            "openbsd",
+            "plan9",
+            "solaris",
+            "zos"
+        ]
+    },
+    "114": {
+        "value": "BSD",
+        "tags": [
+            "aix",
+            "dragonfly",
+            "freebsd",
+            "hurd",
+            "illumos",
+            "nacl",
+            "netbsd",
+            "openbsd",
+            "plan9",
+            "solaris",
+            "zos"
+        ]
+    },
+    "115": {
+        "value": "-comm",
+        "tags": []
+    },
+    "116": {
+        "value": "http",
+        "tags": null
+    },
+    "117": {
+        "value": "OS",
+        "tags": []
+    },
+    "118": {
+        "value": "PID",
+        "tags": []
+    },
+    "119": {
+        "value": "PPID",
+        "tags": []
+    },
+    "120": {
+        "value": "OSVER",
+        "tags": []
+    },
+    "121": {
+        "value": "ADMIN",
+        "tags": []
+    },
+    "122": {
+        "value": "HOSTNAME",
+        "tags": []
+    },
+    "123": {
+        "value": "SeDebugPrivilege",
+        "tags": [
+            "windows"
+        ]
+    },
+    "124": {
+        "value": "kernel32.dll",
+        "tags": [
+            "windows"
+        ]
+    },
+    "125": {
+        "value": "LoadLibraryExW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "126": {
+        "value": "GetSystemDirectoryW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "127": {
+        "value": "OpenProcess",
+        "tags": [
+            "windows"
+        ]
+    },
+    "128": {
+        "value": "OpenThread",
+        "tags": [
+            "windows"
+        ]
+    },
+    "129": {
+        "value": "CloseHandle",
+        "tags": [
+            "windows"
+        ]
+    },
+    "130": {
+        "value": "GetCurrentProcessId",
+        "tags": [
+            "windows"
+        ]
+    },
+    "131": {
+        "value": "ntdll.dll",
+        "tags": [
+            "windows"
+        ]
+    },
+    "132": {
+        "value": "winhttp.dll",
+        "tags": [
+            "windows"
+        ]
+    },
+    "133": {
+        "value": "advapi32.dll",
+        "tags": [
+            "windows"
+        ]
+    },
+    "134": {
+        "value": "ReadFile",
+        "tags": [
+            "windows"
+        ]
+    },
+    "135": {
+        "value": "LsaClose",
+        "tags": [
+            "windows"
+        ]
+    },
+    "136": {
+        "value": "WriteFile",
+        "tags": [
+            "windows"
+        ]
+    },
+    "137": {
+        "value": "OpenMutexW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "138": {
+        "value": "LocalFree",
+        "tags": [
+            "windows"
+        ]
+    },
+    "139": {
+        "value": "OpenEventW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "140": {
+        "value": "CreateFileW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "141": {
+        "value": "GetVersion",
+        "tags": [
+            "windows"
+        ]
+    },
+    "142": {
+        "value": "CancelIoEx",
+        "tags": [
+            "windows"
+        ]
+    },
+    "143": {
+        "value": "LoadLibraryW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "144": {
+        "value": "CreateMutexW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "145": {
+        "value": "CreateEventW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "146": {
+        "value": "NtTraceEvent",
+        "tags": [
+            "windows"
+        ]
+    },
+    "147": {
+        "value": "ResumeThread",
+        "tags": [
+            "windows"
+        ]
+    },
+    "148": {
+        "value": "Thread32Next",
+        "tags": [
+            "windows"
+        ]
+    },
+    "149": {
+        "value": "RegDeleteKeyW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "150": {
+        "value": "GetProcessId",
+        "tags": [
+            "windows"
+        ]
+    },
+    "151": {
+        "value": "RevertToSelf",
+        "tags": [
+            "windows"
+        ]
+    },
+    "152": {
+        "value": "RegEnumValueW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "153": {
+        "value": "WaitNamedPipeW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "154": {
+        "value": "CreateProcessW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "155": {
+        "value": "SuspendThread",
+        "tags": [
+            "windows"
+        ]
+    },
+    "156": {
+        "value": "Process32NextW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "157": {
+        "value": "RegSetValueExW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "158": {
+        "value": "Thread32First",
+        "tags": [
+            "windows"
+        ]
+    },
+    "159": {
+        "value": "LsaOpenPolicy",
+        "tags": [
+            "windows"
+        ]
+    },
+    "160": {
+        "value": "OpenSemaphoreW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "161": {
+        "value": "VirtualProtect",
+        "tags": [
+            "windows"
+        ]
+    },
+    "162": {
+        "value": "IsWellKnownSid",
+        "tags": [
+            "windows"
+        ]
+    },
+    "163": {
+        "value": "Process32FirstW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "164": {
+        "value": "CreateMailslotW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "165": {
+        "value": "RegCreateKeyExW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "166": {
+        "value": "SetThreadToken",
+        "tags": [
+            "windows"
+        ]
+    },
+    "167": {
+        "value": "RegDeleteValueW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "168": {
+        "value": "CreateNamedPipeW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "169": {
+        "value": "DuplicateHandle",
+        "tags": [
+            "windows"
+        ]
+    },
+    "170": {
+        "value": "CreateSemaphoreW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "171": {
+        "value": "TerminateThread",
+        "tags": [
+            "windows"
+        ]
+    },
+    "172": {
+        "value": "OpenThreadToken",
+        "tags": [
+            "windows"
+        ]
+    },
+    "173": {
+        "value": "NtResumeProcess",
+        "tags": [
+            "windows"
+        ]
+    },
+    "174": {
+        "value": "ConnectNamedPipe",
+        "tags": [
+            "windows"
+        ]
+    },
+    "175": {
+        "value": "TerminateProcess",
+        "tags": [
+            "windows"
+        ]
+    },
+    "176": {
+        "value": "DuplicateTokenEx",
+        "tags": [
+            "windows"
+        ]
+    },
+    "177": {
+        "value": "NtSuspendProcess",
+        "tags": [
+            "windows"
+        ]
+    },
+    "178": {
+        "value": "NtCreateThreadEx",
+        "tags": [
+            "windows"
+        ]
+    },
+    "179": {
+        "value": "OpenProcessToken",
+        "tags": [
+            "windows"
+        ]
+    },
+    "180": {
+        "value": "IsDebuggerPresent",
+        "tags": [
+            "windows"
+        ]
+    },
+    "181": {
+        "value": "GetExitCodeThread",
+        "tags": [
+            "windows"
+        ]
+    },
+    "182": {
+        "value": "GetExitCodeProcess",
+        "tags": [
+            "windows"
+        ]
+    },
+    "183": {
+        "value": "GetTokenInformation",
+        "tags": [
+            "windows"
+        ]
+    },
+    "184": {
+        "value": "GetOverlappedResult",
+        "tags": [
+            "windows"
+        ]
+    },
+    "185": {
+        "value": "NtFreeVirtualMemory",
+        "tags": [
+            "windows"
+        ]
+    },
+    "186": {
+        "value": "WaitForSingleObject",
+        "tags": [
+            "windows"
+        ]
+    },
+    "187": {
+        "value": "DisconnectNamedPipe",
+        "tags": [
+            "windows"
+        ]
+    },
+    "188": {
+        "value": "NtWriteVirtualMemory",
+        "tags": [
+            "windows"
+        ]
+    },
+    "189": {
+        "value": "LookupPrivilegeValueW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "190": {
+        "value": "ConvertSidToStringSidW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "191": {
+        "value": "AdjustTokenPrivileges",
+        "tags": [
+            "windows"
+        ]
+    },
+    "192": {
+        "value": "NtProtectVirtualMemory",
+        "tags": [
+            "windows"
+        ]
+    },
+    "193": {
+        "value": "CreateProcessWithTokenW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "194": {
+        "value": "NtAllocateVirtualMemory",
+        "tags": [
+            "windows"
+        ]
+    },
+    "195": {
+        "value": "RtlSetProcessIsCritical",
+        "tags": [
+            "windows"
+        ]
+    },
+    "196": {
+        "value": "CreateToolhelp32Snapshot",
+        "tags": [
+            "windows"
+        ]
+    },
+    "197": {
+        "value": "UpdateProcThreadAttribute",
+        "tags": [
+            "windows"
+        ]
+    },
+    "198": {
+        "value": "NtQueryInformationProcess",
+        "tags": [
+            "windows"
+        ]
+    },
+    "199": {
+        "value": "LsaQueryInformationPolicy",
+        "tags": [
+            "windows"
+        ]
+    },
+    "200": {
+        "value": "ImpersonateNamedPipeClient",
+        "tags": [
+            "windows"
+        ]
+    },
+    "201": {
+        "value": "CheckRemoteDebuggerPresent",
+        "tags": [
+            "windows"
+        ]
+    },
+    "202": {
+        "value": "GetSecurityDescriptorLength",
+        "tags": [
+            "windows"
+        ]
+    },
+    "203": {
+        "value": "DeleteProcThreadAttributeList",
+        "tags": [
+            "windows"
+        ]
+    },
+    "204": {
+        "value": "InitializeProcThreadAttributeList",
+        "tags": [
+            "windows"
+        ]
+    },
+    "205": {
+        "value": "WinHttpGetDefaultProxyConfiguration",
+        "tags": [
+            "windows"
+        ]
+    },
+    "206": {
+        "value": "ConvertStringSecurityDescriptorToSecurityDescriptorW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "207": {
+        "value": "AddDllDirectory",
+        "tags": [
+            "windows"
+        ]
+    },
+    "208": {
+        "value": "@SHELL@",
+        "tags": []
+    },
+    "209": {
+        "value": "GetLogicalDrives",
+        "tags": [
+            "windows"
+        ]
+    },
+    "210": {
+        "value": "/proc/self/mounts",
+        "tags": [
+            "!windows",
+            "!js",
+            "!wasm"
+        ]
+    },
+    "211": {
+        "value": "/etc/mtab",
+        "tags": [
+            "!windows",
+            "!js",
+            "!wasm"
+        ]
+    }
+}

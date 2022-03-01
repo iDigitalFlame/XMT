@@ -20,6 +20,7 @@ const (
 	stateChannelUpdated
 	stateChannelProxy
 	stateSeen
+	stateMoving
 )
 
 type state uint32
@@ -146,4 +147,8 @@ func (s *state) SetChannel(e bool) bool {
 	}
 	s.Set(stateChannelUpdated)
 	return true
+}
+
+func (s state) Moving() bool {
+	return atomic.LoadUint32((*uint32)(&s))&stateMoving != 0
 }

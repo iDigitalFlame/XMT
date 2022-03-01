@@ -4,7 +4,6 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"io"
-	"strconv"
 
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/util/xerr"
@@ -85,7 +84,7 @@ func NewWriter(c Writer, w io.Writer) io.WriteCloser {
 // the length of the supplied IV.
 func Decrypter(b cipher.Block, iv []byte, r io.Reader) (io.ReadCloser, error) {
 	if len(iv) != b.BlockSize() {
-		return nil, xerr.New("blocksize (" + strconv.Itoa(b.BlockSize()) + ") must equal IV size (" + strconv.Itoa(len(iv)) + ")")
+		return nil, xerr.Sub("block size must equal IV size", 0x10)
 	}
 	return io.NopCloser(&cipher.StreamReader{R: r, S: cipher.NewCFBDecrypter(b, iv)}), nil
 }
@@ -96,7 +95,7 @@ func Decrypter(b cipher.Block, iv []byte, r io.Reader) (io.ReadCloser, error) {
 // the length of the supplied IV.
 func Encrypter(b cipher.Block, iv []byte, w io.Writer) (io.WriteCloser, error) {
 	if len(iv) != b.BlockSize() {
-		return nil, xerr.New("blocksize (" + strconv.Itoa(b.BlockSize()) + ") must equal IV size (" + strconv.Itoa(len(iv)) + ")")
+		return nil, xerr.Sub("block size must equal IV size", 0x10)
 	}
 	return &cipher.StreamWriter{W: w, S: cipher.NewCFBEncrypter(b, iv)}, nil
 }

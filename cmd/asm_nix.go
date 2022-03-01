@@ -3,7 +3,10 @@
 
 package cmd
 
-import "github.com/iDigitalFlame/xmt/device/devtools"
+import (
+	"github.com/iDigitalFlame/xmt/cmd/filter"
+	"github.com/iDigitalFlame/xmt/device"
+)
 
 // Pid retruns the process ID of the owning process (the process running
 // the thread.)
@@ -22,11 +25,11 @@ func (Assembly) Pid() uint32 {
 //
 // Always returns 'ErrNoWindows' on non-Windows devices.
 func (Assembly) Start() error {
-	return devtools.ErrNoWindows
+	return device.ErrNoWindows
 }
 
 // SetParent will instruct the Assembly thread to choose a parent with the supplied
 // process Filter. If the Filter is nil this will use the current process (default).
 //
 // This function has no effect if the device is not running Windows.
-func (Assembly) SetParent(_ *Filter) {}
+func (Assembly) SetParent(_ *filter.Filter) {}

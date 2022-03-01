@@ -16,17 +16,17 @@ var done complete
 type addr string
 type conn struct {
 	net.Conn
-	ch chan complete
-	cl uint32
+	ch   chan complete
+	done uint32
 }
 type complete struct{}
 type listener struct {
 	err error
 	ctx context.Context
 
-	p   *Server
-	ch  chan complete
-	new chan *conn
+	p       *Server
+	ch, pch chan complete
+	new     chan *conn
 	*http.Server
 
 	rules []Rule
@@ -34,22 +34,16 @@ type listener struct {
 }
 
 func (c *conn) Close() error {
-	if atomic.LoadUint32(&c.cl) == 1 {
+	if atomic.LoadUint32(&c.done) == 1 {
 		return nil
 	}
-	atomic.StoreUint32(&c.cl, 1)
+	atomic.StoreUint32(&c.done, 1)
 	err := c.Conn.Close()
 	close(c.ch)
 	return err
 }
-func (addr) Network() string {
-	return "wc2"
-}
 func (a addr) String() string {
 	return string(a)
-}
-func (complete) Error() string {
-	return "deadline exceeded"
 }
 func (complete) Timeout() bool {
 	return true
@@ -63,6 +57,7 @@ func (l *listener) Close() error {
 	}
 	err := l.Server.Close()
 	close(l.new)
+	close(l.ch)
 	if l.rules, l.p = nil, nil; err != nil {
 		return err
 	}
@@ -74,11 +69,9 @@ func (l *listener) Close() error {
 func (l *listener) Addr() net.Addr {
 	return addr(l.Server.Addr)
 }
-func (l *listener) String() string {
-	return "WC2/" + l.Server.Addr
-}
 func (l *listener) listen(x net.Listener) {
 	l.err = l.Serve(x)
+	l.Close()
 }
 func (l *listener) Accept() (net.Conn, error) {
 	if l.err != nil {
@@ -95,6 +88,8 @@ func (l *listener) Accept() (net.Conn, error) {
 			err = &done
 		case <-l.ch:
 			err = io.ErrClosedPipe
+		case <-l.pch:
+			err = io.ErrClosedPipe
 		case n = <-l.new:
 		case <-l.ctx.Done():
 			err = io.ErrClosedPipe
@@ -104,6 +99,7 @@ func (l *listener) Accept() (net.Conn, error) {
 	}
 	select {
 	case <-l.ch:
+	case <-l.pch:
 	case n := <-l.new:
 		return n, nil
 	case <-l.ctx.Done():
@@ -130,8 +126,7 @@ func (l *listener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotAcceptable)
 		return
 	}
-	w.Header().Set("Upgrade", "websocket")
-	w.Header().Set("Connection", "Upgrade")
+	modHeaders(w.Header())
 	w.WriteHeader(http.StatusSwitchingProtocols)
 	c, _, err := h.Hijack()
 	if err != nil {
@@ -149,5 +144,10 @@ func (l *listener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	v := &conn{ch: make(chan complete, 1), Conn: c}
 	l.new <- v
-	<-v.ch
+	select {
+	case <-v.ch:
+	case <-l.ch:
+	case <-l.ctx.Done():
+	}
+	v.Close()
 }

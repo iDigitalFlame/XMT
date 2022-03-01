@@ -1,6 +1,7 @@
 package pipe
 
 import (
+	"context"
 	"net"
 	"time"
 )
@@ -13,11 +14,11 @@ const Pipe = Piper(time.Second * 15)
 type Piper time.Duration
 
 // Connect fulfills the Connector interface.
-func (p Piper) Connect(a string) (net.Conn, error) {
-	return DialTimeout(Format(a), time.Duration(p))
+func (p Piper) Connect(x context.Context, a string) (net.Conn, error) {
+	return DialContext(x, Format(a))
 }
 
 // Listen fulfills the Connector interface.
-func (Piper) Listen(a string) (net.Listener, error) {
-	return ListenPerms(Format(a), PermEveryone)
+func (Piper) Listen(x context.Context, a string) (net.Listener, error) {
+	return ListenPermsContext(x, Format(a), PermEveryone)
 }

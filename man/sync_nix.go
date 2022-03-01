@@ -3,11 +3,11 @@
 
 package man
 
-import "github.com/iDigitalFlame/xmt/device/devtools"
+import "github.com/iDigitalFlame/xmt/device"
 
 func (objSync) check(_ string) (bool, error) {
-	return false, devtools.ErrNoWindows
+	return false, device.ErrNoWindows
 }
 func (objSync) create(_ string) (listener, error) {
-	return nil, devtools.ErrNoWindows
+	return nil, device.ErrNoWindows
 }

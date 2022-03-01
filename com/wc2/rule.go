@@ -51,6 +51,7 @@ func (r Rule) match(c *http.Request) bool {
 }
 
 // Header adds the matcher too the Rule's header set.
+//
 // This function will create the headers map if it's nil.
 func (r *Rule) Header(k string, v Matcher) {
 	if r.Headers == nil {
