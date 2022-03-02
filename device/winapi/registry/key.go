@@ -25,12 +25,12 @@ type Key uintptr
 // these keys are used in OpenKey to open new keys, but they can also be used
 // anywhere a Key is required.
 const (
-	CLASSES_ROOT     = Key(syscall.HKEY_CLASSES_ROOT)
-	CURRENT_USER     = Key(syscall.HKEY_CURRENT_USER)
-	LOCAL_MACHINE    = Key(syscall.HKEY_LOCAL_MACHINE)
-	USERS            = Key(syscall.HKEY_USERS)
-	CURRENT_CONFIG   = Key(syscall.HKEY_CURRENT_CONFIG)
-	PERFORMANCE_DATA = Key(syscall.HKEY_PERFORMANCE_DATA)
+	KeyClassesRoot     = Key(syscall.HKEY_CLASSES_ROOT)
+	KeyCurrentUser     = Key(syscall.HKEY_CURRENT_USER)
+	KeyLocalMachine    = Key(syscall.HKEY_LOCAL_MACHINE)
+	KeyUsers           = Key(syscall.HKEY_USERS)
+	KeyCurrentConfig   = Key(syscall.HKEY_CURRENT_CONFIG)
+	KeyPerformanceData = Key(syscall.HKEY_PERFORMANCE_DATA)
 
 	errNoMoreItems syscall.Errno = 259
 )

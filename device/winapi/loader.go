@@ -76,7 +76,6 @@ func (p *lazyProc) find() error {
 			}
 			var h uintptr
 			if h, err = findProc(p.dll.addr, p.Name, p.dll.Name); err == nil {
-				//if h, err = p.dll.find(p.Name); err == nil {
 				atomic.StoreUintptr(&p.addr, h)
 			}
 		}
@@ -152,22 +151,6 @@ func loadLibraryEx(s string) (uintptr, error) {
 	}
 	return LoadLibraryEx(n, f)
 }
-
-/*
-func (d *lazyDLL) find(s string) (uintptr, error) {
-	n, err := byteSlicePtr(s)
-	if err != nil {
-		return 0, err
-	}
-	h, err2 := syscallGetProcAddress(d.addr, n)
-	if err2 != 0 {
-		if xerr.Concat {
-			return 0, xerr.Wrap(`cannot load DLL "`+d.Name+`" function "`+s+`"`, err)
-		}
-		return 0, xerr.Wrap("cannot load DLL function", err)
-	}
-	return h, nil
-}*/
 func findProc(h uintptr, s, n string) (uintptr, error) {
 	v, err := byteSlicePtr(s)
 	if err != nil {
@@ -241,6 +224,9 @@ func (p *lazyProc) call(a ...uintptr) (uintptr, uintptr, syscall.Errno) {
 			syscall.Exit(2)
 			return 0, 0, 0
 		}
-		panic("call " + p.Name + " with too many arguments!")
+		if xerr.Concat {
+			panic("call " + p.Name + " with too many arguments!")
+		}
+		panic("call with too many arguments!")
 	}
 }

@@ -416,12 +416,41 @@ func Process32First(h uintptr, e *ProcessEntry32) error {
 	return nil
 }
 
+// SetServiceStatus Windows API Call
+//   Contains status information for a service. The ControlService, EnumDependentServices,
+//   EnumServicesStatus, and QueryServiceStatus functions use this structure. A
+//   service uses this structure in the SetServiceStatus function to report its
+//   current status to the service control manager.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/winsvc/ns-winsvc-service_status
+func SetServiceStatus(h uintptr, s *ServiceStatus) error {
+	r, _, err := syscall.Syscall(funcSetServiceStatus.address(), 2, h, uintptr(unsafe.Pointer(s)), 0)
+	if r == 0 {
+		return unboxError(err)
+	}
+	return nil
+}
+
 // CheckRemoteDebuggerPresent Windows API Call
 //   Determines whether the specified process is being debugged.
 //
 // https://docs.microsoft.com/en-us/windows/win32/api/debugapi/nf-debugapi-checkremotedebuggerpresent
 func CheckRemoteDebuggerPresent(h uintptr, b *bool) error {
 	r, _, err := syscall.Syscall(funcCheckRemoteDebuggerPresent.address(), 2, h, uintptr(unsafe.Pointer(b)), 0)
+	if r == 0 {
+		return unboxError(err)
+	}
+	return nil
+}
+
+// StartServiceCtrlDispatcher Windows API Call
+//   Connects the main thread of a service process to the service control manager,
+//   which causes the thread to be the service control dispatcher thread for the
+//   calling process.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-startservicectrldispatcherw
+func StartServiceCtrlDispatcher(t *ServiceTableEntry) error {
+	r, _, err := syscall.Syscall(funcStartServiceCtrlDispatcher.address(), 1, uintptr(unsafe.Pointer(t)), 0, 0)
 	if r == 0 {
 		return unboxError(err)
 	}
@@ -600,6 +629,28 @@ func SecurityDescriptorFromString(s string) (*SecurityDescriptor, error) {
 	c := h.copyRelative()
 	localFree(uintptr(unsafe.Pointer(h)))
 	return c, nil
+}
+
+// QueryServiceDynamicInformation Windows API Call
+//   Retrieves dynamic information related to the current service start.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-queryservicedynamicinformation
+func QueryServiceDynamicInformation(h uintptr, l uint32) (uint32, error) {
+	if err := funcQueryServiceDynamicInformation.find(); err != nil {
+		return 0, err
+	}
+	var (
+		a         *uint32
+		r, _, err = syscall.Syscall(
+			funcQueryServiceDynamicInformation.address(), 3, h, uintptr(l), uintptr(unsafe.Pointer(&a)),
+		)
+	)
+	if r == 0 {
+		return 0, unboxError(err)
+	}
+	v := *a
+	localFree(uintptr(unsafe.Pointer(&a)))
+	return v, nil
 }
 
 // OpenThread Windows API Call
@@ -909,6 +960,24 @@ func securityDescriptorFromString(s string, v uint32, i **SecurityDescriptor, n 
 	return nil
 }
 
+// RegisterServiceCtrlHandlerEx Windows API Call
+//   Registers a function to handle extended service control requests.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-registerservicectrlhandlerexw
+func RegisterServiceCtrlHandlerEx(name string, handler uintptr, args uintptr) (uintptr, error) {
+	n, err := UTF16PtrFromString(name)
+	if err != nil {
+		return 0, err
+	}
+	r, _, err1 := syscall.Syscall(
+		funcRegisterServiceCtrlHandlerEx.address(), 3, uintptr(unsafe.Pointer(n)), handler, args,
+	)
+	if r == 0 {
+		return 0, unboxError(err1)
+	}
+	return r, nil
+}
+
 // CreateSemaphore Windows API Call
 //   Creates or opens a named or unnamed semaphore object.
 //
@@ -995,7 +1064,7 @@ func DuplicateTokenEx(h uintptr, access uint32, sa *SecurityAttributes, level, p
 // https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-initializeprocthreadattributelist
 func InitializeProcThreadAttributeList(a *StartupAttributes, count uint32, size *uint64, expected uint64) error {
 	r, _, err := syscall.Syscall6(
-		FuncInitializeProcThreadAttributeList.address(), 4, uintptr(unsafe.Pointer(a)), uintptr(count),
+		funcInitializeProcThreadAttributeList.address(), 4, uintptr(unsafe.Pointer(a)), uintptr(count),
 		0, uintptr(unsafe.Pointer(size)), 0, 0,
 	)
 	if *size >= expected || expected == 0 {
@@ -1147,7 +1216,7 @@ func CreateFile(name string, access, mode uint32, sa *SecurityAttributes, dispos
 // https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute
 func UpdateProcThreadAttribute(a *StartupAttributes, attr uintptr, val unsafe.Pointer, valLen uint64, old *StartupAttributes, oldLen *uint64) error {
 	r, _, err := syscall.Syscall9(
-		FuncUpdateProcThreadAttribute.address(), 7, uintptr(unsafe.Pointer(a)), 0, attr, uintptr(val),
+		funcUpdateProcThreadAttribute.address(), 7, uintptr(unsafe.Pointer(a)), 0, attr, uintptr(val),
 		uintptr(valLen), uintptr(unsafe.Pointer(old)), uintptr(unsafe.Pointer(oldLen)), 0, 0,
 	)
 	if r == 0 {

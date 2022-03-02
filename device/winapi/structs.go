@@ -175,6 +175,28 @@ type StartupInfoEx struct {
 	AttributeList *StartupAttributes
 }
 
+// ServiceStatus matches the SERVICE_STATUS struct
+//  https://docs.microsoft.com/en-us/windows/win32/api/winsvc/ns-winsvc-service_status
+//
+// typedef struct _SERVICE_STATUS {
+//  DWORD dwServiceType;
+//  DWORD dwCurrentState;
+//  DWORD dwControlsAccepted;
+//  DWORD dwWin32ExitCode;
+//  DWORD dwServiceSpecificExitCode;
+//  DWORD dwCheckPoint;
+//  DWORD dwWaitHint;
+// } SERVICE_STATUS, *LPSERVICE_STATUS;
+type ServiceStatus struct {
+	ServiceType             uint32
+	CurrentState            uint32
+	ControlsAccepted        uint32
+	Win32ExitCode           uint32
+	ServiceSpecificExitCode uint32
+	CheckPoint              uint32
+	WaitHint                uint32
+}
+
 // ProcessEntry32 matches the PROCESSENTRY32 struct
 //  https://docs.microsoft.com/en-us/windows/win32/api/tlhelp32/ns-tlhelp32-processentry32
 //
@@ -217,6 +239,18 @@ type ProcessEntry32 struct {
 type SIDAndAttributes struct {
 	Sid        *SID
 	Attributes uint32
+}
+
+// ServiceTableEntry matches the SERVICE_TABLE_ENTRYW struct
+//  https://docs.microsoft.com/en-us/windows/win32/api/winsvc/ns-winsvc-service_table_entryw
+//
+// typedef struct _SERVICE_TABLE_ENTRYW {
+//  LPWSTR                   lpServiceName;
+//  LPSERVICE_MAIN_FUNCTIONW lpServiceProc;
+// } SERVICE_TABLE_ENTRYW, *LPSERVICE_TABLE_ENTRYW;
+type ServiceTableEntry struct {
+	Name *uint16
+	Proc uintptr
 }
 
 // StartupAttributes matches the LPPROC_THREAD_ATTRIBUTE_LIST opaque struct
@@ -347,16 +381,16 @@ func (s *SecurityDescriptor) copyRelative() *SecurityDescriptor {
 	var (
 		b []byte
 		c = int(unsafe.Sizeof(uintptr(0)))
-		h = (*sliceHeader)(unsafe.Pointer(&b))
+		h = (*SliceHeader)(unsafe.Pointer(&b))
 	)
 	h.Data = unsafe.Pointer(s)
 	h.Len, h.Cap = n, n
 	var (
 		d []byte
-		x = (*sliceHeader)(unsafe.Pointer(&d))
+		x = (*SliceHeader)(unsafe.Pointer(&d))
 		a = make([]uintptr, (n+c-1)/c)
 	)
-	x.Data = (*sliceHeader)(unsafe.Pointer(&a)).Data
+	x.Data = (*SliceHeader)(unsafe.Pointer(&a)).Data
 	x.Len, x.Cap = n, n
 	copy(d, b)
 	return (*SecurityDescriptor)(unsafe.Pointer(&d[0]))

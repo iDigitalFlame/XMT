@@ -1411,5 +1411,29 @@
             "!js",
             "!wasm"
         ]
+    },
+    "212": {
+        "value": "SetServiceStatus",
+        "tags": [
+            "windows"
+        ]
+    },
+    "213": {
+        "value": "StartServiceCtrlDispatcherW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "214": {
+        "value": "QueryServiceDynamicInformation",
+        "tags": [
+            "windows"
+        ]
+    },
+    "215": {
+        "value": "RegisterServiceCtrlHandlerExW",
+        "tags": [
+            "windows"
+        ]
     }
 }

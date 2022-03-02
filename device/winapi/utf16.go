@@ -17,7 +17,13 @@ const (
 	utfReplacement = '\uFFFD'
 )
 
-type sliceHeader struct {
+// Slice is the runtime representation of a slice.
+//
+// It cannot be used safely or portably and its representation may change in a
+// later release.
+//
+// ^ Hey, shut up.
+type SliceHeader struct {
 	Data unsafe.Pointer
 	Len  int
 	Cap  int
@@ -106,7 +112,7 @@ func UTF16PtrToString(p *uint16) string {
 		ptr = unsafe.Pointer(uintptr(ptr) + unsafe.Sizeof(*p))
 	}
 	var s []uint16
-	h := (*sliceHeader)(unsafe.Pointer(&s))
+	h := (*SliceHeader)(unsafe.Pointer(&s))
 	h.Data, h.Len, h.Cap = unsafe.Pointer(p), n, n
 	return string(UTF16Decode(s))
 }

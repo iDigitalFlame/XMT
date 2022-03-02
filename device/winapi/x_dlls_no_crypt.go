@@ -19,9 +19,6 @@ var (
 	dllWinhttp  = &lazyDLL{Name: "winhttp.dll"}
 	dllAdvapi32 = &lazyDLL{Name: "advapi32.dll"}
 
-	//funcRtlCloneUserProcess                                 = dllNtdll.proc("RtlCloneUserProcess")
-	//funcAllocConsole                                        = dllKernel32.proc("AllocConsole")
-
 	funcReadFile                                            = dllKernel32.proc("ReadFile")
 	funcLsaClose                                            = dllAdvapi32.proc("LsaClose")
 	funcWriteFile                                           = dllKernel32.proc("WriteFile")
@@ -62,6 +59,7 @@ var (
 	funcTerminateThread                                     = dllKernel32.proc("TerminateThread")
 	funcOpenThreadToken                                     = dllAdvapi32.proc("OpenThreadToken")
 	funcNtResumeProcess                                     = dllNtdll.proc("NtResumeProcess")
+	funcSetServiceStatus                                    = dllAdvapi32.proc("SetServiceStatus")
 	funcConnectNamedPipe                                    = dllKernel32.proc("ConnectNamedPipe")
 	funcTerminateProcess                                    = dllKernel32.proc("TerminateProcess")
 	funcDuplicateTokenEx                                    = dllAdvapi32.proc("DuplicateTokenEx")
@@ -86,14 +84,17 @@ var (
 	funcNtAllocateVirtualMemory                             = dllNtdll.proc("NtAllocateVirtualMemory")
 	funcRtlSetProcessIsCritical                             = dllNtdll.proc("RtlSetProcessIsCritical")
 	funcCreateToolhelp32Snapshot                            = dllKernel32.proc("CreateToolhelp32Snapshot")
-	FuncUpdateProcThreadAttribute                           = dllKernel32.proc("UpdateProcThreadAttribute")
+	funcUpdateProcThreadAttribute                           = dllKernel32.proc("UpdateProcThreadAttribute")
 	funcNtQueryInformationProcess                           = dllNtdll.proc("NtQueryInformationProcess")
 	funcLsaQueryInformationPolicy                           = dllAdvapi32.proc("LsaQueryInformationPolicy")
+	funcStartServiceCtrlDispatcher                          = dllAdvapi32.proc("StartServiceCtrlDispatcherW")
 	funcImpersonateNamedPipeClient                          = dllAdvapi32.proc("ImpersonateNamedPipeClient")
 	funcCheckRemoteDebuggerPresent                          = dllKernel32.proc("CheckRemoteDebuggerPresent")
 	funcGetSecurityDescriptorLength                         = dllAdvapi32.proc("GetSecurityDescriptorLength")
+	funcRegisterServiceCtrlHandlerEx                        = dllAdvapi32.proc("RegisterServiceCtrlHandlerExW")
 	funcDeleteProcThreadAttributeList                       = dllKernel32.proc("DeleteProcThreadAttributeList")
-	FuncInitializeProcThreadAttributeList                   = dllKernel32.proc("InitializeProcThreadAttributeList")
+	funcQueryServiceDynamicInformation                      = dllAdvapi32.proc("QueryServiceDynamicInformation")
+	funcInitializeProcThreadAttributeList                   = dllKernel32.proc("InitializeProcThreadAttributeList")
 	funcWinHTTPGetDefaultProxyConfiguration                 = dllWinhttp.proc("WinHttpGetDefaultProxyConfiguration")
 	funcConvertStringSecurityDescriptorToSecurityDescriptor = dllAdvapi32.proc("ConvertStringSecurityDescriptorToSecurityDescriptorW")
 )

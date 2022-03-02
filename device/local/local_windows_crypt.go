@@ -16,7 +16,7 @@ func sysID() []byte {
 	if s, err := winapi.GetSystemSID(); err == nil {
 		return []byte(s.String())
 	}
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE, crypt.Get(68), 0x101) // SOFTWARE\Microsoft\Cryptography
+	k, err := registry.OpenKey(registry.KeyLocalMachine, crypt.Get(68), 0x101) // SOFTWARE\Microsoft\Cryptography
 	if err != nil {
 		return nil
 	}
@@ -27,7 +27,7 @@ func sysID() []byte {
 	return nil
 }
 func version() string {
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE, crypt.Get(70), 0x101) // SOFTWARE\Microsoft\Windows NT\CurrentVersion
+	k, err := registry.OpenKey(registry.KeyLocalMachine, crypt.Get(70), 0x101) // SOFTWARE\Microsoft\Windows NT\CurrentVersion
 	if err != nil {
 		return crypt.Get(71) // Windows (?)
 	}
