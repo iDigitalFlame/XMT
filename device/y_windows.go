@@ -15,6 +15,10 @@ import (
 	"golang.org/x/net/http/httpproxy"
 )
 
+// ErrNoNix is an error that is returned when a Windows device attempts a *nix
+// specific function.
+var ErrNoNix = xerr.Sub("only supported on *nix devices", 0xFB)
+
 type privileges struct {
 	PrivilegeCount uint32
 	Privileges     [5]winapi.LUIDAndAttributes
@@ -184,6 +188,16 @@ func proxyInit() *httpproxy.Config {
 		)
 	}
 	return &c
+}
+
+// SetProcessName will attempt to overrite the process name on *nix systems
+// by overriting the argv block.
+//
+// Returns 'ErrNoNix' on Windows devices.
+//
+// Found here: https://stackoverflow.com/questions/14926020/setting-process-name-as-seen-by-ps-in-go
+func SetProcessName(s string) error {
+	return ErrNoNix
 }
 
 // Impersonate attempts to steal the Token in use by the target process of the

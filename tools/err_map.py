@@ -182,6 +182,7 @@ ERRORS = {
     24: ErrorType("not a file"),
     25: ErrorType("not a directory"),
     250: ErrorType("windows only", ["device.ErrNoWindows"]),
+    215: ErrorType("only supported on *nix devices", ["device.ErrNoNix"]),
 }
 
 for k, v in ERRORS.items():

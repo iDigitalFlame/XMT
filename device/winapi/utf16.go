@@ -17,7 +17,7 @@ const (
 	utfReplacement = '\uFFFD'
 )
 
-// Slice is the runtime representation of a slice.
+// SliceHeader is the runtime representation of a slice.
 //
 // It cannot be used safely or portably and its representation may change in a
 // later release.
