@@ -37,7 +37,7 @@ func (d *DLL) Start() error {
 		return xerr.Wrap("could not convert path", err)
 	}
 	b := make([]byte, (len(p)*2)+1)
-	for i := 0; i < len(b); i += 2 {
+	for i := 0; i < len(b)-1; i += 2 {
 		b[i], b[i+1] = byte(p[i/2]), byte(p[i/2]>>8)
 	}
 	if err := d.t.Start(0, d.Timeout, winapi.LoadLibraryAddress(), b); err != nil {
