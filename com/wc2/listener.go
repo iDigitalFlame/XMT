@@ -15,6 +15,7 @@ var done complete
 
 type addr string
 type conn struct {
+	_ [0]func()
 	net.Conn
 	ch   chan complete
 	done uint32

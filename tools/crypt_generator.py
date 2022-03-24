@@ -1,10 +1,25 @@
 #!/usr/bin/python
+# Copyright (C) 2021 - 2022 iDigitalFlame
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
 
 from io import BytesIO
 from json import loads
 from os import environ
-from subprocess import Popen
 from secrets import token_bytes
+from subprocess import check_call
 from sys import stderr, exit, argv
 from base64 import urlsafe_b64encode
 from platform import system, architecture
@@ -118,11 +133,27 @@ class CryptWriter(BytesIO):
 
 if __name__ == "__main__":
     if len(argv) < 3:
-        print(f"{argv[0]} <file> [go build args]", file=stderr)
+        print(f"{argv[0]} [-no-build] <file> [go build args]", file=stderr)
         exit(2)
+
+    n = False
+    if argv[1] == "-no-build":
+        if len(argv) < 4:
+            print(f"{argv[0]} [-no-build] <file> [go build args]", file=stderr)
+            exit(2)
+        n = True
+        argv.remove("-no-build")
 
     w = CryptWriter()
     w.from_file(argv[1], get_env_tags(argv[2:]))
+
+    if n:
+        print("Add this to ldflags:")
+        print(
+            f"-X 'github.com/iDigitalFlame/xmt/util/crypt.key={w.key_output()}'", end=""
+        )
+        print(f" -X 'github.com/iDigitalFlame/xmt/util/crypt.payload={w.output()}'")
+        exit(0)
 
     a = [
         "go",
@@ -133,6 +164,6 @@ if __name__ == "__main__":
         f" -X 'github.com/iDigitalFlame/xmt/util/crypt.payload={w.output()}'",
     ]
     a.extend(check_tags(argv[2:]))
-
-    Popen(a, env=environ)
+    check_call(a, env=environ)
     print()
+    del a

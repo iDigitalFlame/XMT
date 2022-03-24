@@ -255,7 +255,7 @@ func (s *Session) shutdown() {
 	if s.proxy != nil {
 		s.proxy.Close()
 	}
-	if !s.state.SendClosed() {
+	if s.lock.Lock(); !s.state.SendClosed() {
 		s.state.Set(stateSendClose)
 		close(s.send)
 	}
@@ -273,8 +273,8 @@ func (s *Session) shutdown() {
 	if s.state.Set(stateClosed); s.parent != nil && s.parent.s != nil && !s.parent.state.WakeClosed() {
 		s.parent.s.delSession <- s.ID.Hash()
 	}
-	if s.m.close(); s.isMoving() {
-		s.lock.Unlock()
+	s.m.close()
+	if s.lock.Unlock(); s.isMoving() {
 		return
 	}
 	close(s.ch)
@@ -1155,9 +1155,10 @@ func (s *Session) MigrateProfile(wait bool, n string, b []byte, job uint16, t ti
 			return 0, xerr.Wrap("cannot marshal Proxy Profile", err)
 		}
 	}
-	if s.lock.Lock(); cout.Enabled {
+	if cout.Enabled {
 		s.log.Info("[%s/Mg8] Starting Migrate process!", s.ID)
 	}
+	s.lock.Lock()
 	if s.state.Set(stateMoving); wait && s.m.count() > 0 {
 		if cout.Enabled {
 			s.log.Debug("[%s/Mg8] Waiting for all Jobs to complete..", s.ID)
@@ -1179,11 +1180,12 @@ func (s *Session) MigrateProfile(wait bool, n string, b []byte, job uint16, t ti
 			}
 		}
 	}
-	if s.lock.Unlock(); t <= 0 {
+	if t <= 0 {
 		t = spawnDefaultTime
 	}
 	if err = e.Start(); err != nil {
 		s.state.Unset(stateMoving)
+		s.lock.Unlock()
 		return 0, err
 	}
 	if cout.Enabled {
@@ -1192,6 +1194,7 @@ func (s *Session) MigrateProfile(wait bool, n string, b []byte, job uint16, t ti
 	c := spinTimeout(s.ctx, pipe.Format(n+"."+strconv.FormatUint(uint64(e.Pid()), 16)), t)
 	if c == nil {
 		s.state.Unset(stateMoving)
+		s.lock.Unlock()
 		return 0, ErrNoConn
 	}
 	if cout.Enabled {
@@ -1206,6 +1209,7 @@ func (s *Session) MigrateProfile(wait bool, n string, b []byte, job uint16, t ti
 	if err = writeFull(w, 3, o[0:3]); err != nil {
 		c.Close()
 		s.state.Unset(stateMoving)
+		s.lock.Unlock()
 		return 0, err
 	}
 	i := uint64(len(b))
@@ -1214,16 +1218,19 @@ func (s *Session) MigrateProfile(wait bool, n string, b []byte, job uint16, t ti
 	if err = writeFull(w, 8, o[:]); err != nil {
 		c.Close()
 		s.state.Unset(stateMoving)
+		s.lock.Unlock()
 		return 0, err
 	}
 	if err = writeFull(w, int(i), b); err != nil {
 		c.Close()
 		s.state.Unset(stateMoving)
+		s.lock.Unlock()
 		return 0, err
 	}
 	if err = s.ID.Write(w); err != nil {
 		c.Close()
 		s.state.Unset(stateMoving)
+		s.lock.Unlock()
 		return 0, err
 	}
 	i = uint64(len(k))
@@ -1232,12 +1239,14 @@ func (s *Session) MigrateProfile(wait bool, n string, b []byte, job uint16, t ti
 	if err = writeFull(w, 8, o[:]); err != nil {
 		c.Close()
 		s.state.Unset(stateMoving)
+		s.lock.Unlock()
 		return 0, err
 	}
 	if i > 0 {
 		if err = writeFull(w, int(i), k); err != nil {
 			c.Close()
 			s.state.Unset(stateMoving)
+			s.lock.Unlock()
 			return 0, err
 		}
 	}
@@ -1245,21 +1254,27 @@ func (s *Session) MigrateProfile(wait bool, n string, b []byte, job uint16, t ti
 	if err = readFull(r, 2, o[0:2]); err != nil {
 		c.Close()
 		s.state.Unset(stateMoving)
+		s.lock.Unlock()
 		return 0, err
 	}
 	if o[0] != 'O' && o[1] != 'K' {
 		c.Close()
 		s.state.Unset(stateMoving)
+		s.lock.Unlock()
 		return 0, xerr.Sub("unexpected OK value", 0x3)
 	}
 	if s.state.Set(stateClosing); cout.Enabled {
 		s.log.Debug("[%s/Mg8] Received 'OK' from host, proceeding with shutdown!", s.ID)
 	}
-	if s.lock.Lock(); s.proxy != nil {
+	if s.lock.Unlock(); s.proxy != nil {
 		s.proxy.Close()
 	}
 	s.state.Set(stateClosing)
-	s.Wake()
+	for s.Wake(); ; {
+		if time.Sleep(500 * time.Microsecond); s.state.Closed() {
+			break
+		}
+	}
 	if s.lock.Lock(); cout.Enabled {
 		s.log.Debug("[%s/Mg8] Got lock, migrate completed!", s.ID)
 	}
@@ -1267,6 +1282,5 @@ func (s *Session) MigrateProfile(wait bool, n string, b []byte, job uint16, t ti
 	c.Close()
 	e.Release()
 	close(s.ch)
-	s.lock.Unlock()
 	return e.Pid(), nil
 }

@@ -1,13 +1,14 @@
 //go:build !windows && !js && !wasm && !crypt
-// +build !windows,!js,!wasm,!crypt
 
 package device
 
 import (
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
+	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -20,7 +21,22 @@ const (
 	// PowerShell is the path to the PowerShell binary, which is based on the
 	// underlying OS type.
 	PowerShell = "pwsh"
+	home       = "$HOME"
 )
+
+// IsDebugged returns true if the current process is attached by a debugger.
+func IsDebugged() bool {
+	b, err := os.ReadFile("/proc/self/status")
+	if err != nil {
+		return false
+	}
+	for _, e := range strings.Split(string(b), "\n") {
+		if e[9] == ':' && e[8] == 'd' && e[0] == 'T' && e[1] == 'r' && e[5] == 'r' {
+			return e[len(e)-1] != '0' && e[len(e)-2] != ' ' && e[len(e)-2] != 9 && e[len(e)-2] != '\t'
+		}
+	}
+	return false
+}
 
 // Mounts attempts to get the mount points on the local device.
 //
@@ -59,4 +75,35 @@ func Mounts() ([]string, error) {
 		m = append(m, v[l:x])
 	}
 	return m, nil
+}
+
+// DumpProcess will attempt to copy the memory of the targeted Filter to the
+// supplied Writer. This fill select the first process that matches the Filter.
+//
+// If the Filter is nil or empty or if an error occurs during reading/writing
+// an error will be returned.
+func DumpProcess(f *filter.Filter, w io.Writer) error {
+	if f.Empty() {
+		return filter.ErrNoProcessFound
+	}
+	p, err := f.SelectFunc(nil)
+	if err != nil {
+		return err
+	}
+	v := "/proc/" + strconv.FormatUint(uint64(p), 10)
+	b, err := os.ReadFile(v + "/maps")
+	if err != nil {
+		return err
+	}
+	d, err := os.OpenFile(v+"/mem", 0, 0)
+	if err != nil {
+		return err
+	}
+	for _, e := range strings.Split(string(b), "\n") {
+		if err = parseLine(e, d, w); err != nil {
+			break
+		}
+	}
+	d.Close()
+	return err
 }

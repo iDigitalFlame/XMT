@@ -1,5 +1,4 @@
 //go:build plan9 && !crypt
-// +build plan9,!crypt
 
 package local
 

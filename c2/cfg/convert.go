@@ -25,7 +25,7 @@ func (c Config) next(i int) int {
 	switch cBit(c[i]) {
 	case WrapHex, WrapZlib, WrapGzip, WrapBase64:
 		fallthrough
-	case SelectorLastValid, SelectorRoundRobin, SelectorRandom:
+	case SelectorLastValid, SelectorRoundRobin, SelectorRandom, SelectorSemiRandom, SelectorSemiRoundRobin:
 		fallthrough
 	case Seperator, ConnectTCP, ConnectTLS, ConnectUDP, ConnectICMP, ConnectPipe, ConnectTLSNoVerify, TransformB64:
 		return i + 1
@@ -78,6 +78,16 @@ func (c Config) next(i int) int {
 		}
 		_ = c[i+4]
 		return i + 6 + (int(c[i+3]) | int(c[i+2])<<8) + (int(c[i+5]) | int(c[i+4])<<8)
+	case valDNS:
+		if i+1 >= len(c) {
+			return -1
+		}
+		_ = c[i+1]
+		n := i + 2
+		for x := int(c[i+1]); x > 0 && n < len(c); x-- {
+			n += int(c[n]) + 1
+		}
+		return n
 	}
 	return -1
 }
@@ -187,7 +197,7 @@ loop:
 			if len(c) <= n {
 				return -1, ErrInvalidSetting
 			}
-		case SelectorRoundRobin, SelectorLastValid, SelectorRandom:
+		case SelectorRoundRobin, SelectorLastValid, SelectorRandom, SelectorSemiRandom, SelectorSemiRoundRobin:
 		case ConnectTCP, ConnectTLS, ConnectUDP, ConnectICMP, ConnectPipe, ConnectTLSNoVerify:
 			fallthrough
 		case valTLSx, valMuTLS, valTLSxCA, valTLSCert:
@@ -280,11 +290,7 @@ loop:
 			if p.weight = c[i+1]; p.weight > 100 {
 				p.weight = 100
 			}
-		case SelectorLastValid:
-			fallthrough
-		case SelectorRoundRobin:
-			fallthrough
-		case SelectorRandom:
+		case SelectorRandom, SelectorRoundRobin, SelectorLastValid, SelectorSemiRandom, SelectorSemiRoundRobin:
 			z = int8(c[i] - byte(SelectorLastValid))
 		case ConnectTCP:
 			if p.conn != nil {
@@ -324,7 +330,13 @@ loop:
 				return nil, -1, -1, xerr.Wrap("ip", ErrInvalidSetting)
 			}
 			p.conn = com.NewIP(com.DefaultTimeout, c[i+1])
-		case valWC2: // NOTE(dij): Add an entry for a WC2 listener list of proxy redirects
+		case valWC2:
+			// TODO(dij): Add an entry for a WC2 listener list of proxy
+			//            redirects.
+			//
+			//            Going to handle this in Cirrus as there needs to be
+			//            server content and I don't see the use of using a WC2
+			//            connector internally as a proxy. *shrug*
 			if p.conn != nil {
 				return nil, -1, -1, xerr.Wrap("wc2", ErrMultipleConnections)
 			}
@@ -436,6 +448,16 @@ loop:
 			if p.t != nil {
 				return nil, -1, -1, xerr.Wrap("dns", ErrMultipleTransforms)
 			}
+			_ = c[i+1]
+			d := make(transform.DNSTransform, 0, c[i+1])
+			for x, v, e := int(c[i+1]), i+2, i+2; x > 0 && v < n; x-- {
+				if v += int(c[v]) + 1; e+1 > v || e+1 == v {
+					return nil, -1, -1, xerr.Wrap("dns", ErrInvalidSetting)
+				}
+				d = append(d, string(c[e+1:v]))
+				e = v
+			}
+			p.t = d
 		case valB64Shift:
 			if p.t != nil {
 				return nil, -1, -1, xerr.Wrap("b64S", ErrMultipleTransforms)

@@ -1,16 +1,8 @@
 //go:build !crypt
-// +build !crypt
 
 package device
 
-import "regexp"
-
-const (
-	home    = "$HOME"
-	emptyIP = "0.0.0.0"
-)
-
-var envExp = regexp.MustCompile(`%[\w\d()_-]+%|\$[\w\d_-]+|\$\{[[\w\d_-]+\}`)
+const emptyIP = "0.0.0.0"
 
 func (d deviceOS) String() string {
 	switch d {

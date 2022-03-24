@@ -21,7 +21,8 @@ const (
 	SelectorLastValid = cBit(0xAA)
 	// SelectorRoundRobin is a selection option that will simply select the NEXT
 	// Group on every connection attempt. This option is affected by the Group
-	// weights set on each addition and will perfer higher numbered options.
+	// weights set on each addition and will perfer higher numbered options in
+	// order.
 	//
 	// Takes effect only if there are multiple Groups in this Config.
 	// This value is GLOBAL and can be present in any Group!
@@ -32,6 +33,23 @@ const (
 	// Takes effect only if there are multiple Groups in this Config.
 	// This value is GLOBAL and can be present in any Group!
 	SelectorRandom = cBit(0xAC)
+	// SelectorSemiRoundRobin is a selection option that will potentially select
+	// the NEXT Group dependent on a random (25%) chance on every connection
+	// attempt. This option is affected by the Group weights set on each addition
+	// and will perfer higher numbered options in order. Otherwise, the last
+	// group used is kept.
+	//
+	// Takes effect only if there are multiple Groups in this Config.
+	// This value is GLOBAL and can be present in any Group!
+	SelectorSemiRoundRobin = cBit(0xAD)
+	// SelectorSemiRandom is a selection option that will ignore all weights and
+	// order and will select an entry from the list randomally dependent on a
+	// random (25%) chance on every connection attempt. Otherwise, the last
+	// group used is kept.
+	//
+	// Takes effect only if there are multiple Groups in this Config.
+	// This value is GLOBAL and can be present in any Group!
+	SelectorSemiRandom = cBit(0xAE)
 )
 
 // Group is a struct that allows for using multiple connections for a single
@@ -125,7 +143,10 @@ func (g *Group) Switch(e bool) bool {
 	if g.sel == 0 && !e && g.cur != nil {
 		return false
 	}
-	if g.lock.Lock(); g.sel == 2 {
+	if g.cur != nil && (g.sel == 3 || g.sel == 4) && util.FastRandN(4) != 0 {
+		return false
+	}
+	if g.lock.Lock(); g.sel == 2 || g.sel == 4 {
 		if n := g.entries[util.FastRandN(len(g.entries))]; g.cur != n {
 			g.cur = n
 			g.lock.Unlock()

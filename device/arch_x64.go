@@ -1,5 +1,4 @@
 //go:build amd64 || amd64le
-// +build amd64 amd64le
 
 package device
 

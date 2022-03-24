@@ -1,5 +1,4 @@
 //go:build !windows
-// +build !windows
 
 package pipe
 
@@ -101,12 +100,12 @@ func getPerms(s string) (os.FileMode, int, int, error) {
 	if err != nil {
 		return 0, -1, -1, err
 	}
-	if len(v) == 3 {
+	if len(v) == 3 && len(v[2]) > 0 {
 		if g, err = strconv.Atoi(v[2]); err != nil {
 			return 0, -1, -1, xerr.Wrap("invalid GID", err)
 		}
 	}
-	if len(v) == 2 {
+	if len(v) >= 2 && len(v[1]) > 0 {
 		if u, err = strconv.Atoi(v[1]); err != nil {
 			return 0, -1, -1, xerr.Wrap("invalid UID", err)
 		}

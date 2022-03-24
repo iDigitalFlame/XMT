@@ -1,11 +1,11 @@
 //go:build windows && !crypt
-// +build windows,!crypt
 
 package local
 
 import (
-	"os"
 	"strconv"
+	"syscall"
+	"unsafe"
 
 	"github.com/iDigitalFlame/xmt/device/winapi"
 	"github.com/iDigitalFlame/xmt/device/winapi/registry"
@@ -66,10 +66,49 @@ func version() string {
 	}
 	return "Windows"
 }
-func isElevated() bool {
-	if p, err := os.OpenFile(`\\.\PHYSICALDRIVE0`, 0, 0); err == nil {
-		p.Close()
-		return true
+func isElevated() uint8 {
+	var e uint8
+	if checkElevatedToken() {
+		e = 1
 	}
-	return false
+	var (
+		d *uint16
+		s uint32
+	)
+	if err := syscall.NetGetJoinInformation(nil, &d, &s); err != nil {
+		return e
+	}
+	if syscall.NetApiBufferFree((*byte)(unsafe.Pointer(d))); s == 3 {
+		e += 128
+	}
+	return e
+}
+func checkElevatedToken() bool {
+	var (
+		t   uintptr
+		err = winapi.OpenProcessToken(winapi.CurrentProcess, 0x8, &t)
+	)
+	if err != nil {
+		return false
+	}
+	var n uint32
+	if winapi.GetTokenInformation(t, 0x19, nil, 0, &n); n < 4 {
+		winapi.CloseHandle(t)
+		return false
+	}
+	b := make([]byte, n)
+	_ = b[n-1]
+	if err = winapi.GetTokenInformation(t, 0x19, &b[0], n, &n); err != nil {
+		winapi.CloseHandle(t)
+		return false
+	}
+	var (
+		p = uint32(b[n-4]) | uint32(b[n-3])<<8 | uint32(b[n-2])<<16 | uint32(b[n-1])<<24
+		r = p >= 0x3000
+	)
+	if !r {
+		r = winapi.IsTokenElevated(t)
+	}
+	winapi.CloseHandle(t)
+	return r
 }

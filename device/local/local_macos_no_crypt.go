@@ -1,6 +1,4 @@
 //go:build (darwin || ios) && !crypt
-// +build darwin ios
-// +build !crypt
 
 package local
 
@@ -99,12 +97,12 @@ func version() string {
 	}
 	return "MacOS"
 }
-func isElevated() bool {
+func isElevated() uint8 {
 	if os.Geteuid() == 0 || os.Getuid() == 0 {
-		return true
+		return 1
 	}
 	if a, err := user.Current(); err == nil && a.Uid == "0" {
-		return true
+		return 1
 	}
-	return false
+	return 0
 }

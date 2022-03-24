@@ -56,6 +56,7 @@ type marshaler interface {
 	MarshalBinary() (data []byte, err error)
 }
 type readerTimeout struct {
+	_ [0]func()
 	c net.Conn
 	t time.Duration
 	i bool

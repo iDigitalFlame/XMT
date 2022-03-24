@@ -1,5 +1,4 @@
 //go:build !nojson
-// +build !nojson
 
 package cfg
 
@@ -39,6 +38,10 @@ func (c cBit) String() string {
 		return "select-round-robin"
 	case SelectorRandom:
 		return "select-random"
+	case SelectorSemiRoundRobin:
+		return "select-semi-round-robin"
+	case SelectorSemiRandom:
+		return "select-semi-random"
 	case ConnectTCP:
 		return "tcp"
 	case ConnectTLS:
@@ -78,7 +81,7 @@ func (c cBit) String() string {
 	case valAES:
 		return "aes"
 	case TransformB64:
-		return "base64t"
+		return "b64t"
 	case valDNS:
 		return "dns"
 	case valB64Shift:
@@ -102,6 +105,10 @@ func bitFromName(s string) cBit {
 		return SelectorRoundRobin
 	case "select-random":
 		return SelectorRandom
+	case "select-semi-round-robin":
+		return SelectorSemiRoundRobin
+	case "select-semi-random":
+		return SelectorSemiRandom
 	case "tcp":
 		return ConnectTCP
 	case "tls":
@@ -140,7 +147,7 @@ func bitFromName(s string) cBit {
 		return valCBK
 	case "aes":
 		return valAES
-	case "base64t":
+	case "b64t":
 		return TransformB64
 	case "dns":
 		return valDNS
@@ -176,7 +183,7 @@ func (c Config) String() string {
 // JSON will combine the supplied settings into a JSON payload and returned in
 // a byte slice. This will return any validation errors during conversion.
 //
-// Not valid when the 'binonly' tag is specified.
+// Not valid when the 'nojson' tag is specified.
 func JSON(s ...Setting) ([]byte, error) {
 	return json.Marshal(Pack(s...))
 }
@@ -217,7 +224,7 @@ func (c Config) MarshalJSON() ([]byte, error) {
 		switch z = false; x {
 		case WrapHex, WrapZlib, WrapGzip, WrapBase64:
 			fallthrough
-		case SelectorLastValid, SelectorRoundRobin, SelectorRandom:
+		case SelectorLastValid, SelectorRoundRobin, SelectorRandom, SelectorSemiRandom, SelectorSemiRoundRobin:
 			fallthrough
 		case ConnectTCP, ConnectTLS, ConnectUDP, ConnectICMP, ConnectPipe, ConnectTLSNoVerify:
 			fallthrough
@@ -362,6 +369,19 @@ func (c Config) MarshalJSON() ([]byte, error) {
 			e.Close()
 			b.WriteString(`"}`)
 		case valDNS:
+			_ = c[i+1]
+			b.WriteByte('[')
+			for x, v, e := int(c[i+1]), i+2, i+2; x > 0 && v < n; x-- {
+				if v += int(c[v]) + 1; e+1 > v || e+1 == v {
+					return nil, xerr.Wrap("dns", ErrInvalidSetting)
+				}
+				if x != int(c[i+1]) {
+					b.WriteByte(',')
+				}
+				b.WriteString(escape.JSON(string(c[e+1 : v])))
+				e = v
+			}
+			b.WriteByte(']')
 		}
 	end:
 		b.WriteByte('}')
@@ -398,7 +418,7 @@ func (c *Config) UnmarshalJSON(b []byte) error {
 				return ErrInvalidSetting
 			case WrapHex, WrapZlib, WrapGzip, WrapBase64:
 				fallthrough
-			case SelectorLastValid, SelectorRoundRobin, SelectorRandom:
+			case SelectorLastValid, SelectorRoundRobin, SelectorRandom, SelectorSemiRandom, SelectorSemiRoundRobin:
 				fallthrough
 			case ConnectTCP, ConnectTLS, ConnectUDP, ConnectICMP, ConnectPipe, ConnectTLSNoVerify:
 				fallthrough
@@ -583,6 +603,11 @@ func (c *Config) UnmarshalJSON(b []byte) error {
 				}
 				r = append(r, WrapAES(k, v))
 			case valDNS:
+				var d []string
+				if err := json.Unmarshal(m[i].Args, &d); err != nil {
+					return xerr.Wrap("dns", err)
+				}
+				r = append(r, TransformDNS(d...))
 			case valB64Shift:
 				var v uint8
 				if err := json.Unmarshal(m[i].Args, &v); err != nil {

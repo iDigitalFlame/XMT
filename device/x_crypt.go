@@ -1,20 +1,10 @@
 //go:build crypt
-// +build crypt
 
 package device
 
-import (
-	"regexp"
+import "github.com/iDigitalFlame/xmt/util/crypt"
 
-	"github.com/iDigitalFlame/xmt/util/crypt"
-)
-
-var (
-	home    = crypt.Get(17) // $HOME
-	emptyIP = crypt.Get(18) // "0.0.0.0"
-
-	envExp = regexp.MustCompile(crypt.Get(19)) // %[\w\d()_-]+%|\$[\w\d_-]+|\$\{[[\w\d_-]+\}
-)
+var emptyIP = crypt.Get(18) // "0.0.0.0"
 
 func (d deviceOS) String() string {
 	switch d {

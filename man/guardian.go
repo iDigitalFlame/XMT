@@ -24,6 +24,7 @@ import (
 //
 // Guardian instances use Linker interfaces to determine status.
 type Guardian struct {
+	_    [0]func()
 	ch   chan struct{}
 	sock listener
 }

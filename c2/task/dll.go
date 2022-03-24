@@ -221,7 +221,7 @@ func (d *DLL) UnmarshalStream(r data.Reader) error {
 	if err := r.ReadInt64((*int64)(&d.Timeout)); err != nil {
 		return err
 	}
-	if err := d.Filter.UnmarshalStream(r); err != nil {
+	if err := filter.UnmarshalStream(r, &d.Filter); err != nil {
 		return err
 	}
 	if err := r.ReadBytes(&d.Data); err != nil {

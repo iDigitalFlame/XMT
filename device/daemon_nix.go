@@ -1,5 +1,4 @@
 //go:build !windows || noservice
-// +build !windows noservice
 
 package device
 

@@ -1,5 +1,4 @@
 //go:build windows && !crypt
-// +build windows,!crypt
 
 package winapi
 
@@ -16,21 +15,34 @@ var (
 	funcGetCurrentProcessID = dllKernel32.proc("GetCurrentProcessId")
 
 	dllNtdll    = &lazyDLL{Name: "ntdll.dll"}
+	dllGdi32    = &lazyDLL{Name: "gdi32.dll"}
+	dllUser32   = &lazyDLL{Name: "user32.dll"}
 	dllWinhttp  = &lazyDLL{Name: "winhttp.dll"}
+	dllDbgHelp  = &lazyDLL{Name: "DbgHelp.dll"}
 	dllAdvapi32 = &lazyDLL{Name: "advapi32.dll"}
 
+	funcGetDC                                               = dllUser32.proc("GetDC")
+	funcBitBlt                                              = dllGdi32.proc("BitBlt")
 	funcReadFile                                            = dllKernel32.proc("ReadFile")
 	funcLsaClose                                            = dllAdvapi32.proc("LsaClose")
+	funcDeleteDC                                            = dllGdi32.proc("DeleteDC")
 	funcWriteFile                                           = dllKernel32.proc("WriteFile")
 	funcOpenMutex                                           = dllKernel32.proc("OpenMutexW")
 	funcLocalFree                                           = dllKernel32.proc("LocalFree")
 	funcOpenEvent                                           = dllKernel32.proc("OpenEventW")
+	funcGetDIBits                                           = dllGdi32.proc("GetDIBits")
+	funcReleaseDC                                           = dllUser32.proc("ReleaseDC")
 	funcCreateFile                                          = dllKernel32.proc("CreateFileW")
 	funcGetVersion                                          = dllKernel32.proc("GetVersion")
 	funcCancelIoEx                                          = dllKernel32.proc("CancelIoEx")
+	funcGlobalLock                                          = dllKernel32.proc("GlobalLock")
+	funcGlobalFree                                          = dllKernel32.proc("GlobalFree")
+	funcGlobalAlloc                                         = dllKernel32.proc("GlobalAlloc")
 	funcLoadLibrary                                         = dllKernel32.proc("LoadLibraryW")
 	funcCreateMutex                                         = dllKernel32.proc("CreateMutexW")
 	funcCreateEvent                                         = dllKernel32.proc("CreateEventW")
+	funcSelectObject                                        = dllGdi32.proc("SelectObject")
+	funcDeleteObject                                        = dllGdi32.proc("DeleteObject")
 	funcNtTraceEvent                                        = dllNtdll.proc("NtTraceEvent")
 	funcResumeThread                                        = dllKernel32.proc("ResumeThread")
 	funcThread32Next                                        = dllKernel32.proc("Thread32Next")
@@ -38,6 +50,7 @@ var (
 	funcGetProcessID                                        = dllKernel32.proc("GetProcessId")
 	funcRevertToSelf                                        = dllAdvapi32.proc("RevertToSelf")
 	funcRegEnumValue                                        = dllAdvapi32.proc("RegEnumValueW")
+	funcGlobalUnlock                                        = dllKernel32.proc("GlobalUnlock")
 	funcWaitNamedPipe                                       = dllKernel32.proc("WaitNamedPipeW")
 	funcCreateProcess                                       = dllKernel32.proc("CreateProcessW")
 	funcSuspendThread                                       = dllKernel32.proc("SuspendThread")
@@ -46,6 +59,7 @@ var (
 	funcThread32First                                       = dllKernel32.proc("Thread32First")
 	funcLsaOpenPolicy                                       = dllAdvapi32.proc("LsaOpenPolicy")
 	funcOpenSemaphore                                       = dllKernel32.proc("OpenSemaphoreW")
+	funcGetMonitorInfo                                      = dllUser32.proc("GetMonitorInfoW")
 	funcVirtualProtect                                      = dllKernel32.proc("VirtualProtect")
 	funcIsWellKnownSID                                      = dllAdvapi32.proc("IsWellKnownSid")
 	funcProcess32First                                      = dllKernel32.proc("Process32FirstW")
@@ -67,9 +81,14 @@ var (
 	funcNtCreateThreadEx                                    = dllNtdll.proc("NtCreateThreadEx")
 	funcGetLogicalDrives                                    = dllKernel32.proc("GetLogicalDrives")
 	funcOpenProcessToken                                    = dllAdvapi32.proc("OpenProcessToken")
+	funcGetDesktopWindow                                    = dllUser32.proc("GetDesktopWindow")
 	funcIsDebuggerPresent                                   = dllKernel32.proc("IsDebuggerPresent")
+	funcMiniDumpWriteDump                                   = dllDbgHelp.proc("MiniDumpWriteDump")
 	funcGetExitCodeThread                                   = dllKernel32.proc("GetExitCodeThread")
 	funcGetExitCodeProcess                                  = dllKernel32.proc("GetExitCodeProcess")
+	funcCreateCompatibleDC                                  = dllGdi32.proc("CreateCompatibleDC")
+	funcEnumDisplayMonitors                                 = dllUser32.proc("EnumDisplayMonitors")
+	funcEnumDisplaySettings                                 = dllUser32.proc("EnumDisplaySettingsW")
 	funcGetTokenInformation                                 = dllAdvapi32.proc("GetTokenInformation")
 	funcGetOverlappedResult                                 = dllKernel32.proc("GetOverlappedResult")
 	funcNtFreeVirtualMemory                                 = dllNtdll.proc("NtFreeVirtualMemory")
@@ -79,6 +98,7 @@ var (
 	funcLookupPrivilegeValue                                = dllAdvapi32.proc("LookupPrivilegeValueW")
 	funcConvertSIDToStringSID                               = dllAdvapi32.proc("ConvertSidToStringSidW")
 	funcAdjustTokenPrivileges                               = dllAdvapi32.proc("AdjustTokenPrivileges")
+	funcCreateCompatibleBitmap                              = dllGdi32.proc("CreateCompatibleBitmap")
 	funcNtProtectVirtualMemory                              = dllNtdll.proc("NtProtectVirtualMemory")
 	funcCreateProcessWithToken                              = dllAdvapi32.proc("CreateProcessWithTokenW")
 	funcNtAllocateVirtualMemory                             = dllNtdll.proc("NtAllocateVirtualMemory")

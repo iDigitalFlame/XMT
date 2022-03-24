@@ -45,6 +45,23 @@ func defaultClientMux(s *Session, n *com.Packet) bool {
 	if cout.Enabled {
 		s.log.Info("[%s/MuX] Received packet %q.", s.ID, n)
 	}
+	if n.ID == task.MvScript {
+		// TODO(dij): Custom handler for "scripts" here.
+		//            Scripts are basically an array list of Packet commands.
+		//            That should be processed just like any other task and ran
+		//            blocking sequentially.
+		//
+		//            Script packet will contain a single flag that will determine
+		//            if:
+		//               - Errors stop execution
+		//               - Results from packets should be returned or ignored
+		//                 - Ignored results will still indicate a yes|no if failed
+		//
+		//            I'm on the fence if we should care about Migrate packets
+		//            NOT being the last packet, since it will invalidate the
+		//            tasks after it.
+		return true
+	}
 	if n.ID < RvResult {
 		if n.ID == task.MvSpawn {
 			go executeTask(s.handleSpawn, s, n)
@@ -81,7 +98,7 @@ func defaultClientMux(s *Session, n *com.Packet) bool {
 		}
 		if ret404Tasks {
 			r := &com.Packet{ID: RvResult, Job: n.Job, Device: s.ID, Flags: com.FlagError}
-			r.WriteString("no TaskID mapping found")
+			r.WriteString("0x0")
 			s.queue(r)
 		}
 		return false
@@ -278,7 +295,7 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 func readCallable(x context.Context, r data.Reader) (cmd.Runnable, string, error) {
 	var (
 		f   *filter.Filter
-		err = f.UnmarshalStream(r)
+		err = filter.UnmarshalStream(r, &f)
 	)
 	if err != nil {
 		return nil, "", err

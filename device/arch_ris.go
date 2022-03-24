@@ -1,5 +1,4 @@
 //go:build riscv64 || riscv
-// +build riscv64 riscv
 
 package device
 

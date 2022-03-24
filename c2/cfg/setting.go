@@ -14,7 +14,7 @@ const (
 	valHost   = cBit(0xA0)
 	valSleep  = cBit(0xA1)
 	valJitter = cBit(0xA2)
-	valWeight = cBit(0xAE)
+	valWeight = cBit(0xA3)
 )
 
 type cBit byte

@@ -48,6 +48,7 @@ var (
 
 type set [2]byte
 type random struct {
+	_ [0]func()
 	s interface {
 		Intn(int) int
 		Int63() int64

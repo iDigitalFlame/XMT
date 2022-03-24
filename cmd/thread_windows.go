@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 package cmd
 
@@ -161,7 +160,7 @@ func (t *thread) Location() (uintptr, error) {
 }
 func (t *thread) stopWith(c uint32, e error) error {
 	if !t.Running() {
-		return nil
+		return e
 	}
 	if atomic.LoadUint32(&t.cookie) != 1 {
 		s := t.cookie

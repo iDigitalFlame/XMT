@@ -1,5 +1,4 @@
 //go:build !stdrand
-// +build !stdrand
 
 package util
 

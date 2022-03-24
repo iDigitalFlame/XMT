@@ -1,5 +1,4 @@
 //go:build js || plan9
-// +build js plan9
 
 package cmd
 

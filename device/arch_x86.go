@@ -1,5 +1,4 @@
 //go:build 386 || s390x
-// +build 386 s390x
 
 package device
 

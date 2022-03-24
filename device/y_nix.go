@@ -1,5 +1,4 @@
 //go:build !windows
-// +build !windows
 
 package device
 
@@ -19,11 +18,6 @@ var ErrNoWindows = xerr.Sub("only supported on Windows devices", 0xFA)
 type stringHeader struct {
 	Data uintptr
 	Len  int
-}
-
-// IsDebugged returns true if the current process is attached by a debugger.
-func IsDebugged() bool {
-	return false
 }
 
 // RevertToSelf function terminates the impersonation of a client application.

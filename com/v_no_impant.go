@@ -1,5 +1,4 @@
 //go:build !implant
-// +build !implant
 
 package com
 

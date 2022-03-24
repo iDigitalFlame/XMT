@@ -46,7 +46,7 @@ func testGroups() {
 		cfg.Jitter(0),
 	)
 
-	// Use the last valid group, unless and error happens.
+	// Use the last valid group, unless an error happens.
 	c.Add(cfg.SelectorLastValid)
 
 	if len(os.Args) == 1 {

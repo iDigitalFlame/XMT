@@ -5,7 +5,9 @@
     },
     "1": {
         "value": "(\\%(\\d+f?)?[dhcsuln])",
-        "tags": []
+        "tags": [
+            "regexp"
+        ]
     },
     "2": {
         "value": "ip",
@@ -86,8 +88,10 @@
         "tags": []
     },
     "19": {
-        "value": "%[\\w\\d()_-]+%|\\$[\\w\\d_-]+|\\$\\{[[\\w\\d_-]+\\}",
-        "tags": []
+        "value": "%USERPROFILE%",
+        "tags": [
+            "windows"
+        ]
     },
     "20": {
         "value": "Windows",
@@ -386,9 +390,9 @@
         ]
     },
     "78": {
-        "value": "\\\\.\\PHYSICALDRIVE0",
+        "value": "/status",
         "tags": [
-            "windows"
+            "!windows"
         ]
     },
     "79": {
@@ -1435,5 +1439,158 @@
         "tags": [
             "windows"
         ]
+    },
+    "216": {
+        "value": "user32.dll",
+        "tags": [
+            "windows"
+        ]
+    },
+    "217": {
+        "value": "gdi32.dll",
+        "tags": [
+            "windows"
+        ]
+    },
+    "218": {
+        "value": "GlobalAlloc",
+        "tags": [
+            "windows"
+        ]
+    },
+    "219": {
+        "value": "GlobalFree",
+        "tags": [
+            "windows"
+        ]
+    },
+    "220": {
+        "value": "GlobalLock",
+        "tags": [
+            "windows"
+        ]
+    },
+    "221": {
+        "value": "GlobalUnlock",
+        "tags": [
+            "windows"
+        ]
+    },
+    "222": {
+        "value": "DeleteDC",
+        "tags": [
+            "windows"
+        ]
+    },
+    "223": {
+        "value": "DeleteObject",
+        "tags": [
+            "windows"
+        ]
+    },
+    "224": {
+        "value": "CreateCompatibleDC",
+        "tags": [
+            "windows"
+        ]
+    },
+    "225": {
+        "value": "CreateCompatibleBitmap",
+        "tags": [
+            "windows"
+        ]
+    },
+    "226": {
+        "value": "SelectObject",
+        "tags": [
+            "windows"
+        ]
+    },
+    "227": {
+        "value": "BitBlt",
+        "tags": [
+            "windows"
+        ]
+    },
+    "228": {
+        "value": "GetDIBits",
+        "tags": [
+            "windows"
+        ]
+    },
+    "229": {
+        "value": "GetDC",
+        "tags": [
+            "windows"
+        ]
+    },
+    "230": {
+        "value": "ReleaseDC",
+        "tags": [
+            "windows"
+        ]
+    },
+    "231": {
+        "value": "GetMonitorInfoW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "232": {
+        "value": "GetDesktopWindow",
+        "tags": [
+            "windows"
+        ]
+    },
+    "233": {
+        "value": "EnumDisplayMonitors",
+        "tags": [
+            "windows"
+        ]
+    },
+    "234": {
+        "value": "EnumDisplaySettingsW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "235": {
+        "value": "DbgHelp.dll",
+        "tags": [
+            "windows"
+        ]
+    },
+    "236": {
+        "value": "MiniDumpWriteDump",
+        "tags": [
+            "windows"
+        ]
+    },
+    "237": {
+        "value": "/proc/",
+        "tags": [
+            "!windows"
+        ]
+    },
+    "238": {
+        "value": "/maps",
+        "tags": [
+            "!windows"
+        ]
+    },
+    "239": {
+        "value": "/mem",
+        "tags": [
+            "!windows"
+        ]
+    },
+    "240": {
+        "value": "/proc/self/status",
+        "tags": [
+            "!windows"
+        ]
+    },
+    "241": {
+        "value": "amazon.com\namazonaws.com\napple.com\naws.amazon.com\nbing.com\ndocs.google.com\nduckduckgo.com\nebay.com\nfacebook.com\ngithub.com\ngmail.com\ngoogle.com\nimages.google.com\nimg.t.co\ninstagram.com\nlinkedin.com\nlogin.live.com\nmaps.google.com\nmicrosoft.com\nmsn.com\noffice.com\noffice365.com\noutlook.com\noutlook.office.com\npaypal.com\nredd.it\nreddit.com\ns3.amazon.com\nsharepoint.com\nslack.com\nspotify.com\nt.co\ntwimg.com\ntwitch.tv\ntwitter.com\nupdate.windows.com\nwalmart.com\nwikipedia.org\nwindows.com\nxp.apple.com\nyahoo.com"
     }
 }

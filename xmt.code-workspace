@@ -37,8 +37,12 @@
             "1.C": "cpp"
         },
         "cSpell.words": [
+            "gcflags",
             "GOARCH",
+            "GOROOT",
             "ldflags",
+            "mkdtemp",
+            "netip",
             "pexec",
             "Protos"
         ]

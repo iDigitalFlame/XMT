@@ -1,5 +1,4 @@
 //go:build !implant
-// +build !implant
 
 package c2
 
@@ -144,7 +143,8 @@ func (s *Session) JSON(w io.Writer) error {
 		`"version":` + escape.JSON(s.Device.Version) + `,` +
 		`"arch":"` + s.Device.Arch.String() + `",` +
 		`"os":` + escape.JSON(s.Device.OS.String()) + `,` +
-		`"elevated":` + strconv.FormatBool(s.Device.Elevated) + `,` +
+		`"elevated":` + strconv.FormatBool(s.Device.IsElevated()) + `,` +
+		`"domain":` + strconv.FormatBool(s.Device.IsDomainJoined()) + `,` +
 		`"pid":` + strconv.Itoa(int(s.Device.PID)) + `,` +
 		`"ppid":` + strconv.Itoa(int(s.Device.PPID)) + `,` +
 		`"network":[`,

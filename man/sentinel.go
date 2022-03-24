@@ -3,7 +3,6 @@ package man
 import (
 	"context"
 	"crypto/cipher"
-	"encoding/json"
 	"io"
 	"net/http"
 	"os"
@@ -88,7 +87,7 @@ func LazyF(p string) Loader {
 func (s Sentinel) text() [][]byte {
 	v := make([][]byte, 0, len(s.Paths)+2)
 	if s.Filter != nil {
-		if b, err := json.Marshal(s.Filter); err == nil && len(b) > 2 {
+		if b, err := s.Filter.MarshalJSON(); err == nil && len(b) > 2 {
 			v = append(v, b)
 		}
 	}

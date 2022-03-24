@@ -1,5 +1,4 @@
 //go:build nosweep
-// +build nosweep
 
 package limits
 

@@ -1,5 +1,4 @@
 //go:build !windows && !js && !plan9 && !darwin && !ios && crypt
-// +build !windows,!js,!plan9,!darwin,!ios,crypt
 
 package local
 

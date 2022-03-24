@@ -1,5 +1,4 @@
 //go:build ppc || ppc64 || ppc64le
-// +build ppc ppc64 ppc64le
 
 package device
 

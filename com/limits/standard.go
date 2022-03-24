@@ -1,5 +1,4 @@
 //go:build !tiny && !small && !medium && !nofrag
-// +build !tiny,!small,!medium,!nofrag
 
 package limits
 

@@ -1,5 +1,4 @@
 //go:build (wasm || js) && !crypt
-// +build wasm js
 
 package local
 
@@ -9,6 +8,6 @@ func sysID() []byte {
 func version() string {
 	return "JavaScript"
 }
-func isElevated() bool {
-	return false
+func isElevated() uint8 {
+	return 0
 }

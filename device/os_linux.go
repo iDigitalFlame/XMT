@@ -1,5 +1,4 @@
 //go:build android || linux
-// +build android linux
 
 package device
 

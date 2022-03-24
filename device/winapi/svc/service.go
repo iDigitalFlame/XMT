@@ -1,10 +1,10 @@
 //go:build windows
-// +build windows
 
 package svc
 
 import (
 	"context"
+	"os"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -168,6 +168,9 @@ func (s *svcInstance) Update(v Status) {
 // This function will block until complete.
 // Any errors returned indicate that bootstrappping of the service failed.
 func Run(name string, f Handler) error {
+	if service.f != nil {
+		return os.ErrInvalid
+	}
 	n, err := winapi.UTF16PtrFromString(name)
 	if err != nil {
 		return err
@@ -235,6 +238,12 @@ func serviceMain(argc uint32, argv **uint16) uintptr {
 	//            block.
 	service.in, service.out = make(chan Change, 1), make(chan Status)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				x <- 0x1
+				close(x)
+			}
+		}()
 		x <- service.f(b, service, a)
 		close(x)
 	}()

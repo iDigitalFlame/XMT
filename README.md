@@ -11,7 +11,6 @@ of this.
 
 These are some things I need to work on.
 
-- Screenshotter
 - Keyloging?
 - Shellcode for Linux?
 - Add in memory (Reflective) DLL injection (Sorta have it?)

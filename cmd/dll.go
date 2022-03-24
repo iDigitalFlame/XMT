@@ -104,6 +104,7 @@ func (d *DLL) Handle() (uintptr, error) {
 //
 // NOTE(dij): This function does a write to disk.
 // TODO(dij): In a future release, make this into a reflective loader.
+//             Use 'NewAssembly(DLLtoASM(b))' func to bypass this.
 func NewDLLBytes(b []byte) (*DLL, error) {
 	return NewDLLBytesContext(context.Background(), b)
 }

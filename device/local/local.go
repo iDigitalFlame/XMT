@@ -40,7 +40,7 @@ type local struct {
 //
 // This function is evaluated at runtime.
 func Elevated() bool {
-	return Device.Elevated
+	return Device.Elevated&1 == 1
 }
 func getID() device.ID {
 	var i device.ID

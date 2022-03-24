@@ -4,10 +4,10 @@ import (
 	"context"
 	"io"
 	"net"
+	"net/netip"
 	"sync"
 	"time"
 
-	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/crypt"
 )
@@ -36,7 +36,6 @@ var (
 type udpErr struct{}
 type udpConn struct {
 	lock        sync.Mutex
-	addr        net.Addr
 	bufs        chan udpData
 	sock        *udpListener
 	wake        chan struct{}
@@ -45,12 +44,9 @@ type udpConn struct {
 	read, write time.Duration
 }
 type udpData struct {
+	_ [0]func()
 	b *[udpLimit]byte
 	n int
-}
-type udpAddr struct {
-	device.Address // Go 1.18 Replace with netip.Addr
-	p              uint16
 }
 type udpStream struct {
 	net.Conn
@@ -58,13 +54,18 @@ type udpStream struct {
 	size        int
 	read, write time.Duration
 }
+type udpSock interface {
+	WriteToUDPAddrPort([]byte, netip.AddrPort) (int, error)
+	ReadFromUDPAddrPort([]byte) (int, netip.AddrPort, error)
+	net.PacketConn
+}
 type udpListener struct {
 	del      chan udpAddr
 	err      error
 	ctx      context.Context
 	new      chan *udpConn
 	cons     map[udpAddr]*udpConn
-	sock     net.PacketConn
+	sock     udpSock
 	lock     sync.RWMutex
 	cancel   context.CancelFunc
 	deadline time.Duration
@@ -72,6 +73,7 @@ type udpListener struct {
 type udpConnector struct {
 	net.Dialer
 }
+type udpAddr netip.AddrPort
 
 func (udpErr) Timeout() bool {
 	return true
@@ -102,7 +104,7 @@ loop:
 	for l.sock.SetReadDeadline(empty); ; l.sock.SetReadDeadline(empty) {
 		var (
 			b         = buffers.Get().(*[udpLimit]byte)
-			n, a, err = l.sock.ReadFrom((*b)[:])
+			n, a, err = l.sock.ReadFromUDPAddrPort((*b)[:])
 		)
 		if bugtrack.Enabled {
 			bugtrack.Track("com.udpListener.listen(): Accept n=%d, a=%s, err=%s", n, a, err)
@@ -112,29 +114,21 @@ loop:
 			buffers.Put(b)
 			break loop
 		default:
-			if err != nil && a == nil && n == 0 {
+			if err != nil && !a.IsValid() && n == 0 {
 				buffers.Put(b)
 				l.err = err
 				break loop
 			}
-			if n == 0 || a == nil {
+			if n == 0 || !a.IsValid() {
 				buffers.Put(b)
 				continue loop
 			}
 		}
-		var d udpAddr
-		switch v := a.(type) {
-		case *net.IPAddr:
-			d.Set(v.IP)
-		case *net.UDPAddr:
-			d.Set(v.IP)
-			d.p = uint16(v.Port)
-		default:
-		}
-		if d.IsZero() {
+		if !a.IsValid() {
 			buffers.Put(b)
 			continue
 		}
+		d := udpAddr(a)
 		l.lock.RLock()
 		c, ok := l.cons[d]
 		if l.lock.RUnlock(); ok {
@@ -152,7 +146,7 @@ loop:
 		if bugtrack.Enabled {
 			bugtrack.Track("com.udpListener.listen(): New tracked conn a=%s", a)
 		}
-		c = &udpConn{dev: d, addr: a, sock: l, bufs: make(chan udpData, 256), wake: make(chan struct{}, 1)}
+		c = &udpConn{dev: d, sock: l, bufs: make(chan udpData, 256), wake: make(chan struct{}, 1)}
 		c.append(n, b, false)
 		go c.receive(l.ctx)
 		l.lock.Lock()
@@ -182,6 +176,16 @@ func (c *udpConn) Close() error {
 	c.sock = nil
 	return nil
 }
+func (udpAddr) Network() string {
+	return crypt.UDP
+}
+func (u udpAddr) String() string {
+	// NOTE(dij): This causes IPv4 addresses to weirdly be wrapped as an IPv6
+	//            address. This doesn't seem to affect how it works on IPv4, but
+	//            we'll watch it. It only makes IPv4 addresses print out as IPv6
+	//            formatted addresses.
+	return netip.AddrPort(u).String()
+}
 func (l *udpListener) Close() error {
 	err := l.sock.Close()
 	l.cancel()
@@ -191,7 +195,7 @@ func (l *udpListener) Addr() net.Addr {
 	return l.sock.LocalAddr()
 }
 func (c *udpConn) LocalAddr() net.Addr {
-	return c.addr
+	return c.dev
 }
 
 // NewUDP creates a new simple UDP based connector with the supplied timeout.
@@ -202,7 +206,7 @@ func NewUDP(t time.Duration) Connector {
 	return &udpConnector{Dialer: net.Dialer{Timeout: t, KeepAlive: t, DualStack: true}}
 }
 func (c *udpConn) RemoteAddr() net.Addr {
-	return c.addr
+	return c.dev
 }
 func (c *udpConn) receive(x context.Context) {
 	for {
@@ -304,7 +308,7 @@ loop:
 			t = time.NewTimer(c.write)
 			w = t.C
 		}
-		v, err = c.sock.sock.WriteTo(b[s:x], c.addr)
+		v, err = c.sock.sock.WriteToUDPAddrPort(b[s:x], netip.AddrPort(c.dev))
 		s += v
 		x += v
 		if n += v; err != nil {
@@ -383,10 +387,6 @@ func (s *udpStream) Read(b []byte) (int, error) {
 	if bugtrack.Enabled {
 		bugtrack.Track("com.udpStream.Read(): Read s.size=%d, len(s.buf)=%d, len(b)=%d", s.size, len(s.buf), len(b))
 	}
-	/* NOTE(idf): I think this causes false returns when data isn't 100% ready.
-	if s.size == 0 {
-		return 0, io.EOF
-	}*/
 	n := copy(b, s.buf[:s.size])
 	s.buf = s.buf[n:]
 	if s.size -= n; s.size <= 0 {
@@ -573,7 +573,7 @@ func (*udpConnector) Listen(x context.Context, s string) (net.Listener, error) {
 		new:  make(chan *udpConn, 16),
 		del:  make(chan udpAddr, 16),
 		cons: make(map[udpAddr]*udpConn),
-		sock: c,
+		sock: c.(*net.UDPConn),
 	}
 	l.ctx, l.cancel = context.WithCancel(x)
 	go l.purge()

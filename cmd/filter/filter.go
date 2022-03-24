@@ -217,6 +217,9 @@ func (f *Filter) UnmarshalStream(r data.Reader) error {
 	if f == nil {
 		f = new(Filter)
 	}
+	return f.unmarshalStream(r)
+}
+func (f *Filter) unmarshalStream(r data.Reader) error {
 	if err := r.ReadUint32(&f.PID); err != nil {
 		return err
 	}
@@ -236,6 +239,25 @@ func (f *Filter) UnmarshalStream(r data.Reader) error {
 		return err
 	}
 	return nil
+}
+
+// UnmarshalStream will attempt to read the Filter data from the supplied Reader
+// and return any errors that may occur.
+//
+// This function takes a pointer of the Filter pointer so it can fill in any
+// nil or empty Filters with data for a new Filter struct.
+func UnmarshalStream(r data.Reader, f **Filter) error {
+	v, err := r.Bool()
+	if err != nil {
+		return err
+	}
+	if !v {
+		return nil
+	}
+	if *f == nil {
+		*f = new(Filter)
+	}
+	return (*f).unmarshalStream(r)
 }
 
 /*

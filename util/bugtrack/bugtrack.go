@@ -1,5 +1,4 @@
 //go:build bugs
-// +build bugs
 
 package bugtrack
 

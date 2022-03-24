@@ -1,5 +1,4 @@
 //go:build windows && crypt
-// +build windows,crypt
 
 package pipe
 

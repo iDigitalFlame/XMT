@@ -3,7 +3,6 @@ package man
 import (
 	"crypto/cipher"
 	"crypto/rand"
-	"encoding/json"
 	"io"
 	"net"
 	"net/http"
@@ -107,7 +106,7 @@ func Reader(r io.Reader) (*Sentinel, error) {
 	}
 	var s Sentinel
 	if len(d[0]) > 1 && d[0][0] == '{' && d[0][len(d[0])-1] == '}' {
-		if err := json.Unmarshal([]byte(d[0]), &s.Filter); err != nil {
+		if err := s.Filter.UnmarshalJSON([]byte(d[0])); err != nil {
 			return nil, err
 		}
 		d = d[1:]

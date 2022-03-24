@@ -1,5 +1,4 @@
 //go:build aix || dragonfly || freebsd || illumos || netbsd || openbsd || plan9 || solaris || hurd || zos
-// +build aix dragonfly freebsd illumos netbsd openbsd plan9 solaris hurd zos
 
 package device
 

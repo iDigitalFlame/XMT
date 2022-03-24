@@ -4,12 +4,16 @@ import (
 	"context"
 	"io"
 	"net"
+	"net/netip"
+	"os"
 	"strconv"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/crypt"
 )
+
+var emptyAddr netip.AddrPort
 
 type ipStream struct {
 	udpStream
@@ -21,6 +25,9 @@ type ipListener struct {
 type ipConnector struct {
 	net.Dialer
 	proto byte
+}
+type ipPacketConn struct {
+	net.PacketConn
 }
 
 // NewIP creates a new simple IP based connector with the supplied timeout and
@@ -58,10 +65,30 @@ func (i *ipConnector) Listen(x context.Context, s string) (net.Listener, error) 
 		new:  make(chan *udpConn, 16),
 		del:  make(chan udpAddr, 16),
 		cons: make(map[udpAddr]*udpConn),
-		sock: c,
+		sock: &ipPacketConn{c},
 	}
 	l.ctx, l.cancel = context.WithCancel(x)
 	go l.purge()
 	go l.listen()
 	return &ipListener{proto: i.proto, Listener: l}, nil
+}
+func (i *ipPacketConn) ReadFromUDPAddrPort(b []byte) (int, netip.AddrPort, error) {
+	// NOTE(dij): Have to add this as there's no support for the netip
+	//            package for IPConns.
+	n, a, err := i.ReadFrom(b)
+	if a == nil {
+		return n, emptyAddr, err
+	}
+	v, ok := a.(*net.IPAddr)
+	if !ok {
+		if err != nil {
+			return n, emptyAddr, err
+		}
+		return n, emptyAddr, os.ErrInvalid
+	}
+	x, _ := netip.AddrFromSlice(v.IP)
+	return n, netip.AddrPortFrom(x, 0), err
+}
+func (i *ipPacketConn) WriteToUDPAddrPort(b []byte, a netip.AddrPort) (int, error) {
+	return i.WriteTo(b, &net.IPAddr{IP: a.Addr().AsSlice()})
 }

@@ -1,10 +1,8 @@
 //go:build windows
-// +build windows
 
 package winapi
 
 import (
-	"os"
 	"strings"
 	"syscall"
 	"unsafe"
@@ -43,22 +41,6 @@ type lsaAccountDomainInfo struct {
 	_   lsaString
 	SID *SID
 }
-
-/*
-// GetFunctionAddress returns the function pointer address of the specified
-// function in the DLL name.
-//
-// Before searching, the DLL with the specified name is loaded.
-//
-// If the dll or function name does not exist, an error will be returned.
-func GetFunctionAddress(dll, name string) (uintptr, error) {
-	d, err := loadLibraryEx(dll)
-	if err != nil {
-		return 0, err
-	}
-	return findProc(d, name, dll)
-}
-*/
 
 // ZeroTraceEvent will attempt to zero out the NtTraceEvent function call with
 // a NOP.
@@ -110,13 +92,13 @@ func GetSystemSID() (*SID, error) {
 		h uintptr
 	)
 	o.Length = uint32(unsafe.Sizeof(o))
-	r, _, err := syscall.Syscall6(funcLsaOpenPolicy.address(), 4, 0, uintptr(unsafe.Pointer(&o)), 1, uintptr(unsafe.Pointer(&h)), 0, 0)
+	r, _, err := syscall.SyscallN(funcLsaOpenPolicy.address(), 0, uintptr(unsafe.Pointer(&o)), 1, uintptr(unsafe.Pointer(&h)))
 	if r > 0 {
 		return nil, unboxError(err)
 	}
 	i := new(lsaAccountDomainInfo)
-	r, _, err = syscall.Syscall(funcLsaQueryInformationPolicy.address(), 3, h, 5, uintptr(unsafe.Pointer(&i)))
-	if syscall.Syscall(funcLsaClose.address(), 1, h, 0, 0); r > 0 {
+	r, _, err = syscall.SyscallN(funcLsaQueryInformationPolicy.address(), h, 5, uintptr(unsafe.Pointer(&i)))
+	if syscall.SyscallN(funcLsaClose.address(), h); r > 0 {
 		return nil, unboxError(err)
 	}
 	return i.SID, nil
@@ -147,16 +129,16 @@ func GetProcessFileName(h uintptr) (string, error) {
 		u ntUnicodeString
 		n uint32
 	)
-	r, _, err := syscall.Syscall6(
-		funcNtQueryInformationProcess.address(), 5, h, 0x1B, uintptr(unsafe.Pointer(&u)),
-		uintptr(unsafe.Sizeof(u)+260), uintptr(unsafe.Pointer(&n)), 0,
+	r, _, err := syscall.SyscallN(
+		funcNtQueryInformationProcess.address(), h, 0x1B, uintptr(unsafe.Pointer(&u)),
+		uintptr(unsafe.Sizeof(u)+260), uintptr(unsafe.Pointer(&n)),
 	)
 	if r > 0 {
 		return "", err
 	}
 	v := UTF16ToString(u.Buffer[4:n])
 	for i := len(v) - 1; i > 0; i++ {
-		if os.PathSeparator == v[i] {
+		if v[i] == '\\' {
 			return v[i+1:], nil
 		}
 	}

@@ -22,7 +22,6 @@ import (
 )
 
 const (
-
 	// RvResult is the generic value for indiciating a result value. Packets
 	// that have this as their ID value will be forwarded to the authoritative
 	// Mux and will be discarded if it does not match an active Job ID.

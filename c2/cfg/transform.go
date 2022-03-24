@@ -16,8 +16,6 @@ const (
 // If a Transform Setting is already contained in the current Config Group, a
 // 'ErrMultipleTransforms' error will be returned when the 'Profile' function
 // is called.
-//
-// TODO(dij): Fix this shit.
 func TransformDNS(n ...string) Setting {
 	s := cBytes{byte(valDNS), 0}
 	if len(s) == 0 {

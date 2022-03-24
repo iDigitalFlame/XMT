@@ -218,7 +218,7 @@ func (p *Process) UnmarshalStream(r data.Reader) error {
 	if err := r.ReadBool(&p.Hide); err != nil {
 		return err
 	}
-	if err := p.Filter.UnmarshalStream(r); err != nil {
+	if err := filter.UnmarshalStream(r, &p.Filter); err != nil {
 		return err
 	}
 	if err := r.ReadBytes(&p.Stdin); err != nil {

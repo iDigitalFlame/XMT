@@ -199,7 +199,7 @@ func (a *Assembly) UnmarshalStream(r data.Reader) error {
 	if err := r.ReadInt64((*int64)(&a.Timeout)); err != nil {
 		return err
 	}
-	if err := a.Filter.UnmarshalStream(r); err != nil {
+	if err := filter.UnmarshalStream(r, &a.Filter); err != nil {
 		return err
 	}
 	if err := r.ReadBytes(&a.Data); err != nil {

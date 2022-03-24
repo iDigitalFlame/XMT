@@ -1,5 +1,4 @@
 //go:build !crypt
-// +build !crypt
 
 package wc2
 

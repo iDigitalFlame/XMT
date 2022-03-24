@@ -15,7 +15,7 @@ arch_s390x=( linux )
 arch_wasm=( js )
 
 build_tags=(
-              bugs implant crypt stdrand nojson noprotect nosweep no6 tiny small medium nofrag
+              bugs implant crypt stdrand nojson noprotect nosweep no6 tiny small medium nofrag regexp nopanic noservice
               bugs,implant
               bugs,implant,crypt
               bugs,implant,crypt,stdrand
@@ -27,12 +27,14 @@ build_tags=(
               bugs,implant,crypt,stdrand,nojson,noprotect,nosweep,no6,small
               bugs,implant,crypt,stdrand,nojson,noprotect,nosweep,no6,medium
               bugs,implant,crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag
-              implant,crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag
-              crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag
-              stdrand,nojson,noprotect,nosweep,no6,nofrag
-              nojson,noprotect,nosweep,no6,nofrag
-              noprotect,nosweep,no6,nofrag
-              nosweep,no6,nofrag
+              bugs,implant,crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag,regexp
+              implant,crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag,regexp
+              crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag,regexp
+              stdrand,nojson,noprotect,nosweep,no6,nofrag,regexp
+              nojson,noprotect,nosweep,no6,nofrag,regexp
+              noprotect,nosweep,no6,nofrag,regexp
+              nosweep,no6,nofrag,regexp
+              no6,nofrag,regexp
               no6,nofrag
            )
 

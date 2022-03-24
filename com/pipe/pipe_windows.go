@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 package pipe
 
@@ -23,6 +22,7 @@ var ErrClosed = &errno{m: io.ErrClosedPipe.Error()}
 
 type addr string
 type wait struct {
+	_   [0]func()
 	err error
 	n   uint32
 }
@@ -35,6 +35,7 @@ type errno struct {
 // Listener is a struct that fulfils the 'net.Listener' interface, but used for
 // Windows named pipes.
 type Listener struct {
+	_              [0]func()
 	overlap        *winapi.Overlapped
 	addr           addr
 	active, handle uintptr
@@ -45,6 +46,7 @@ type Listener struct {
 // to the 'net.Conn' interface except it adds the 'Impersonate' function, which
 // is only from the 'AcceptPipe' function.
 type PipeConn struct {
+	_           [0]func()
 	read, write time.Time
 	addr        addr
 	handle      uintptr

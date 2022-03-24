@@ -1,5 +1,4 @@
 //go:build !implant
-// +build !implant
 
 package device
 
@@ -24,7 +23,7 @@ func (d device) String() string {
 // String returns a simple string representation of the Machine instance.
 func (m Machine) String() string {
 	var e string
-	if m.Elevated {
+	if m.IsElevated() {
 		e = "*"
 	}
 	return "[" + m.ID.String() + "] " + m.Hostname + " (" + m.Version + ") " + e + m.User

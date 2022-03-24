@@ -1,5 +1,4 @@
 //go:build !windows
-// +build !windows
 
 package task
 
@@ -22,6 +21,13 @@ func taskInject(_ context.Context, _ data.Reader, _ data.Writer) error {
 }
 func taskZombie(_ context.Context, _ data.Reader, _ data.Writer) error {
 	return device.ErrNoWindows
+}
+func taskRename(_ context.Context, r data.Reader, _ data.Writer) error {
+	s, err := r.StringVal()
+	if err != nil {
+		return err
+	}
+	return device.SetProcessName(s)
 }
 
 // DLLUnmarshal will read this DLL's struct data from the supplied reader and

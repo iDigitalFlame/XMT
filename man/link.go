@@ -68,6 +68,7 @@ type Linker interface {
 	create(s string) (listener, error)
 }
 type netListener struct {
+	_    [0]func()
 	l    net.Listener
 	done uint32
 }

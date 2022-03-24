@@ -1,6 +1,4 @@
 //go:build (aix || dragonfly || freebsd || hurd || illumos || nacl || netbsd || openbsd || plan9 || solaris || zos) && crypt
-// +build aix dragonfly freebsd hurd illumos nacl netbsd openbsd plan9 solaris zos
-// +build crypt
 
 package local
 
@@ -80,12 +78,12 @@ func version() string {
 	}
 	return crypt.Get(114) // BSD
 }
-func isElevated() bool {
+func isElevated() uint8 {
 	if os.Geteuid() == 0 || os.Getuid() == 0 {
-		return true
+		return 1
 	}
 	if a, err := user.Current(); err == nil && a.Uid == "0" {
-		return true
+		return 1
 	}
-	return false
+	return 0
 }

@@ -1,5 +1,4 @@
 //go:build small
-// +build small
 
 package limits
 

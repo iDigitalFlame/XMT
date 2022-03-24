@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 package cmd
 
@@ -49,8 +48,13 @@ type closeFunc func() error
 func checkVersion() bool {
 	versionOnce.Do(func() {
 		if v, err := winapi.GetVersion(); err == nil && v > 0 {
-			if m := byte(v & 0xFF); m >= 6 {
+			switch m := byte(v & 0xFF); {
+			case m > 6:
+				versionOnce.v = true
+			case m == 6:
 				versionOnce.v = byte((v&0xFFFF)>>8) >= 1
+			default:
+				versionOnce.v = false
 			}
 		}
 	})
@@ -365,20 +369,29 @@ func (e *executable) start(x context.Context, p *Process, sus bool) error {
 		}))
 	}
 	if p.Stderr != nil || p.Stdout != nil || p.Stdin != nil {
-		if v.StartupInfo.StdInput, err = e.reader(p.Stdin); err != nil {
+		var si, so, se uintptr
+		if si, err = e.reader(p.Stdin); err != nil {
 			return err
 		}
-		if v.StartupInfo.StdOutput, err = e.writer(p.Stdout); err != nil {
+		if so, err = e.writer(p.Stdout); err != nil {
 			return err
 		}
-		if p.Stderr == nil || p.Stderr == p.Stdout {
-			v.StartupInfo.StdErr = v.StartupInfo.StdOutput
-		} else {
-			if v.StartupInfo.StdErr, err = e.writer(p.Stderr); err != nil {
-				return err
-			}
+		if p.Stderr == p.Stdout {
+			se = so
+		} else if se, err = e.writer(p.Stderr); err != nil {
+			return err
 		}
-		v.StartupInfo.Flags |= 0x100
+		if v != nil {
+			v.StartupInfo.StdErr = se
+			v.StartupInfo.StdInput = si
+			v.StartupInfo.StdOutput = so
+			v.StartupInfo.Flags |= 0x100
+		} else if y != nil {
+			y.StdErr = se
+			y.StdInput = si
+			y.StdOutput = so
+			y.Flags |= 0x100
+		}
 	}
 	u := e.token
 	if u == 0 && e.parent == 0 {

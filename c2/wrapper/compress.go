@@ -37,10 +37,12 @@ var (
 
 type compress uint8
 type reader struct {
+	_ [0]func()
 	p *sync.Pool
 	io.ReadCloser
 }
 type writer struct {
+	_ [0]func()
 	p *sync.Pool
 	io.WriteCloser
 }

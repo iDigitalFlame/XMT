@@ -1,5 +1,4 @@
 //go:build windows && crypt
-// +build windows,crypt
 
 package device
 
@@ -16,6 +15,7 @@ var (
 	// PowerShell is the path to the PowerShell binary, which is based on the
 	// underlying OS type.
 	PowerShell = crypt.Get(38) // powershell.exe
+	home       = crypt.Get(19) // %USERPROFILE%
 )
 
 func shell() string {

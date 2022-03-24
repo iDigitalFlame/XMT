@@ -2,7 +2,6 @@ package device
 
 import (
 	"os"
-	"strings"
 	"sync"
 	"syscall"
 
@@ -66,38 +65,100 @@ func Expand(s string) string {
 	if len(s) == 0 {
 		return s
 	}
-	if len(s) >= 2 && s[0] == '~' && s[1] == '/' {
-		// Account for shell expansion.
+	if len(s) >= 2 && s[0] == '~' && s[1] == '/' && len(home) > 0 {
+		// Account for shell expansion. (Except JS/WASM)
 		s = home + s[1:]
 	}
-	v := envExp.FindAllStringIndex(s, -1)
-	if len(v) == 0 {
+	var (
+		l  = -1
+		b  = builders.Get().(*util.Builder)
+		c  byte
+		v  string
+		ok bool
+	)
+	for i := range s {
+		switch {
+		case s[i] == '$':
+			if c > 0 {
+				if c == '{' {
+					b.WriteString(s[l-1 : i])
+				} else {
+					b.WriteString(s[l:i])
+				}
+			}
+			c, l = s[i], i
+		case s[i] == '%' && c == '%' && i != l:
+			if v, ok = syscall.Getenv(s[l+1 : i]); ok {
+				b.WriteString(v)
+			} else {
+				b.WriteString(s[l:i])
+			}
+			c, l = 0, 0
+		case s[i] == '%':
+			c, l = s[i], i
+		case s[i] == '}' && c == '{':
+			if v, ok = syscall.Getenv(s[l+1 : i]); ok {
+				b.WriteString(v)
+			} else {
+				b.WriteString(s[l-1 : i])
+			}
+			c, l = 0, 0
+		case s[i] == '{' && i > 0 && c == '$':
+			c, l = s[i], i
+		case s[i] >= 'a' && s[i] <= 'z':
+			fallthrough
+		case s[i] >= 'A' && s[i] <= 'Z':
+			fallthrough
+		case s[i] == '_':
+			if c == 0 {
+				b.WriteByte(s[i])
+			}
+		case s[i] >= '0' && s[i] <= '9':
+			if c > 0 && i > l && i-l == 1 {
+				c, l = 0, 0
+			}
+			if c == 0 {
+				b.WriteByte(s[i])
+			}
+		default:
+			if c == '$' {
+				if v, ok = syscall.Getenv(s[l+1 : i]); ok {
+					b.WriteString(v)
+				} else {
+					b.WriteString(s[l:i])
+				}
+				c, l = 0, 0
+			} else if c > 0 {
+				if c == '{' {
+					b.WriteString(s[l-1 : i])
+				} else {
+					b.WriteString(s[l:i])
+				}
+				c, l = 0, 0
+			}
+			b.WriteByte(s[i])
+		}
+	}
+	if l == -1 {
+		builders.Put(b)
 		return s
 	}
-	b := builders.Get().(*util.Builder)
-	b.Grow(len(s))
-	b.WriteString(s[:v[0][0]])
-	for i := range v {
-		if i > 0 {
-			b.WriteString(s[v[i-1][1]:v[i][0]])
+	if l < len(s) {
+		if c == '$' {
+			if v, ok = syscall.Getenv(s[l+1:]); ok {
+				b.WriteString(v)
+			} else {
+				b.WriteString(s[l:])
+			}
+		} else if c == '{' {
+			b.WriteString(s[l-1:])
+		} else {
+			b.WriteString(s[l:])
 		}
-		a, x := 0, 0
-		for ; s[v[i][0]+a] == '%' || s[v[i][0]+a] == '$' || s[v[i][0]+a] == '{'; a++ {
-		}
-		for ; s[v[i][1]-(1+x)] == '%' || s[v[i][1]-(1+x)] == '}'; x++ {
-		}
-		if v[i][0]+a > len(s) || v[i][1]-x > len(s) {
-			break
-		}
-		e, ok := syscall.Getenv(strings.ToLower(s[v[i][0]+a : v[i][1]-x]))
-		if !ok {
-			b.WriteString(s[v[i][0]:v[i][1]])
-			continue
-		}
-		b.WriteString(e)
+	} else {
+		b.WriteString(s[l:])
 	}
-	b.WriteString(s[v[len(v)-1][1]:])
-	r := b.Output()
+	v = b.Output()
 	builders.Put(b)
-	return r
+	return v
 }

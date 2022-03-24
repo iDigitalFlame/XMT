@@ -292,7 +292,7 @@ func (z *Zombie) UnmarshalStream(r data.Reader) error {
 	if err := r.ReadBool(&z.Hide); err != nil {
 		return err
 	}
-	if err := z.Filter.UnmarshalStream(r); err != nil {
+	if err := filter.UnmarshalStream(r, &z.Filter); err != nil {
 		return err
 	}
 	if err := r.ReadBytes(&z.Stdin); err != nil {

@@ -53,6 +53,7 @@ var (
 // If the 'L' or 'C' values are omitted or nil, they will disable that function
 // of this Profile.
 type Static struct {
+	_ [0]func()
 	// W is the Wrapper
 	W Wrapper
 	// T is the Transform
@@ -89,6 +90,7 @@ type Wrapper interface {
 	Wrap(io.WriteCloser) (io.WriteCloser, error)
 }
 type stackCloser struct {
+	_ [0]func()
 	s io.WriteCloser
 	io.WriteCloser
 }

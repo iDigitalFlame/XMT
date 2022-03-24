@@ -1,5 +1,4 @@
 //go:build nojson
-// +build nojson
 
 package cfg
 
