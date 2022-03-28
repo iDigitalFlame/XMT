@@ -22,7 +22,22 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-const timeout = time.Second * 15
+const (
+	timeout = time.Second * 15
+
+	regOpLs  uint8 = 0
+	regOpGet uint8 = iota
+	regOpMake
+	regOpDeleteKey
+	regOpDelete
+	regOpSet
+	regOpSetString
+	regOpSetDword
+	regOpSetQword
+	regOpSetBytes
+	regOpSetExpandString
+	regOpSetStringList
+)
 
 var client struct {
 	sync.Once
@@ -33,6 +48,27 @@ type backer interface {
 	Payload() []byte
 }
 
+// Callable is an internal interface used to specify a wide range of Runnabale
+// types that can be Marshaled into a Packet.
+//
+// Currently the DLL, Zombie, Assembly and Process instances are supported.
+type Callable interface {
+	task() uint8
+	MarshalStream(data.Writer) error
+}
+
+func (DLL) task() uint8 {
+	return TvDLL
+}
+func (Zombie) task() uint8 {
+	return TvZombie
+}
+func (Process) task() uint8 {
+	return TvExecute
+}
+func (Assembly) task() uint8 {
+	return TvAssembly
+}
 func rawParse(r string) (*url.URL, error) {
 	var (
 		i   = strings.IndexRune(r, '/')
@@ -232,7 +268,7 @@ func taskProcList(_ context.Context, _ data.Reader, w data.Writer) error {
 		return err
 	}
 	if len(e) == 0 {
-		return err
+		return nil
 	}
 	for i := range e {
 		if err = e[i].MarshalStream(w); err != nil {

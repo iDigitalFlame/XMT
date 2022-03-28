@@ -1,5 +1,3 @@
-//go:build windows
-
 package winapi
 
 import (
@@ -160,6 +158,9 @@ func utf16EncodeRune(r rune) (uint16, uint16) {
 //
 // If the string contains a NUL byte at any location, it returns syscall.EINVAL.
 func UTF16FromString(s string) ([]uint16, error) {
+	if len(s) == 0 {
+		return []uint16{0}, nil
+	}
 	return utf16Encode([]rune(s + "\x00"))
 }
 

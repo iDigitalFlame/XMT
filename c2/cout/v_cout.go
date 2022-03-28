@@ -27,28 +27,28 @@ func (Log) Set(_ logx.Log) {}
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.
-func (Log) Info(s string, v ...interface{}) {}
+func (Log) Info(_ string, _ ...interface{}) {}
 
 // Error writes a error message to the logger.
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.
-func (Log) Error(s string, v ...interface{}) {}
+func (Log) Error(_ string, _ ...interface{}) {}
 
 // Trace writes a tracing message to the logger.
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.
-func (Log) Trace(s string, v ...interface{}) {}
+func (Log) Trace(_ string, _ ...interface{}) {}
 
 // Debug writes a debugging message to the logger.
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.
-func (Log) Debug(s string, v ...interface{}) {}
+func (Log) Debug(_ string, _ ...interface{}) {}
 
 // Warning writes a warning message to the logger.
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.
-func (Log) Warning(s string, v ...interface{}) {}
+func (Log) Warning(_ string, _ ...interface{}) {}

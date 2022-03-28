@@ -64,7 +64,6 @@ type Session struct {
 	Last, Created time.Time
 	connection
 
-	Mux             Mux
 	wake            chan struct{}
 	frags           map[uint16]*cluster
 	parent          *Listener

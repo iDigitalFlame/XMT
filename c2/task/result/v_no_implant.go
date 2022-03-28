@@ -11,6 +11,7 @@ import (
 	"github.com/iDigitalFlame/xmt/cmd"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
+	"github.com/iDigitalFlame/xmt/device/regedit"
 )
 
 type fileInfo struct {
@@ -232,6 +233,48 @@ func ProcessList(n *com.Packet) ([]cmd.ProcessInfo, error) {
 		}
 	}
 	return e, nil
+}
+
+// Registry will parse the RvResult Packet from a TvRegistry task.
+//
+// The return result is dependent on the resulting operation. If the result is
+// from a 'RegLs' or 'RegGet' operation, this will return the resulting entries
+// found (only one entry if this was a Get operation).
+//
+// The boolean value will return true if the result was a valid registry command
+// that returns no output, such as a Set operation.
+//
+// This function returns an error if any reading errors occur, the Packet is not
+// in the expected format or the Packet is nil or empty.
+func Registry(n *com.Packet) ([]regedit.Entry, bool, error) {
+	if n == nil || n.Empty() {
+		return nil, false, c2.ErrMalformedPacket
+	}
+	o, err := n.Uint8()
+	if err != nil {
+		return nil, false, c2.ErrMalformedPacket
+	}
+	if o > 1 {
+		return nil, o < 13, nil
+	}
+	var c uint32
+	if o == 0 {
+		if err = n.ReadUint32(&c); err != nil {
+			return nil, false, err
+		}
+		if c == 0 {
+			return nil, false, nil
+		}
+	} else {
+		c = 1
+	}
+	r := make([]regedit.Entry, c)
+	for i := range r {
+		if err = r[i].UnmarshalStream(n); err != nil {
+			return nil, false, err
+		}
+	}
+	return r, true, nil
 }
 
 // Assembly will parse the RvResult Packet from a TvAssembly task.

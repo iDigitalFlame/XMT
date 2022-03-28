@@ -17,38 +17,38 @@ func sysID() []byte {
 	if s, err := winapi.GetSystemSID(); err == nil {
 		return []byte(s.String())
 	}
-	k, err := registry.OpenKey(registry.KeyLocalMachine, crypt.Get(68), 0x101) // SOFTWARE\Microsoft\Cryptography
+	k, err := registry.Open(registry.KeyLocalMachine, crypt.Get(68), 0x101) // SOFTWARE\Microsoft\Cryptography
 	if err != nil {
 		return nil
 	}
-	v, _, err := k.GetStringValue(crypt.Get(69)) // MachineGuid
+	v, _, err := k.String(crypt.Get(69)) // MachineGuid
 	if k.Close(); err == nil {
 		return []byte(v)
 	}
 	return nil
 }
 func version() string {
-	k, err := registry.OpenKey(registry.KeyLocalMachine, crypt.Get(70), 0x101) // SOFTWARE\Microsoft\Windows NT\CurrentVersion
+	k, err := registry.Open(registry.KeyLocalMachine, crypt.Get(70), 0x101) // SOFTWARE\Microsoft\Windows NT\CurrentVersion
 	if err != nil {
 		return crypt.Get(71) // Windows (?)
 	}
 	var (
 		b, v    string
-		n, _, _ = k.GetStringValue(crypt.Get(72)) // ProductName
+		n, _, _ = k.String(crypt.Get(72)) // ProductName
 	)
-	if s, _, err := k.GetStringValue(crypt.Get(73)); err == nil { // CurrentBuild
+	if s, _, err := k.String(crypt.Get(73)); err == nil { // CurrentBuild
 		b = s
-	} else if s, _, err := k.GetStringValue(crypt.Get(74)); err == nil { // ReleaseId
+	} else if s, _, err := k.String(crypt.Get(74)); err == nil { // ReleaseId
 		b = s
 	}
-	if i, _, err := k.GetIntegerValue(crypt.Get(75)); err == nil { // CurrentMajorVersionNumber
-		if x, _, err := k.GetIntegerValue(crypt.Get(76)); err == nil { // CurrentMinorVersionNumber
+	if i, _, err := k.Integer(crypt.Get(75)); err == nil { // CurrentMajorVersionNumber
+		if x, _, err := k.Integer(crypt.Get(76)); err == nil { // CurrentMinorVersionNumber
 			v = strconv.Itoa(int(i)) + "." + strconv.Itoa(int(x))
 		} else {
 			v = strconv.Itoa(int(i))
 		}
 	} else {
-		v, _, _ = k.GetStringValue(crypt.Get(77)) // CurrentVersion
+		v, _, _ = k.String(crypt.Get(77)) // CurrentVersion
 	}
 	switch k.Close(); {
 	case len(n) == 0 && len(b) == 0 && len(v) == 0:

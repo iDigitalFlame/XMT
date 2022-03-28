@@ -195,12 +195,11 @@ func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 	if n.ID < task.MvRefresh {
 		return
 	}
-	switch {
-	case s.Mux != nil:
-		s.m.queue(event{p: n, s: s, hf: s.Mux.Handle})
-	default:
-		s.m.queue(event{p: n, s: s, af: s.handle})
+	if s.parent == nil {
+		s.m.queue(event{p: n, s: s, hf: defaultClientMux})
+		return
 	}
+	s.m.queue(event{p: n, s: s, af: s.handle})
 }
 func receive(s *Session, l *Listener, n *com.Packet) error {
 	if n == nil || n.Device.Empty() || isPacketNoP(n) || (l == nil && s == nil) {

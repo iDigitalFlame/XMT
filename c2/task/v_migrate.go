@@ -1,32 +1,11 @@
+//go:build !implant
+
 package task
 
 import (
 	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/com"
-	"github.com/iDigitalFlame/xmt/data"
 )
-
-// Callable is an internal interface used to specify a wide range of Runnabale
-// types that can be Marshaled into a Packet.
-//
-// Currently the DLL, Zombie, Assembly and Process instances are supported.
-type Callable interface {
-	task() uint8
-	MarshalStream(data.Writer) error
-}
-
-func (DLL) task() uint8 {
-	return TvDLL
-}
-func (Zombie) task() uint8 {
-	return TvZombie
-}
-func (Process) task() uint8 {
-	return TvExecute
-}
-func (Assembly) task() uint8 {
-	return TvAssembly
-}
 
 // SpawnPull -
 func SpawnPull(f *filter.Filter, s, url string) *com.Packet {

@@ -139,8 +139,7 @@ func ConnectContext(x context.Context, l logx.Log, p Profile) (*Session, error) 
 		s.log.Info("[%s] Client connected to %q!", s.ID, h)
 	}
 	r, n = nil, nil
-	s.Mux, s.p = DefaultClientMux, p
-	s.wake, s.ch = make(chan struct{}, 1), make(chan struct{}, 1)
+	s.p, s.wake, s.ch = p, make(chan struct{}, 1), make(chan struct{}, 1)
 	s.frags, s.m = make(map[uint16]*cluster), make(eventer, maxEvents)
 	s.ctx, s.send, s.tick = x, make(chan *com.Packet, 256), time.NewTicker(s.sleep)
 	go s.listen()
@@ -293,8 +292,7 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	if k.Close(); err != nil {
 		return nil, xerr.Wrap("first Packet read", err)
 	}
-	s.Mux, s.p = DefaultClientMux, p
-	s.wake, s.ch = make(chan struct{}, 1), make(chan struct{}, 1)
+	s.p, s.wake, s.ch = p, make(chan struct{}, 1), make(chan struct{}, 1)
 	s.frags, s.m = make(map[uint16]*cluster), make(eventer, maxEvents)
 	s.ctx, s.send, s.tick = x, make(chan *com.Packet, 256), time.NewTicker(s.sleep)
 	if err = receive(s, nil, o); err != nil {

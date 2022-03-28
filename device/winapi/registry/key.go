@@ -9,14 +9,10 @@ import (
 	"io"
 	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/iDigitalFlame/xmt/device/winapi"
 )
-
-// Key is a handle to an open Windows registry key.
-//
-// Keys can be obtained by calling OpenKey.
-type Key uintptr
 
 // Windows defines some predefined root keys that are always open.
 //
@@ -34,14 +30,31 @@ const (
 	errNoMoreItems syscall.Errno = 259
 )
 
+// Key is a handle to an open Windows registry key.
+//
+// Keys can be obtained by calling OpenKey.
+type Key uintptr
+
+// KeyInfo describes the statistics of a key.
+//
+// It is returned by a call to Stat.
+type KeyInfo struct {
+	SubKeyCount     uint32
+	MaxSubKeyLen    uint32
+	ValueCount      uint32
+	MaxValueNameLen uint32
+	MaxValueLen     uint32
+	lastWriteTime   syscall.Filetime
+}
+
 // Close closes the open key.
 func (k Key) Close() error {
 	return syscall.RegCloseKey(syscall.Handle(k))
 }
 
-// DeleteKey deletes the subkey path of the key and its values.
-func DeleteKey(k Key, s string) error {
-	return winapi.RegDeleteKey(uintptr(k), s)
+// ModTime returns the key's last write time.
+func (i *KeyInfo) ModTime() time.Time {
+	return time.Unix(0, i.lastWriteTime.Nanoseconds())
 }
 
 // Stat retrieves information about the open key.
@@ -60,29 +73,84 @@ func (k Key) Stat() (*KeyInfo, error) {
 	return &i, nil
 }
 
-// OpenKey opens a new key with path name relative to the key.
-//
-// It accepts any open key, including CURRENT_USER and others, and returns the
-// new key and an error.
-//
-// The access parameter specifies desired access rights to the key to be opened.
-func OpenKey(k Key, s string, a uint32) (Key, error) {
-	v, err := winapi.UTF16PtrFromString(s)
-	if err != nil {
-		return 0, err
-	}
-	var h syscall.Handle
-	if err = syscall.RegOpenKeyEx(syscall.Handle(k), v, 0, a, &h); err != nil {
-		return 0, err
-	}
-	return Key(h), nil
+// Values returns the value names in the key. This function is similar to
+// 'ValueNames' but returns ALL names instead.
+func (k Key) Values() ([]string, error) {
+	return k.ValueNames(-1)
 }
 
-// ReadSubKeyNames returns the names of subkeys of key k.
+// DeleteKey deletes the subkey path of the key and its values.
+//
+// Convince function added directly to the Key alias.
+//
+// This function fails with "invalid argument" if the key has subkeys or
+// values. Use 'DeleteTreeKey' instead to delete the full non-empty key.
+func (k Key) DeleteKey(s string) error {
+	return DeleteEx(k, s, 0)
+}
+
+// DeleteValue removes a named value from the key.
+func (k Key) DeleteValue(n string) error {
+	return winapi.RegDeleteValue(uintptr(k), n)
+}
+
+// SubKeys returns the names of subkeys of key. This function is similar to
+// 'SubKeyNames' but returns ALL names instead.
+func (k Key) SubKeys() ([]string, error) {
+	return k.SubKeyNames(-1)
+}
+
+// ValueNames returns the value names in the key.
 //
 // The parameter controls the number of returned names, analogous to the way
 // 'os.File.Readdirnames' works.
-func (k Key) ReadSubKeyNames(n int) ([]string, error) {
+func (k Key) ValueNames(n int) ([]string, error) {
+	x, err := k.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if x.ValueCount == 0 || x.MaxValueNameLen == 0 {
+		return nil, nil
+	}
+	var (
+		o = make([]string, 0, x.ValueCount)
+		b = make([]uint16, x.MaxValueNameLen+1)
+	)
+loop:
+	for i := uint32(0); i < x.ValueCount; i++ {
+		if n > 0 {
+			if len(o) == n {
+				return o, nil
+			}
+		}
+		l := uint32(len(b))
+		for {
+			if err = winapi.RegEnumValue(uintptr(k), i, &b[0], &l, nil, nil, nil); err == nil {
+				break
+			}
+			if err == syscall.ERROR_MORE_DATA {
+				l = uint32(2 * len(b))
+				b = make([]uint16, l)
+				continue
+			}
+			if err == errNoMoreItems {
+				break loop
+			}
+			return o, err
+		}
+		o = append(o, winapi.UTF16ToString(b[:l]))
+	}
+	if n > len(o) {
+		return o, io.EOF
+	}
+	return o, nil
+}
+
+// SubKeyNames returns the names of subkeys of key.
+//
+// The parameter controls the number of returned names, analogous to the way
+// 'os.File.Readdirnames' works.
+func (k Key) SubKeyNames(n int) ([]string, error) {
 	runtime.LockOSThread()
 	var (
 		o   = make([]string, 0)
@@ -111,7 +179,7 @@ loop:
 		}
 		o = append(o, winapi.UTF16ToString(b[:l]))
 	}
-	if err == errNoMoreItems {
+	if runtime.UnlockOSThread(); err == errNoMoreItems {
 		err = nil
 	}
 	if n > len(o) {
@@ -120,13 +188,50 @@ loop:
 	return o, nil
 }
 
-// CreateKey creates a key named path under the open key.
+// Open opens a new key with path name relative to the key.
+//
+// Convince function added directly to the Key alias.
+//
+// It accepts any open root key, including CurrentUser for example, and returns
+// the new key and an any errors that may occur during opening.
+//
+// The access parameter specifies desired access rights to the key to be opened.
+func (k Key) Open(s string, a uint32) (Key, error) {
+	v, err := winapi.UTF16PtrFromString(s)
+	if err != nil {
+		return 0, err
+	}
+	var h syscall.Handle
+	if err = syscall.RegOpenKeyEx(syscall.Handle(k), v, 0, a, &h); err != nil {
+		return 0, err
+	}
+	return Key(h), nil
+}
+
+// DeleteKeyEx deletes the subkey path of the key and its values.
+//
+// Convince function added directly to the Key alias.
+//
+// This function fails with "invalid argument" if the key has subkeys or
+// values. Use 'DeleteTreeKey' instead to delete the full non-empty key.
+//
+// This function allows for specifying which WOW endpoint to delete from
+// leave the flags value as zero to use the current WOW/non-WOW registry point.
+//
+// NOTE(dij): WOW64_32 is 0x200 and WOW64_64 is 0x100
+func (k Key) DeleteKeyEx(s string, flags uint32) error {
+	return winapi.RegDeleteKeyEx(uintptr(k), s, flags)
+}
+
+// Create creates a key named path under the open key.
+//
+// Convince function added directly to the Key alias.
 //
 // CreateKey returns the new key and a boolean flag that reports whether the key
 // already existed.
 //
 // The access parameter specifies the access rights for the key to be created.
-func CreateKey(k Key, s string, a uint32) (Key, bool, error) {
+func (k Key) Create(s string, a uint32) (Key, bool, error) {
 	var (
 		h   uintptr
 		d   uint32

@@ -48,7 +48,6 @@ var (
 	funcNtTraceEvent                                        = dllNtdll.proc(crypt.Get(146))    // NtTraceEvent
 	funcResumeThread                                        = dllKernel32.proc(crypt.Get(147)) // ResumeThread
 	funcThread32Next                                        = dllKernel32.proc(crypt.Get(148)) // Thread32Next
-	funcRegDeleteKey                                        = dllAdvapi32.proc(crypt.Get(149)) // RegDeleteKeyW
 	funcGetProcessID                                        = dllKernel32.proc(crypt.Get(150)) // GetProcessId
 	funcRevertToSelf                                        = dllAdvapi32.proc(crypt.Get(151)) // RevertToSelf
 	funcRegEnumValue                                        = dllAdvapi32.proc(crypt.Get(152)) // RegEnumValueW
@@ -61,6 +60,8 @@ var (
 	funcThread32First                                       = dllKernel32.proc(crypt.Get(158)) // Thread32First
 	funcLsaOpenPolicy                                       = dllAdvapi32.proc(crypt.Get(159)) // LsaOpenPolicy
 	funcOpenSemaphore                                       = dllKernel32.proc(crypt.Get(160)) // OpenSemaphoreW
+	funcRegDeleteTree                                       = dllAdvapi32.proc(crypt.Get(242)) // RegDeleteTreeW
+	funcRegDeleteKeyEx                                      = dllAdvapi32.proc(crypt.Get(149)) // RegDeleteKeyExW
 	funcGetMonitorInfo                                      = dllUser32.proc(crypt.Get(231))   // GetMonitorInfoW
 	funcVirtualProtect                                      = dllKernel32.proc(crypt.Get(161)) // VirtualProtect
 	funcIsWellKnownSID                                      = dllAdvapi32.proc(crypt.Get(162)) // IsWellKnownSid

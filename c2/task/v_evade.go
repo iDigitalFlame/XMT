@@ -1,3 +1,5 @@
+//go:build !implant
+
 package task
 
 import "github.com/iDigitalFlame/xmt/com"

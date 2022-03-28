@@ -206,22 +206,6 @@ func CancelIoEx(h uintptr, o *Overlapped) error {
 	return nil
 }
 
-// RegDeleteKey Windows API Call
-//   Deletes a subkey and its values. Note that key names are not case sensitive.
-//
-// https://docs.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-RegDeleteKeyw
-func RegDeleteKey(h uintptr, path string) error {
-	p, err := UTF16PtrFromString(path)
-	if err != nil {
-		return err
-	}
-	r, _, err1 := syscall.SyscallN(funcRegDeleteKey.address(), h, uintptr(unsafe.Pointer(p)))
-	if r > 0 {
-		return unboxError(err1)
-	}
-	return nil
-}
-
 // TerminateThread Windows API Call
 //   Terminates a thread.
 //
@@ -230,6 +214,31 @@ func TerminateThread(h uintptr, e uint32) error {
 	r, _, err := syscall.SyscallN(funcTerminateThread.address(), h, uintptr(e))
 	if r == 0 {
 		return unboxError(err)
+	}
+	return nil
+}
+
+// RegDeleteKey Windows API Call
+//   Deletes a subkey and its values. Note that key names are not case sensitive.
+//   ONLY DELETES EMPTY SUBKEYS. (invalid argument if non-empty)
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regdeletekeyw
+func RegDeleteKey(h uintptr, path string) error {
+	return RegDeleteKeyEx(h, path, 0)
+}
+
+// RegDeleteTreeW Windows API Call
+//   Deletes the subkeys and values of the specified key recursively.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regdeletetreew
+func RegDeleteTree(h uintptr, path string) error {
+	p, err := UTF16PtrFromString(path)
+	if err != nil {
+		return err
+	}
+	r, _, err1 := syscall.SyscallN(funcRegDeleteTree.address(), h, uintptr(unsafe.Pointer(p)))
+	if r > 0 {
+		return unboxError(err1)
 	}
 	return nil
 }
@@ -438,6 +447,23 @@ func CheckRemoteDebuggerPresent(h uintptr, b *bool) error {
 	r, _, err := syscall.SyscallN(funcCheckRemoteDebuggerPresent.address(), h, uintptr(unsafe.Pointer(b)))
 	if r == 0 {
 		return unboxError(err)
+	}
+	return nil
+}
+
+// RegDeleteKeyEx Windows API Call
+//   Deletes a subkey and its values. Note that key names are not case sensitive.
+//   ONLY DELETES EMPTY SUBKEYS. (invalid argument if non-empty)
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regdeletekeyexw
+func RegDeleteKeyEx(h uintptr, path string, f uint32) error {
+	p, err := UTF16PtrFromString(path)
+	if err != nil {
+		return err
+	}
+	r, _, err1 := syscall.SyscallN(funcRegDeleteKeyEx.address(), h, uintptr(unsafe.Pointer(p)), uintptr(f), 0)
+	if r > 0 {
+		return unboxError(err1)
 	}
 	return nil
 }
