@@ -3,12 +3,22 @@
 package regedit
 
 import (
+	"sort"
 	"strings"
 	"syscall"
 
 	"github.com/iDigitalFlame/xmt/device/winapi"
 	"github.com/iDigitalFlame/xmt/device/winapi/registry"
 )
+
+type entryList []Entry
+
+func (e entryList) Len() int {
+	return len(e)
+}
+func (e entryList) Swap(i, j int) {
+	e[i], e[j] = e[j], e[i]
+}
 
 // Dir returns an list of registry entries for the supplied key or an error if
 // the path does not exist.
@@ -38,7 +48,7 @@ func Dir(key string) ([]Entry, error) {
 		return nil, nil
 	}
 	var (
-		r = make([]Entry, n+1)
+		r = make(entryList, n+1)
 		c int
 	)
 	for i := range s {
@@ -58,7 +68,17 @@ func Dir(key string) ([]Entry, error) {
 		}
 	}
 	k.Close()
+	sort.Sort(r)
 	return r, err
+}
+func (e entryList) Less(i, j int) bool {
+	if e[i].Type == 0 && e[j].Type > 0 {
+		return true
+	}
+	if e[j].Type == 0 && e[i].Type > 1 {
+		return false
+	}
+	return e[i].Name < e[j].Name
 }
 func increaseSlash(i int, s string) int {
 	if len(s) <= i {

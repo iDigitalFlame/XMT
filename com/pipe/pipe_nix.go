@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/iDigitalFlame/xmt/com"
-	"github.com/iDigitalFlame/xmt/util/crypt"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -29,7 +28,7 @@ type listener struct {
 // This function blocksindefinitely. Use the DialTimeout or DialContext to specify
 // a control method.
 func Dial(path string) (net.Conn, error) {
-	return dialer.Dial(crypt.Unix, path)
+	return dialer.Dial(com.NameUnix, path)
 }
 
 // Listen returns a 'net.Listener' that will listen for new connections on the
@@ -133,7 +132,7 @@ func ListenPerms(path, perms string) (net.Listener, error) {
 // This function blocks for the specified amount of time and will return 'Errtimeout'
 // if the timeout is reached.
 func DialTimeout(path string, t time.Duration) (net.Conn, error) {
-	return net.DialTimeout(crypt.Unix, path, t)
+	return net.DialTimeout(com.NameUnix, path, t)
 }
 
 // DialContext connects to the specified Pipe path. This function will return a
@@ -144,7 +143,7 @@ func DialTimeout(path string, t time.Duration) (net.Conn, error) {
 // This function blocks until the supplied context is cancled and will return the
 // context's Err() if the cancel occurs before the connection.
 func DialContext(x context.Context, path string) (net.Conn, error) {
-	return dialer.DialContext(x, crypt.Unix, path)
+	return dialer.DialContext(x, com.NameUnix, path)
 }
 
 // ListenContext returns a 'net.Listener' that will listen for new connections
@@ -169,7 +168,7 @@ func ListenContext(x context.Context, path string) (net.Listener, error) {
 //
 // The provided Context can be used to cancel the Listener.
 func ListenPermsContext(x context.Context, path, perms string) (net.Listener, error) {
-	l, err := com.ListenConfig.Listen(x, crypt.Unix, path)
+	l, err := com.ListenConfig.Listen(x, com.NameUnix, path)
 	if err != nil {
 		return nil, err
 	}

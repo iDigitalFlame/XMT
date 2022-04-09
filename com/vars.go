@@ -5,8 +5,6 @@ import (
 	"crypto/tls"
 	"net"
 	"time"
-
-	"github.com/iDigitalFlame/xmt/util/crypt"
 )
 
 // DefaultTimeout is the default timeout used for the default connectors.
@@ -79,7 +77,7 @@ func DialTLS(x context.Context, s string, c *tls.Config) (net.Conn, error) {
 	if c == nil {
 		return TLS.Connect(x, s)
 	}
-	return newStreamConn(x, crypt.TCP, s, tcpConnector{tls: c, Dialer: TCP.(*tcpConnector).Dialer})
+	return newStreamConn(x, NameTCP, s, tcpConnector{tls: c, Dialer: TCP.(*tcpConnector).Dialer})
 }
 
 // SetListenerDeadline attempts to set a deadline on the 'Accept; function of a
@@ -95,5 +93,5 @@ func SetListenerDeadline(l net.Listener, t time.Time) error {
 // ListenTLS is a quick utility function that can be used to quickly create a TLS
 // listener using the provided TLS config.
 func ListenTLS(x context.Context, s string, c *tls.Config) (net.Listener, error) {
-	return newStreamListener(x, crypt.TCP, s, tcpConnector{tls: c, Dialer: TCP.(*tcpConnector).Dialer})
+	return newStreamListener(x, NameTCP, s, tcpConnector{tls: c, Dialer: TCP.(*tcpConnector).Dialer})
 }

@@ -4,7 +4,6 @@ import (
 	"io"
 	"sync"
 
-	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 )
 
@@ -39,7 +38,7 @@ func (x XOR) Operate(b []byte) {
 
 // Flush satisfies the crypto.Writer interface.
 func (XOR) Flush(w io.Writer) error {
-	if f, ok := w.(data.Flusher); ok {
+	if f, ok := w.(flusher); ok {
 		return f.Flush()
 	}
 	return nil

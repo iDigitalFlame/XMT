@@ -1,3 +1,5 @@
+//go:build !implant || !noproxy
+
 package c2
 
 import (
@@ -13,21 +15,18 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-const sleepMod = 5
+// ErrMalformedPacket is an error returned by various Packet reading
+// functions when a Packet is attempted to be passed that is nil or invalid.
+//
+// Invalid Packets are packets that do not have a proper ID value or contain
+// an empty device ID.
+var ErrMalformedPacket = xerr.Sub("empty or nil Packet", 0x9)
 
-var (
-	// ErrMalformedPacket is an error returned by various Packet reading
-	// functions when a Packet is attempted to be passed that is nil or invalid.
-	//
-	// Invalid Packets are packets that do not have a proper ID value or contain
-	// an empty device ID.
-	ErrMalformedPacket = xerr.Sub("empty or nil Packet", 0x9)
-	// ErrInvalidPacketCount is returned when attempting to read a packet marked
-	// as multi or frag an the total count returned is zero.
-	ErrInvalidPacketCount = xerr.Sub("frag/multi total is zero on a frag/multi packet", 0xE)
-)
+var _ connHost = (*Session)(nil)
 
 type conn struct {
+	// key  *[32]byte
+	// NOTE(dij) ^ for upcoming key update
 	host connHost
 	next *com.Packet
 	subs map[uint32]bool
@@ -70,79 +69,56 @@ func (c *conn) close() {
 	}
 	c.add, c.next, c.subs = nil, nil, nil
 }
-func (s *Session) channelRead(x net.Conn) {
-	if bugtrack.Enabled {
-		defer bugtrack.Recover("c2.Session.channelRead()")
+func (s *Session) chanWake() {
+	if s.state.WakeClosed() || len(s.wake) >= cap(s.wake) {
+		return
 	}
-	if cout.Enabled {
-		s.log.Info("[%s:C->S:R] %s: Started Channel writer.", s.ID, s.host)
-	}
-	for x.SetReadDeadline(empty); s.state.Channel(); x.SetReadDeadline(empty) {
-		n, err := readPacket(x, s.w, s.t)
-		if err != nil {
-			if cout.Enabled {
-				s.log.Error("[%s:C->S:R] %s: Error reading next wire Packet: %s!", s.ID, s.host, err)
-			}
-			break
-		}
-		if cout.Enabled {
-			s.log.Debug("[%s:C->S:R] %s: Received a Packet %q.", s.ID, s.host, n)
-		}
-		if err = receive(s, s.parent, n); err != nil {
-			if cout.Enabled {
-				s.log.Warning("[%s:C->S:R] %s: Error processing Packet data: %s!", s.ID, s.host, err)
-			}
-			break
-		}
-		if s.Last = time.Now(); n.Flags&com.FlagChannelEnd != 0 || s.state.ChannelCanStop() {
-			if cout.Enabled {
-				s.log.Info("[%s:C->S:R] Session/Packet indicated channel close!", s.ID)
-			}
-			break
-		}
-	}
-	if x.SetDeadline(time.Now().Add(-time.Second)); cout.Enabled {
-		s.log.Debug("[%s:C->S:R] Closed Channel reader.", s.ID)
+	select {
+	case s.wake <- wake:
+	default:
 	}
 }
-func (s *Session) channelWrite(x net.Conn) {
-	if cout.Enabled {
-		s.log.Info("[%s:C->S:W] %s: Started Channel writer.", s.ID, s.host)
+func (s *Session) chanWakeClear() {
+	if s.state.WakeClosed() {
+		return
 	}
-	for x.SetWriteDeadline(time.Now().Add(s.sleep * sleepMod)); s.state.Channel(); x.SetWriteDeadline(time.Now().Add(s.sleep * sleepMod)) {
-		n := s.next(false)
-		if n == nil {
-			if cout.Enabled {
-				s.log.Info("[%s:C->S:W] Session indicated channel close!", s.ID)
-			}
-			break
-		}
-		if s.state.ChannelCanStop() {
-			n.Flags |= com.FlagChannelEnd
-		}
-		if cout.Enabled {
-			s.log.Debug("[%s:C->S:W] %s: Sending Packet %q.", s.ID, s.host, n)
-		}
-		if err := writePacket(x, s.w, s.t, n); err != nil {
-			if n.Clear(); cout.Enabled {
-				if errors.Is(err, net.ErrClosed) {
-					s.log.Info("[%s:C->S:W] %s: Write channel socket closed.", s.ID, s.host)
-				} else {
-					s.log.Error("[%s:C->S:W] %s: Error attempting to write Packet: %s!", s.ID, s.host, err)
-				}
-			}
-			break
-		}
-		if n.Clear(); n.Flags&com.FlagChannelEnd != 0 || s.state.ChannelCanStop() {
-			if cout.Enabled {
-				s.log.Info("[%s:C->S:W] Session/Packet indicated channel close!", s.ID)
-			}
-			break
-		}
+	for len(s.wake) > 0 {
+		<-s.wake
 	}
-	if x.Close(); cout.Enabled {
-		s.log.Info("[%s:S->C:W] Closed Channel writer.", s.ID)
+}
+func (s *Session) chanStop() bool {
+	return s.state.ChannelCanStop()
+}
+func (s *Session) update(a string) {
+	s.Last = time.Now()
+	s.host.Set(a)
+}
+func (s *Session) chanStart() bool {
+	return !s.isMoving() && s.state.ChannelCanStart()
+}
+func (s *Session) stateSet(v uint32) {
+	s.state.Set(v)
+}
+func (s *Session) chanRunning() bool {
+	return s.state.Channel()
+}
+func (s *Session) stateUnset(v uint32) {
+	s.state.Unset(v)
+}
+func (s *Session) clientID() device.ID {
+	return s.ID
+}
+func (*Session) deadlineWrite() time.Time {
+	return empty
+}
+func (s *Session) deadlineRead() time.Time {
+	if s.sleep > 0 {
+		return time.Now().Add(s.sleep * sleepMod)
 	}
+	return empty
+}
+func (s *Session) sender() chan *com.Packet {
+	return s.send
 }
 func (c *conn) stop(h connServer, x net.Conn) {
 	switch i := atomic.LoadUint32(&c.lock); i {
@@ -198,6 +174,7 @@ func handle(l *cout.Log, c net.Conn, h connServer, a string) {
 		}
 		return
 	}
+	// TODO(dij): Con should have non-first packet here (encrypt)
 	if err := writePacket(c, h.wrapper(), h.transform(), v.next); err != nil {
 		if c.Close(); cout.Enabled {
 			l.Error("[%s:%s] %s: Error writing Packet: %s!", h.prefix(), v.next.Device, a, err)
@@ -256,6 +233,7 @@ func (c *conn) channelRead(l *cout.Log, h connServer, a string, x net.Conn) {
 			}
 			break
 		}
+		// TODO(dij): Decrypt here with con key
 		if err = c.process(l, h, a, n, true); err != nil {
 			if cout.Enabled {
 				l.Error("[%s:%s:S->C:R] %s: Error processing Packet data: %s!", h.prefix(), c.host.name(), a, err)
@@ -298,6 +276,7 @@ func (c *conn) channelWrite(l *cout.Log, h connServer, a string, x net.Conn) {
 		if cout.Enabled {
 			l.Debug("[%s:%s:S->C:W] %s: Sending Packet %q.", h.prefix(), c.host.name(), a, n)
 		}
+		// TODO(dij): Encrypt here with conn key
 		if err := writePacket(x, h.wrapper(), h.transform(), n); err != nil {
 			if n.Clear(); cout.Enabled {
 				if errors.Is(err, net.ErrClosed) {

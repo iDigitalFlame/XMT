@@ -33,7 +33,7 @@ func testWC2() {
 			W: wrapper.NewXOR([]byte("this is my special XOR key")),
 		}
 
-		l, err := s.Listen("http1", v)
+		l, err := s.Listen("http1", "", v)
 		if err != nil {
 			panic(err)
 		}

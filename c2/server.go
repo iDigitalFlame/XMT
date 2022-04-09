@@ -1,3 +1,5 @@
+//go:build !implant
+
 package c2
 
 import (
@@ -203,24 +205,30 @@ func NewServerContext(x context.Context, l logx.Log) *Server {
 // Listen adds the Listener under the name provided. A Listener struct to
 // control and receive callback functions is added to assist in managing
 // connections to this Listener.
-func (s *Server) Listen(n string, p Profile) (*Listener, error) {
-	return s.ListenContext(s.ctx, n, p)
+func (s *Server) Listen(name, addr string, p Profile) (*Listener, error) {
+	return s.ListenContext(s.ctx, name, addr, p)
 }
 
-// ListenContext adds the Listener under the name provided. A Listener struct to
-// control and receive callback functions is added to assist in managing
+// ListenContext adds the Listener under the name and address provided. A Listener
+// struct to control and receive callback functions is added to assist in managing
 // connections to this Listener.
 //
 // This function version allows for overriting the Context passed to the Session.
-func (s *Server) ListenContext(x context.Context, n string, p Profile) (*Listener, error) {
+func (s *Server) ListenContext(x context.Context, name, addr string, p Profile) (*Listener, error) {
 	if p == nil {
 		return nil, ErrInvalidProfile
 	}
-	k := strings.ToLower(n)
-	if _, ok := s.active[k]; ok {
+	if len(name) == 0 {
+		return nil, xerr.Sub("empty Listener name", 0x9)
+	}
+	n := strings.ToLower(name)
+	if _, ok := s.active[n]; ok {
 		return nil, xerr.Sub("listener already exists", 0x15)
 	}
 	h, w, t := p.Next()
+	if len(addr) > 0 {
+		h = addr
+	}
 	if len(h) == 0 {
 		return nil, ErrNoHost
 	}
@@ -233,7 +241,7 @@ func (s *Server) ListenContext(x context.Context, n string, p Profile) (*Listene
 	}
 	l := &Listener{
 		ch:         make(chan struct{}, 1),
-		name:       k,
+		name:       n,
 		listener:   v,
 		connection: connection{s: s, m: s, p: p, w: w, t: t, log: s.log},
 	}
@@ -241,7 +249,7 @@ func (s *Server) ListenContext(x context.Context, n string, p Profile) (*Listene
 		l.sleep = d
 	}
 	if s.init.Do(func() { go s.listen() }); cout.Enabled {
-		s.log.Info("[%s] Added Listener on %q!", k, h)
+		s.log.Info("[%s] Added Listener on %q!", n, h)
 	}
 	l.ctx, l.cancel = context.WithCancel(x)
 	s.new <- l

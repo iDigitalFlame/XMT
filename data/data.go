@@ -70,18 +70,3 @@ type Writer interface {
 	WriteFloat32(float32) error
 	WriteFloat64(float64) error
 }
-
-// Flusher is an interface that supports Flushing the stream output to the underlying Writer.
-type Flusher interface {
-	Flush() error
-}
-
-// Writeable is an interface that supports writing the target struct data to a Writer.
-type Writeable interface {
-	MarshalStream(Writer) error
-}
-
-// Readable is an interface that supports reading the target struct data from a Reader.
-type Readable interface {
-	UnmarshalStream(Reader) error
-}

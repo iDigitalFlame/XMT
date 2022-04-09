@@ -14,7 +14,6 @@ import (
 	"github.com/iDigitalFlame/xmt/com/pipe"
 	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
-	"github.com/iDigitalFlame/xmt/util/crypt"
 )
 
 const (
@@ -85,7 +84,7 @@ func (n *netListener) Listen() {
 			if ok && e.Timeout() {
 				continue
 			}
-			if ok && !e.Timeout() && !e.Temporary() {
+			if ok && !e.Timeout() {
 				break
 			}
 			continue
@@ -113,9 +112,9 @@ func netHandleConn(c net.Conn) {
 }
 func (n netSync) String() string {
 	if n {
-		return crypt.Pipe
+		return com.NamePipe
 	}
-	return crypt.TCP
+	return com.NameTCP
 }
 func (n *netListener) Close() error {
 	atomic.StoreUint32(&n.done, 1)
@@ -165,7 +164,7 @@ func (n netSync) check(s string) (bool, error) {
 	if n {
 		c, err = pipe.DialTimeout(pipe.Format(s), timeout)
 	} else {
-		c, err = net.DialTimeout(crypt.TCP, formatTCPName(s), timeout)
+		c, err = net.DialTimeout(com.NameTCP, formatTCPName(s), timeout)
 	}
 	if err != nil {
 		return false, nil
@@ -182,7 +181,7 @@ func (n netSync) create(s string) (listener, error) {
 	if n {
 		l, err = pipe.ListenPerms(pipe.Format(s), pipe.PermEveryone)
 	} else {
-		l, err = com.ListenConfig.Listen(context.Background(), crypt.TCP, formatTCPName(s))
+		l, err = com.ListenConfig.Listen(context.Background(), com.NameTCP, formatTCPName(s))
 	}
 	if err != nil {
 		return nil, err

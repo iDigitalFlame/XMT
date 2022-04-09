@@ -4,11 +4,11 @@ package device
 
 import (
 	"os"
+	"syscall"
 	"unsafe"
 
 	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/util/xerr"
-	"golang.org/x/net/http/httpproxy"
 )
 
 // ErrNoWindows is an error that is returned when a non-Windows device attempts
@@ -18,6 +18,15 @@ var ErrNoWindows = xerr.Sub("only supported on Windows devices", 0xFA)
 type stringHeader struct {
 	Data uintptr
 	Len  int
+}
+
+func proxyInit() *config {
+	return &config{
+		HTTPProxy:  dualEnv("HTTP_PROXY", "http_proxy"),
+		HTTPSProxy: dualEnv("HTTPS_PROXY", "https_proxy"),
+		NoProxy:    dualEnv("NO_PROXY", "no_proxy"),
+		CGI:        os.Getenv("REQUEST_METHOD") != "",
+	}
 }
 
 // RevertToSelf function terminates the impersonation of a client application.
@@ -45,8 +54,14 @@ func RevertToSelf() error {
 func SetCritical(_ bool) error {
 	return ErrNoWindows
 }
-func proxyInit() *httpproxy.Config {
-	return httpproxy.FromEnvironment()
+func dualEnv(o, t string) string {
+	if v, ok := syscall.Getenv(o); ok {
+		return v
+	}
+	if v, ok := syscall.Getenv(t); ok {
+		return v
+	}
+	return ""
 }
 
 // SetProcessName will attempt to overrite the process name on *nix systems

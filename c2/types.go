@@ -24,9 +24,14 @@ type event struct {
 	af func(*com.Packet) bool
 	hf func(*Session, *com.Packet) bool
 }
+
 type cluster struct {
 	data []*com.Packet
 	max  uint16
+}
+type proxyData struct {
+	n, b string
+	p    []byte
 }
 type eventer chan event
 type connection struct {
@@ -62,7 +67,6 @@ type readerTimeout struct {
 	i bool
 }
 
-func (*Server) close() {}
 func (e eventer) close() {
 	close(e)
 }
@@ -71,9 +75,6 @@ func (c *cluster) Len() int {
 }
 func (e eventer) count() int {
 	return len(e)
-}
-func (s *Server) count() int {
-	return len(s.events)
 }
 func (e eventer) queue(x event) {
 	e <- x

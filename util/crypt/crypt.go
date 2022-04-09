@@ -2,24 +2,12 @@
 
 package crypt
 
-import (
-	"encoding/base64"
-)
+import "encoding/base64"
 
 var (
 	key     string
 	values  [256]string
 	payload string
-)
-
-// Named Network Constants
-var (
-	IP   = Get(2)   // ip
-	TCP  = Get(3)   // tcp
-	UDP  = Get(4)   // udp
-	Unix = Get(5)   // unix
-	Pipe = Get(6)   // pipe
-	HTTP = Get(116) // http
 )
 
 func init() {

@@ -1,3 +1,13 @@
+// Package util is a very generic package that is used to contain simple
+// functions that may be used in multiple packages, such as the simple random
+// number generator.
+//
+// Generic re-implementations of built-in Golang structs or functions also
+// sometimes land in here.
+//
+// This package is affected by the "stdrand" build tag, which will replace the
+// "fastrand" implementation with the "math/rand" random struct.
+//
 package util
 
 import (
@@ -31,5 +41,7 @@ func FastRand() uint32
 //
 // This function will take a max value to specify.
 func FastRandN(n int) uint32 {
-	return FastRand() % uint32(n)
+	// return FastRand() % uint32(n)
+	// NOTE(dij): The below code is supposed to be faster.
+	return uint32(uint64(FastRand()) * uint64(n) >> 32)
 }

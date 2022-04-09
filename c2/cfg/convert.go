@@ -194,7 +194,7 @@ loop:
 		case invalid:
 			return -1, ErrInvalidSetting
 		case valHost, valSleep, valJitter, valWeight:
-			if len(c) <= n {
+			if len(c) < n {
 				return -1, ErrInvalidSetting
 			}
 		case SelectorRoundRobin, SelectorLastValid, SelectorRandom, SelectorSemiRandom, SelectorSemiRoundRobin:

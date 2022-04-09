@@ -45,6 +45,7 @@
             "ldflags",
             "mkdtemp",
             "netip",
+            "noproxy",
             "pexec",
             "Protos"
         ]

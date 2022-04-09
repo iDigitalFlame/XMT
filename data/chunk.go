@@ -436,7 +436,7 @@ func (c *Chunk) ReadDeadline(r net.Conn, d time.Duration) (int64, error) {
 			bugtrack.Track("data.Chunk.ReadDeadline(): n=%d, t=%d, len(b)=%d, err=%s, err2=%s", n, t, len(*b), err, err2)
 		}
 		if n == 0 || err != nil || err2 != nil || (c.Limit > 0 && n >= c.Limit) {
-			if e, ok := err.(net.Error); ok && (e.Temporary() || e.Timeout()) {
+			if e, ok := err.(net.Error); ok && e.Timeout() {
 				err = nil
 			} else if err == io.EOF || err == ErrLimit {
 				err = nil

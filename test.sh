@@ -15,7 +15,7 @@ arch_s390x=( linux )
 arch_wasm=( js )
 
 build_tags=(
-              bugs implant crypt stdrand nojson noprotect nosweep no6 tiny small medium nofrag regexp nopanic noservice
+              bugs implant crypt stdrand nojson noprotect nosweep no6 tiny small medium nofrag regexp nopanic noservice ews
               bugs,implant
               bugs,implant,crypt
               bugs,implant,crypt,stdrand
@@ -28,13 +28,21 @@ build_tags=(
               bugs,implant,crypt,stdrand,nojson,noprotect,nosweep,no6,medium
               bugs,implant,crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag
               bugs,implant,crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag,regexp
-              implant,crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag,regexp
-              crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag,regexp
-              stdrand,nojson,noprotect,nosweep,no6,nofrag,regexp
-              nojson,noprotect,nosweep,no6,nofrag,regexp
-              noprotect,nosweep,no6,nofrag,regexp
-              nosweep,no6,nofrag,regexp
+              bugs,implant,crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag,regexp,ews
+              bugs,implant,crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag,regexp,ews,noproxy
+              implant,crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag,regexp,ews,noproxy
+              crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag,regexp,ews,noproxy
+              crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag,regexp,noproxy
+              stdrand,nojson,noprotect,nosweep,no6,nofrag,regexp,ews,noproxy
+              nojson,noprotect,nosweep,no6,nofrag,regexp,ews,noproxy
+              noprotect,nosweep,no6,nofrag,regexp,ews,noproxy
+              nosweep,no6,nofrag,regexp,ews,noproxy
+              nosweep,no6,nofrag,ews,noproxy
+              nosweep,no6,nofrag,noproxy
+              nosweep,no6,nofrag,ews
+              no6,nofrag,regexp,ews
               no6,nofrag,regexp
+              no6,nofrag,ews
               no6,nofrag
            )
 
@@ -61,6 +69,9 @@ run_vet() {
     env GOARCH=$1 GOOS=$2 go vet ./util
 }
 run_vet_all() {
+    for os in ${arch_amd64[@]}; do
+        run_vet amd64 $os
+    done
     for os in ${arch_ppc64[@]}; do
         run_vet ppc64 $os
     done
@@ -107,6 +118,9 @@ run_staticcheck() {
     done
 }
 run_staticcheck_all() {
+    for os in ${arch_amd64[@]}; do
+        run_staticcheck amd64 $os
+    done
     for os in ${arch_ppc64[@]}; do
         run_staticcheck ppc64 $os
     done

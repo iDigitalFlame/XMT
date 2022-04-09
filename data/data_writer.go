@@ -6,9 +6,12 @@ type writer struct {
 	_ [0]func()
 	w io.Writer
 }
+type flusher interface {
+	Flush() error
+}
 
 func (w *writer) Flush() error {
-	if f, ok := w.w.(Flusher); ok {
+	if f, ok := w.w.(flusher); ok {
 		return f.Flush()
 	}
 	return nil

@@ -30,6 +30,7 @@ ERRORS = {
         "feature disabled",
         messages=[
             "json disabled",
+            "proxy support disabled",
             "only a single Proxy per session can be active",
         ],
     ),
@@ -96,6 +97,8 @@ ERRORS = {
             "empty or nil Job",
             "empty or nil Tasklet",
             "empty or nil Packet",
+            "empty Listener name",
+            "empty Proxy name",
             "missing TLS certificates",
             "cannot find '.text' section",
             "arguments cannot be nil or empty",
@@ -156,6 +159,7 @@ ERRORS = {
             "tags list is too large",
             "invalid permission size",
             "block size must equal IV size",
+            "maximum (255) Proxy limit reached",
             "block size must be between 16 and 128 and a power of two",
         ],
     ),
@@ -176,6 +180,7 @@ ERRORS = {
         ["cmd.ErrAlreadyStarted"],
         [
             "job ID is in use",
+            "proxy already exists",
             "listener already exists",
             "mapping ID is already exists",
             "process has already been started",

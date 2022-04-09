@@ -111,9 +111,10 @@ func ConnectContext(x context.Context, l logx.Log, p Profile) (*Session, error) 
 		return nil, xerr.Wrap("unable to connect", err)
 	}
 	var (
-		s = &Session{ID: local.UUID, host: h, Device: *local.Device.Machine}
+		s = &Session{ID: local.UUID, Device: *local.Device.Machine}
 		n = &com.Packet{ID: SvHello, Device: local.UUID, Job: uint16(util.FastRand())}
 	)
+	s.host.Set(h)
 	if s.log, s.w, s.t, s.sleep = cout.New(l), w, t, p.Sleep(); s.sleep <= 0 {
 		s.sleep = DefaultSleep
 	}
@@ -157,6 +158,9 @@ func ConnectContext(x context.Context, l logx.Log, p Profile) (*Session, error) 
 // If a Session is not found, or errors, this function returns an error message
 // or a timeout with a nil Session.
 func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Session, error) {
+	if len(n) == 0 {
+		return nil, xerr.Sub("invalid name", 0xA)
+	}
 	if ProfileParser == nil {
 		return nil, xerr.Sub("no Profile parser loaded", 0x8)
 	}
@@ -193,28 +197,21 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 		return nil, ErrNoConn
 	}
 	var (
-		w = crypto.NewWriter(crypto.XOR(n), c)
-		r = crypto.NewReader(crypto.XOR(n), c)
-		d [8]byte
+		w   = crypto.NewWriter(crypto.XOR(n), c)
+		r   = crypto.NewReader(crypto.XOR(n), c)
+		buf [8]byte
+		_   = buf[7]
 	)
-	if err = readFull(r, 3, d[0:3]); err != nil {
+	if err = readFull(r, 3, buf[0:3]); err != nil {
 		c.Close()
 		return nil, xerr.Wrap("read Job ID", err)
 	}
 	var (
-		u = uint16(d[1]) | uint16(d[0])<<8
-		g = d[2] == 0xF && u == 0
+		u = uint16(buf[1]) | uint16(buf[0])<<8
+		g = buf[2] == 0xF && u == 0
 	)
-	if err = readFull(r, 8, d[:]); err != nil {
-		c.Close()
-		return nil, xerr.Wrap("read Profile size", err)
-	}
-	_ = d[7]
-	b := make(
-		[]byte, uint64(d[7])|uint64(d[6])<<8|uint64(d[5])<<16|uint64(d[4])<<24|
-			uint64(d[3])<<32|uint64(d[2])<<40|uint64(d[1])<<48|uint64(d[0])<<56,
-	)
-	if err = readFull(r, len(b), b); err != nil {
+	b, err := readSlice(r, &buf)
+	if err != nil {
 		c.Close()
 		return nil, xerr.Wrap("read Profile", err)
 	}
@@ -223,12 +220,13 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 		c.Close()
 		return nil, xerr.Wrap("parse Profile", err)
 	}
-	if g {
+	if b = nil; g { // Spawn
 		var s *Session
 		if s, err = ConnectContext(x, l, p); err == nil {
-			d[0], d[1] = 'O', 'K'
-			w.Write(d[0:2])
+			buf[0], buf[1] = 'O', 'K'
+			w.Write(buf[0:2])
 		}
+		w.Close()
 		c.Close()
 		return s, err
 	}
@@ -237,36 +235,32 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 		c.Close()
 		return nil, xerr.Wrap("read ID", err)
 	}
-	if err = readFull(r, 8, d[:]); err != nil {
+	q, err := readProxyInfo(r, &buf)
+	if err != nil {
 		c.Close()
-		return nil, xerr.Wrap("read Proxy size", err)
-	}
-	m := make(
-		[]byte, uint64(d[7])|uint64(d[6])<<8|uint64(d[5])<<16|uint64(d[4])<<24|
-			uint64(d[3])<<32|uint64(d[2])<<40|uint64(d[1])<<48|uint64(d[0])<<56,
-	)
-	if len(m) > 0 {
-		if err = readFull(r, len(m), m); err != nil {
-			c.Close()
-			return nil, xerr.Wrap("read Proxy", err)
-		}
+		return nil, xerr.Wrap("read Proxy", err)
 	}
 	copy(local.UUID[:], i[:])
 	copy(local.Device.ID[:], i[:])
-	s := &Session{ID: i, Device: *local.Device.Machine}
-	if s.host, s.w, s.t = p.Next(); len(s.host) == 0 {
+	var (
+		s = &Session{ID: i, Device: *local.Device.Machine}
+		h string
+	)
+	if h, s.w, s.t = p.Next(); len(h) == 0 {
 		c.Close()
 		return nil, ErrNoHost
 	}
-	d[0], d[1], d[2], d[3] = 'O', 'K', 0, 0
-	if err = writeFull(w, 2, d[0:2]); err != nil {
+	s.host.Set(h)
+	buf[0], buf[1], buf[2], buf[3] = 'O', 'K', 0, 0
+	if err = writeFull(w, 2, buf[0:2]); err != nil {
 		c.Close()
 		return nil, xerr.Wrap("write OK", err)
 	}
-	if err = readFull(r, 2, d[2:4]); err != nil {
+	if err = readFull(r, 2, buf[2:4]); err != nil {
 		return nil, xerr.Wrap("read OK", err)
 	}
-	if c.Close(); d[2] != 'O' && d[3] != 'K' {
+	w.Close()
+	if c.Close(); buf[2] != 'O' && buf[3] != 'K' {
 		return nil, xerr.Sub("unexpected OK value", 0x3)
 	}
 	if s.log, s.sleep = cout.New(l), p.Sleep(); s.sleep <= 0 {
@@ -277,10 +271,12 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	} else if j == -1 {
 		s.jitter = DefaultJitter
 	}
-	o := &com.Packet{ID: RvMigrate, Device: i, Job: u}
+	var (
+		o = &com.Packet{ID: RvMigrate, Device: i, Job: u}
+		k net.Conn
+	)
 	s.Device.MarshalStream(o)
-	var k net.Conn
-	if k, err = p.Connect(x, s.host); err != nil {
+	if k, err = p.Connect(x, s.host.String()); err != nil {
 		return nil, xerr.Wrap("first Connect", err)
 	}
 	if err = writePacket(k, s.w, s.t, o); err != nil {
@@ -298,15 +294,17 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	if err = receive(s, nil, o); err != nil {
 		return nil, xerr.Wrap("first receive", err)
 	}
-	if len(m) > 0 {
-		var k Profile
-		if k, err = ProfileParser(m); err != nil {
-			s.Close()
-			return nil, xerr.Wrap("parse Proxy Profile", err)
-		}
-		if _, err = s.Proxy(k); err != nil {
-			s.Close()
-			return nil, xerr.Wrap("setup Proxy", err)
+	if len(q) > 0 {
+		var z Profile
+		for i := range q {
+			if z, err = ProfileParser(q[i].p); err != nil {
+				s.Close()
+				return nil, xerr.Wrap("parse Proxy Profile", err)
+			}
+			if _, err = s.Proxy(q[i].n, q[i].b, z); err != nil {
+				s.Close()
+				return nil, xerr.Wrap("setup Proxy", err)
+			}
 		}
 	}
 	s.wait()

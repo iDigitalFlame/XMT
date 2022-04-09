@@ -19,6 +19,9 @@ type writer struct {
 	w io.Writer
 	c Writer
 }
+type flusher interface {
+	Flush() error
+}
 
 // Reader is an interface that supports reading bytes from a Reader through the wrapped Cipher.
 type Reader interface {
@@ -35,7 +38,7 @@ func (w *writer) Flush() error {
 	if err := w.c.Flush(w.w); err != nil {
 		return err
 	}
-	if f, ok := w.w.(data.Flusher); ok {
+	if f, ok := w.w.(flusher); ok {
 		return f.Flush()
 	}
 	return nil

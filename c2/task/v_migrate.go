@@ -7,6 +7,13 @@ import (
 	"github.com/iDigitalFlame/xmt/com"
 )
 
+var (
+	_ Callable = (*DLL)(nil)
+	_ Callable = (*Zombie)(nil)
+	_ Callable = (*Process)(nil)
+	_ Callable = (*Assembly)(nil)
+)
+
 // SpawnPull -
 func SpawnPull(f *filter.Filter, s, url string) *com.Packet {
 	return SpawnPullProfile(f, s, nil, url)

@@ -13,15 +13,19 @@ import (
 
 const maxEvents = 2048
 
+type proxyState struct {
+	proxies []proxyData
+}
 type stringer interface {
 	String() string
 }
 
+func (*Server) close() {}
+func (s *Server) count() int {
+	return len(s.events)
+}
 func (s *Session) name() string {
 	return s.ID.String()
-}
-func (p *Proxy) prefix() string {
-	return p.parent.ID.String() + "/P"
 }
 func (s status) String() string {
 	switch s {
@@ -43,15 +47,15 @@ func (s status) String() string {
 func (s *Session) String() string {
 	switch {
 	case s.parent == nil && s.sleep == 0:
-		return "[" + s.ID.String() + "] -> " + s.host + " " + s.Last.Format(time.RFC1123)
+		return "[" + s.ID.String() + "] -> " + s.host.String() + " " + s.Last.Format(time.RFC1123)
 	case s.parent == nil && (s.jitter == 0 || s.jitter > 100):
-		return "[" + s.ID.String() + "] " + s.sleep.String() + " -> " + s.host
+		return "[" + s.ID.String() + "] " + s.sleep.String() + " -> " + s.host.String()
 	case s.parent == nil:
-		return "[" + s.ID.String() + "] " + s.sleep.String() + "/" + strconv.Itoa(int(s.jitter)) + "% -> " + s.host
+		return "[" + s.ID.String() + "] " + s.sleep.String() + "/" + strconv.Itoa(int(s.jitter)) + "% -> " + s.host.String()
 	case s.parent != nil && (s.jitter == 0 || s.jitter > 100):
-		return "[" + s.ID.String() + "] " + s.sleep.String() + " -> " + s.host + " " + s.Last.Format(time.RFC1123)
+		return "[" + s.ID.String() + "] " + s.sleep.String() + " -> " + s.host.String() + " " + s.Last.Format(time.RFC1123)
 	}
-	return "[" + s.ID.String() + "] " + s.sleep.String() + "/" + strconv.Itoa(int(s.jitter)) + "% -> " + s.host + " " + s.Last.Format(time.RFC1123)
+	return "[" + s.ID.String() + "] " + s.sleep.String() + "/" + strconv.Itoa(int(s.jitter)) + "% -> " + s.host.String() + " " + s.Last.Format(time.RFC1123)
 }
 
 // JSON returns the data of this Job as a JSON blob.
@@ -180,15 +184,41 @@ func (s *Session) JSON(w io.Writer) error {
 	_, err := w.Write([]byte(
 		`]},"created":"` + s.Created.Format(time.RFC3339) + `",` +
 			`"last":"` + s.Last.Format(time.RFC3339) + `",` +
-			`"via":` + escape.JSON(s.host) + `,` +
+			`"via":` + escape.JSON(s.host.String()) + `,` +
 			`"sleep":` + strconv.Itoa(int(s.sleep)) + `,` +
 			`"jitter":` + strconv.Itoa(int(s.jitter)),
 	))
 	if err != nil {
 		return err
 	}
+	if s.parent != nil {
+		if _, err = w.Write([]byte(`,"connector_name":` + escape.JSON(s.parent.name))); err != nil {
+			return err
+		}
+	}
 	if t, ok := s.parent.listener.(stringer); ok {
 		if _, err = w.Write([]byte(`,"connector":` + escape.JSON(t.String()))); err != nil {
+			return err
+		}
+	}
+	if s.parent != nil && len(s.proxies) > 0 {
+		if _, err = w.Write([]byte(`,"proxy":[`)); err != nil {
+			return err
+		}
+		for i := range s.proxies {
+			if i > 0 {
+				if _, err = w.Write([]byte{','}); err != nil {
+					return err
+				}
+			}
+			_, err = w.Write([]byte(
+				`{"name":` + escape.JSON(s.proxies[i].n) + `,"address": ` + escape.JSON(s.proxies[i].b) + `}`,
+			))
+			if err != nil {
+				return err
+			}
+		}
+		if _, err = w.Write([]byte{']'}); err != nil {
 			return err
 		}
 	}
@@ -257,4 +287,10 @@ func (l *Listener) MarshalJSON() ([]byte, error) {
 	d := b.Payload()
 	returnBuffer(b)
 	return d, nil
+}
+func (s *Session) updateProxyInfo(v []proxyData) {
+	if s.parent == nil {
+		return
+	}
+	s.proxies = v
 }

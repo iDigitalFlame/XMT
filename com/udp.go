@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
-	"github.com/iDigitalFlame/xmt/util/crypt"
 )
 
 const (
@@ -177,7 +176,7 @@ func (c *udpConn) Close() error {
 	return nil
 }
 func (udpAddr) Network() string {
-	return crypt.UDP
+	return NameUDP
 }
 func (u udpAddr) String() string {
 	// NOTE(dij): This causes IPv4 addresses to weirdly be wrapped as an IPv6
@@ -358,7 +357,7 @@ func (s *udpStream) Read(b []byte) (int, error) {
 			}
 			n, err = s.Conn.Read(s.buf[s.size:])
 			if s.size += n; err != nil {
-				if e, ok := err.(net.Error); ok && (e.Temporary() || e.Timeout()) {
+				if e, ok := err.(net.Error); ok && e.Timeout() {
 					err = nil
 					if c++; c > 1 || s.size > 0 {
 						if bugtrack.Enabled {
@@ -558,14 +557,14 @@ func (c *udpConn) append(n int, b *[udpLimit]byte, w bool) {
 	}
 }
 func (c *udpConnector) Connect(x context.Context, s string) (net.Conn, error) {
-	v, err := c.DialContext(x, crypt.UDP, s)
+	v, err := c.DialContext(x, NameUDP, s)
 	if err != nil {
 		return nil, err
 	}
 	return &udpStream{Conn: v}, nil
 }
 func (*udpConnector) Listen(x context.Context, s string) (net.Listener, error) {
-	c, err := ListenConfig.ListenPacket(x, crypt.UDP, s)
+	c, err := ListenConfig.ListenPacket(x, NameUDP, s)
 	if err != nil {
 		return nil, err
 	}

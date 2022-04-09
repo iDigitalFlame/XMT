@@ -227,7 +227,7 @@ func RegDeleteKey(h uintptr, path string) error {
 	return RegDeleteKeyEx(h, path, 0)
 }
 
-// RegDeleteTreeW Windows API Call
+// RegDeleteTree Windows API Call
 //   Deletes the subkeys and values of the specified key recursively.
 //
 // https://docs.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regdeletetreew

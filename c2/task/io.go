@@ -13,31 +13,16 @@ import (
 
 	"github.com/iDigitalFlame/xmt/cmd"
 	"github.com/iDigitalFlame/xmt/cmd/filter"
+	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/device/screen"
 	"github.com/iDigitalFlame/xmt/man"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
-	"github.com/iDigitalFlame/xmt/util/crypt"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-const (
-	timeout = time.Second * 15
-
-	regOpLs  uint8 = 0
-	regOpGet uint8 = iota
-	regOpMake
-	regOpDeleteKey
-	regOpDelete
-	regOpSet
-	regOpSetString
-	regOpSetDword
-	regOpSetQword
-	regOpSetBytes
-	regOpSetExpandString
-	regOpSetStringList
-)
+const timeout = time.Second * 15
 
 var client struct {
 	sync.Once
@@ -92,7 +77,7 @@ func rawParse(r string) (*url.URL, error) {
 		return nil, xerr.Sub("invalid port specified", 0xE)
 	}
 	if len(u.Scheme) == 0 {
-		u.Scheme = crypt.HTTP
+		u.Scheme = com.NameHTTP
 	}
 	return u, nil
 }

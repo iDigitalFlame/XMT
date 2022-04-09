@@ -71,7 +71,7 @@ func server(c cfg.Config) {
 			p, _ = v.Build()
 		)
 		// Create a Listener with the name "tcp<offset>".
-		if _, err := s.Listen("tcp"+strconv.Itoa(i+1), p); err != nil {
+		if _, err := s.Listen("", "tcp"+strconv.Itoa(i+1), p); err != nil {
 			panic(err)
 		}
 	}

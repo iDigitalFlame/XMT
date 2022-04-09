@@ -15,7 +15,6 @@ import (
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
-	"github.com/iDigitalFlame/xmt/util/crypt"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -123,7 +122,7 @@ func rawParse(r string) (*url.URL, error) {
 		return nil, xerr.Sub("invalid port specified", 0xD)
 	}
 	if len(u.Scheme) == 0 {
-		u.Scheme = crypt.HTTP
+		u.Scheme = com.NameHTTP
 	}
 	return u, nil
 }

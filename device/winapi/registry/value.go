@@ -45,8 +45,8 @@ func (k Key) SetQWord(n string, v uint64) error {
 	return k.setValue(n, TypeQword, (*[8]byte)(unsafe.Pointer(&v))[:])
 }
 
-// SetBinaryValue sets the data and type of a name value
-// under key k to value and BINARY.
+// SetBinary sets the data and type of a name value under key k to value and
+// BINARY.
 func (k Key) SetBinary(n string, v []byte) error {
 	return k.setValue(n, TypeBinary, v)
 }

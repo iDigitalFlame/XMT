@@ -5,8 +5,6 @@ import (
 	"crypto/tls"
 	"net"
 	"time"
-
-	"github.com/iDigitalFlame/xmt/util/crypt"
 )
 
 type tcpClient struct {
@@ -53,14 +51,14 @@ func (t tcpClient) Connect(x context.Context, s string) (net.Conn, error) {
 	return t.c.Connect(x, s)
 }
 func (t tcpConnector) Connect(x context.Context, s string) (net.Conn, error) {
-	c, err := newStreamConn(x, crypt.TCP, s, t)
+	c, err := newStreamConn(x, NameTCP, s, t)
 	if err != nil {
 		return nil, err
 	}
 	return c, nil
 }
 func (t tcpConnector) Listen(x context.Context, s string) (net.Listener, error) {
-	c, err := newStreamListener(x, crypt.TCP, s, t)
+	c, err := newStreamListener(x, NameTCP, s, t)
 	if err != nil {
 		return nil, err
 	}

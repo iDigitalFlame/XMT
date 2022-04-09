@@ -11,7 +11,6 @@ import (
 
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/device"
-	"github.com/iDigitalFlame/xmt/util/crypt"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -181,7 +180,7 @@ func (s *Server) Listen(x context.Context, a string) (net.Listener, error) {
 	if s.tls != nil && (len(s.tls.Certificates) == 0 || s.tls.GetCertificate == nil) {
 		return nil, com.ErrInvalidTLSConfig
 	}
-	v, err := com.ListenConfig.Listen(x, crypt.TCP, a)
+	v, err := com.ListenConfig.Listen(x, com.NameTCP, a)
 	if err != nil {
 		return nil, err
 	}

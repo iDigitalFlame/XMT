@@ -12,7 +12,6 @@ import (
 	"github.com/iDigitalFlame/xmt/device/winapi"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
-	"golang.org/x/net/http/httpproxy"
 )
 
 // ErrNoNix is an error that is returned when a Windows device attempts a *nix
@@ -43,6 +42,67 @@ func IsDebugged() bool {
 	err = winapi.CheckRemoteDebuggerPresent(h, &d)
 	winapi.CloseHandle(h)
 	return err == nil && d
+}
+func proxyInit() *config {
+	var (
+		i   winapi.ProxyInfo
+		err = winapi.WinHTTPGetDefaultProxyConfiguration(&i)
+	)
+	if err != nil {
+		if bugtrack.Enabled {
+			bugtrack.Track("device.proxyInit(): Retriving proxy info failed, falling back to no proxy: %s", err)
+		}
+		return nil
+	}
+	if i.AccessType < 3 || (i.Proxy == nil && i.ProxyBypass == nil) {
+		return nil
+	}
+	var (
+		v = winapi.UTF16PtrToString(i.Proxy)
+		b = winapi.UTF16PtrToString(i.ProxyBypass)
+	)
+	if len(v) == 0 && len(b) == 0 {
+		return nil
+	}
+	var c config
+	if i := split(b); len(i) > 0 {
+		c.NoProxy = strings.Join(i, ",")
+	}
+	for _, x := range split(v) {
+		if len(x) == 0 {
+			continue
+		}
+		q := strings.IndexByte(x, '=')
+		if q > 3 {
+			if (x[0] != 'h' && x[0] != 'H') || (x[1] != 't' && x[1] != 'T') || (x[2] != 't' && x[2] != 'T') || (x[3] != 'p' && x[3] != 'P') {
+				continue
+			}
+			if q == 4 {
+				c.HTTPProxy = x[q+1:]
+			}
+			if x[4] != 's' && x[4] != 'S' {
+				continue
+			}
+			if q > 5 {
+				continue
+			}
+			c.HTTPSProxy = x[q+1:]
+			continue
+		}
+		if len(c.HTTPProxy) == 0 {
+			c.HTTPProxy = x
+		}
+		if len(c.HTTPSProxy) == 0 {
+			c.HTTPSProxy = x
+		}
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track(
+			"devtools.proxyInit(): Proxy info c.HTTPProxy=%s, c.HTTPSProxy=%s, c.NoProxy=%s",
+			c.HTTPProxy, c.HTTPSProxy, c.NoProxy,
+		)
+	}
+	return &c
 }
 
 // RevertToSelf function terminates the impersonation of a client application.
@@ -133,67 +193,6 @@ func Mounts() ([]string, error) {
 		m = append(m, string(rune('A'+i))+":\\")
 	}
 	return m, nil
-}
-func proxyInit() *httpproxy.Config {
-	var (
-		i   winapi.ProxyInfo
-		err = winapi.WinHTTPGetDefaultProxyConfiguration(&i)
-	)
-	if err != nil {
-		if bugtrack.Enabled {
-			bugtrack.Track("device.proxyInit(): Retriving proxy info failed, falling back to no proxy: %s", err)
-		}
-		return nil
-	}
-	if i.AccessType < 3 || (i.Proxy == nil && i.ProxyBypass == nil) {
-		return nil
-	}
-	var (
-		v = winapi.UTF16PtrToString(i.Proxy)
-		b = winapi.UTF16PtrToString(i.ProxyBypass)
-	)
-	if len(v) == 0 && len(b) == 0 {
-		return nil
-	}
-	var c httpproxy.Config
-	if i := split(b); len(i) > 0 {
-		c.NoProxy = strings.Join(i, ",")
-	}
-	for _, x := range split(v) {
-		if len(x) == 0 {
-			continue
-		}
-		q := strings.IndexByte(x, '=')
-		if q > 3 {
-			if (x[0] != 'h' && x[0] != 'H') || (x[1] != 't' && x[1] != 'T') || (x[2] != 't' && x[2] != 'T') || (x[3] != 'p' && x[3] != 'P') {
-				continue
-			}
-			if q == 4 {
-				c.HTTPProxy = x[q+1:]
-			}
-			if x[4] != 's' && x[4] != 'S' {
-				continue
-			}
-			if q > 5 {
-				continue
-			}
-			c.HTTPSProxy = x[q+1:]
-			continue
-		}
-		if len(c.HTTPProxy) == 0 {
-			c.HTTPProxy = x
-		}
-		if len(c.HTTPSProxy) == 0 {
-			c.HTTPSProxy = x
-		}
-	}
-	if bugtrack.Enabled {
-		bugtrack.Track(
-			"devtools.proxyInit(): Proxy info c.HTTPProxy=%s, c.HTTPSProxy=%s, c.NoProxy=%s",
-			c.HTTPProxy, c.HTTPSProxy, c.NoProxy,
-		)
-	}
-	return &c
 }
 
 // SetProcessName will attempt to overrite the process name on *nix systems

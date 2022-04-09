@@ -66,6 +66,9 @@ func Jitter(n uint) Setting {
 
 // Host will return a Setting that will specify a host setting to the profile.
 // If empty, this value is ignored.
+//
+// This may be included multiple times to add multiple Host entries to be used
+// in a single Group entry.
 func Host(s string) Setting {
 	if len(s) == 0 {
 		return nil

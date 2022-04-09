@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
-	"github.com/iDigitalFlame/xmt/util/crypt"
 )
 
 var emptyAddr netip.AddrPort
@@ -50,14 +49,14 @@ func (i *ipStream) Read(b []byte) (int, error) {
 	return n, err
 }
 func (i *ipConnector) Connect(x context.Context, s string) (net.Conn, error) {
-	c, err := i.DialContext(x, crypt.IP+":"+strconv.Itoa(int(i.proto)), s)
+	c, err := i.DialContext(x, NameIP+":"+strconv.Itoa(int(i.proto)), s)
 	if err != nil {
 		return nil, err
 	}
 	return &ipStream{udpStream{Conn: c}}, nil
 }
 func (i *ipConnector) Listen(x context.Context, s string) (net.Listener, error) {
-	c, err := ListenConfig.ListenPacket(x, crypt.IP+":"+strconv.Itoa(int(i.proto)), s)
+	c, err := ListenConfig.ListenPacket(x, NameIP+":"+strconv.Itoa(int(i.proto)), s)
 	if err != nil {
 		return nil, err
 	}

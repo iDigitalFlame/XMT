@@ -10,8 +10,8 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/device/winapi"
-	"github.com/iDigitalFlame/xmt/util/crypt"
 )
 
 const retry = 100 * time.Millisecond
@@ -53,7 +53,7 @@ type PipeConn struct {
 }
 
 func (addr) Network() string {
-	return crypt.Pipe
+	return com.NamePipe
 }
 func (a addr) String() string {
 	return string(a)

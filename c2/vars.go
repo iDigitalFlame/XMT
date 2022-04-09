@@ -40,11 +40,12 @@ const (
 // These Packet ID values are used for network congestion and flow control and
 // should not be used in standard Packet entries.
 const (
-	SvHello    uint8 = 0x02
-	SvRegister uint8 = 0x03 // Considered a MvDrop.
-	SvComplete uint8 = 0x04
-	SvShutdown uint8 = 0x05
-	SvDrop     uint8 = 0x06
+	SvProxy    uint8 = 0x1
+	SvHello    uint8 = 0x2
+	SvRegister uint8 = 0x3 // Considered a MvDrop.
+	SvComplete uint8 = 0x4
+	SvShutdown uint8 = 0x5
+	SvDrop     uint8 = 0x6
 )
 
 var (
@@ -126,6 +127,31 @@ func writeFull(w io.Writer, c int, b []byte) error {
 	}
 	return nil
 }
+func readSlice(r io.Reader, d *[8]byte) ([]byte, error) {
+	if err := readFull(r, 2, (*d)[:]); err != nil {
+		return nil, err
+	}
+	b := make(
+		[]byte, uint64(d[7])|uint64(d[6])<<8|uint64(d[5])<<16|uint64(d[4])<<24|
+			uint64(d[3])<<32|uint64(d[2])<<40|uint64(d[1])<<48|uint64(d[0])<<56,
+	)
+	return b, readFull(r, int(len(b)), b)
+}
+func (p *proxyData) UnmarshalStream(r data.Reader) error {
+	if err := r.ReadString(&p.n); err != nil {
+		return err
+	}
+	return r.ReadString(&p.b)
+}
+func writeSlice(w io.Writer, d *[8]byte, b []byte) error {
+	n := uint64(len(b))
+	(*d)[0], (*d)[1], (*d)[2], (*d)[3] = byte(n>>56), byte(n>>48), byte(n>>40), byte(n>>32)
+	(*d)[4], (*d)[5], (*d)[6], (*d)[7] = byte(n>>24), byte(n>>16), byte(n>>8), byte(n)
+	if err := writeFull(w, 8, (*d)[:]); err != nil {
+		return err
+	}
+	return writeFull(w, int(n), b)
+}
 func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 	if s == nil {
 		return
@@ -136,6 +162,35 @@ func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 		)
 	}
 	switch n.ID {
+	case SvProxy:
+		if s.parent == nil {
+			return
+		}
+		if cout.Enabled {
+			s.log.Info("[%s] Client indicated that it updated it's Proxy info.", s.ID)
+		}
+		c, err := n.Uint8()
+		if err != nil {
+			if cout.Enabled {
+				s.log.Error("[%s] Could not Unmarshal Proxy data: %s!", s.ID, err.Error())
+			}
+			return
+		}
+		if c == 0 {
+			s.updateProxyInfo(nil)
+			return
+		}
+		v := make([]proxyData, c)
+		for i := range v {
+			if err := v[i].UnmarshalStream(n); err != nil {
+				if cout.Enabled {
+					s.log.Error("[%s] Could not Unmarshal Proxy data: %s!", s.ID, err.Error())
+				}
+				return
+			}
+		}
+		s.updateProxyInfo(v)
+		return
 	case RvMigrate:
 		if s.parent == nil {
 			return
@@ -176,14 +231,8 @@ func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 		if cout.Enabled {
 			s.log.Info("[%s] Server indicated that we must re-register, resending SvRegister info!", s.ID)
 		}
-		if s.proxy != nil {
-			s.proxy.lock.RLock()
-			for i := range s.proxy.clients {
-				s.proxy.clients[i].queue(&com.Packet{
-					ID: SvRegister, Job: uint16(util.FastRand()), Device: s.proxy.clients[i].ID,
-				})
-			}
-			s.proxy.lock.RUnlock()
+		if s.proxy != nil && s.proxy.IsActive() {
+			s.proxy.subsRegister()
 		}
 		v := &com.Packet{ID: SvHello, Job: uint16(util.FastRand()), Device: s.ID}
 		s.Device.MarshalStream(v)
@@ -212,7 +261,7 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 		)
 	}
 	if s != nil && n.Flags&com.FlagMultiDevice == 0 && s.ID != n.Device {
-		if s.proxy != nil && s.proxy.accept(n) {
+		if s.proxy != nil && s.proxy.IsActive() && s.proxy.accept(n) {
 			return nil
 		}
 		if xerr.Concat {
