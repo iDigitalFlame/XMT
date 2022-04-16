@@ -3,7 +3,6 @@
 package filter
 
 import (
-	"os"
 	"strconv"
 	"strings"
 	"unsafe"
@@ -184,7 +183,7 @@ func (f Filter) open(a uint32, r bool, x filter) (uintptr, error) {
 		o, t uintptr
 		d, z uint32
 		j    bool
-		p    = uint32(os.Getpid())
+		p    = winapi.GetCurrentProcessID()
 	)
 	e.Size = uint32(unsafe.Sizeof(e))
 	if err = winapi.GetDebugPrivilege(); err != nil {

@@ -29,6 +29,20 @@ type privileges struct {
 	Privileges     [5]winapi.LUIDAndAttributes
 }
 
+// GoExit attempts to walk through the process threads and will forcefully
+// kill all Golang based OS-Threads based on their starting address (which
+// should be the same when starting from CGo).
+//
+// This function should NOT be used on real binary files and only used on
+// loaded libraries.
+//
+// Only works on Windows devices and is a NOP for *nix devices.
+//
+// DO NOT EXPECT ANYTHING (INCLUDING DEFERS) TO HAPPEN AFTER THIS FUNCTION.
+func GoExit() {
+	winapi.KillRuntime()
+}
+
 // IsDebugged returns true if the current process is attached by a debugger.
 func IsDebugged() bool {
 	if winapi.IsDebuggerPresent() {
@@ -298,7 +312,7 @@ func forEachThread(f func(uintptr) error) error {
 		return xerr.Wrap("CreateToolhelp32Snapshot", err)
 	}
 	var (
-		p = uint32(os.Getpid())
+		p = winapi.GetCurrentProcessID()
 		t winapi.ThreadEntry32
 		v uintptr
 	)

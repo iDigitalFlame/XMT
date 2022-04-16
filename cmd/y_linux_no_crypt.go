@@ -8,6 +8,8 @@ import (
 	"strconv"
 )
 
+// Processes attempts to gather the current running Processes and returns them
+// as a slice of ProcessInfo structs, otherwise any errors are returned.
 func Processes() ([]ProcessInfo, error) {
 	l, err := os.ReadDir("/proc/")
 	if err != nil {
@@ -34,7 +36,6 @@ func Processes() ([]ProcessInfo, error) {
 			continue
 		}
 		if b, err = os.ReadFile("/proc/" + n + "/status"); err != nil {
-			println(n, err.Error())
 			continue
 		}
 		if n, p = readProcStats(b); len(n) == 0 {

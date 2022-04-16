@@ -333,12 +333,10 @@ func readCallable(x context.Context, r data.Reader) (cmd.Runnable, string, error
 		e = d
 	case task.TvZombie:
 		var z *cmd.Zombie
-		if z, _, j, err = task.ZombieUnmarshal(context.Background(), r); err != nil {
+		if z, _, err = task.ZombieUnmarshal(context.Background(), r); err != nil {
 			return nil, "", err
 		}
-		if z.Timeout = 0; j {
-			v = z.Path
-		}
+		z.Timeout = 0
 		// NOTE(dij): I'm assuming these would be /wanted/ yes?
 		z.SetNoWindow(true)
 		z.SetWindowDisplay(0)

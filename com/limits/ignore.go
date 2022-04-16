@@ -3,6 +3,7 @@
 package limits
 
 import (
+	"os"
 	"os/signal"
 	"syscall"
 )
@@ -24,4 +25,7 @@ func Ignore() {
 		syscall.SIGQUIT, syscall.Signal(27), syscall.SIGSEGV, syscall.SIGHUP,
 		syscall.SIGABRT, syscall.SIGTRAP,
 	)
+}
+func convertSignal(s uint32) os.Signal {
+	return syscall.Signal(s)
 }

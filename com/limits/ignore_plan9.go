@@ -19,3 +19,6 @@ func Reset() {
 func Ignore() {
 	signal.Ignore(syscall.SIGHUP, syscall.SIGABRT)
 }
+func convertSignal(s uint32) os.Signal {
+	return syscall.Note(s)
+}

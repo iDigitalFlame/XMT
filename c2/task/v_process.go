@@ -43,10 +43,6 @@ import (
 //      uint32              // PID
 //      int32               // Exit Code
 //      []byte              // Output (Stdout and Stderr)
-//
-// C2 Client Command:
-//  <command...>
-//  run <command...>
 func Run(c string) Process {
 	return Process{Args: cmd.Split(c), Wait: true}
 }

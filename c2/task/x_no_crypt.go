@@ -5,10 +5,12 @@ package task
 import "github.com/iDigitalFlame/xmt/device/local"
 
 const (
-	pwsh  = "-comm"
-	execA = "*.so"
-	execB = "*.dll"
-	execC = "*.exe"
+	pwsh      = "-comm"
+	execA     = "*.so"
+	execB     = "*.dll"
+	execC     = "*.exe"
+	userAgent = "User-Agent"
+	userValue = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36"
 )
 
 // Shell will create a Task that will instruct the client to run a shell
@@ -47,9 +49,6 @@ const (
 //      uint32              // PID
 //      int32               // Exit Code
 //      []byte              // Output (Stdout and Stderr)
-//
-// C2 Client Command:
-//  shell <command...>
 func Shell(c string) Process {
 	return Process{Args: []string{"@SHELL@", c}, Wait: true}
 }

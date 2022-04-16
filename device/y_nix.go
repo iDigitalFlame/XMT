@@ -29,6 +29,18 @@ func proxyInit() *config {
 	}
 }
 
+// GoExit attempts to walk through the process threads and will forcefully
+// kill all Golang based OS-Threads based on their starting address (which
+// should be the same when starting from CGo).
+//
+// This function should NOT be used on real binary files and only used on
+// loaded libraries.
+//
+// Only works on Windows devices and is a NOP for *nix devices.
+//
+// DO NOT EXPECT ANYTHING (INCLUDING DEFERS) TO HAPPEN AFTER THIS FUNCTION.
+func GoExit() {}
+
 // RevertToSelf function terminates the impersonation of a client application.
 // Returns an error if no impersonation is being done.
 //

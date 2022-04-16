@@ -121,6 +121,7 @@ ERRORS = {
         [
             "key not found",
             "malformed Tag",
+            "invalid operation",
             "invalid env value",
             "whence is invalid",
             "setting is invalid",

@@ -48,12 +48,6 @@ import (
 //      uint32              // PID
 //      int32               // Exit Code
 //      []byte              // Output (Stdout and Stderr)
-//
-// C2 Client Command:
-//  <command...>
-//  run <command...>
-//  hup <command...>
-//  shell <command...>
 type Process struct {
 	Filter *filter.Filter
 	Dir    string
@@ -97,12 +91,6 @@ type Process struct {
 //      uint32              // PID
 //      int32               // Exit Code
 //      []byte              // Output (Stdout and Stderr)
-//
-// C2 Client Command:
-//  <command...>
-//  run <command...>
-//  hup <command...>
-//  shell <command...>
 func (p Process) Packet() (*com.Packet, error) {
 	n := &com.Packet{ID: TvExecute}
 	p.MarshalStream(n)

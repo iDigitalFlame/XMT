@@ -41,9 +41,6 @@ import (
 //      uint64              // Handle
 //      uint32              // PID
 //      int32               // Exit Code
-//
-// C2 Client Command:
-//    dll_local <path>
 func DLLFile(s string) (*DLL, error) {
 	b, err := os.ReadFile(s)
 	if err != nil {
@@ -85,9 +82,6 @@ func DLLFile(s string) (*DLL, error) {
 //      uint64              // Handle
 //      uint32              // PID
 //      int32               // Exit Code
-//
-// C2 Client Command:
-//    dll_local <path>
 func DLLReader(r io.Reader) (*DLL, error) {
 	b, err := io.ReadAll(r)
 	if err != nil {

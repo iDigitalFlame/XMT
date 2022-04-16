@@ -31,16 +31,6 @@ const (
 	spawnDefaultTime = time.Second * 10
 )
 
-// TODO(dij): We need a method to track client-side Proxy connections (and
-//            maybe server-sync them).
-//            Since we want to expand proxy support to more than one, a simple
-//            boolean won't cut it, so we need a Marshal-able struct maybe.
-//            iee Proxy struct is too /big/ to do this, wouldn't be right tbh.
-//            might need to implement something that can indicate and fill the
-//            same slot (ie: interface probally).
-//
-//            We would use this to determine if a Proxy is set on the server side.
-
 var (
 	// ErrNoTask is returned from some functions that return Jobs. This will
 	// be returned when the Job object will be nil due to the fact the function
@@ -50,8 +40,8 @@ var (
 	// indicate that the function failed, but that the Job object should NOT be
 	// used as it is nil. (In case the Job object is not checked.)
 	ErrNoTask = xerr.Sub("no Job created for client Session", 0x5)
-	// ErrFullBuffer is returned from the WritePacket function when the send buffer
-	// for the Session is full.
+	// ErrFullBuffer is returned from the WritePacket function when the send
+	// buffer for the Session is full.
 	//
 	// This error also indicates that a call to 'Send' would block.
 	ErrFullBuffer = xerr.Sub("buffer is full", 0x7)

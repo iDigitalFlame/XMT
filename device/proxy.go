@@ -186,7 +186,7 @@ func Proxy(r *http.Request) (*url.URL, error) {
 		}
 	})
 	if proxy == nil {
-		return r.URL, nil
+		return nil, nil
 	}
 	return proxy(r.URL)
 }

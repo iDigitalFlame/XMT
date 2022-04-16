@@ -9,7 +9,7 @@ import (
 
 const (
 	// IDSize is the amount of bytes used to store the Host ID and
-	// SessionID values.  The ID is the (HostID + SessionID).
+	// SessionID values. The ID is the (HostID + SessionID).
 	IDSize = 32
 	// MachineIDSize is the amount of bytes that is used as the Host
 	// specific ID value that does not change when on the same host.

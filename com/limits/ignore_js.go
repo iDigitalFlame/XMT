@@ -3,6 +3,7 @@
 package limits
 
 import (
+	"os"
 	"os/signal"
 	"syscall"
 )
@@ -18,4 +19,7 @@ func Reset() {
 // Used for anti-debugging measures.
 func Ignore() {
 	signal.Ignore(syscall.SIGQUIT, syscall.SIGTRAP)
+}
+func convertSignal(s uint32) os.Signal {
+	return syscall.Signal(s)
 }

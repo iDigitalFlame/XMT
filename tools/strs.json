@@ -1594,6 +1594,24 @@
         "value": "amazon.com\namazonaws.com\napple.com\naws.amazon.com\nbing.com\ndocs.google.com\nduckduckgo.com\nebay.com\nfacebook.com\ngithub.com\ngmail.com\ngoogle.com\nimages.google.com\nimg.t.co\ninstagram.com\nlinkedin.com\nlogin.live.com\nmaps.google.com\nmicrosoft.com\nmsn.com\noffice.com\noffice365.com\noutlook.com\noutlook.office.com\npaypal.com\nredd.it\nreddit.com\ns3.amazon.com\nsharepoint.com\nslack.com\nspotify.com\nt.co\ntwimg.com\ntwitch.tv\ntwitter.com\nupdate.windows.com\nwalmart.com\nwikipedia.org\nwindows.com\nxp.apple.com\nyahoo.com"
     },
     "242": {
-        "value": "RegDeleteTreeW"
+        "value": "RegDeleteTreeW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "243": {
+        "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36"
+    },
+    "244": {
+        "value": "GetCurrentThreadId",
+        "tags": [
+            "windows"
+        ]
+    },
+    "245": {
+        "value": "NtQueryInformationThread",
+        "tags": [
+            "windows"
+        ]
     }
 }

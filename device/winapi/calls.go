@@ -852,10 +852,10 @@ func OpenSemaphore(access uint32, inherit bool, name string) (uintptr, error) {
 func NtAllocateVirtualMemory(h uintptr, size, access uint32) (uintptr, error) {
 	var (
 		a         uintptr
-		x         = uintptr(uint32(size))
+		x         = uintptr(size)
 		r, _, err = syscall.SyscallN(
 			funcNtAllocateVirtualMemory.address(), h, uintptr(unsafe.Pointer(&a)), 0, uintptr(unsafe.Pointer(&x)),
-			0x1000, uintptr(access),
+			0x3000, uintptr(access),
 		)
 	)
 	if r > 0 {

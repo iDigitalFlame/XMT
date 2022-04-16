@@ -23,9 +23,7 @@ import (
 //
 //  Input:
 //      Zombie struct {
-//          string          // Path
 //          []byte          // Data
-//          bool            // IsDLL
 //          []string        // Args
 //          string          // Dir
 //          []string        // Environment
@@ -47,15 +45,10 @@ import (
 //      uint32              // PID
 //      int32               // Exit Code
 //      []byte              // Output (Stdout and Stderr)
-//
-// C2 Client Command:
-//  zombie_asm <file> <args...>
-//  zombie_dll <file> <args...>
-//  zombie_dll_local <file> <args...>
 type Zombie struct {
 	Filter *filter.Filter
 
-	Path, Dir string
+	Dir       string
 	Data      []byte
 	Env, Args []string
 
@@ -63,9 +56,6 @@ type Zombie struct {
 	Timeout time.Duration
 	Flags   uint32
 
-	// IsDLL is set to true if the 'Data' slice should be considered a DLL
-	// file instead of raw Assembly.
-	IsDLL      bool
 	Wait, Hide bool
 }
 
@@ -79,9 +69,7 @@ type Zombie struct {
 //
 //  Input:
 //      Process struct {
-//          string          // Path
 //          []byte          // Data
-//          bool            // IsDLL
 //          []string        // Args
 //          string          // Dir
 //          []string        // Environment
@@ -104,11 +92,6 @@ type Zombie struct {
 //      uint32              // PID
 //      int32               // Exit Code
 //      []byte              // Output (Stdout and Stderr)
-//
-// C2 Client Command:
-//  zombie_asm <file> <args...>
-//  zombie_dll <file> <args...>
-//  zombie_dll_local <file> <args...>
 func (z Zombie) Packet() (*com.Packet, error) {
 	n := &com.Packet{ID: TvZombie}
 	z.MarshalStream(n)
@@ -117,13 +100,7 @@ func (z Zombie) Packet() (*com.Packet, error) {
 
 // MarshalStream writes the data for this Zombie to the supplied Writer.
 func (z Zombie) MarshalStream(w data.Writer) error {
-	if err := w.WriteString(z.Path); err != nil {
-		return err
-	}
 	if err := w.WriteBytes(z.Data); err != nil {
-		return err
-	}
-	if err := w.WriteBool(z.IsDLL); err != nil {
 		return err
 	}
 	if err := data.WriteStringList(w, z.Args); err != nil {
@@ -158,13 +135,7 @@ func (z Zombie) MarshalStream(w data.Writer) error {
 
 // UnmarshalStream reads the data for this Zombie from the supplied Reader.
 func (z *Zombie) UnmarshalStream(r data.Reader) error {
-	if err := r.ReadString(&z.Path); err != nil {
-		return err
-	}
 	if err := r.ReadBytes(&z.Data); err != nil {
-		return err
-	}
-	if err := r.ReadBool(&z.IsDLL); err != nil {
 		return err
 	}
 	if err := data.ReadStringList(r, &z.Args); err != nil {

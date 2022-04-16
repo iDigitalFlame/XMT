@@ -36,7 +36,6 @@ func Processes() ([]ProcessInfo, error) {
 			continue
 		}
 		if b, err = os.ReadFile(crypt.Get(237) + n + crypt.Get(78)); err != nil { // /proc/ , /status
-			println(n, err.Error())
 			continue
 		}
 		if n, p = readProcStats(b); len(n) == 0 {

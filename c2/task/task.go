@@ -23,7 +23,7 @@ const (
 	MvTime    uint8 = 0x08
 	MvPwd     uint8 = 0x09
 	MvCwd     uint8 = 0x0A
-	MvProxy   uint8 = 0x0B // TODO(dij): setup
+	MvProxy   uint8 = 0x0B
 	MvSpawn   uint8 = 0x0C
 	MvMigrate uint8 = 0x0D
 	MvElevate uint8 = 0x0E
@@ -34,7 +34,6 @@ const (
 	MvScript  uint8 = 0xF0 // TODO(dij): setup
 
 	// Built in Task Message ID Values
-	// Supported by 'DefaultClientMux'
 	TvDownload    uint8 = 0xC0
 	TvUpload      uint8 = 0xC1
 	TvExecute     uint8 = 0xC2
@@ -50,6 +49,7 @@ const (
 	TvProcDump    uint8 = 0xCC
 	TvProcList    uint8 = 0xCD
 	TvRegistry    uint8 = 0xCE
+	TvSystemIO    uint8 = 0xCF
 )
 
 // Mappings is an fixed size array that contains the Tasker mappings for each
@@ -73,6 +73,7 @@ var Mappings = [0xFF]Tasker{
 	TvProcDump:    taskProcDump,
 	TvProcList:    taskProcList,
 	TvRegistry:    taskRegistry,
+	TvSystemIO:    taskSystemIo,
 }
 
 // Tasklet is an interface that allows for Sessions to be directly tasked

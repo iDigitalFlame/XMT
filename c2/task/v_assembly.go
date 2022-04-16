@@ -35,10 +35,6 @@ import (
 //      uint64              // Handle
 //      uint32              // PID
 //      int32               // Exit Code
-//
-// C2 Client Command:
-//    asm <file>
-//    assembly <file>
 func AssemblyFile(s string) (*Assembly, error) {
 	b, err := os.ReadFile(s)
 	if err != nil {
@@ -75,10 +71,6 @@ func AssemblyFile(s string) (*Assembly, error) {
 //      uint64              // Handle
 //      uint32              // PID
 //      int32               // Exit Code
-//
-// C2 Client Command:
-//    asm <file>
-//    assembly <file>
 func AssemblyReader(r io.Reader) (*Assembly, error) {
 	b, err := io.ReadAll(r)
 	if err != nil {

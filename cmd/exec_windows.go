@@ -448,14 +448,11 @@ func (e *executable) startInfo() (*winapi.StartupInfoEx, *winapi.StartupInfo, er
 		}
 		e.closers = append(e.closers, closer(e.parent))
 	}
-	if !protectEnable && e.parent == 0 {
-		return nil, &x.StartupInfo, nil
-	}
 	var (
 		s, w uint64
 		c    uint32
 	)
-	if e.parent > 0 && protectEnable {
+	if e.parent > 0 {
 		w, c = 72, 2
 	} else {
 		w, c = 48, 1

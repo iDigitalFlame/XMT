@@ -15,27 +15,25 @@ arch_s390x=( linux )
 arch_wasm=( js )
 
 build_tags=(
-              bugs implant crypt stdrand nojson noprotect nosweep no6 tiny small medium nofrag regexp nopanic noservice ews
+              bugs implant crypt stdrand nojson nosweep no6 tiny small medium nofrag regexp nopanic noservice ews
               bugs,implant
               bugs,implant,crypt
               bugs,implant,crypt,stdrand
               bugs,implant,crypt,stdrand,nojson
-              bugs,implant,crypt,stdrand,nojson,noprotect
-              bugs,implant,crypt,stdrand,nojson,noprotect,nosweep
-              bugs,implant,crypt,stdrand,nojson,noprotect,nosweep,no6
-              bugs,implant,crypt,stdrand,nojson,noprotect,nosweep,no6,tiny
-              bugs,implant,crypt,stdrand,nojson,noprotect,nosweep,no6,small
-              bugs,implant,crypt,stdrand,nojson,noprotect,nosweep,no6,medium
-              bugs,implant,crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag
-              bugs,implant,crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag,regexp
-              bugs,implant,crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag,regexp,ews
-              bugs,implant,crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag,regexp,ews,noproxy
-              implant,crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag,regexp,ews,noproxy
-              crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag,regexp,ews,noproxy
-              crypt,stdrand,nojson,noprotect,nosweep,no6,nofrag,regexp,noproxy
-              stdrand,nojson,noprotect,nosweep,no6,nofrag,regexp,ews,noproxy
-              nojson,noprotect,nosweep,no6,nofrag,regexp,ews,noproxy
-              noprotect,nosweep,no6,nofrag,regexp,ews,noproxy
+              bugs,implant,crypt,stdrand,nojson,nosweep
+              bugs,implant,crypt,stdrand,nojson,nosweep,no6
+              bugs,implant,crypt,stdrand,nojson,nosweep,no6,tiny
+              bugs,implant,crypt,stdrand,nojson,nosweep,no6,small
+              bugs,implant,crypt,stdrand,nojson,nosweep,no6,medium
+              bugs,implant,crypt,stdrand,nojson,nosweep,no6,nofrag
+              bugs,implant,crypt,stdrand,nojson,nosweep,no6,nofrag,regexp
+              bugs,implant,crypt,stdrand,nojson,nosweep,no6,nofrag,regexp,ews
+              bugs,implant,crypt,stdrand,nojson,nosweep,no6,nofrag,regexp,ews,noproxy
+              implant,crypt,stdrand,nojson,nosweep,no6,nofrag,regexp,ews,noproxy
+              crypt,stdrand,nojson,nosweep,no6,nofrag,regexp,ews,noproxy
+              crypt,stdrand,nojson,nosweep,no6,nofrag,regexp,noproxy
+              stdrand,nojson,nosweep,no6,nofrag,regexp,ews,noproxy
+              nojson,nosweep,no6,nofrag,regexp,ews,noproxy
               nosweep,no6,nofrag,regexp,ews,noproxy
               nosweep,no6,nofrag,ews,noproxy
               nosweep,no6,nofrag,noproxy

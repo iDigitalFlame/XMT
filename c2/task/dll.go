@@ -48,10 +48,6 @@ import (
 //      uint64              // Handle
 //      uint32              // PID
 //      int32               // Exit Code
-//
-// C2 Client Command:
-//    dll <path>
-//    dll_local <path>
 type DLL struct {
 	Filter *filter.Filter
 
@@ -89,10 +85,6 @@ type DLL struct {
 //      uint64              // Handle
 //      uint32              // PID
 //      int32               // Exit Code
-//
-// C2 Client Command:
-//    dll <path>
-//    dll_local <path>
 func (d DLL) Packet() (*com.Packet, error) {
 	n := &com.Packet{ID: TvDLL}
 	d.MarshalStream(n)

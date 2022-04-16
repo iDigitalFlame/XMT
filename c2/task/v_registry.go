@@ -25,11 +25,6 @@ import (
 //          uint32       // Type
 //          []byte       // Data
 //      }
-//
-// C2 Client Command:
-//  reg query <path>
-//  reg dir <path>
-//  reg ls <path>
 func RegLs(s string) *com.Packet {
 	n := &com.Packet{ID: TvRegistry}
 	n.WriteUint8(regOpLs)
@@ -48,10 +43,6 @@ func RegLs(s string) *com.Packet {
 //      string // Key Path
 //  Output:
 //      uint8  // Operation
-//
-// C2 Client Command:
-//  reg mkdir <path>
-//  reg mk <path>
 func RegMakeKey(key string) *com.Packet {
 	n := &com.Packet{ID: TvRegistry}
 	n.WriteUint8(regOpMake)
@@ -76,11 +67,6 @@ func RegMakeKey(key string) *com.Packet {
 //          uint32     // Type
 //          []byte     // Data
 //      }
-//
-// C2 Client Command:
-//  reg query <path> <value>
-//  reg get <path> <value>
-//  reg <path> <value>
 func RegGet(key, value string) *com.Packet {
 	n := &com.Packet{ID: TvRegistry}
 	n.WriteUint8(regOpGet)
@@ -103,10 +89,6 @@ func RegGet(key, value string) *com.Packet {
 //      string // Content
 //  Output:
 //      uint8  // Operation
-//
-// C2 Client Command:
-//  reg set <path> <value> string <content>
-//  reg set <path> <value> s <content>
 func RegSetString(key, value, v string) *com.Packet {
 	n := &com.Packet{ID: TvRegistry}
 	n.WriteUint8(regOpSetString)
@@ -128,10 +110,6 @@ func RegSetString(key, value, v string) *com.Packet {
 //      bool   // Delete Recursively or Delete non-empty Keys
 //  Output:
 //      uint8  // Operation
-//
-// C2 Client Command:
-//  reg delete [-f] <path>
-//  reg del [-f] <path>
 func RegDeleteKey(key string, force bool) *com.Packet {
 	n := &com.Packet{ID: TvRegistry}
 	n.WriteUint8(regOpDeleteKey)
@@ -153,10 +131,6 @@ func RegDeleteKey(key string, force bool) *com.Packet {
 //      bool   // Delete Recursively or Delete non-empty Keys
 //  Output:
 //      uint8  // Operation
-//
-// C2 Client Command:
-//  reg delete [-f] <path> [value]
-//  reg del [-f] <path> [value]
 func RegDelete(key, value string, force bool) *com.Packet {
 	n := &com.Packet{ID: TvRegistry}
 	n.WriteUint8(regOpDelete)
@@ -180,10 +154,6 @@ func RegDelete(key, value string, force bool) *com.Packet {
 //      uint32 // Content
 //  Output:
 //      uint8  // Operation
-//
-// C2 Client Command:
-//  reg set <path> <value> dword <content>
-//  reg set <path> <value> d <content>
 func RegSetDword(key, value string, v uint32) *com.Packet {
 	n := &com.Packet{ID: TvRegistry}
 	n.WriteUint8(regOpSetDword)
@@ -207,10 +177,6 @@ func RegSetDword(key, value string, v uint32) *com.Packet {
 //      uint64 // Content
 //  Output:
 //      uint8  // Operation
-//
-// C2 Client Command:
-//  reg set <path> <value> qword <content>
-//  reg set <path> <value> q <content>
 func RegSetQword(key, value string, v uint64) *com.Packet {
 	n := &com.Packet{ID: TvRegistry}
 	n.WriteUint8(regOpSetQword)
@@ -234,11 +200,6 @@ func RegSetQword(key, value string, v uint64) *com.Packet {
 //      []byte // Content
 //  Output:
 //      uint8  // Operation
-//
-// C2 Client Command:
-//  reg set <path> <value> binary <content (as base64)>
-//  reg set <path> <value> bin <content (as base64)>
-//  reg set <path> <value> b <content (as base64)>
 func RegSetBytes(key, value string, b []byte) *com.Packet {
 	n := &com.Packet{ID: TvRegistry}
 	n.WriteUint8(regOpSetBytes)
@@ -262,10 +223,6 @@ func RegSetBytes(key, value string, b []byte) *com.Packet {
 //      string // Content
 //  Output:
 //      uint8  // Operation
-//
-// C2 Client Command:
-//  reg set <path> <value> expand <content>
-//  reg set <path> <value> e <content>
 func RegSetExpandString(key, value, v string) *com.Packet {
 	n := &com.Packet{ID: TvRegistry}
 	n.WriteUint8(regOpSetExpandString)
@@ -314,10 +271,6 @@ func RegSet(key, value string, t uint32, b []byte) *com.Packet {
 //      []string // Content
 //  Output:
 //      uint8  // Operation
-//
-// C2 Client Command:
-//  reg set <path> <value> multi <content1,contentN | content1 contentN>
-//  reg set <path> <value> m <content1,contentN | content1 contentN>
 func RegSetStringList(key, value string, v []string) *com.Packet {
 	n := &com.Packet{ID: TvRegistry}
 	n.WriteUint8(regOpSetStringList)

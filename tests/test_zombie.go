@@ -2,33 +2,34 @@ package main
 
 import (
 	"fmt"
-	"time"
+	"os"
 
 	"github.com/iDigitalFlame/xmt/cmd"
 	"github.com/iDigitalFlame/xmt/cmd/filter"
 )
 
-func funcZombie() {
+func testZombie() {
 
-	z := cmd.NewZombie([]byte{}, "notepad.exe", "this-is-not-real.txt")
+	b, err := os.ReadFile(`my.dll`)
+	if err != nil {
+		panic(err)
+	}
+
+	z := cmd.NewZombie(cmd.DLLToASM("", b), "notepad.exe", "file.txt")
 	z.SetParent(filter.I("sihost.exe"))
-	z.SetSuspended(true)
 
-	if err := z.Start(); err != nil {
+	if err = z.Start(); err != nil {
 		panic(err)
 	}
 
-	time.Sleep(time.Second * 10)
-	println("resume NOW!")
-
-	z.Resume()
-	if err := z.Wait(); err != nil {
+	if err = z.Wait(); err != nil {
 		panic(err)
 	}
+
 	e, err := z.ExitCode()
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("res: %d\n", e)
+	fmt.Printf("res: %X\n", uint32(e))
 }

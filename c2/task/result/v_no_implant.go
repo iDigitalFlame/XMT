@@ -235,6 +235,41 @@ func ProcessList(n *com.Packet) ([]cmd.ProcessInfo, error) {
 	return e, nil
 }
 
+// SystemIO will parse the RvResult Packet from a TvSystemIO task.
+//
+// The return result is dependent on the resulting operation. If the result is
+// from a 'Move' or 'Copy' operation, this will return the resulting path and
+// new file size.
+//
+// The boolean value will return true if the result was a valid command that
+// returns no output, such as a Touch, Delete or Kill operation.
+//
+// This function returns an error if any reading errors occur, the Packet is not
+// in the expected format or the Packet is nil or empty.
+func SystemIO(n *com.Packet) (string, uint64, bool, error) {
+	if n == nil || n.Empty() {
+		return "", 0, false, c2.ErrMalformedPacket
+	}
+	o, err := n.Uint8()
+	if err != nil {
+		return "", 0, false, c2.ErrMalformedPacket
+	}
+	if o != 2 && o != 3 {
+		return "", 0, true, nil
+	}
+	var (
+		i uint64
+		v string
+	)
+	if err = n.ReadString(&v); err != nil {
+		return "", 0, false, err
+	}
+	if err = n.ReadUint64(&i); err != nil {
+		return "", 0, false, err
+	}
+	return v, i, true, nil
+}
+
 // Registry will parse the RvResult Packet from a TvRegistry task.
 //
 // The return result is dependent on the resulting operation. If the result is

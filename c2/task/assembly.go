@@ -44,10 +44,6 @@ import (
 //      uint64              // Handle
 //      uint32              // PID
 //      int32               // Exit Code
-//
-// C2 Client Command:
-//    asm <file>
-//    assembly <file>
 type Assembly struct {
 	Filter  *filter.Filter
 	Data    []byte
@@ -82,10 +78,6 @@ type Assembly struct {
 //      uint64              // Handle
 //      uint32              // PID
 //      int32               // Exit Code
-//
-// C2 Client Command:
-//    asm <file>
-//    assembly <file>
 func (a Assembly) Packet() (*com.Packet, error) {
 	n := &com.Packet{ID: TvAssembly}
 	a.MarshalStream(n)

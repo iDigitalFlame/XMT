@@ -90,6 +90,7 @@ var (
 	funcGetExitCodeThread                                   = dllKernel32.proc(crypt.Get(181)) // GetExitCodeThread
 	funcGetExitCodeProcess                                  = dllKernel32.proc(crypt.Get(182)) // GetExitCodeProcess
 	funcCreateCompatibleDC                                  = dllGdi32.proc(crypt.Get(224))    // CreateCompatibleDC
+	funcGetCurrentThreadId                                  = dllKernel32.proc(crypt.Get(244)) // GetCurrentThreadId
 	funcEnumDisplayMonitors                                 = dllUser32.proc(crypt.Get(233))   // EnumDisplayMonitors
 	funcEnumDisplaySettings                                 = dllUser32.proc(crypt.Get(234))   // EnumDisplaySettingsW
 	funcGetTokenInformation                                 = dllAdvapi32.proc(crypt.Get(183)) // GetTokenInformation
@@ -106,6 +107,7 @@ var (
 	funcCreateProcessWithToken                              = dllAdvapi32.proc(crypt.Get(193)) // CreateProcessWithTokenW
 	funcNtAllocateVirtualMemory                             = dllNtdll.proc(crypt.Get(194))    // NtAllocateVirtualMemory
 	funcRtlSetProcessIsCritical                             = dllNtdll.proc(crypt.Get(195))    // RtlSetProcessIsCritical
+	funcNtQueryInformationThread                            = dllNtdll.proc(crypt.Get(245))    // NtQueryInformationThread
 	funcCreateToolhelp32Snapshot                            = dllKernel32.proc(crypt.Get(196)) // CreateToolhelp32Snapshot
 	funcUpdateProcThreadAttribute                           = dllKernel32.proc(crypt.Get(197)) // UpdateProcThreadAttribute
 	funcNtQueryInformationProcess                           = dllNtdll.proc(crypt.Get(198))    // NtQueryInformationProcess

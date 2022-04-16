@@ -11,6 +11,8 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
+// Processes attempts to gather the current running Processes and returns them
+// as a slice of ProcessInfo structs, otherwise any errors are returned.
 func Processes() ([]ProcessInfo, error) {
 	h, err := winapi.CreateToolhelp32Snapshot(2, 0)
 	if err != nil {

@@ -3,6 +3,8 @@
 package winapi
 
 import (
+	"runtime"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"unsafe"
@@ -42,6 +44,99 @@ type lsaAccountDomainInfo struct {
 	SID *SID
 }
 
+// KillRuntime attempts to walk through the process threads and will forcefully
+// kill all Golang based OS-Threads based on their starting address (which
+// should be the same when starting from CGo).
+//
+// This function should NOT be used on real binary files and only used on
+// loaded libraries.
+//
+// DO NOT EXPECT ANYTHING (INCLUDING DEFERS) TO HAPPEN AFTER THIS FUNCTION.
+func KillRuntime() {
+	runtime.LockOSThread()
+	h, err := CreateToolhelp32Snapshot(0x4, 0)
+	if err != nil {
+		runtime.UnlockOSThread()
+		return
+	}
+	var (
+		m = make(map[uint32][]uintptr, 16)
+		p = GetCurrentProcessID()
+		y = getCurrentThreadId()
+		t ThreadEntry32
+		v uintptr
+		s uint32
+	)
+	t.Size = uint32(unsafe.Sizeof(t))
+	for err = Thread32First(h, &t); err == nil; err = Thread32Next(h, &t) {
+		if t.OwnerProcessID != p || t.ThreadID == y {
+			continue
+		}
+		if v, err = OpenThread(0x61, false, t.ThreadID); err != nil {
+			break
+		}
+		if s, err = getThreadStartAddress(v); err != nil {
+			break
+		}
+		if _, ok := m[s]; !ok {
+			m[s] = make([]uintptr, 0, 8)
+		}
+		m[s] = append(m[s], v)
+	}
+	if CloseHandle(h); len(m) == 0 || (err != nil && err != ErrNoMoreFiles) {
+		for k, v := range m {
+			for i := range v {
+				CloseHandle(v[i])
+			}
+			m[k] = nil
+			delete(m, k)
+		}
+		m = nil
+		runtime.UnlockOSThread()
+		return
+	}
+	var (
+		z uint32
+		x int
+	)
+	for k, v := range m {
+		if len(v) > x {
+			x, z = len(v), k
+		}
+	}
+	c := m[z]
+	for k, v := range m {
+		if k == z {
+			m[k] = nil
+			delete(m, k)
+			continue
+		}
+		for i := range v {
+			CloseHandle(v[i])
+		}
+		m[k] = nil
+		delete(m, k)
+	}
+	m = nil
+	for i := range c {
+		if err = TerminateThread(c[i], 0); err != nil {
+			break
+		}
+	}
+	for i := range c {
+		CloseHandle(c[i])
+	}
+	if c = nil; err != nil {
+		runtime.UnlockOSThread()
+		return
+	}
+	runtime.GC()
+	debug.FreeOSMemory()
+	TerminateThread(CurrentThread, 0)
+	// NOTE(dij): Buck Stops here.
+	runtime.UnlockOSThread()
+}
+
 // ZeroTraceEvent will attempt to zero out the NtTraceEvent function call with
 // a NOP.
 //
@@ -77,6 +172,10 @@ func GetDebugPrivilege() error {
 	err = AdjustTokenPrivileges(t, false, unsafe.Pointer(&p), uint32(unsafe.Sizeof(p)), nil, nil)
 	CloseHandle(t)
 	return err
+}
+func getCurrentThreadId() uint32 {
+	r, _, _ := syscall.SyscallN(funcGetCurrentThreadId.address())
+	return uint32(r)
 }
 
 // LoadLibraryAddress is a simple function that returns the raw address of the
@@ -143,6 +242,16 @@ func GetProcessFileName(h uintptr) (string, error) {
 		}
 	}
 	return v, nil
+}
+func getThreadStartAddress(h uintptr) (uint32, error) {
+	var (
+		i         uint32
+		r, _, err = syscall.SyscallN(funcNtQueryInformationThread.address(), h, 0x9, uintptr(unsafe.Pointer(&i)), 8, 0)
+	)
+	if r > 0 {
+		return 0, unboxError(err)
+	}
+	return i, nil
 }
 
 // StringListToUTF16Block creates a UTF16 encoded block for usage as a Process

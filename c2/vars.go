@@ -128,7 +128,7 @@ func writeFull(w io.Writer, c int, b []byte) error {
 	return nil
 }
 func readSlice(r io.Reader, d *[8]byte) ([]byte, error) {
-	if err := readFull(r, 2, (*d)[:]); err != nil {
+	if err := readFull(r, 8, (*d)[:]); err != nil {
 		return nil, err
 	}
 	b := make(

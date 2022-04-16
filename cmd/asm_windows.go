@@ -27,7 +27,7 @@ func (a *Assembly) Start() error {
 	if err := a.t.Start(0, a.Timeout, 0, a.Data); err != nil {
 		return err
 	}
-	go a.t.wait()
+	go a.t.wait(0, 0)
 	return nil
 }
 

