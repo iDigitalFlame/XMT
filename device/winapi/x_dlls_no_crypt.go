@@ -88,7 +88,7 @@ var (
 	funcGetExitCodeThread                                   = dllKernel32.proc("GetExitCodeThread")
 	funcGetExitCodeProcess                                  = dllKernel32.proc("GetExitCodeProcess")
 	funcCreateCompatibleDC                                  = dllGdi32.proc("CreateCompatibleDC")
-	funcGetCurrentThreadId                                  = dllKernel32.proc("GetCurrentThreadId")
+	funcGetCurrentThreadID                                  = dllKernel32.proc("GetCurrentThreadId")
 	funcEnumDisplayMonitors                                 = dllUser32.proc("EnumDisplayMonitors")
 	funcEnumDisplaySettings                                 = dllUser32.proc("EnumDisplaySettingsW")
 	funcGetTokenInformation                                 = dllAdvapi32.proc("GetTokenInformation")

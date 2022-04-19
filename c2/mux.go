@@ -191,20 +191,19 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 	case task.MvProxy:
 		var (
 			v string
-			r bool
+			r uint8
 		)
 		if err := n.ReadString(&v); err != nil {
 			return true, err
 		}
-		if err := n.ReadBool(&r); err != nil {
+		if err := n.ReadUint8(&r); err != nil {
 			return true, err
 		}
-		if r {
-			p := s.GetProxy(v)
-			if p == nil {
-				return true, os.ErrNotExist
+		if r == 0 {
+			if i := s.Proxy(v); i != nil {
+				return true, i.Close()
 			}
-			return true, p.Close()
+			return true, os.ErrNotExist
 		}
 		if ProfileParser == nil {
 			return true, xerr.Sub("no Profile parser loaded", 0x8)
@@ -223,10 +222,15 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 		if err != nil {
 			return true, xerr.Wrap("parse Profile", err)
 		}
-		if _, err = s.Proxy(v, b, p); err != nil {
-			return true, err
+		if r == 1 {
+			i := s.Proxy(v)
+			if i == nil {
+				return true, os.ErrNotExist
+			}
+			return true, i.Replace(b, p)
 		}
-		return true, nil
+		_, err = s.NewProxy(v, b, p)
+		return true, err
 	case task.MvMounts:
 		m, err := device.Mounts()
 		if err != nil {

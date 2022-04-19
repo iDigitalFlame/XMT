@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 )
 
 func testWC2() {
-	limits.MemorySweep()
+	limits.MemorySweep(context.Background())
 
 	if len(os.Args) == 2 {
 		var (

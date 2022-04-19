@@ -138,10 +138,10 @@ func readSlice(r io.Reader, d *[8]byte) ([]byte, error) {
 	return b, readFull(r, int(len(b)), b)
 }
 func (p *proxyData) UnmarshalStream(r data.Reader) error {
-	if err := r.ReadString(&p.n); err != nil {
+	if err := r.ReadString(&p.b); err != nil {
 		return err
 	}
-	return r.ReadString(&p.b)
+	return r.ReadString(&p.n)
 }
 func writeSlice(w io.Writer, d *[8]byte, b []byte) error {
 	n := uint64(len(b))
@@ -192,7 +192,7 @@ func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 		s.updateProxyInfo(v)
 		return
 	case RvMigrate:
-		if s.parent == nil {
+		if s.s == nil {
 			return
 		}
 		if cout.Enabled {
@@ -208,12 +208,12 @@ func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 			}
 		}
 	case SvShutdown:
-		if s.parent != nil {
+		if s.s != nil {
 			if cout.Enabled {
 				s.log.Info("[%s] Client indicated shutdown, acknowledging and closing Session.", s.ID)
 			}
 			s.write(false, &com.Packet{ID: SvShutdown, Job: 1, Device: s.ID})
-			s.Remove()
+			s.s.Remove(s.ID, false)
 		} else {
 			if s.state.Closing() {
 				return
@@ -225,7 +225,7 @@ func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 		s.Close()
 		return
 	case SvRegister:
-		if s.parent != nil {
+		if s.s != nil {
 			return
 		}
 		if cout.Enabled {
@@ -270,12 +270,7 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 		return xerr.Sub("received Packet that does not match our own ID", 0xD)
 	}
 	if n.Flags&com.FlagOneshot != 0 {
-		switch {
-		case l != nil && l.s.Oneshot != nil:
-			l.m.queue(event{p: n, pf: l.s.Oneshot})
-		case s != nil && s.s != nil && s.s.Oneshot != nil: // NOTE(dij): Would this ever fire?
-			s.m.queue(event{p: n, pf: s.s.Oneshot})
-		}
+		l.oneshot(n)
 		return nil
 	}
 	if s == nil || n.ID == SvComplete {

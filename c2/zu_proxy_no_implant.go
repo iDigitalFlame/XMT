@@ -3,5 +3,8 @@
 package c2
 
 func (p *Proxy) prefix() string {
-	return p.parent.ID.String() + "/P"
+	if len(p.name) == 0 {
+		return p.parent.ID.String() + "/P"
+	}
+	return p.parent.ID.String() + "/P(" + p.name + ")"
 }

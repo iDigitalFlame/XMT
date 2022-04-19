@@ -90,7 +90,7 @@ var (
 	funcGetExitCodeThread                                   = dllKernel32.proc(crypt.Get(181)) // GetExitCodeThread
 	funcGetExitCodeProcess                                  = dllKernel32.proc(crypt.Get(182)) // GetExitCodeProcess
 	funcCreateCompatibleDC                                  = dllGdi32.proc(crypt.Get(224))    // CreateCompatibleDC
-	funcGetCurrentThreadId                                  = dllKernel32.proc(crypt.Get(244)) // GetCurrentThreadId
+	funcGetCurrentThreadID                                  = dllKernel32.proc(crypt.Get(244)) // GetCurrentThreadId
 	funcEnumDisplayMonitors                                 = dllUser32.proc(crypt.Get(233))   // EnumDisplayMonitors
 	funcEnumDisplaySettings                                 = dllUser32.proc(crypt.Get(234))   // EnumDisplaySettingsW
 	funcGetTokenInformation                                 = dllAdvapi32.proc(crypt.Get(183)) // GetTokenInformation

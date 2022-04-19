@@ -31,7 +31,6 @@ var (
 			return w
 		},
 	}
-
 	zlibReaderPool, gzipReaderPool sync.Pool
 )
 
@@ -76,6 +75,7 @@ func (c compress) Unwrap(r io.Reader) (io.Reader, error) {
 			}
 			return &reader{ReadCloser: n, p: &zlibReaderPool}, nil
 		}
+		var ()
 		if err := c.(zlib.Resetter).Reset(r, nil); err != nil {
 			zlibReaderPool.Put(c)
 			return nil, err
@@ -90,12 +90,15 @@ func (c compress) Unwrap(r io.Reader) (io.Reader, error) {
 			}
 			return &reader{ReadCloser: n, p: &gzipReaderPool}, nil
 		}
-		n := c.(*gzip.Reader)
-		if err := n.Reset(r); err != nil {
-			gzipReaderPool.Put(c)
-			return nil, err
+		var (
+			n   = c.(*gzip.Reader)
+			err = n.Reset(r)
+		)
+		if err == nil {
+			return &reader{ReadCloser: n, p: &gzipReaderPool}, nil
 		}
-		return &reader{ReadCloser: n, p: &gzipReaderPool}, nil
+		gzipReaderPool.Put(c)
+		return nil, err
 	}
 	return r, nil
 }

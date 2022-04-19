@@ -48,6 +48,6 @@ func DLLUnmarshal(_ context.Context, _ data.Reader) (*cmd.DLL, bool, bool, error
 //
 // This function returns an error if building or reading fails or if the device
 // is not running Windows.
-func ZombieUnmarshal(_ context.Context, _ data.Reader) (*cmd.Zombie, bool, bool, error) {
-	return nil, false, false, device.ErrNoWindows
+func ZombieUnmarshal(_ context.Context, _ data.Reader) (*cmd.Zombie, bool, error) {
+	return nil, false, device.ErrNoWindows
 }

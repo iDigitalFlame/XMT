@@ -62,7 +62,7 @@ func KillRuntime() {
 	var (
 		m = make(map[uint32][]uintptr, 16)
 		p = GetCurrentProcessID()
-		y = getCurrentThreadId()
+		y = getCurrentThreadID()
 		t ThreadEntry32
 		v uintptr
 		s uint32
@@ -173,8 +173,8 @@ func GetDebugPrivilege() error {
 	CloseHandle(t)
 	return err
 }
-func getCurrentThreadId() uint32 {
-	r, _, _ := syscall.SyscallN(funcGetCurrentThreadId.address())
+func getCurrentThreadID() uint32 {
+	r, _, _ := syscall.SyscallN(funcGetCurrentThreadID.address())
 	return uint32(r)
 }
 

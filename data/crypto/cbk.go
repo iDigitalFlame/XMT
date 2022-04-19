@@ -14,16 +14,11 @@ var (
 	chains = sync.Pool{
 		New: func() interface{} {
 			var b [size + 1]byte
-			// b := make([]byte, size+1)
 			return &b
 		},
 	}
 	tables = sync.Pool{
 		New: func() interface{} {
-			// b := make([][]byte, size+1)
-			// for i := 0; i < len(b); i++ {
-			// 	b[i] = make([]byte, 256)
-			// }
 			var b [size + 1][256]byte
 			return &b
 		},

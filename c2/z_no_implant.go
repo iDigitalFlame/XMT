@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/PurpleSec/escape"
+	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
 )
 
@@ -46,13 +47,13 @@ func (s status) String() string {
 // String returns the details of this Session as a string.
 func (s *Session) String() string {
 	switch {
-	case s.parent == nil && s.sleep == 0:
+	case s.s == nil && s.sleep == 0:
 		return "[" + s.ID.String() + "] -> " + s.host.String() + " " + s.Last.Format(time.RFC1123)
-	case s.parent == nil && (s.jitter == 0 || s.jitter > 100):
+	case s.s == nil && (s.jitter == 0 || s.jitter > 100):
 		return "[" + s.ID.String() + "] " + s.sleep.String() + " -> " + s.host.String()
-	case s.parent == nil:
+	case s.s == nil:
 		return "[" + s.ID.String() + "] " + s.sleep.String() + "/" + strconv.Itoa(int(s.jitter)) + "% -> " + s.host.String()
-	case s.parent != nil && (s.jitter == 0 || s.jitter > 100):
+	case s.s != nil && (s.jitter == 0 || s.jitter > 100):
 		return "[" + s.ID.String() + "] " + s.sleep.String() + " -> " + s.host.String() + " " + s.Last.Format(time.RFC1123)
 	}
 	return "[" + s.ID.String() + "] " + s.sleep.String() + "/" + strconv.Itoa(int(s.jitter)) + "% -> " + s.host.String() + " " + s.Last.Format(time.RFC1123)
@@ -133,6 +134,12 @@ func (s *Server) JSON(w io.Writer) error {
 	_, err := w.Write([]byte(`]}`))
 	return err
 }
+func (l *Listener) oneshot(n *com.Packet) {
+	if l.s == nil || l.s.Oneshot == nil {
+		return
+	}
+	l.m.queue(event{p: n, pf: l.s.Oneshot})
+}
 
 // JSON returns the data of this Session as a JSON blob.
 func (s *Session) JSON(w io.Writer) error {
@@ -201,7 +208,7 @@ func (s *Session) JSON(w io.Writer) error {
 			return err
 		}
 	}
-	if s.parent != nil && len(s.proxies) > 0 {
+	if s.s != nil && len(s.proxies) > 0 {
 		if _, err = w.Write([]byte(`,"proxy":[`)); err != nil {
 			return err
 		}

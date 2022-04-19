@@ -4,6 +4,7 @@ package c2
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"sync"
@@ -15,6 +16,7 @@ import (
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 var (
@@ -30,15 +32,15 @@ type Proxy struct {
 	connection
 
 	listener net.Listener
-	f        func()
-	ch       chan struct{}
-	close    chan uint32
-	parent   *Session
-	cancel   context.CancelFunc
-	clients  map[uint32]*proxyClient
+	//f        func(bool, string)
+	ch      chan struct{}
+	close   chan uint32
+	parent  *Session
+	cancel  context.CancelFunc
+	clients map[uint32]*proxyClient
 
-	addr  string
-	state state
+	name, addr string
+	state      state
 }
 type proxyClient struct {
 	send, chn chan *com.Packet
@@ -86,8 +88,14 @@ func (p *Proxy) listen() {
 		}
 		c, err := p.listener.Accept()
 		if err != nil {
+			if p.state.Replacing() {
+				continue
+			}
 			if p.state.Closing() {
 				break
+			}
+			if errors.Is(err, net.ErrClosed) {
+				continue
 			}
 			e, ok := err.(net.Error)
 			if ok && e.Timeout() {
@@ -121,11 +129,9 @@ func (p *Proxy) listen() {
 	}
 	p.listener.Close()
 	p.state.Set(stateClosed)
-	p.parent.proxy = nil
+	p.parent.updateProxyStats(false, p.name)
 	p.parent = nil
 	close(p.ch)
-	p.f()
-	p.f = nil
 }
 func (p *Proxy) clientLock() {
 	p.lock.RLock()
@@ -351,6 +357,42 @@ func (c *proxyClient) sender() chan *com.Packet {
 func (p *Proxy) clientGet(i uint32) (connHost, bool) {
 	v, ok := p.clients[i]
 	return v, ok
+}
+
+// Replace allows for rebinding this Proxy to another address or using another
+// Profile without closing the Proxy.
+//
+// The listening socket will be closed and the Proxy will be paused and
+// cannot accept any more connections before being reopened.
+//
+// If the replacement fails, the Proxy will be closed.
+func (p *Proxy) Replace(addr string, n Profile) error {
+	if n == nil {
+		return ErrInvalidProfile
+	}
+	h, w, t := n.Next()
+	if len(addr) > 0 {
+		h = addr
+	}
+	if len(h) == 0 {
+		return ErrNoHost
+	}
+	p.state.Set(stateReplacing)
+	p.listener.Close()
+	p.listener = nil
+	v, err := n.Listen(p.ctx, h)
+	if err != nil {
+		p.Close()
+		return xerr.Wrap("unable to listen", err)
+	} else if v == nil {
+		p.Close()
+		return xerr.Sub("unable to listen", 0x8)
+	}
+	p.listener, p.w, p.t, p.p = v, w, t, n
+	if p.state.Unset(stateReplacing); cout.Enabled {
+		p.log.Info("[%s] Replaced listener socket, now bound to %s!", p.prefix(), h)
+	}
+	return nil
 }
 func (p proxyData) MarshalStream(w data.Writer) error {
 	if err := w.WriteString(p.n); err != nil {

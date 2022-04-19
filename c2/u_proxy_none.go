@@ -31,36 +31,33 @@ func (proxyBase) tags() []uint32 {
 func (proxyBase) IsActive() bool {
 	return false
 }
-func (*Session) checkProxyMarshal() bool {
-	return true
-}
 
-// GetProxy returns the current Proxy (if enabled). This function take a name
+// Proxy returns the current Proxy (if enabled). This function take a name
 // argument that is a string that specifies the Proxy name.
 //
 // By default, the name is ignored as multiproxy support is disabled.
 //
-// WHen proxy support is disabled, this always returns nil.
-func (*Session) GetProxy(_ string) *Proxy {
+// When proxy support is disabled, this always returns nil.
+func (*Session) Proxy(_ string) *Proxy {
 	return nil
+}
+func (*Session) checkProxyMarshal() bool {
+	return true
 }
 func (proxyBase) accept(_ *com.Packet) bool {
 	return false
 }
 
-// Proxy establishes a new listening Proxy connection using the supplied Profile
-// name and bind address that will send any received Packets "upstream" via the
-// current Session.
+// Replace allows for rebinding this Proxy to another address or using another
+// Profile without closing the Proxy.
 //
-// Packets destined for hosts connected to this proxy will be routed back and
-// forth on this Session.
+// The listening socket will be closed and the Proxy will be paused and
+// cannot accept any more connections before being reopened.
 //
-// This function will return an error if this is not a client Session or
-// listening fails.
-func (*Session) Proxy(_, _ string, _ Profile) (*Proxy, error) {
-	return nil, xerr.Sub("proxy support disabled", 0x2)
+// If the replacement fails, the Proxy will be closed.
+func (Proxy) Replace(_ string, _ Profile) error {
+	return xerr.Sub("proxy support disabled", 0x2)
 }
-
 func (*Session) writeProxyInfo(w io.Writer, d *[8]byte) error {
 	(*d)[0] = 0
 	return writeFull(w, 1, (*d)[0:1])
@@ -73,10 +70,7 @@ func readProxyInfo(r io.Reader, d *[8]byte) ([]proxyData, error) {
 	if m == 0 {
 		return nil, nil
 	}
-	var (
-		o   = make([]proxyData, m)
-		err error
-	)
+	var err error
 	for i := 0; i < m && i < 0xFF; i++ {
 		if err = readFull(r, 4, (*d)[0:4]); err != nil {
 			return nil, err
@@ -92,10 +86,22 @@ func readProxyInfo(r io.Reader, d *[8]byte) ([]proxyData, error) {
 				return nil, err
 			}
 		}
-		if o[i].p, err = readSlice(r, d); err != nil {
+		if _, err = readSlice(r, d); err != nil {
 			return nil, err
 		}
-		o[i].b, o[i].n = string(n), string(s)
 	}
 	return nil, nil
+}
+
+// NewProxy establishes a new listening Proxy connection using the supplied Profile
+// name and bind address that will send any received Packets "upstream" via the
+// current Session.
+//
+// Packets destined for hosts connected to this proxy will be routed back and
+// forth on this Session.
+//
+// This function will return an error if this is not a client Session or
+// listening fails.
+func (*Session) NewProxy(_, _ string, _ Profile) (*Proxy, error) {
+	return nil, xerr.Sub("proxy support disabled", 0x2)
 }

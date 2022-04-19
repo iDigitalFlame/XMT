@@ -113,7 +113,7 @@ func GuardContext(x context.Context, l Linker, n string) (*Guardian, error) {
 	if err != nil {
 		return nil, err
 	}
-	g := &Guardian{ch: make(chan struct{}, 1), sock: v}
+	g := &Guardian{ch: make(chan struct{}), sock: v}
 	if x != nil && x != context.Background() {
 		go func() {
 			select {

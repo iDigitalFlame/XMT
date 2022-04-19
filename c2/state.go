@@ -21,6 +21,7 @@ const (
 	stateChannelProxy
 	stateSeen
 	stateMoving
+	stateReplacing
 )
 
 type state uint32
@@ -43,6 +44,9 @@ func (s state) Ready() bool {
 }
 func (s state) Last() uint16 {
 	return uint16(atomic.LoadUint32((*uint32)(&s)) >> 16)
+}
+func (s state) Moving() bool {
+	return atomic.LoadUint32((*uint32)(&s))&stateMoving != 0
 }
 func (s state) Closed() bool {
 	return atomic.LoadUint32((*uint32)(&s))&stateClosed != 0
@@ -70,6 +74,9 @@ func (s state) Shutdown() bool {
 		return true
 	}
 	return atomic.LoadUint32((*uint32)(&s))&stateShutdown != 0
+}
+func (s state) Replacing() bool {
+	return atomic.LoadUint32((*uint32)(&s))&stateReplacing != 0
 }
 func (s *state) Unset(v uint32) {
 	d := atomic.LoadUint32((*uint32)(s)) &^ v
@@ -147,8 +154,4 @@ func (s *state) SetChannel(e bool) bool {
 	}
 	s.Set(stateChannelUpdated)
 	return true
-}
-
-func (s state) Moving() bool {
-	return atomic.LoadUint32((*uint32)(&s))&stateMoving != 0
 }

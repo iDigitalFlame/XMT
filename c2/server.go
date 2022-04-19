@@ -111,7 +111,14 @@ func (s *Server) queue(e event) {
 
 // IsActive returns true if this Server is still able to Process events.
 func (s *Server) IsActive() bool {
-	return s.ctx.Err() == nil
+	select {
+	case <-s.ch:
+		return false
+	case <-s.ctx.Done():
+		return false
+	default:
+		return true
+	}
 }
 
 // NewServer creates a new Server instance for managing C2 Listeners and Sessions.
@@ -130,9 +137,9 @@ func (s *Server) SetLog(l logx.Log) {
 	s.log.Set(l)
 }
 
-// Connected returns an array of all the current Sessions connected to Listeners
+// Sessions returns an array of all the current Sessions connected to Listeners
 // running on this Server instance.
-func (s *Server) Connected() []*Session {
+func (s *Server) Sessions() []*Session {
 	s.lock.RLock()
 	l := make([]*Session, 0, len(s.sessions))
 	for _, v := range s.sessions {
@@ -180,6 +187,35 @@ func (s *Server) Session(i device.ID) *Session {
 	return v
 }
 
+// Remove removes and closes the Session and releases all it's associated
+// resources from this server instance.
+//
+// If shutdown is false, this does not close the Session on the client's end and
+// will just remove the entry, but can be re-added and if the client connects
+// again.
+//
+// If shutdown is true, this will trigger a Shutdown packet to be sent to close
+// down the client and will wait until the client acknowledges the shutdown
+// request before removing.
+func (s *Server) Remove(i device.ID, shutdown bool) {
+	if !shutdown {
+		if !s.IsActive() {
+			return
+		}
+		s.delSession <- i.Hash()
+		return
+	}
+	if !s.IsActive() {
+		return
+	}
+	s.lock.RLock()
+	v, ok := s.sessions[i.Hash()]
+	if s.lock.RUnlock(); !ok {
+		return
+	}
+	v.Close()
+}
+
 // NewServerContext creates a new Server instance for managing C2 Listeners and
 // Sessions.
 //
@@ -189,7 +225,7 @@ func (s *Server) Session(i device.ID) *Session {
 // cancelation.
 func NewServerContext(x context.Context, l logx.Log) *Server {
 	s := &Server{
-		ch:          make(chan struct{}, 1),
+		ch:          make(chan struct{}),
 		log:         cout.New(l),
 		new:         make(chan *Listener, 4),
 		active:      make(map[string]*Listener),
@@ -235,18 +271,14 @@ func (s *Server) ListenContext(x context.Context, name, addr string, p Profile) 
 	v, err := p.Listen(x, h)
 	if err != nil {
 		return nil, xerr.Wrap("unable to listen", err)
-	}
-	if v == nil {
+	} else if v == nil {
 		return nil, xerr.Sub("unable to listen", 0x8)
 	}
 	l := &Listener{
-		ch:         make(chan struct{}, 1),
+		ch:         make(chan struct{}),
 		name:       n,
 		listener:   v,
 		connection: connection{s: s, m: s, p: p, w: w, t: t, log: s.log},
-	}
-	if d := p.Sleep(); d > 0 {
-		l.sleep = d
 	}
 	if s.init.Do(func() { go s.listen() }); cout.Enabled {
 		s.log.Info("[%s] Added Listener on %q!", n, h)

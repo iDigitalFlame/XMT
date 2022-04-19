@@ -24,7 +24,6 @@ type event struct {
 	af func(*com.Packet) bool
 	hf func(*Session, *com.Packet) bool
 }
-
 type cluster struct {
 	data []*com.Packet
 	max  uint16
@@ -92,7 +91,6 @@ func (e eventer) listen(s *Session) {
 	for {
 		select {
 		case <-s.ctx.Done():
-			s.Remove()
 			s.Close()
 			return
 		case v := <-e:

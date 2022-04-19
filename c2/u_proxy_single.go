@@ -16,21 +16,14 @@ type proxyBase struct {
 	*Proxy
 }
 
-func (s *Session) updateProxyStats() {
-	if !s.IsActive() {
-		return
-	}
-	n := &com.Packet{ID: SvProxy, Device: local.UUID}
-	if s.proxy != nil && s.proxy.IsActive() {
-		n.WriteUint8(1)
-		n.WriteString("")
-		n.WriteString(s.proxy.addr)
-	} else {
-		if n.WriteUint8(0); s.proxy != nil {
-			s.proxy = nil
-		}
-	}
-	s.queue(n)
+// Proxy returns the current Proxy (if enabled). This function take a name
+// argument that is a string that specifies the Proxy name.
+//
+// By default, the name is ignored as multiproxy support is disabled.
+//
+// When proxy support is disabled, this always returns nil.
+func (s *Session) Proxy(_ string) *Proxy {
+	return s.proxy.Proxy
 }
 func (s *Session) checkProxyMarshal() bool {
 	if s.proxy == nil {
@@ -39,27 +32,34 @@ func (s *Session) checkProxyMarshal() bool {
 	_, ok := s.proxy.p.(marshaler)
 	return ok
 }
-
-// GetProxy returns the current Proxy (if enabled). This function take a name
-// argument that is a string that specifies the Proxy name.
-//
-// By default, the name is ignored as multiproxy support is disabled.
-//
-// WHen proxy support is disabled, this always returns nil.
-func (s *Session) GetProxy(_ string) *Proxy {
-	return s.proxy.Proxy
+func (s *Session) updateProxyStats(_ bool, _ string) {
+	if !s.IsActive() {
+		return
+	}
+	n := &com.Packet{ID: SvProxy, Device: local.UUID}
+	if s.proxy != nil && s.proxy.IsActive() {
+		n.WriteUint8(1)
+		n.WriteString(s.proxy.addr)
+		n.WriteString(s.proxy.name)
+	} else if n.WriteUint8(0); s.proxy != nil {
+		s.proxy = nil
+	}
+	s.queue(n)
 }
 func (s *Session) writeProxyInfo(w io.Writer, d *[8]byte) error {
 	if s.proxy == nil || !s.proxy.IsActive() {
 		(*d)[0] = 0
 		return writeFull(w, 1, (*d)[0:1])
 	}
-	n := uint64(len(s.proxy.addr))
-	(*d)[0], (*d)[1], (*d)[2], (*d)[3], (*d)[4] = 1, byte(n>>8), byte(n), 0, 0
-	if err := writeFull(w, 3, (*d)[0:3]); err != nil {
+	n, v := uint64(len(s.proxy.addr)), uint64(len(s.proxy.name))
+	(*d)[0], (*d)[1], (*d)[2], (*d)[3], (*d)[4] = 1, byte(n>>8), byte(n), byte(v>>8), byte(v)
+	if err := writeFull(w, 4, (*d)[0:4]); err != nil {
 		return err
 	}
 	if err := writeFull(w, len(s.proxy.addr), []byte(s.proxy.addr)); err != nil {
+		return err
+	}
+	if err := writeFull(w, len(s.proxy.name), []byte(s.proxy.name)); err != nil {
 		return err
 	}
 	p, ok := s.proxy.p.(marshaler)
@@ -73,7 +73,7 @@ func (s *Session) writeProxyInfo(w io.Writer, d *[8]byte) error {
 	return writeSlice(w, d, b)
 }
 
-// Proxy establishes a new listening Proxy connection using the supplied Profile
+// NewProxy establishes a new listening Proxy connection using the supplied Profile
 // name and bind address that will send any received Packets "upstream" via the
 // current Session.
 //
@@ -82,8 +82,8 @@ func (s *Session) writeProxyInfo(w io.Writer, d *[8]byte) error {
 //
 // This function will return an error if this is not a client Session or
 // listening fails.
-func (s *Session) Proxy(_, addr string, p Profile) (*Proxy, error) {
-	if s.parent != nil {
+func (s *Session) NewProxy(name, addr string, p Profile) (*Proxy, error) {
+	if s.s != nil {
 		return nil, xerr.Sub("must be a client session", 0x5)
 	}
 	// TODO(dij): Need to enable this, but honestly its a lot of work for
@@ -113,7 +113,8 @@ func (s *Session) Proxy(_, addr string, p Profile) (*Proxy, error) {
 		return nil, xerr.Sub("unable to listen", 0x8)
 	}
 	v := &Proxy{
-		ch:         make(chan struct{}, 1),
+		ch:         make(chan struct{}),
+		name:       name,
 		addr:       h,
 		close:      make(chan uint32, 8),
 		parent:     s,
@@ -125,8 +126,7 @@ func (s *Session) Proxy(_, addr string, p Profile) (*Proxy, error) {
 		s.log.Info("[%s/P] Added Proxy Listener on %q!", s.ID, h)
 	}
 	s.proxy = &proxyBase{v}
-	s.proxy.f = s.updateProxyStats
-	s.updateProxyStats()
+	s.updateProxyStats(true, name)
 	go v.listen()
 	return v, nil
 }

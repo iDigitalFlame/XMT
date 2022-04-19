@@ -140,7 +140,7 @@ func ConnectContext(x context.Context, l logx.Log, p Profile) (*Session, error) 
 		s.log.Info("[%s] Client connected to %q!", s.ID, h)
 	}
 	r, n = nil, nil
-	s.p, s.wake, s.ch = p, make(chan struct{}, 1), make(chan struct{}, 1)
+	s.p, s.wake, s.ch = p, make(chan struct{}, 1), make(chan struct{})
 	s.frags, s.m = make(map[uint16]*cluster), make(eventer, maxEvents)
 	s.ctx, s.send, s.tick = x, make(chan *com.Packet, 256), time.NewTicker(s.sleep)
 	go s.listen()
@@ -288,7 +288,7 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	if k.Close(); err != nil {
 		return nil, xerr.Wrap("first Packet read", err)
 	}
-	s.p, s.wake, s.ch = p, make(chan struct{}, 1), make(chan struct{}, 1)
+	s.p, s.wake, s.ch = p, make(chan struct{}, 1), make(chan struct{})
 	s.frags, s.m = make(map[uint16]*cluster), make(eventer, maxEvents)
 	s.ctx, s.send, s.tick = x, make(chan *com.Packet, 256), time.NewTicker(s.sleep)
 	if err = receive(s, nil, o); err != nil {
@@ -301,7 +301,7 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 				s.Close()
 				return nil, xerr.Wrap("parse Proxy Profile", err)
 			}
-			if _, err = s.Proxy(q[i].n, q[i].b, z); err != nil {
+			if _, err = s.NewProxy(q[i].n, q[i].b, z); err != nil {
 				s.Close()
 				return nil, xerr.Wrap("setup Proxy", err)
 			}

