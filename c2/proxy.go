@@ -65,7 +65,7 @@ func (p *Proxy) prune() {
 			p.lock.RLock()
 			if _, ok := p.clients[i]; ok {
 				if delete(p.clients, i); cout.Enabled {
-					p.log.Info("[%s/P] Removed closed Session 0x%X.", p.parent.ID, i)
+					p.log.Info("[%s] Removed closed Session 0x%X.", p.prefix(), i)
 				}
 			}
 			p.lock.RUnlock()
@@ -74,7 +74,7 @@ func (p *Proxy) prune() {
 }
 func (p *Proxy) listen() {
 	if cout.Enabled {
-		p.log.Info("[%s/P] Starting listen on %q..", p.parent.ID, p.listener)
+		p.log.Info("[%s] Starting listen on %q..", p.prefix(), p.listener)
 	}
 	go p.prune()
 	for {
@@ -102,7 +102,7 @@ func (p *Proxy) listen() {
 				continue
 			}
 			if cout.Enabled {
-				p.parent.log.Error("[%s/P] Error during Listener accept: %s!", p.parent.ID, err)
+				p.parent.log.Error("[%s] Error during Listener accept: %s!", p.prefix(), err)
 			}
 			if ok && !e.Timeout() {
 				break
@@ -113,12 +113,12 @@ func (p *Proxy) listen() {
 			continue
 		}
 		if cout.Enabled {
-			p.log.Trace("[%s/P] Received a connection from %q..", p.parent.ID, c.RemoteAddr())
+			p.log.Trace("[%s] Received a connection from %q..", p.prefix(), c.RemoteAddr())
 		}
 		go handle(p.log, c, p, c.RemoteAddr().String())
 	}
 	if cout.Enabled {
-		p.parent.log.Debug("[%s/P] Stopping Listener..", p.parent.ID)
+		p.parent.log.Debug("[%s] Stopping Proxy listener..", p.prefix())
 	}
 	for _, v := range p.clients {
 		v.Close()
@@ -390,7 +390,7 @@ func (p *Proxy) Replace(addr string, n Profile) error {
 	}
 	p.listener, p.w, p.t, p.p = v, w, t, n
 	if p.state.Unset(stateReplacing); cout.Enabled {
-		p.log.Info("[%s] Replaced listener socket, now bound to %s!", p.prefix(), h)
+		p.log.Info("[%s] Replaced Proxy listener socket, now bound to %s!", p.prefix(), h)
 	}
 	return nil
 }
@@ -428,7 +428,7 @@ func (p *Proxy) talk(a string, n *com.Packet) (*conn, error) {
 		return nil, io.ErrShortBuffer
 	}
 	if n.Flags |= com.FlagProxy; cout.Enabled {
-		p.log.Debug("[%s/P:%s] %s: Received a Packet %q..", p.parent.ID, n.Device, a, n)
+		p.log.Debug("[%s:%s] %s: Received a Packet %q..", p.prefix(), n.Device, a, n)
 	}
 	p.lock.RLock()
 	var (
@@ -438,7 +438,7 @@ func (p *Proxy) talk(a string, n *com.Packet) (*conn, error) {
 	if p.lock.RUnlock(); !ok {
 		if n.ID != SvHello {
 			if cout.Enabled {
-				p.log.Warning("[%s/P:%s] %s: Received a non-hello Packet from a unregistered client!", p.parent.ID, n.Device, a)
+				p.log.Warning("[%s:%s] %s: Received a non-hello Packet from a unregistered client!", p.prefix(), n.Device, a)
 			}
 			var f com.Flag
 			if n.Flags&com.FlagFrag != 0 {
@@ -457,7 +457,7 @@ func (p *Proxy) talk(a string, n *com.Packet) (*conn, error) {
 		p.lock.Lock()
 		p.clients[i] = c
 		if p.lock.Unlock(); cout.Enabled {
-			p.log.Info("[%s/P:%s] %s: New client registered as %q hash 0x%X.", p.parent.ID, c.ID, a, c.ID, i)
+			p.log.Info("[%s:%s] %s: New client registered as %q hash 0x%X.", p.prefix(), c.ID, a, c.ID, i)
 		}
 		p.parent.queue(n)
 		c.queue(&com.Packet{ID: SvComplete, Device: n.Device, Job: n.Job})
@@ -529,7 +529,7 @@ func (p *Proxy) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *com
 		return nil, 0, nil, io.ErrShortBuffer
 	}
 	if cout.Enabled {
-		p.log.Trace("[%s/P:%s/M] %s: Received a Packet %q..", p.parent.ID, n.Device, a, n)
+		p.log.Trace("[%s:%s/M] %s: Received a Packet %q..", p.prefix(), n.Device, a, n)
 	}
 	p.lock.RLock()
 	var (
@@ -539,7 +539,7 @@ func (p *Proxy) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *com
 	if p.lock.RUnlock(); !ok {
 		if n.ID != SvHello {
 			if cout.Enabled {
-				p.log.Warning("[%s/P:%s/M] %s: Received a non-hello Packet from a unregistered client!", p.parent.ID, n.Device, a)
+				p.log.Warning("[%s:%s/M] %s: Received a non-hello Packet from a unregistered client!", p.prefix(), n.Device, a)
 			}
 			var f com.Flag
 			if n.Flags&com.FlagFrag != 0 {
@@ -558,7 +558,7 @@ func (p *Proxy) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *com
 		p.lock.Lock()
 		p.clients[i] = c
 		if p.lock.Unlock(); cout.Enabled {
-			p.log.Info("[%s/P:%s/M] %s: New client registered as %q hash 0x%X.", p.parent.ID, c.ID, a, c.ID, i)
+			p.log.Info("[%s:%s/M] %s: New client registered as %q hash 0x%X.", p.prefix(), c.ID, a, c.ID, i)
 		}
 		c.queue(&com.Packet{ID: SvComplete, Device: n.Device, Job: n.Job})
 	}
