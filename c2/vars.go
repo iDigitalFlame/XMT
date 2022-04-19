@@ -214,6 +214,7 @@ func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 			}
 			s.write(false, &com.Packet{ID: SvShutdown, Job: 1, Device: s.ID})
 			s.s.Remove(s.ID, false)
+			s.state.Set(stateShutdownWait)
 		} else {
 			if s.state.Closing() {
 				return
@@ -222,7 +223,7 @@ func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 				s.log.Info("[%s] Server indicated shutdown, closing Session.", s.ID)
 			}
 		}
-		s.Close()
+		s.close(false)
 		return
 	case SvRegister:
 		if s.s != nil {

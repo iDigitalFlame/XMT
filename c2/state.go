@@ -22,6 +22,7 @@ const (
 	stateSeen
 	stateMoving
 	stateReplacing
+	stateShutdownWait
 )
 
 type state uint32
@@ -102,6 +103,9 @@ func (s state) WakeClosed() bool {
 }
 func (s *state) SetLast(v uint16) {
 	atomic.StoreUint32((*uint32)(s), (uint32(v)<<16)|uint32(uint16(atomic.LoadUint32((*uint32)(s)))))
+}
+func (s state) ShutdownWait() bool {
+	return atomic.LoadUint32((*uint32)(&s))&stateShutdownWait != 0
 }
 func (s state) ChannelValue() bool {
 	return atomic.LoadUint32((*uint32)(&s))&stateChannelValue != 0

@@ -298,19 +298,7 @@ func (s *Session) Jobs() []*Job {
 //
 // This function blocks until the running threads close completely.
 func (s *Session) Close() error {
-	if s.state.Closing() {
-		return nil
-	}
-	s.state.Unset(stateChannelValue)
-	s.state.Unset(stateChannelUpdated)
-	s.state.Unset(stateChannel)
-	if s.state.Set(stateClosing); s.s != nil {
-		s.shutdown()
-		return nil
-	}
-	s.Wake()
-	<-s.ch
-	return nil
+	return s.close(true)
 }
 
 // Jitter returns the Jitter percentage value. Values of zero (0) indicate that
@@ -447,6 +435,34 @@ func (s *Session) RemoteAddr() string {
 // send buffer is full.
 func (s *Session) Send(p *com.Packet) {
 	s.write(true, p)
+}
+func (s *Session) close(w bool) error {
+	if s.state.Closing() {
+		return nil
+	}
+	if s.s != nil && !s.state.ShutdownWait() {
+		s.peek = &com.Packet{ID: SvShutdown, Device: s.ID}
+		if !s.state.SendClosed() {
+			for len(s.send) > 0 {
+				<-s.send // Clear the send queue.
+			}
+		}
+		s.state.Unset(stateChannelValue)
+		s.state.Unset(stateChannelUpdated)
+		s.state.Unset(stateChannel)
+		return nil
+	}
+	s.state.Unset(stateChannelValue)
+	s.state.Unset(stateChannelUpdated)
+	s.state.Unset(stateChannel)
+	if s.state.Set(stateClosing); s.s != nil {
+		s.shutdown()
+		return nil
+	}
+	if s.Wake(); w {
+		<-s.ch
+	}
+	return nil
 }
 func (s *Session) queue(n *com.Packet) {
 	if s.state.SendClosed() {
