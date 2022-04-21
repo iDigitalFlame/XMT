@@ -143,7 +143,7 @@ func Expand(s string) string {
 		builders.Put(b)
 		return s
 	}
-	if l < len(s) {
+	if l < len(s) && c > 0 {
 		if c == '$' {
 			if v, ok = syscall.Getenv(s[l+1:]); ok {
 				b.WriteString(v)
@@ -155,8 +155,6 @@ func Expand(s string) string {
 		} else {
 			b.WriteString(s[l:])
 		}
-	} else {
-		b.WriteString(s[l:])
 	}
 	v = b.Output()
 	builders.Put(b)
