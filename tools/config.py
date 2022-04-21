@@ -16,6 +16,7 @@
 #
 
 from zlib import crc32
+from io import StringIO
 from hashlib import sha512
 from secrets import token_bytes
 from traceback import format_exc
@@ -73,10 +74,10 @@ OPERATION ARGUMENTS:
 
 BUILD ARGUMENTS:
  SYSTEM:
-  --host            <hostname>  Hostname hint.
+  --host            <hostname>  Hostname hint. (Not valid for Listeners).
   --sleep           <secs|mod>  Sleep timeperiod. Defaults to seconds
                                   for integers, but can take modifiers
-                                  such as 's', 'h', 'm'. (ex: 2m, 3s).
+                                  such as 's', 'h', 'm'. (ex: 2m or 3s).
   --jitter          <jitter %>  Jitter as a percentage [0-100]. Values
                                   greater than 100 fail. The '%' symbol
                                   may be included or omitted.
@@ -96,8 +97,8 @@ BUILD ARGUMENTS:
   --tls                         Use the TLS Connection hint.
   --udp                         Use the UDP Connection hint.
   --icmp                        Use the ICMP (Ping) Connection hint.
-  --pipe                        Use the Windows Named Pipes Connection
-                                  hint.
+  --pipe                        Use the Windows Named Pipes or UNIX file
+                                  pipes Connection hint.
   --tls-insecure
   -K                            Use the TLSNoVerify Connection hint.
 
@@ -149,8 +150,8 @@ BUILD ARGUMENTS:
                                   TLS socket. This can be used for client or
                                   server listeners. Requires '--tls-pem'.
                                   This argument can take a file path to a PEM
-                                  formatted certificate private key or raw
-                                  base64 encoded PEM data.
+                                  formatted certificate private key or a raw
+                                  base64 encoded PEM private key.
 
  WRAPPERS (Multiple different types may be used):
   --hex                         Use the HEX Wrapper.
@@ -162,7 +163,7 @@ BUILD ARGUMENTS:
                                   randomally generated 64 byte array.
   --cbk             [key]       Encrypt with the XOR Wrapper using the provided
                                   key string. If omitted the key will be a
-                                  randomally generated 64 byte array.
+                                  randomally seeded ABCD from a 64 byte array.
   --aes             [key]       Encrypt with the AES Wrapper using the provided
                                   key string. If omitted the key will be a
                                   randomally generated 32 byte array. The AES IV
@@ -185,9 +186,8 @@ BUILD ARGUMENTS:
   -D                [domain,*]
 
 SELECTOR VALUES
-
- last                           Switch Profile Group ONLY if the lasT
-                                  attempt failed.
+ last                           Switch Profile Group ONLY if the last
+                                  attempt failed, the default setting.
  random                         Switch Profile Group in a random order
                                   on EVERY connection attempt.
  round-robin                    Switch Profile Group in a weighted order
@@ -1115,9 +1115,11 @@ class Utils:
 
 
 class Config(bytearray):
-    def __init__(self):
+    def __init__(self, b=None):
         self._connector = False
         self._transform = False
+        if isinstance(b, bytes) or isinstance(b, bytearray) and len(b) > 0:
+            self.extend(b)
 
     def json(self):
         i = 0
@@ -1142,10 +1144,16 @@ class Config(bytearray):
             if Setting.is_single(self[i]):
                 pass
             elif self[i] == Cfg.Const.HOST:
-                o = self[
-                    i + 3 : (int(self[i + 2]) | int(self[i + 1]) << 8) + i + 3
-                ].decode("UTF-8")
+                if i + 3 >= n:
+                    raise ValueError("host: invalid setting")
+                v = (int(self[i + 2]) | int(self[i + 1]) << 8) + i
+                if v > n or v < i:
+                    raise ValueError("host: invalid setting")
+                o = self[i + 3 : v + 3].decode("UTF-8")
+                del v
             elif self[i] == Cfg.Const.SLEEP:
+                if i + 8 >= n:
+                    raise ValueError("sleep: invalid setting")
                 o = Utils.dur_to_str(
                     (
                         int(self[i + 8])
@@ -1165,20 +1173,30 @@ class Config(bytearray):
                 or self[i] == Cfg.Const.WEIGHT
                 or self[i] == Cfg.Const.TLS_EX
             ):
+                if i + 1 >= n:
+                    raise ValueError("invalid setting")
                 o = int(self[i + 1])
             elif self[i] == Cfg.Const.WC2:
+                if i + 7 >= n:
+                    raise ValueError("wc2: invalid setting")
                 z = i + 8
                 v = (int(self[i + 2]) | int(self[i + 1]) << 8) + i + 8
+                if v > n or z > n or z < i or v < i:
+                    raise ValueError("wc2: invalid setting")
                 o = dict()
                 if v > z:
                     o["url"] = self[z:v].decode("UTF-8")
                 z = v
                 v = (int(self[i + 4]) | int(self[i + 3]) << 8) + v
                 if v > z:
+                    if v > n or z > n or v < z or z < i or v < i:
+                        raise ValueError("wc2: invalid setting")
                     o["host"] = self[z:v].decode("UTF-8")
                 z = v
                 v = (int(self[i + 6]) | int(self[i + 5]) << 8) + v
                 if v > z:
+                    if v > n or z > n or v < z or z < i or v < i:
+                        raise ValueError("wc2: invalid setting")
                     o["agent"] = self[z:v].decode("UTF-8")
                 if self[i + 7] > 0:
                     o["headers"] = dict()
@@ -1187,7 +1205,17 @@ class Config(bytearray):
                         j = int(self[v]) + v + 2
                         z = v + 2
                         v = int(self[v + 1]) + j
-                        if z == j:
+                        if (
+                            z == j
+                            or z > n
+                            or j > n
+                            or v > n
+                            or v < j
+                            or j < z
+                            or z < i
+                            or j < i
+                            or v < i
+                        ):
                             raise ValueError("wc2: invalid header")
                         o["headers"][self[z:j].decode("UTF-8")] = self[j:v].decode(
                             "UTF-8"
@@ -1196,9 +1224,13 @@ class Config(bytearray):
                 del z
                 del v
             elif self[i] == Cfg.Const.MTLS:
+                if i + 7 >= n:
+                    raise ValueError("mtls: invalid setting")
                 a = (int(self[i + 3]) | int(self[i + 2]) << 8) + i + 8
                 p = (int(self[i + 5]) | int(self[i + 4]) << 8) + a
                 k = (int(self[i + 7]) | int(self[i + 6]) << 8) + p
+                if a > n or p > n or k > n or p < a or k < p or a < i or p < i or k < i:
+                    raise ValueError("mtls: invalid setting")
                 o = {"version": int(self[i + 1])}
                 o["ca"] = b64encode(self[i + 8 : a]).decode("UTF-8")
                 o["pem"] = b64encode(self[a:p]).decode("UTF-8")
@@ -1207,23 +1239,37 @@ class Config(bytearray):
                 del p
                 del k
             elif self[i] == Cfg.Const.TLS_CA:
+                if i + 4 >= n:
+                    raise ValueError("tls-ca: invalid setting")
                 a = (int(self[i + 3]) | int(self[i + 2]) << 8) + i + 4
+                if a > n or a < i:
+                    raise ValueError("tls-ca: invalid setting")
                 o = {"version": int(self[i + 1])}
                 o["ca"] = b64encode(self[i + 4 : a]).decode("UTF-8")
                 del a
             elif self[i] == Cfg.Const.TLS_CERT:
+                if i + 6 >= n:
+                    raise ValueError("tls-cert: invalid setting")
                 p = (int(self[i + 3]) | int(self[i + 2]) << 8) + i + 6
                 k = (int(self[i + 5]) | int(self[i + 4]) << 8) + p
+                if p > n or k > n or p < i or k < i or k < p:
+                    raise ValueError("tls-cert: invalid setting")
                 o = {"version": int(self[i + 1])}
                 o["pem"] = b64encode(self[i + 6 : p]).decode("UTF-8")
                 o["key"] = b64encode(self[p:k]).decode("UTF-8")
                 del p
                 del k
             elif self[i] == Cfg.Const.XOR:
-                o = b64encode(
-                    self[i + 3 : (int(self[i + 2]) | int(self[i + 1]) << 8) + i + 3]
-                ).decode("UTF-8")
+                if i + 3 >= n:
+                    raise ValueError("xor: invalid setting")
+                k = (int(self[i + 2]) | int(self[i + 1]) << 8) + i
+                if k > n or k < i:
+                    raise ValueError("xor: invalid setting")
+                o = b64encode(self[i + 3 : k + 3]).decode("UTF-8")
+                del k
             elif self[i] == Cfg.Const.CBK:
+                if i + 5 >= n:
+                    raise ValueError("cbk: invalid setting")
                 o = {
                     "size": int(self[i + 1]),
                     "A": int(self[i + 2]),
@@ -1232,9 +1278,11 @@ class Config(bytearray):
                     "D": int(self[i + 5]),
                 }
             elif self[i] == Cfg.Const.AES:
+                if i + 3 >= n:
+                    raise ValueError("aes: invalid setting")
                 v = int(self[i + 1]) + i + 3
                 z = int(self[i + 2]) + v
-                if v == z or i + 3 == v:
+                if v == z or i + 3 == v or v > n or z > n or z < i or v < i or z < v:
                     raise ValueError("aes: invalid KEY/IV values")
                 o = {
                     "key": b64encode(self[i + 3 : v]).decode("UTF-8"),
@@ -1243,15 +1291,27 @@ class Config(bytearray):
                 del v
                 del z
             elif self[i] == Cfg.Const.DNS:
+                if i + 1 >= n:
+                    raise ValueError("dns: invalid setting")
                 o = list()
                 v = i + 2
                 z = v
                 for _ in range(self[i + 1], 0, -1):
                     v += int(self[v]) + 1
-                    if z + 1 == v:
+                    if (
+                        z + 1 > v
+                        or z + 1 == v
+                        or v < z
+                        or v > n
+                        or z > n
+                        or z < i
+                        or v < i
+                    ):
                         raise ValueError("dns: invalid name")
                     o.append(self[z + 1 : v].decode("UTF-8"))
                     z = v
+                del v
+                del z
             y = {"type": Cfg.Const.NAMES[self[i]]}
             if o is not None:
                 y["args"] = o
@@ -1284,13 +1344,28 @@ class Config(bytearray):
         # for i in s:
         #    self.append(i)
 
+    def __str__(self):
+        i = 0
+        n = 0
+        b = StringIO()
+        while n >= 0 and n < len(self):
+            n = self.next(i)
+            if i > 0:
+                b.write(",")
+            b.write(Setting(self[i:n]).__str__())
+            i = n
+        s = b.getvalue()
+        b.close()
+        del b
+        return s
+
     def read(self, b):
         if not isinstance(b, bytes) and not isinstance(b, bytearray):
             raise ValueError("read: invalid raw type")
         self.extend(b)
 
     def next(self, i):
-        if i > len(self):
+        if i > len(self) or i < 0:
             return -1
         if Setting.is_single(self[i]):
             return i + 1
@@ -1307,6 +1382,8 @@ class Config(bytearray):
         if self[i] == Cfg.Const.SLEEP:
             return i + 9
         if self[i] == Cfg.Const.WC2:
+            if i + 7 >= len(self):
+                return -1
             n = (
                 i
                 + 8
@@ -1314,16 +1391,24 @@ class Config(bytearray):
                 + (int(self[i + 4]) | int(self[i + 3]) << 8)
                 + (int(self[i + 6]) | int(self[i + 5]) << 8)
             )
-            if self[i + 7] == 0:
+            if self[i + 7] == 0 or n >= len(self):
                 return n
             for _ in range(self[i + 7], 0, -1):
+                if n >= len(self) or n < 0:
+                    return -1
                 n += int(self[n]) + int(self[n + 1]) + 2
             return n
         if self[i] == Cfg.Const.XOR or self[i] == Cfg.Const.HOST:
+            if i + 3 >= len(self):
+                return -1
             return i + 3 + int(self[i + 2]) | int(self[i + 1]) << 8
         if self[i] == Cfg.Const.AES:
+            if i + 2 >= len(self):
+                return -1
             return i + 3 + int(self[i + 1]) + int(self[i + 2])
         if self[i] == Cfg.Const.MTLS:
+            if i + 7 >= len(self):
+                return -1
             return (
                 i
                 + 8
@@ -1332,8 +1417,12 @@ class Config(bytearray):
                 + (int(self[i + 7]) | int(self[i + 6]) << 8)
             )
         if self[i] == Cfg.Const.TLS_CA:
+            if i + 4 >= len(self):
+                return -1
             return i + 4 + int(self[i + 3]) | int(self[i + 2]) << 8
         if self[i] == Cfg.Const.TLS_CERT:
+            if i + 6 >= len(self):
+                return -1
             return (
                 i
                 + 6
@@ -1341,6 +1430,8 @@ class Config(bytearray):
                 + (int(self[i + 5]) | int(self[i + 4]) << 8)
             )
         if self[i] == Cfg.Const.DNS:
+            if i + 1 >= len(self):
+                return -1
             n = i + 2
             for _ in range(self[i + 1], 0, -1):
                 n += int(self[n]) + 1
@@ -1537,7 +1628,7 @@ class Setting(bytearray):
             return "<invalid>"
         if self[0] not in Cfg.Const.NAMES:
             return "<invalid>"
-        return Cfg.Const.NAMES[self[0]] + self.decode("UTF-8", "replace")
+        return Cfg.Const.NAMES[self[0]]
 
     @staticmethod
     def is_single(v):
@@ -1710,7 +1801,7 @@ class Builder(ArgumentParser):
         return super(__class__, self).parse_args()
 
     def print_help(self, file=None):
-        print(HELP_TEXT, file=file)
+        print(HELP_TEXT.format(binary=argv[0]), file=file)
         exit(2)
 
     def build(self, config, args, add):

@@ -206,7 +206,7 @@ func (c Config) MarshalJSON() ([]byte, error) {
 		if x = cBit(c[i]); x == invalid {
 			return nil, ErrInvalidSetting
 		}
-		if n = c.next(i); n == i || n > len(c) || n == -1 {
+		if n = c.next(i); n == i || n > len(c) || n == -1 || n < i {
 			n = len(c)
 		}
 		if x == Seperator {
@@ -234,23 +234,45 @@ func (c Config) MarshalJSON() ([]byte, error) {
 		b.WriteString(`,"args":`)
 		switch _ = c[n-1]; x {
 		case valHost:
-			b.WriteString(escape.JSON(string(c[i+3 : (int(c[i+2])|int(c[i+1])<<8)+i+3])))
+			if i+3 >= n {
+				return nil, xerr.Wrap("host", ErrInvalidSetting)
+			}
+			v := (int(c[i+2]) | int(c[i+1])<<8) + i
+			if v > n || v < i {
+				return nil, xerr.Wrap("host", ErrInvalidSetting)
+			}
+			b.WriteString(escape.JSON(string(c[i+3 : v+3])))
 		case valSleep:
+			if i+8 >= n {
+				return nil, xerr.Wrap("sleep", ErrInvalidSetting)
+			}
 			b.WriteString(escape.JSON(time.Duration(
 				uint64(c[i+8]) | uint64(c[i+7])<<8 | uint64(c[i+6])<<16 | uint64(c[i+5])<<24 |
 					uint64(c[i+4])<<32 | uint64(c[i+3])<<40 | uint64(c[i+2])<<48 | uint64(c[i+1])<<56,
 			).String()))
 		case valJitter, valWeight, valIP, valTLSx, valB64Shift:
+			if i+1 >= n {
+				return nil, ErrInvalidSetting
+			}
 			b.WriteString(strconv.FormatUint(uint64(c[i+1]), 10))
 		case valWC2:
+			if i+7 >= n {
+				return nil, xerr.Wrap("wc2", ErrInvalidSetting)
+			}
 			var (
 				v, z = (int(c[i+2]) | int(c[i+1])<<8) + i + 8, i + 8
 				w    = v > 0
 			)
+			if v > n || z > n || z < i || v < i {
+				return nil, xerr.Wrap("wc2", ErrInvalidSetting)
+			}
 			if v > z {
 				b.WriteString(`{"url":` + escape.JSON(string(c[z:v])))
 			}
 			if v, z = (int(c[i+4])|int(c[i+3])<<8)+v, v; v > z {
+				if v > n || z > n || v < z || z < i || v < i {
+					return nil, xerr.Wrap("wc2", ErrInvalidSetting)
+				}
 				if !w {
 					w = true
 					b.WriteString(`{"host":`)
@@ -260,6 +282,9 @@ func (c Config) MarshalJSON() ([]byte, error) {
 				b.WriteString(escape.JSON(string(c[z:v])))
 			}
 			if v, z = (int(c[i+6])|int(c[i+5])<<8)+v, v; v > z {
+				if v > n || z > n || v < z || z < i || v < i {
+					return nil, xerr.Wrap("wc2", ErrInvalidSetting)
+				}
 				if !w {
 					w = true
 					b.WriteString(`{"agent":`)
@@ -282,7 +307,7 @@ func (c Config) MarshalJSON() ([]byte, error) {
 					b.WriteByte(',')
 				}
 				z, j = v+2, int(c[v])+v+2
-				if v = int(c[v+1]) + j; z == j {
+				if v = int(c[v+1]) + j; z == j || z > n || j > n || v > n || v < j || j < z || z < i || j < i || v < i {
 					return nil, xerr.Wrap("wc2", ErrInvalidSetting)
 				}
 				b.WriteString(escape.JSON(string(c[z:j])))
@@ -291,11 +316,17 @@ func (c Config) MarshalJSON() ([]byte, error) {
 			}
 			b.WriteString("}}")
 		case valMuTLS:
+			if i+7 >= n {
+				return nil, xerr.Wrap("mtls", ErrInvalidSetting)
+			}
 			var (
 				a = (int(c[i+3]) | int(c[i+2])<<8) + i + 8
 				p = (int(c[i+5]) | int(c[i+4])<<8) + a
 				k = (int(c[i+7]) | int(c[i+6])<<8) + p
 			)
+			if a > n || p > n || k > n || p < a || k < p || a < i || p < i || k < i {
+				return nil, xerr.Wrap("mtls", ErrInvalidSetting)
+			}
 			b.WriteString(`{"version":` + strconv.FormatUint(uint64(c[i+1]), 10))
 			b.WriteString(`,"ca":"`)
 			e := base64.NewEncoder(base64.StdEncoding, &b)
@@ -311,7 +342,13 @@ func (c Config) MarshalJSON() ([]byte, error) {
 			e.Close()
 			b.WriteString(`"}`)
 		case valTLSxCA:
+			if i+4 >= n {
+				return nil, xerr.Wrap("tls-ca", ErrInvalidSetting)
+			}
 			a := (int(c[i+3]) | int(c[i+2])<<8) + i + 4
+			if a > n || a < i {
+				return nil, xerr.Wrap("tls-ca", ErrInvalidSetting)
+			}
 			b.WriteString(`{"version":` + strconv.FormatUint(uint64(c[i+1]), 10))
 			b.WriteString(`,"ca":"`)
 			e := base64.NewEncoder(base64.StdEncoding, &b)
@@ -319,10 +356,16 @@ func (c Config) MarshalJSON() ([]byte, error) {
 			e.Close()
 			b.WriteString(`"}`)
 		case valTLSCert:
+			if i+6 >= n {
+				return nil, xerr.Wrap("tls-cert", ErrInvalidSetting)
+			}
 			var (
 				p = (int(c[i+3]) | int(c[i+2])<<8) + i + 6
 				k = (int(c[i+5]) | int(c[i+4])<<8) + p
 			)
+			if p > n || k > n || p < i || k < i || k < p {
+				return nil, xerr.Wrap("tls-cert", ErrInvalidSetting)
+			}
 			b.WriteString(`{"version":` + strconv.FormatUint(uint64(c[i+1]), 10))
 			b.WriteString(`,"pem":"`)
 			e := base64.NewEncoder(base64.StdEncoding, &b)
@@ -334,12 +377,24 @@ func (c Config) MarshalJSON() ([]byte, error) {
 			e.Close()
 			b.WriteString(`"}`)
 		case valXOR:
+			if i+3 >= n {
+				return nil, xerr.Wrap("xor", ErrInvalidSetting)
+			}
 			b.WriteByte('"')
-			e := base64.NewEncoder(base64.StdEncoding, &b)
-			e.Write(c[i+3 : (int(c[i+2])|int(c[i+1])<<8)+i+3])
+			var (
+				e = base64.NewEncoder(base64.StdEncoding, &b)
+				k = (int(c[i+2]) | int(c[i+1])<<8) + i
+			)
+			if k > n || k < i {
+				return nil, xerr.Wrap("xor", ErrInvalidSetting)
+			}
+			e.Write(c[i+3 : k+3])
 			e.Close()
 			b.WriteByte('"')
 		case valCBK:
+			if i+5 >= n {
+				return nil, xerr.Wrap("cbk", ErrInvalidSetting)
+			}
 			b.WriteString(`{"size":`)
 			b.WriteString(strconv.FormatUint(uint64(c[i+1]), 10))
 			b.WriteString(`,"A":`)
@@ -352,11 +407,14 @@ func (c Config) MarshalJSON() ([]byte, error) {
 			b.WriteString(strconv.FormatUint(uint64(c[i+5]), 10))
 			b.WriteByte('}')
 		case valAES:
+			if i+3 >= n {
+				return nil, xerr.Wrap("aes", ErrInvalidSetting)
+			}
 			var (
 				v = int(c[i+1]) + i + 3
 				z = int(c[i+2]) + v
 			)
-			if v == z || i+3 == v {
+			if v == z || i+3 == v || v > n || z > n || z < i || v < i || z < v {
 				return nil, xerr.Wrap("aes", ErrInvalidSetting)
 			}
 			b.WriteString(`{"key":"`)
@@ -369,10 +427,13 @@ func (c Config) MarshalJSON() ([]byte, error) {
 			e.Close()
 			b.WriteString(`"}`)
 		case valDNS:
+			if i+1 >= n {
+				return nil, xerr.Wrap("dns", ErrInvalidSetting)
+			}
 			_ = c[i+1]
 			b.WriteByte('[')
 			for x, v, e := int(c[i+1]), i+2, i+2; x > 0 && v < n; x-- {
-				if v += int(c[v]) + 1; e+1 > v || e+1 == v {
+				if v += int(c[v]) + 1; e+1 > v || e+1 == v || v < e || v > n || e > n || x > n || e < i || v < i || x < i {
 					return nil, xerr.Wrap("dns", ErrInvalidSetting)
 				}
 				if x != int(c[i+1]) {
