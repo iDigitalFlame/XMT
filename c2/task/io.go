@@ -360,7 +360,7 @@ func taskSystemIo(x context.Context, r data.Reader, w data.Writer) error {
 		var (
 			s, f *os.File
 			k    = device.Expand(n)
-			u    = device.Expand(n)
+			u    = device.Expand(d)
 		)
 		if s, err = os.Open(k); err != nil {
 			return err
