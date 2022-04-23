@@ -52,6 +52,8 @@ var (
 	funcRevertToSelf                                        = dllAdvapi32.proc(crypt.Get(151)) // RevertToSelf
 	funcRegEnumValue                                        = dllAdvapi32.proc(crypt.Get(152)) // RegEnumValueW
 	funcGlobalUnlock                                        = dllKernel32.proc(crypt.Get(221)) // GlobalUnlock
+	funcModule32Next                                        = dllKernel32.proc(crypt.Get(247)) // Module32NextW
+	funcModule32First                                       = dllKernel32.proc(crypt.Get(248)) // Module32FirstW
 	funcWaitNamedPipe                                       = dllKernel32.proc(crypt.Get(153)) // WaitNamedPipeW
 	funcCreateProcess                                       = dllKernel32.proc(crypt.Get(154)) // CreateProcessW
 	funcSuspendThread                                       = dllKernel32.proc(crypt.Get(155)) // SuspendThread
@@ -85,6 +87,7 @@ var (
 	funcGetLogicalDrives                                    = dllKernel32.proc(crypt.Get(209)) // GetLogicalDrives
 	funcOpenProcessToken                                    = dllAdvapi32.proc(crypt.Get(179)) // OpenProcessToken
 	funcGetDesktopWindow                                    = dllUser32.proc(crypt.Get(232))   // GetDesktopWindow
+	funcGetModuleHandleEx                                   = dllKernel32.proc(crypt.Get(246)) // GetModuleHandleExW
 	funcIsDebuggerPresent                                   = dllKernel32.proc(crypt.Get(180)) // IsDebuggerPresent
 	funcMiniDumpWriteDump                                   = dllDbgHelp.proc(crypt.Get(236))  // MiniDumpWriteDump
 	funcGetExitCodeThread                                   = dllKernel32.proc(crypt.Get(181)) // GetExitCodeThread

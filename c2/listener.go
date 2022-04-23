@@ -297,7 +297,7 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
 		// TODO(dij): Generate encryption key here.
 	}
 	if s.host.Set(a); s.sleep == 0 && ok {
-		if s.parent != l {
+		if s.parent.name != l.name { //BUG?
 			s.parent = l
 		}
 		switch {

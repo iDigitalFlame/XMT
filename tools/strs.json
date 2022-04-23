@@ -227,7 +227,7 @@
     },
     "47": {
         "value": "websocket",
-        "tags": null
+        "tags": []
     },
     "48": {
         "value": "Connection",
@@ -854,7 +854,7 @@
     },
     "116": {
         "value": "http",
-        "tags": null
+        "tags": []
     },
     "117": {
         "value": "OS",
@@ -1600,7 +1600,8 @@
         ]
     },
     "243": {
-        "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36"
+        "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36",
+        "tags": []
     },
     "244": {
         "value": "GetCurrentThreadId",
@@ -1610,6 +1611,24 @@
     },
     "245": {
         "value": "NtQueryInformationThread",
+        "tags": [
+            "windows"
+        ]
+    },
+    "246": {
+        "value": "GetModuleHandleExW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "247": {
+        "value": "Module32NextW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "248": {
+        "value": "Module32FirstW",
         "tags": [
             "windows"
         ]

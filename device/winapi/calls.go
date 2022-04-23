@@ -70,18 +70,6 @@ func GetVersion() (uint32, error) {
 	return uint32(r), nil
 }
 
-// SuspendThread Windows API Call
-//    Suspends the specified thread.
-//
-// https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-suspendthread
-func SuspendThread(h uintptr) error {
-	r, _, err := syscall.SyscallN(funcSuspendThread.address(), h)
-	if r != 0 {
-		return unboxError(err)
-	}
-	return nil
-}
-
 // ResumeProcess Windows API Call
 //   Resumes a process and all it's threads.
 //
@@ -174,7 +162,7 @@ func RtlSetProcessIsCritical(c bool) error {
 // https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-resumethread
 func ResumeThread(h uintptr) (uint32, error) {
 	r, _, err := syscall.SyscallN(funcResumeThread.address(), h)
-	if r != 0 {
+	if r == invalid {
 		return 0, unboxError(err)
 	}
 	return uint32(r), nil
@@ -187,6 +175,18 @@ func ResumeThread(h uintptr) (uint32, error) {
 func GetProcessID(h uintptr) (uint32, error) {
 	r, _, err := syscall.SyscallN(funcGetProcessID.address(), h)
 	if r == 0 {
+		return 0, unboxError(err)
+	}
+	return uint32(r), nil
+}
+
+// SuspendThread Windows API Call
+//    Suspends the specified thread.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-suspendthread
+func SuspendThread(h uintptr) (uint32, error) {
+	r, _, err := syscall.SyscallN(funcSuspendThread.address(), h)
+	if r == invalid {
 		return 0, unboxError(err)
 	}
 	return uint32(r), nil

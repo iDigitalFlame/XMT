@@ -113,12 +113,12 @@ func request(u string, r *http.Request) (*http.Response, error) {
 				ResponseHeaderTimeout: timeout,
 			},
 		}
+		r.Header.Set(userAgent, userValue)
 	})
 	var err error
 	if r.URL, err = rawParse(u); err != nil {
 		return nil, err
 	}
-	r.Header.Set(userAgent, userValue)
 	return client.v.Do(r)
 }
 func taskPull(x context.Context, r data.Reader, w data.Writer) error {

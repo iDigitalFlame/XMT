@@ -97,7 +97,8 @@ func (t *thread) Suspend() error {
 	if !t.Running() || t.hwnd == 0 {
 		return ErrNotStarted
 	}
-	return winapi.SuspendThread(t.hwnd)
+	_, err := winapi.SuspendThread(t.hwnd)
+	return err
 }
 func (t *thread) wait(p, i uint32) {
 	var (

@@ -23,6 +23,16 @@ type privileges struct {
 	PrivilegeCount uint32
 	Privileges     [1]LUIDAndAttributes
 }
+type modEntry32 struct {
+	// DO NOT REORDER
+	Size       uint32
+	_, _, _, _ uint32
+	BaseAddr   uintptr
+	BaseSize   uint32
+	_          uintptr
+	_          [256]uint16
+	_          [260]uint16
+}
 type lsaAttributes struct {
 	// DO NOT REORDER
 	Length     uint32
@@ -48,42 +58,72 @@ type lsaAccountDomainInfo struct {
 // kill all Golang based OS-Threads based on their starting address (which
 // should be the same when starting from CGo).
 //
-// This function should NOT be used on real binary files and only used on
-// loaded libraries.
+// This will attempt to determine the base thread and any children that may be
+// running and take action on what type of host we're in to best end the
+// runtime without crashing.
+//
+// This function can be used on binaries, shared libaries or Zombified processes.
 //
 // DO NOT EXPECT ANYTHING (INCLUDING DEFERS) TO HAPPEN AFTER THIS FUNCTION.
 func KillRuntime() {
+	runtime.GC()
+	debug.FreeOSMemory()
 	runtime.LockOSThread()
-	h, err := CreateToolhelp32Snapshot(0x4, 0)
+	killRuntime()
+	// Below shouldn't run.
+	runtime.UnlockOSThread()
+}
+func killRuntime() {
+	q, err := getSelfModuleHandle()
 	if err != nil {
-		runtime.UnlockOSThread()
 		return
 	}
 	var (
-		m = make(map[uint32][]uintptr, 16)
-		p = GetCurrentProcessID()
+		p    = GetCurrentProcessID()
+		a, e uintptr
+	)
+	if a, e, err = findBaseModuleRange(p, q); err != nil {
+		return
+	}
+	h, err := CreateToolhelp32Snapshot(0x4, 0)
+	if err != nil {
+		return
+	}
+	var (
 		y = getCurrentThreadID()
+		m = make(map[uintptr][]uintptr, 16)
+		u = make([]uintptr, 0, 8)
 		t ThreadEntry32
+		b bool
+		s uintptr
 		v uintptr
-		s uint32
 	)
 	t.Size = uint32(unsafe.Sizeof(t))
 	for err = Thread32First(h, &t); err == nil; err = Thread32Next(h, &t) {
-		if t.OwnerProcessID != p || t.ThreadID == y {
+		if t.OwnerProcessID != p {
 			continue
 		}
-		if v, err = OpenThread(0x61, false, t.ThreadID); err != nil {
+		if v, err = OpenThread(0x63, false, t.ThreadID); err != nil {
 			break
 		}
 		if s, err = getThreadStartAddress(v); err != nil {
 			break
+		}
+		if t.ThreadID == y {
+			if b, s = uintptr(s) >= a && uintptr(s) < e, 0; b {
+				break
+			}
+			continue
+		}
+		if uintptr(s) >= a && uintptr(s) < e {
+			u = append(u, v)
 		}
 		if _, ok := m[s]; !ok {
 			m[s] = make([]uintptr, 0, 8)
 		}
 		m[s] = append(m[s], v)
 	}
-	if CloseHandle(h); len(m) == 0 || (err != nil && err != ErrNoMoreFiles) {
+	if CloseHandle(h); b || len(m) == 0 || (err != nil && err != ErrNoMoreFiles) {
 		for k, v := range m {
 			for i := range v {
 				CloseHandle(v[i])
@@ -91,12 +131,40 @@ func KillRuntime() {
 			m[k] = nil
 			delete(m, k)
 		}
-		m = nil
-		runtime.UnlockOSThread()
+		if m = nil; b {
+			// Base thread (us), is in the base module address
+			// This is a binary, its safe to exit cleanly.
+			syscall.Exit(0)
+			return
+		}
+		u = nil
 		return
 	}
+	if len(u) > 0 {
+		var d int
+		for n, g := 0, uint32(0); n < len(u) && d <= 1; n++ {
+			if _, err = SuspendThread(u[n]); err != nil {
+				break
+			}
+			if g, err = ResumeThread(u[n]); err != nil {
+				break
+			}
+			if g > 1 {
+				d++
+			}
+		}
+		if d == 1 {
+			// Out of all the base threads, only one exists and is suspended,
+			// 99% chance this is a Zombified process, its ok to exit cleanly.
+			syscall.Exit(0)
+			return
+		}
+	}
+	// What's left is that we're probally injected into memory somewhere and
+	// we just need to nuke the runtime without affecting the host.
+	u = nil
 	var (
-		z uint32
+		z uintptr
 		x int
 	)
 	for k, v := range m {
@@ -127,14 +195,9 @@ func KillRuntime() {
 		CloseHandle(c[i])
 	}
 	if c = nil; err != nil {
-		runtime.UnlockOSThread()
 		return
 	}
-	runtime.GC()
-	debug.FreeOSMemory()
-	TerminateThread(CurrentThread, 0)
-	// NOTE(dij): Buck Stops here.
-	runtime.UnlockOSThread()
+	TerminateThread(CurrentThread, 0) // Buck Stops here.
 }
 
 // ZeroTraceEvent will attempt to zero out the NtTraceEvent function call with
@@ -211,6 +274,30 @@ func IsTokenElevated(h uintptr) bool {
 	)
 	return err == nil && n == uint32(unsafe.Sizeof(e)) && e != 0
 }
+func getSelfModuleHandle() (uintptr, error) {
+	var (
+		h         uintptr
+		r, _, err = syscall.SyscallN(funcGetModuleHandleEx.address(), 2, 0, uintptr(unsafe.Pointer(&h)))
+	)
+	if r == 0 {
+		return 0, unboxError(err)
+	}
+	return h, nil
+}
+func mod32Next(h uintptr, m *modEntry32) error {
+	r, _, err := syscall.SyscallN(funcModule32Next.address(), h, uintptr(unsafe.Pointer(m)))
+	if r == 0 {
+		return unboxError(err)
+	}
+	return nil
+}
+func mod32First(h uintptr, m *modEntry32) error {
+	r, _, err := syscall.SyscallN(funcModule32First.address(), h, uintptr(unsafe.Pointer(m)))
+	if r == 0 {
+		return unboxError(err)
+	}
+	return nil
+}
 
 // GetTokenUser retrieves access token user account information and SID.
 func GetTokenUser(h uintptr) (*TokenUser, error) {
@@ -243,10 +330,10 @@ func GetProcessFileName(h uintptr) (string, error) {
 	}
 	return v, nil
 }
-func getThreadStartAddress(h uintptr) (uint32, error) {
+func getThreadStartAddress(h uintptr) (uintptr, error) {
 	var (
-		i         uint32
-		r, _, err = syscall.SyscallN(funcNtQueryInformationThread.address(), h, 0x9, uintptr(unsafe.Pointer(&i)), 8, 0)
+		i         uintptr
+		r, _, err = syscall.SyscallN(funcNtQueryInformationThread.address(), h, 0x9, uintptr(unsafe.Pointer(&i)), unsafe.Sizeof(i), 0)
 	)
 	if r > 0 {
 		return 0, unboxError(err)
@@ -305,4 +392,23 @@ func getTokenInfo(t uintptr, c uint32, i int) (unsafe.Pointer, error) {
 			return nil, err
 		}
 	}
+}
+func findBaseModuleRange(p uint32, b uintptr) (uintptr, uintptr, error) {
+	h, err := CreateToolhelp32Snapshot(0x18, p)
+	if err != nil {
+		return 0, 0, err
+	}
+	var (
+		m    modEntry32
+		s, e uintptr
+	)
+	m.Size = uint32(unsafe.Sizeof(m))
+	for err = mod32First(h, &m); err == nil; err = mod32Next(h, &m) {
+		if b == m.BaseAddr {
+			s, e = m.BaseAddr, m.BaseAddr+uintptr(m.BaseSize)
+			break
+		}
+	}
+	CloseHandle(h)
+	return s, e, err
 }

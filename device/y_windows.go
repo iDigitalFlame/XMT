@@ -33,8 +33,11 @@ type privileges struct {
 // kill all Golang based OS-Threads based on their starting address (which
 // should be the same when starting from CGo).
 //
-// This function should NOT be used on real binary files and only used on
-// loaded libraries.
+// This will attempt to determine the base thread and any children that may be
+// running and take action on what type of host we're in to best end the
+// runtime without crashing.
+//
+// This function can be used on binaries, shared libaries or Zombified processes.
 //
 // Only works on Windows devices and is a NOP for *nix devices.
 //
