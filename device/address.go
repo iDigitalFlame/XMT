@@ -242,9 +242,9 @@ func (a Address) MarshalJSON() ([]byte, error) {
 func (a *Address) UnmarshalJSON(b []byte) error {
 	if len(b) < 1 || b[len(b)-1] != '"' || b[0] != '"' {
 		if xerr.Concat {
-			return xerr.Sub(`invalid value "`+string(b)+`"`, 0xD)
+			return xerr.Sub(`invalid address value "`+string(b)+`"`, 0x90)
 		}
-		return xerr.Sub("invalid value", 0xD)
+		return xerr.Sub("invalid address value", 0xD)
 	}
 	if i := net.ParseIP(string(b[1 : len(b)-2])); i != nil {
 		a.Set(i)

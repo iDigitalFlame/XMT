@@ -116,10 +116,10 @@ func rawParse(r string) (*url.URL, error) {
 		return nil, err
 	}
 	if len(u.Host) == 0 {
-		return nil, xerr.Sub("empty host field", 0x9)
+		return nil, xerr.Sub("empty host field", 0xA)
 	}
 	if u.Host[len(u.Host)-1] == ':' {
-		return nil, xerr.Sub("invalid port specified", 0xD)
+		return nil, xerr.Sub("invalid port specified", 0xB)
 	}
 	if len(u.Scheme) == 0 {
 		u.Scheme = com.NameHTTP
@@ -178,11 +178,11 @@ func connect(x context.Context, t *Target, c *http.Client, a string) (net.Conn, 
 		return nil, err
 	}
 	if d.StatusCode != http.StatusSwitchingProtocols {
-		return nil, xerr.Sub("invalid HTTP response", 0xF)
+		return nil, xerr.Sub("invalid HTTP response", 0x3F)
 	}
 	if _, ok := d.Body.(io.ReadWriteCloser); !ok {
 		d.Body.Close()
-		return nil, xerr.Sub("body is not writable", 0xC)
+		return nil, xerr.Sub("body is not writable", 0x40)
 	}
 	// NOTE(dij): I really don't like using reflect, but it's the only
 	//            way to grab the 'net.Conn' inside the private struct that the http
@@ -203,5 +203,5 @@ func connect(x context.Context, t *Target, c *http.Client, a string) (net.Conn, 
 		bugtrack.Track("wc2.connect(): Struct type (%T) could not grab net.Conn!", d.Body)
 	}
 	d.Body.Close()
-	return nil, xerr.Sub("could not get underlying net.Conn", 0x3)
+	return nil, xerr.Sub("could not get underlying net.Conn", 0x41)
 }

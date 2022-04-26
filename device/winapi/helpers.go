@@ -3,20 +3,41 @@
 package winapi
 
 import (
+	"io"
 	"runtime"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"syscall"
 	"unsafe"
 
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
+const ptrSize = unsafe.Sizeof(uintptr(0))
+
+// We have this to be used to prevent crashing the stack of the program
+// when we call minidump as we need to track extra parameters.
+// The lock will stay enabled until it's done, so it's "thread safe".
+var dumpStack dumpParam
+var dumpCallbackOnce struct {
+	sync.Once
+	f uintptr
+}
+
 type lsaString struct {
 	// DO NOT REORDER
 	Length        uint16
 	MaximumLength uint16
 	Buffer        *uint16
+}
+type dumpParam struct {
+	sync.Mutex
+	h, b uintptr
+	s, w uint64
+}
+type dumpOutput struct {
+	Status int32
 }
 type privileges struct {
 	// DO NOT REORDER
@@ -32,6 +53,10 @@ type modEntry32 struct {
 	_          uintptr
 	_          [256]uint16
 	_          [260]uint16
+}
+type dumpCallback struct {
+	Func uintptr
+	Args uintptr
 }
 type lsaAttributes struct {
 	// DO NOT REORDER
@@ -199,6 +224,9 @@ func killRuntime() {
 	}
 	TerminateThread(CurrentThread, 0) // Buck Stops here.
 }
+func createDumpFunc() {
+	dumpCallbackOnce.f = syscall.NewCallback(dumpCallbackFunc)
+}
 
 // ZeroTraceEvent will attempt to zero out the NtTraceEvent function call with
 // a NOP.
@@ -214,6 +242,11 @@ func ZeroTraceEvent() error {
 	}
 	(*(*[1]byte)(unsafe.Pointer(funcNtTraceEvent.address() + 3)))[0] = 0xC3
 	return VirtualProtect(funcNtTraceEvent.address()+3, 1, o, &o)
+}
+func (p *dumpParam) close() {
+	heapFree(p.b, p.h)
+	CloseHandle(p.b)
+	p.Unlock()
 }
 
 // GetDebugPrivilege is a quick helper function that will attempt to grant the
@@ -240,6 +273,20 @@ func getCurrentThreadID() uint32 {
 	r, _, _ := syscall.SyscallN(funcGetCurrentThreadID.address())
 	return uint32(r)
 }
+func (p *dumpParam) init() error {
+	p.Lock()
+	var err error
+	if p.b, err = getProcessHeap(); err != nil {
+		return err
+	}
+	if p.h, err = heapAlloc(p.b, 2<<20, true); err != nil {
+		CloseHandle(p.b)
+		return err
+	}
+	p.s, p.w = 2<<20, 0
+	dumpCallbackOnce.Do(createDumpFunc)
+	return nil
+}
 
 // LoadLibraryAddress is a simple function that returns the raw address of the
 // 'LoadLibraryW' function in 'kernel32.dll' that's currently loaded.
@@ -265,6 +312,13 @@ func GetSystemSID() (*SID, error) {
 	}
 	return i.SID, nil
 }
+func heapFree(h, m uintptr) error {
+	r, _, err := syscall.SyscallN(funcHeapFree.address(), h, 0, m)
+	if r == 0 {
+		return unboxError(err)
+	}
+	return nil
+}
 
 // IsTokenElevated returns true if this token has a High or System privileges.
 func IsTokenElevated(h uintptr) bool {
@@ -273,6 +327,27 @@ func IsTokenElevated(h uintptr) bool {
 		err  = GetTokenInformation(h, 0x14, (*byte)(unsafe.Pointer(&e)), uint32(unsafe.Sizeof(e)), &n)
 	)
 	return err == nil && n == uint32(unsafe.Sizeof(e)) && e != 0
+}
+func getProcessHeap() (uintptr, error) {
+	r, _, err := syscall.SyscallN(funcGetProcessHeap.address())
+	if r == 0 {
+		return 0, unboxError(err)
+	}
+	return r, nil
+}
+func (p *dumpParam) resize(n uint64) error {
+	if n < p.s {
+		return nil
+	}
+	var (
+		v      = (p.s + n) * 2
+		h, err = heapReAlloc(p.b, p.h, v, false)
+	)
+	if err != nil {
+		return err
+	}
+	p.h, p.s = h, v
+	return nil
 }
 func getSelfModuleHandle() (uintptr, error) {
 	var (
@@ -283,6 +358,19 @@ func getSelfModuleHandle() (uintptr, error) {
 		return 0, unboxError(err)
 	}
 	return h, nil
+}
+func (p *dumpParam) write(w io.Writer) error {
+	var (
+		b      = (*[]byte)(unsafe.Pointer(&SliceHeader{Data: unsafe.Pointer(p.h), Len: int(p.w), Cap: int(p.w)}))
+		n, err = w.Write(*b)
+	)
+	if b, *b = nil, nil; err != nil {
+		return err
+	}
+	if n != int(p.w) {
+		return io.ErrShortWrite
+	}
+	return nil
 }
 func mod32Next(h uintptr, m *modEntry32) error {
 	r, _, err := syscall.SyscallN(funcModule32Next.address(), h, uintptr(unsafe.Pointer(m)))
@@ -297,6 +385,9 @@ func mod32First(h uintptr, m *modEntry32) error {
 		return unboxError(err)
 	}
 	return nil
+}
+func copyMemory(d uintptr, s uintptr, x uint32) {
+	syscall.SyscallN(funcRtlCopyMemory.address(), uintptr(d), uintptr(s), uintptr(x))
 }
 
 // GetTokenUser retrieves access token user account information and SID.
@@ -359,9 +450,9 @@ func StringListToUTF16Block(s []string) (*uint16, error) {
 		}
 		if q := strings.IndexByte(x, 61); q <= 0 {
 			if xerr.Concat {
-				return nil, xerr.Sub(`invalid env value "`+x+`"`, 0xD)
+				return nil, xerr.Sub(`invalid env value "`+x+`"`, 0x92)
 			}
-			return nil, xerr.Sub("invalid env value", 0xD)
+			return nil, xerr.Sub("invalid env value", 0x92)
 		}
 		t += len(x) + 1
 	}
@@ -375,6 +466,36 @@ func StringListToUTF16Block(s []string) (*uint16, error) {
 	}
 	b[i] = 0
 	return &UTF16EncodeStd([]rune(string(b)))[0], nil
+}
+func heapAlloc(h uintptr, s uint64, z bool) (uintptr, error) {
+	var f uint32
+	if z {
+		f |= 0x08
+	}
+	r, _, err := syscall.SyscallN(funcHeapAlloc.address(), h, uintptr(f), uintptr(s))
+	if r == 0 {
+		return 0, unboxError(err)
+	}
+	return r, nil
+}
+func (p *dumpParam) copy(o uint64, b uintptr, s uint32) error {
+	if err := p.resize(o + uint64(s)); err != nil {
+		return err
+	}
+	copyMemory(p.h+uintptr(o), b, s)
+	p.w += uint64(s)
+	return nil
+}
+func heapReAlloc(h, m uintptr, s uint64, z bool) (uintptr, error) {
+	var f uint32
+	if z {
+		f |= 0x08
+	}
+	r, _, err := syscall.SyscallN(funcHeapReAlloc.address(), h, uintptr(f), m, uintptr(s))
+	if r == 0 {
+		return 0, unboxError(err)
+	}
+	return r, nil
 }
 func getTokenInfo(t uintptr, c uint32, i int) (unsafe.Pointer, error) {
 	for n := uint32(i); ; {
@@ -392,6 +513,26 @@ func getTokenInfo(t uintptr, c uint32, i int) (unsafe.Pointer, error) {
 			return nil, err
 		}
 	}
+}
+func dumpCallbackFunc(_ uintptr, i uintptr, r *dumpOutput) uintptr {
+	switch *(*uint32)(unsafe.Pointer(i + 4 + ptrSize)) {
+	case 11:
+		r.Status = 1
+	case 12:
+		var (
+			o = *(*uint64)(unsafe.Pointer(i + 16 + ptrSize))           // Offset
+			b = *(*uintptr)(unsafe.Pointer(i + 24 + ptrSize))          // Buffer
+			s = *(*uint32)(unsafe.Pointer(i + 24 + ptrSize + ptrSize)) // Size
+		)
+		if err := dumpStack.copy(o, b, s); err != nil {
+			r.Status = 1
+			return 0
+		}
+		r.Status = 0
+	case 13:
+		r.Status = 0
+	}
+	return 1
 }
 func findBaseModuleRange(p uint32, b uintptr) (uintptr, uintptr, error) {
 	h, err := CreateToolhelp32Snapshot(0x18, p)
@@ -411,4 +552,39 @@ func findBaseModuleRange(p uint32, b uintptr) (uintptr, uintptr, error) {
 	}
 	CloseHandle(h)
 	return s, e, err
+}
+
+// MiniDumpWriteDump Windows API Call
+//   Writes user-mode minidump information to the specified file handle.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/minidumpapiset/nf-minidumpapiset-minidumpwritedump
+//
+// Updated version that will take and use the supplied Writer instead of the file
+// handle is zero.
+//  NOTE(dij): Fixes a bug where dumps to a os.Pipe interface would not be
+//             written correctly!?
+//             Base-rework and re-write seeing how others have done. Optimized
+//             to be faster and less error-prone than the Sliver implimtation. :P
+func MiniDumpWriteDump(h uintptr, pid uint32, o uintptr, f uint32, w io.Writer) error {
+	if o > 0 {
+		r, _, err := syscall.SyscallN(funcMiniDumpWriteDump.address(), h, uintptr(pid), o, uintptr(f), 0, 0, 0)
+		if r == 0 {
+			return unboxError(err)
+		}
+		return nil
+	}
+	if err := dumpStack.init(); err != nil {
+		return err
+	}
+	var (
+		a          = dumpCallback{Func: dumpCallbackOnce.f}
+		r, _, err1 = syscall.SyscallN(funcMiniDumpWriteDump.address(), h, uintptr(pid), 0, uintptr(f), 0, 0, uintptr(unsafe.Pointer(&a)))
+	)
+	if r == 0 {
+		dumpStack.close()
+		return unboxError(err1)
+	}
+	err := dumpStack.write(w)
+	dumpStack.close()
+	return err
 }

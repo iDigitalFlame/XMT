@@ -56,7 +56,7 @@ func (proxyBase) accept(_ *com.Packet) bool {
 //
 // If the replacement fails, the Proxy will be closed.
 func (Proxy) Replace(_ string, _ Profile) error {
-	return xerr.Sub("proxy support disabled", 0x2)
+	return xerr.Sub("proxy support disabled", 0x29)
 }
 func (*Session) writeProxyInfo(w io.Writer, d *[8]byte) error {
 	(*d)[0] = 0
@@ -103,5 +103,5 @@ func readProxyInfo(r io.Reader, d *[8]byte) ([]proxyData, error) {
 // This function will return an error if this is not a client Session or
 // listening fails.
 func (*Session) NewProxy(_, _ string, _ Profile) (*Proxy, error) {
-	return nil, xerr.Sub("proxy support disabled", 0x2)
+	return nil, xerr.Sub("proxy support disabled", 0x29)
 }

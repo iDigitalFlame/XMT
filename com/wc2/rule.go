@@ -61,12 +61,12 @@ func (r *Rule) Header(k string, v Matcher) {
 }
 func matchAll(r *http.Request, s []Rule) bool {
 	if len(s) == 0 {
-		return false
+		return true
 	}
 	for i := range s {
-		if !s[i].match(r) {
-			return false
+		if s[i].match(r) {
+			return true
 		}
 	}
-	return true
+	return false
 }

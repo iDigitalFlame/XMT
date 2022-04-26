@@ -252,7 +252,6 @@ func (c *proxyClient) update(_ string) {
 func (p *Proxy) Done() <-chan struct{} {
 	return p.ch
 }
-func (proxyClient) frag(_, _, _ uint16) {}
 func (c *proxyClient) chanRunning() bool {
 	return c.state.Channel()
 }
@@ -262,6 +261,7 @@ func (c *proxyClient) stateSet(v uint32) {
 func (c *proxyClient) stateUnset(v uint32) {
 	c.state.Unset(v)
 }
+
 func (p *Proxy) accept(n *com.Packet) bool {
 	if len(p.clients) == 0 {
 		return false
@@ -302,6 +302,7 @@ func (c *proxyClient) queue(n *com.Packet) {
 func (c *proxyClient) clientID() device.ID {
 	return c.ID
 }
+func (proxyClient) frag(_, _, _, _ uint16) {}
 func (proxyClient) deadlineRead() time.Time {
 	return empty
 }
@@ -386,7 +387,7 @@ func (p *Proxy) Replace(addr string, n Profile) error {
 		return xerr.Wrap("unable to listen", err)
 	} else if v == nil {
 		p.Close()
-		return xerr.Sub("unable to listen", 0x8)
+		return xerr.Sub("unable to listen", 0x18)
 	}
 	p.listener, p.w, p.t, p.p = v, w, t, n
 	if p.state.Unset(stateReplacing); cout.Enabled {
@@ -420,7 +421,7 @@ func (p *Proxy) notify(h connHost, n *com.Packet) error {
 	if isPacketNoP(n) {
 		return nil
 	}
-	p.parent.queue(n)
+	p.parent.write(true, n)
 	return nil
 }
 func (p *Proxy) talk(a string, n *com.Packet) (*conn, error) {
@@ -459,7 +460,7 @@ func (p *Proxy) talk(a string, n *com.Packet) (*conn, error) {
 		if p.lock.Unlock(); cout.Enabled {
 			p.log.Info("[%s:%s] %s: New client registered as %q hash 0x%X.", p.prefix(), c.ID, a, c.ID, i)
 		}
-		p.parent.queue(n)
+		p.parent.write(true, n)
 		c.queue(&com.Packet{ID: SvComplete, Device: n.Device, Job: n.Job})
 	}
 	if c.state.Set(stateSeen); n.ID == SvShutdown {
@@ -467,7 +468,7 @@ func (p *Proxy) talk(a string, n *com.Packet) (*conn, error) {
 		case p.close <- i:
 		default:
 		}
-		p.parent.queue(n)
+		p.parent.write(true, n)
 		return &conn{next: &com.Packet{ID: SvShutdown, Device: n.Device, Job: n.Job}}, nil
 	}
 	v, err := p.resolve(c, a, n.Tags)
@@ -564,14 +565,14 @@ func (p *Proxy) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *com
 	}
 	switch c.state.Set(stateSeen); {
 	case isPacketNoP(n):
-		p.parent.queue(n)
+		p.parent.write(true, n)
 		c.state.Set(stateReady)
 	case n.ID == SvShutdown:
 		select {
 		case p.close <- i:
 		default:
 		}
-		p.parent.queue(n)
+		p.parent.write(true, n)
 		return nil, 0, &com.Packet{ID: SvShutdown, Device: n.Device, Job: n.Job}, nil
 	}
 	if o {

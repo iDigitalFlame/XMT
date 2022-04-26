@@ -723,18 +723,6 @@ func OpenMutex(access uint32, inherit bool, name string) (uintptr, error) {
 	return r, nil
 }
 
-// MiniDumpWriteDump Windows API Call
-//   Writes user-mode minidump information to the specified file handle.
-//
-// https://docs.microsoft.com/en-us/windows/win32/api/minidumpapiset/nf-minidumpapiset-minidumpwritedump
-func MiniDumpWriteDump(h uintptr, pid uint32, o uintptr, f uint32) error {
-	r, _, err := syscall.SyscallN(funcMiniDumpWriteDump.address(), h, uintptr(pid), o, uintptr(f), 0, 0, 0)
-	if r == 0 {
-		return unboxError(err)
-	}
-	return nil
-}
-
 // OpenEvent Windows API Call
 //   Opens an existing named event object.
 //

@@ -44,7 +44,7 @@ func (s *Session) updateProxyStats(_ bool, _ string) {
 	} else if n.WriteUint8(0); s.proxy != nil {
 		s.proxy = nil
 	}
-	s.queue(n)
+	s.write(true, n)
 }
 func (s *Session) writeProxyInfo(w io.Writer, d *[8]byte) error {
 	if s.proxy == nil || !s.proxy.IsActive() {
@@ -64,7 +64,7 @@ func (s *Session) writeProxyInfo(w io.Writer, d *[8]byte) error {
 	}
 	p, ok := s.proxy.p.(marshaler)
 	if !ok {
-		return xerr.Sub("cannot marshal Proxy Profile", 0xC)
+		return xerr.Sub("cannot marshal Proxy Profile", 0x2A)
 	}
 	b, err := p.MarshalBinary()
 	if err != nil {
@@ -84,7 +84,7 @@ func (s *Session) writeProxyInfo(w io.Writer, d *[8]byte) error {
 // listening fails.
 func (s *Session) NewProxy(name, addr string, p Profile) (*Proxy, error) {
 	if s.s != nil {
-		return nil, xerr.Sub("must be a client session", 0x5)
+		return nil, xerr.Sub("must be a client session", 0x21)
 	}
 	// TODO(dij): Need to enable this, but honestly its a lot of work for
 	//            something that might have 0 use.
@@ -93,7 +93,7 @@ func (s *Session) NewProxy(name, addr string, p Profile) (*Proxy, error) {
 	//
 	// NOTE(dij): Build with the "multiproxy" tag to remove this restriction
 	if s.proxy != nil {
-		return nil, xerr.Sub("only a single Proxy per session can be active", 0x2)
+		return nil, xerr.Sub("only a single Proxy per session can be active", 0x2B)
 	}
 	if p == nil {
 		return nil, ErrInvalidProfile
@@ -110,7 +110,7 @@ func (s *Session) NewProxy(name, addr string, p Profile) (*Proxy, error) {
 		return nil, xerr.Wrap("unable to listen", err)
 	}
 	if l == nil {
-		return nil, xerr.Sub("unable to listen", 0x8)
+		return nil, xerr.Sub("unable to listen", 0x18)
 	}
 	v := &Proxy{
 		ch:         make(chan struct{}),

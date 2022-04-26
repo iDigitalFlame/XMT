@@ -52,7 +52,7 @@ var (
 	// ErrTooManyPackets is an error returned by many of the Packet writing
 	// functions when attempts to combine Packets would create a Packet grouping
 	// size larger than the maximum size (65535 or 0xFFFF).
-	ErrTooManyPackets = xerr.Sub("frag/multi count is larger than 0xFFFF", 0xE)
+	ErrTooManyPackets = xerr.Sub("frag/multi count is larger than 0xFFFF", 0x2C)
 
 	empty time.Time
 
@@ -212,7 +212,7 @@ func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 			if cout.Enabled {
 				s.log.Info("[%s] Client indicated shutdown, acknowledging and closing Session.", s.ID)
 			}
-			s.write(false, &com.Packet{ID: SvShutdown, Job: 1, Device: s.ID})
+			s.write(true, &com.Packet{ID: SvShutdown, Job: 1, Device: s.ID})
 			s.s.Remove(s.ID, false)
 			s.state.Set(stateShutdownWait)
 		} else {
@@ -237,7 +237,7 @@ func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 		}
 		v := &com.Packet{ID: SvHello, Job: uint16(util.FastRand()), Device: s.ID}
 		s.Device.MarshalStream(v)
-		if s.queue(v); len(s.send) <= 1 {
+		if s.write(true, v); len(s.send) <= 1 {
 			s.Wake()
 		}
 		return
@@ -266,9 +266,9 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 			return nil
 		}
 		if xerr.Concat {
-			return xerr.Sub(`received Packet for "`+n.Device.String()+`" that does not match our own ID "`+s.ID.String()+`"`, 0xD)
+			return xerr.Sub(`received Packet for "`+n.Device.String()+`" that does not match our own device ID "`+s.ID.String()+`"`, 0x2D)
 		}
-		return xerr.Sub("received Packet that does not match our own ID", 0xD)
+		return xerr.Sub("received Packet that does not match our own device ID", 0x2D)
 	}
 	if n.Flags&com.FlagOneshot != 0 {
 		l.oneshot(n)
@@ -321,14 +321,14 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 			return receive(s, l, n)
 		}
 		if cout.Enabled {
-			s.log.Trace("[%s] Received frag for Group %X (%d of %d).", s.ID, n.Flags.Group(), n.Flags.Position(), n.Flags.Len())
+			s.log.Trace("[%s] Received frag for Group %X (%d of %d).", s.ID, n.Flags.Group(), n.Flags.Position()+1, n.Flags.Len())
 		}
 		var (
 			g     = n.Flags.Group()
 			c, ok = s.frags[g]
 		)
 		if !ok && n.Flags.Position() > 0 {
-			if s.queue(&com.Packet{ID: SvDrop, Flags: n.Flags, Device: s.ID}); cout.Enabled {
+			if s.write(true, &com.Packet{ID: SvDrop, Flags: n.Flags, Device: s.ID}); cout.Enabled {
 				s.log.Warning("[%s] Received an invalid Frag Group %X, indicating to drop it!", s.ID, n.Flags.Group())
 			}
 			return nil
@@ -346,7 +346,7 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 			}
 			return receive(s, l, v)
 		}
-		s.frag(n.Job, n.Flags.Len(), n.Flags.Position())
+		s.frag(n.Job, n.Flags.Group(), n.Flags.Len(), n.Flags.Position())
 		return nil
 	}
 	receiveSingle(s, l, n)

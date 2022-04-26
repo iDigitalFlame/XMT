@@ -88,10 +88,10 @@ func rawParse(r string) (*url.URL, error) {
 		return nil, err
 	}
 	if len(u.Host) == 0 {
-		return nil, xerr.Sub("empty host field", 0x9)
+		return nil, xerr.Sub("empty host field", 0xA)
 	}
 	if u.Host[len(u.Host)-1] == ':' {
-		return nil, xerr.Sub("invalid port specified", 0xE)
+		return nil, xerr.Sub("invalid port specified", 0xB)
 	}
 	if len(u.Scheme) == 0 {
 		u.Scheme = com.NameHTTP
@@ -382,7 +382,7 @@ func taskSystemIo(x context.Context, r data.Reader, w data.Writer) error {
 		}
 		return os.Remove(k)
 	default:
-		return xerr.Sub("invalid operation", 0xD)
+		return xerr.Sub("invalid io operation", 0x34)
 	}
 }
 func taskScreenShot(_ context.Context, _ data.Reader, w data.Writer) error {

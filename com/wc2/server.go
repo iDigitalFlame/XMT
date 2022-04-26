@@ -107,7 +107,7 @@ func (s *Server) ServeFile(p, f string) error {
 		s.handler.Handle(p, http.FileServer(directory(f)))
 		return nil
 	}
-	return xerr.Sub("not a file", 0x18)
+	return xerr.Sub("not a file", 0x42)
 }
 
 // Handle registers the handler for the given pattern. If a handler already exists
@@ -129,7 +129,7 @@ func (s *Server) ServeDirectory(p, f string) error {
 		s.handler.Handle(p, http.FileServer(http.Dir(f)))
 		return nil
 	}
-	return xerr.Sub("not a directory", 0x19)
+	return xerr.Sub("not a directory", 0x43)
 }
 
 // NewTLS creates a new TLS wrapped Web C2 server instance. This can be passed

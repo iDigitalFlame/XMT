@@ -341,6 +341,8 @@ func forEachThread(f func(uintptr) error) error {
 // DumpProcess will attempt to copy the memory of the targeted Filter to the
 // supplied Writer. This fill select the first process that matches the Filter.
 //
+// Warning! This suspends the process, you cannot dump the same owning PID.
+//
 // If the Filter is nil or empty or if an error occurs during reading/writing
 // an error will be returned.
 func DumpProcess(f *filter.Filter, w io.Writer) error {
@@ -359,8 +361,12 @@ func DumpProcess(f *filter.Filter, w io.Writer) error {
 		winapi.CloseHandle(h)
 		return err
 	}
+	if p == winapi.GetCurrentProcessID() {
+		winapi.CloseHandle(h)
+		return xerr.Sub("cannot dump self", 0x91)
+	}
 	if v, ok := w.(fileFd); ok {
-		err = winapi.MiniDumpWriteDump(h, p, v.Fd(), 0x3)
+		err = winapi.MiniDumpWriteDump(h, p, v.Fd(), 0x2, nil)
 		winapi.CloseHandle(h)
 		return err
 	}
@@ -370,24 +376,11 @@ func DumpProcess(f *filter.Filter, w io.Writer) error {
 			winapi.CloseHandle(h)
 			return err
 		}
-		err = winapi.MiniDumpWriteDump(h, p, x.Fd(), 0x3)
+		err = winapi.MiniDumpWriteDump(h, p, x.Fd(), 0x2, nil)
 		winapi.CloseHandle(h)
 		return err
 	}
-	r, x, err := os.Pipe()
-	if err != nil {
-		winapi.CloseHandle(h)
-		return err
-	}
-	go func() {
-		if bugtrack.Enabled {
-			defer bugtrack.Recover("device.DumpProcess.func1()")
-		}
-		io.Copy(w, r)
-	}()
-	err = winapi.MiniDumpWriteDump(h, p, x.Fd(), 0x3)
-	x.Close()
-	r.Close()
+	err = winapi.MiniDumpWriteDump(h, p, 0, 0x2, w)
 	winapi.CloseHandle(h)
 	return err
 }

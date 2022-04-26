@@ -25,6 +25,7 @@ var (
 
 	funcGetDC                                               = dllUser32.proc(crypt.Get(229))   // GetDC
 	funcBitBlt                                              = dllGdi32.proc(crypt.Get(227))    // BitBlt
+	funcHeapFree                                            = dllKernel32.proc(crypt.Get(220)) // HeapFree
 	funcReadFile                                            = dllKernel32.proc(crypt.Get(134)) // ReadFile
 	funcLsaClose                                            = dllAdvapi32.proc(crypt.Get(135)) // LsaClose
 	funcDeleteDC                                            = dllGdi32.proc(crypt.Get(222))    // DeleteDC
@@ -34,15 +35,14 @@ var (
 	funcOpenEvent                                           = dllKernel32.proc(crypt.Get(139)) // OpenEventW
 	funcGetDIBits                                           = dllGdi32.proc(crypt.Get(228))    // GetDIBits
 	funcReleaseDC                                           = dllUser32.proc(crypt.Get(230))   // ReleaseDC
+	funcHeapAlloc                                           = dllKernel32.proc(crypt.Get(219)) // HeapAlloc
 	funcCreateFile                                          = dllKernel32.proc(crypt.Get(140)) // CreateFileW
 	funcGetVersion                                          = dllKernel32.proc(crypt.Get(141)) // GetVersion
 	funcCancelIoEx                                          = dllKernel32.proc(crypt.Get(142)) // CancelIoEx
-	funcGlobalLock                                          = dllKernel32.proc(crypt.Get(220)) // GlobalLock
-	funcGlobalFree                                          = dllKernel32.proc(crypt.Get(219)) // GlobalFree
-	funcGlobalAlloc                                         = dllKernel32.proc(crypt.Get(218)) // GlobalAlloc
 	funcLoadLibrary                                         = dllKernel32.proc(crypt.Get(143)) // LoadLibraryW
 	funcCreateMutex                                         = dllKernel32.proc(crypt.Get(144)) // CreateMutexW
 	funcCreateEvent                                         = dllKernel32.proc(crypt.Get(145)) // CreateEventW
+	funcHeapReAlloc                                         = dllKernel32.proc(crypt.Get(218)) // HeapReAlloc
 	funcSelectObject                                        = dllGdi32.proc(crypt.Get(226))    // SelectObject
 	funcDeleteObject                                        = dllGdi32.proc(crypt.Get(223))    // DeleteObject
 	funcNtTraceEvent                                        = dllNtdll.proc(crypt.Get(146))    // NtTraceEvent
@@ -51,7 +51,6 @@ var (
 	funcGetProcessID                                        = dllKernel32.proc(crypt.Get(150)) // GetProcessId
 	funcRevertToSelf                                        = dllAdvapi32.proc(crypt.Get(151)) // RevertToSelf
 	funcRegEnumValue                                        = dllAdvapi32.proc(crypt.Get(152)) // RegEnumValueW
-	funcGlobalUnlock                                        = dllKernel32.proc(crypt.Get(221)) // GlobalUnlock
 	funcModule32Next                                        = dllKernel32.proc(crypt.Get(247)) // Module32NextW
 	funcModule32First                                       = dllKernel32.proc(crypt.Get(248)) // Module32FirstW
 	funcWaitNamedPipe                                       = dllKernel32.proc(crypt.Get(153)) // WaitNamedPipeW
@@ -63,6 +62,8 @@ var (
 	funcLsaOpenPolicy                                       = dllAdvapi32.proc(crypt.Get(159)) // LsaOpenPolicy
 	funcOpenSemaphore                                       = dllKernel32.proc(crypt.Get(160)) // OpenSemaphoreW
 	funcRegDeleteTree                                       = dllAdvapi32.proc(crypt.Get(242)) // RegDeleteTreeW
+	funcRtlCopyMemory                                       = dllNtdll.proc(crypt.Get(221))    // RtlCopyMemory
+	funcGetProcessHeap                                      = dllKernel32.proc(crypt.Get(249)) // GetProcessHeap
 	funcRegDeleteKeyEx                                      = dllAdvapi32.proc(crypt.Get(149)) // RegDeleteKeyExW
 	funcGetMonitorInfo                                      = dllUser32.proc(crypt.Get(231))   // GetMonitorInfoW
 	funcVirtualProtect                                      = dllKernel32.proc(crypt.Get(161)) // VirtualProtect

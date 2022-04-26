@@ -137,7 +137,6 @@ func matchWithToken(s, v string) bool {
 		n       uint64
 	)
 	for i := range s {
-		//fmt.Printf("up %d|%d = [%c|%c] (l, w, z = %d, %d, %d)\n", i, w, s[i], v[w], l, w, z)
 		switch {
 		case s[i] == '%':
 			if l > -1 {
@@ -162,16 +161,13 @@ func matchWithToken(s, v string) bool {
 			} else {
 				f, n = false, 0
 			}
-			//fmt.Printf("check token %c %t, %d, %s\n", s[i], f, n, v[w:])
 			if z, f = checkToken(s[i], f, int(n), v[w:]); !f {
-				//println("ct fail")
 				return false
 			}
 			l, w = -1, w+z
 		case s[i] == 'f':
 			if l > -1 && i-l == 1 {
 				if s[i] != v[w] {
-					//println("ct 1 fail")
 					return false
 				}
 				l, w = -1, w+1
@@ -183,36 +179,24 @@ func matchWithToken(s, v string) bool {
 				continue
 			}
 			if s[i] != v[w] {
-				//println("ct z fail")
-
 				return false
 			}
 			w++
 		default:
 			if l > -1 {
 				for y := l; y <= i; y++ {
-					//println(l, i)
-					//println("verify")
 					if s[y] != v[w+(y-l)] {
 						return false
 					}
-					//fmt.Printf("ver %d|%d = [%c|%c]\n", y, w+(i-y), s[y], v[w+(y-l)])
-
 				}
-				//println("cont from", l)
 				w += (i - l) + 1
 				l = -1
 				continue
 			}
 			if len(v) < w {
-				//println("ct len fail")
-
 				return false
 			}
-			//fmt.Printf("ret %d|%d = [%c|%c] = [%s|%s]\n", i, w, s[i], v[w], s[i:i+4], v[w:w+4])
 			if s[i] != v[w] {
-				//println("ctA fail")
-
 				return false
 			}
 			w++
@@ -330,12 +314,10 @@ func checkToken(c byte, f bool, n int, v string) (int, bool) {
 	case 'd', 'n':
 		n = numSize(n, 10)
 	}
-	//println("size", n, len(v))
 	if len(v) < n {
 		return 0, false
 	}
 	for i := 0; i < n; i++ {
-		//fmt.Printf("read %c\n", v[i])
 		if !x(v[i]) {
 			return 0, false
 		}

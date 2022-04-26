@@ -29,15 +29,15 @@ var (
 	// In order to use this properly, import the "cfg" package using a blank
 	// import (if not already in use) as it will set this value on load.
 	ProfileParser func([]byte) (Profile, error) = func(b []byte) (Profile, error) {
-		return nil, xerr.Sub("no Profile parser loaded", 0x8)
+		return nil, xerr.Sub("no Profile parser loaded", 0x15)
 	}
 
 	// ErrNotAListener is an error that can be returned by a call to a Profile's
 	// 'Listen' function when that operation is disabled.
-	ErrNotAListener = xerr.Sub("not a listener", 0x8)
+	ErrNotAListener = xerr.Sub("not a Listener", 0x19)
 	// ErrNotAConnector is an error that can be returned by a call to a
 	// Profile's 'Connect' function when that operation is disabled.
-	ErrNotAConnector = xerr.Sub("not a connector", 0x8)
+	ErrNotAConnector = xerr.Sub("not a Connector", 0x1A)
 )
 
 // Static is a simple static Profile implementation.

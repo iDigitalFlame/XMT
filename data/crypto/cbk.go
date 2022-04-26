@@ -307,7 +307,7 @@ func NewCBKSource(a, b, c, d, sz byte) (*CBK, error) {
 		sz = size
 	case 16, 32, 64, 128:
 	default:
-		return nil, xerr.Sub("block size must be between 16 and 128 and a power of two", 0x10)
+		return nil, xerr.Sub("block size must be between 16 and 128 and a power of two", 0x80)
 	}
 	return &CBK{A: byte(a), B: byte(b), C: byte(c), D: byte(d), buf: make([]byte, sz+1), total: -1}, nil
 }
@@ -328,7 +328,7 @@ func NewCBKEx(d int, sz int, src source) (*CBK, error) {
 		sz = size
 	case 16, 32, 64, 128:
 	default:
-		return nil, xerr.Sub("block size must be between 16 and 128 and a power of two", 0x10)
+		return nil, xerr.Sub("block size must be between 16 and 128 and a power of two", 0x80)
 	}
 	c := &CBK{D: byte(d), buf: make([]byte, sz+1), total: -1, Source: src}
 	c.Reset()

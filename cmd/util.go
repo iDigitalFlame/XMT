@@ -8,26 +8,31 @@ import (
 )
 
 var (
-	// ErrNotStarted is an error returned by multiple functions functions when attempting to access a
-	// Runnable function that requires the Runnable to be started first.
-	ErrNotStarted = xerr.Sub("process has not been started", 0x5)
-	// ErrEmptyCommand is an error returned when attempting to start a Runnable that has empty arguments.
-	ErrEmptyCommand = xerr.Sub("process arguments are empty", 0x17)
-	// ErrStillRunning is returned when attempting to access the exit code on a Runnable.
-	ErrStillRunning = xerr.Sub("process is still running", 0x14)
-	// ErrAlreadyStarted is an error returned by the 'Start' or 'Run' functions when attempting to start
-	// a Runnable that has already been started via a 'Start' or 'Run' function call.
-	ErrAlreadyStarted = xerr.Sub("process has already been started", 0x15)
+	// ErrNotStarted is an error returned by multiple functions functions when
+	// attempting to access a Runnable function that requires the Runnable to be
+	// started first.
+	ErrNotStarted = xerr.Sub("process has not been started", 0x63)
+	// ErrEmptyCommand is an error returned when attempting to start a Runnable
+	// that has empty arguments.
+	ErrEmptyCommand = xerr.Sub("process arguments are empty", 0x64)
+	// ErrStillRunning is returned when attempting to access the exit code on a
+	// Runnable.
+	ErrStillRunning = xerr.Sub("process is still running", 0x65)
+	// ErrAlreadyStarted is an error returned by the 'Start' or 'Run' functions
+	// when attempting to start a Runnable that has already been started via a
+	// 'Start' or 'Run' function call.
+	ErrAlreadyStarted = xerr.Sub("process has already been started", 0x66)
 )
 
-// ExitError is a type of error that is returned by the Wait and Run functions when a function
-// returns an error code other than zero.
+// ExitError is a type of error that is returned by the Wait and Run functions
+// when a function returns an error code other than zero.
 type ExitError struct {
 	Exit uint32
 }
 
-// Runnable is an interface that helps support the type of structs that can be used for execution, such as
-// Assembly, DLL and Process, which share the same methods as this interface.
+// Runnable is an interface that helps support the type of structs that can be
+// used for execution, such as Assembly, DLL and Process, which share the same
+// methods as this interface.
 type Runnable interface {
 	Run() error
 	Pid() uint32
@@ -70,7 +75,8 @@ func Split(v string) []string {
 	return r
 }
 
-// Error fulfills the error interface and retruns a formatted string that specifies the Process Exit Code.
+// Error fulfills the error interface and retruns a formatted string that
+// specifies the Process Exit Code.
 func (e ExitError) Error() string {
 	return "exit " + strconv.Itoa(int(e.Exit))
 }

@@ -1453,25 +1453,25 @@
         ]
     },
     "218": {
-        "value": "GlobalAlloc",
+        "value": "HeapReAlloc",
         "tags": [
             "windows"
         ]
     },
     "219": {
-        "value": "GlobalFree",
+        "value": "HeapAlloc",
         "tags": [
             "windows"
         ]
     },
     "220": {
-        "value": "GlobalLock",
+        "value": "HeapFree",
         "tags": [
             "windows"
         ]
     },
     "221": {
-        "value": "GlobalUnlock",
+        "value": "RtlCopyMemory",
         "tags": [
             "windows"
         ]
@@ -1629,6 +1629,12 @@
     },
     "248": {
         "value": "Module32FirstW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "249": {
+        "value": "GetProcessHeap",
         "tags": [
             "windows"
         ]

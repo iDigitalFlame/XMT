@@ -18,7 +18,7 @@ func (l objListener) Close() error {
 }
 func mutexCheck(s string) (bool, error) {
 	if len(s) == 0 || len(s) > 248 {
-		return false, xerr.Sub("invalid name", 0xA)
+		return false, xerr.Sub("invalid path name", 0x52)
 	}
 	if s[0] != '\\' {
 		s = prefix + s
@@ -32,7 +32,7 @@ func mutexCheck(s string) (bool, error) {
 }
 func eventCheck(s string) (bool, error) {
 	if len(s) == 0 || len(s) > 248 {
-		return false, xerr.Sub("invalid name", 0xA)
+		return false, xerr.Sub("invalid path name", 0x52)
 	}
 	if s[0] != '\\' {
 		s = prefix + s
@@ -46,7 +46,7 @@ func eventCheck(s string) (bool, error) {
 }
 func mailslotCheck(s string) (bool, error) {
 	if len(s) == 0 || len(s) > 243 {
-		return false, xerr.Sub("invalid name", 0xA)
+		return false, xerr.Sub("invalid path name", 0x52)
 	}
 	if len(s) < 4 || (s[0] != '\\' && s[1] != '\\' && s[2] != '.' && s[3] != '\\') {
 		s = slot + s
@@ -60,7 +60,7 @@ func mailslotCheck(s string) (bool, error) {
 }
 func semaphoreCheck(s string) (bool, error) {
 	if len(s) == 0 || len(s) > 248 {
-		return false, xerr.Sub("invalid name", 0xA)
+		return false, xerr.Sub("invalid path name", 0x52)
 	}
 	if s[0] != '\\' {
 		s = prefix + s
@@ -74,7 +74,7 @@ func semaphoreCheck(s string) (bool, error) {
 }
 func mutexCreate(s string) (listener, error) {
 	if len(s) == 0 || len(s) > 248 {
-		return nil, xerr.Sub("invalid name", 0xA)
+		return nil, xerr.Sub("invalid path name", 0x52)
 	}
 	if s[0] != '\\' {
 		s = prefix + s
@@ -95,7 +95,7 @@ func mutexCreate(s string) (listener, error) {
 }
 func eventCreate(s string) (listener, error) {
 	if len(s) == 0 || len(s) > 248 {
-		return nil, xerr.Sub("invalid name", 0xA)
+		return nil, xerr.Sub("invalid path name", 0x52)
 	}
 	if s[0] != '\\' {
 		s = prefix + s
@@ -125,11 +125,11 @@ func (o objSync) check(s string) (bool, error) {
 	case Semaphore:
 		return semaphoreCheck(s)
 	}
-	return false, xerr.Sub("invalid value", 0xD)
+	return false, xerr.Sub("invalid link type", 0x53)
 }
 func mailslotCreate(s string) (listener, error) {
 	if len(s) == 0 || len(s) > 243 {
-		return nil, xerr.Sub("invalid name", 0xA)
+		return nil, xerr.Sub("invalid path name", 0x52)
 	}
 	if len(s) < 4 || (s[0] != '\\' && s[1] != '\\' && s[2] != '.' && s[3] != '\\') {
 		s = slot + s
@@ -150,7 +150,7 @@ func mailslotCreate(s string) (listener, error) {
 }
 func semaphoreCreate(s string) (listener, error) {
 	if len(s) == 0 || len(s) > 248 {
-		return nil, xerr.Sub("invalid name", 0xA)
+		return nil, xerr.Sub("invalid path name", 0x52)
 	}
 	if s[0] != '\\' {
 		s = prefix + s
@@ -180,5 +180,5 @@ func (o objSync) create(s string) (listener, error) {
 	case Semaphore:
 		return semaphoreCreate(s)
 	}
-	return nil, xerr.Sub("invalid type", 0xC)
+	return nil, xerr.Sub("invalid link type", 0x53)
 }

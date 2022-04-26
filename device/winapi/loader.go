@@ -51,7 +51,7 @@ func (d *lazyDLL) load() error {
 		return nil
 	}
 	if len(d.Name) == 0 {
-		return xerr.Sub("empty DLL name", 0x9)
+		return xerr.Sub("empty DLL name", 0x93)
 	}
 	var (
 		h   uintptr

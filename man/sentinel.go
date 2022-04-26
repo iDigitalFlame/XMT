@@ -27,7 +27,7 @@ const (
 
 // ErrNoEndpoints is an error returned if no valid Guardian paths could be used
 // and/or found during a launch.
-var ErrNoEndpoints = xerr.Sub("no paths found", 0x13)
+var ErrNoEndpoints = xerr.Sub("no paths found", 0x51)
 
 // Sentinel is a struct that can be used as a 'Named' arguments value to
 // functions in the 'man' package or can be Marshaled from a file or bytes

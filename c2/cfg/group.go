@@ -205,13 +205,13 @@ func (g *Group) MarshalBinary() ([]byte, error) {
 	if len(g.src) > 0 {
 		return g.src, nil
 	}
-	return nil, xerr.Sub("binary source not available", 0x8)
+	return nil, xerr.Sub("binary source not available", 0x31)
 }
 func (p *profile) MarshalBinary() ([]byte, error) {
 	if len(p.src) > 0 {
 		return p.src, nil
 	}
-	return nil, xerr.Sub("binary source not available", 0x8)
+	return nil, xerr.Sub("binary source not available", 0x31)
 }
 
 // Next is a function call that can be used to grab the Profile's current target

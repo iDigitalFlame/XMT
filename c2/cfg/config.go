@@ -16,17 +16,17 @@ var (
 	// of the specified Settings are invalid or do contain valid information.
 	//
 	// The error returned will be a wrapped version of this error.
-	ErrInvalidSetting = xerr.Sub("setting is invalid", 0xD)
+	ErrInvalidSetting = xerr.Sub("setting is invalid", 0x2E)
 	// ErrMultipleTransforms is an error returned by the 'Profile' function if
 	// more that one Transform Setting is attempted to be applied in the Config
 	// Group.
 	//
 	// Unlike Wrappers, Transforms cannot be stacked.
-	ErrMultipleTransforms = xerr.Sub("cannot add multiple transforms", 0x17)
+	ErrMultipleTransforms = xerr.Sub("cannot add multiple transforms", 0x2F)
 	// ErrMultipleConnections is an error returned by the 'Profile' function if more
 	// that one Connection Hint Setting is attempted to be applied in the Config
 	// Group.
-	ErrMultipleConnections = xerr.Sub("cannot add multiple connections", 0x17)
+	ErrMultipleConnections = xerr.Sub("cannot add multiple connections", 0x30)
 )
 
 // Config is a raw binary representation of settings for a C2 Profile. This can

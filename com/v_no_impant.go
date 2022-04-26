@@ -54,7 +54,7 @@ func (f Flag) String() string {
 		if f.Len() == 0 {
 			n += copy(b[n:], "["+strconv.FormatUint(uint64(f.Group()), 16)+"]")
 		} else {
-			n += copy(b[n:], "["+strconv.FormatUint(uint64(f.Group()), 16)+":"+strconv.Itoa(int(f.Position()))+"/"+strconv.Itoa(int(f.Len()))+"]")
+			n += copy(b[n:], "["+strconv.FormatUint(uint64(f.Group()), 16)+":"+strconv.Itoa(int(f.Position())+1)+"/"+strconv.Itoa(int(f.Len()))+"]")
 		}
 	}
 	return string(b[:n])

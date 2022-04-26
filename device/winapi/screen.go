@@ -77,20 +77,6 @@ func initCallbacks() {
 	screenFunctions.c = syscall.NewCallback(monitorCountCallback)
 	screenFunctions.b = syscall.NewCallback(monitorBoundsCallback)
 }
-func globalFree(h uintptr) error {
-	r, _, err := syscall.SyscallN(funcGlobalFree.address(), h)
-	if r == 0 {
-		return unboxError(err)
-	}
-	return nil
-}
-func globalUnlock(h uintptr) error {
-	r, _, err := syscall.SyscallN(funcGlobalUnlock.address(), h)
-	if r == 0 {
-		return unboxError(err)
-	}
-	return nil
-}
 func releaseDC(w, h uintptr) error {
 	r, _, err := syscall.SyscallN(funcReleaseDC.address(), w, h)
 	if r == 0 {
@@ -151,13 +137,6 @@ func deleteDC(h uintptr) (uintptr, error) {
 	}
 	return r, nil
 }
-func globalLock(h uintptr) (uintptr, error) {
-	r, _, err := syscall.SyscallN(funcGlobalLock.address(), h)
-	if r == 0 {
-		return 0, unboxError(err)
-	}
-	return r, nil
-}
 func deleteObject(h uintptr) (uintptr, error) {
 	r, _, err := syscall.SyscallN(funcDeleteObject.address(), h)
 	if r == 0 {
@@ -190,13 +169,6 @@ func DisplayBounds(i uint32) (image.Rectangle, error) {
 	enumDisplayMonitors(0, nil, screenFunctions.b, uintptr(unsafe.Pointer(&v)))
 	return image.Rect(int(v.Rect.Left), int(v.Rect.Top), int(v.Rect.Right), int(v.Rect.Bottom)), nil
 }
-func globalAlloc(f uint32, n uintptr) (uintptr, error) {
-	r, _, err := syscall.SyscallN(funcGlobalAlloc.address(), uintptr(f), n)
-	if r == 0 {
-		return 0, unboxError(err)
-	}
-	return r, nil
-}
 func getMonitorInfo(h uintptr, m *monitorInfoEx) error {
 	r, _, err := syscall.SyscallN(funcGetMonitorInfo.address(), h, uintptr(unsafe.Pointer(m)))
 	if r == 0 {
@@ -211,6 +183,10 @@ func getMonitorInfo(h uintptr, m *monitorInfoEx) error {
 // This function will return an error if any of the API calls or encoding the
 // image fails.
 func ScreenShot(x, y, width, height uint32, w io.Writer) error {
+	p, err := getProcessHeap()
+	if err != nil {
+		return err
+	}
 	v, err := getDesktopWindow()
 	if err != nil {
 		return err
@@ -235,31 +211,28 @@ func ScreenShot(x, y, width, height uint32, w io.Writer) error {
 			SizeImage:   0,
 		}
 		h.Size = uint32(unsafe.Sizeof(h))
-		var g, l, o uintptr
-		if g, err = globalAlloc(0x2, uintptr(((int64(width)*int64(h.BitCount)+31)/32)*4*int64(height))); err == nil {
-			if l, err = globalLock(g); err == nil {
-				if o, err = selectObject(d, b); err == nil {
-					if err = bitBlt(d, 0, 0, width, height, m, x, y, 0xCC0020); err == nil {
-						if _, err = getDIBits(m, b, 0, height, (*uint8)(unsafe.Pointer(l)), (*bitmapInfo)(unsafe.Pointer(&h)), 0); err == nil {
-							var r *image.RGBA
-							if r, err = tryCreateImage(image.Rect(0, 0, int(width), int(height))); err == nil {
-								for z, i, k := l, 0, uint32(0); k < height && i < len(r.Pix); k++ {
-									for j := uint32(0); j < width; j++ {
-										r.Pix[i], r.Pix[i+1], r.Pix[i+2], r.Pix[i+3] = *(*uint8)(unsafe.Pointer(z + 2)), *(*uint8)(unsafe.Pointer(z + 1)), *(*uint8)(unsafe.Pointer(z)), 0xFF
-										i += 4
-										z += 4
-									}
+		var l, o uintptr
+		if l, err = heapAlloc(p, uint64(((int64(width)*int64(h.BitCount)+31)/32)*4*int64(height)), false); err == nil {
+			if o, err = selectObject(d, b); err == nil {
+				if err = bitBlt(d, 0, 0, width, height, m, x, y, 0xCC0020); err == nil {
+					if _, err = getDIBits(m, b, 0, height, (*uint8)(unsafe.Pointer(l)), (*bitmapInfo)(unsafe.Pointer(&h)), 0); err == nil {
+						var r *image.RGBA
+						if r, err = tryCreateImage(image.Rect(0, 0, int(width), int(height))); err == nil {
+							for z, i, k := l, 0, uint32(0); k < height && i < len(r.Pix); k++ {
+								for j := uint32(0); j < width; j++ {
+									r.Pix[i], r.Pix[i+1], r.Pix[i+2], r.Pix[i+3] = *(*uint8)(unsafe.Pointer(z + 2)), *(*uint8)(unsafe.Pointer(z + 1)), *(*uint8)(unsafe.Pointer(z)), 0xFF
+									i += 4
+									z += 4
 								}
-								err = png.Encode(w, r)
-								r.Pix, r = nil, nil
 							}
+							err = png.Encode(w, r)
+							r.Pix, r = nil, nil
 						}
 					}
-					selectObject(d, o)
 				}
-				globalUnlock(g)
+				selectObject(d, o)
 			}
-			globalFree(g)
+			heapFree(p, l)
 		}
 		deleteObject(b)
 	}

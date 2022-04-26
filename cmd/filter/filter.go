@@ -19,7 +19,7 @@ const (
 var (
 	// ErrNoProcessFound is returned by the SetParent* functions on Windows
 	// devices when a specified parent could not be found.
-	ErrNoProcessFound = xerr.Sub("could not find a suitable process", 0x9)
+	ErrNoProcessFound = xerr.Sub("could not find a suitable process", 0x69)
 
 	// Any will attempt to locate a parent process that may be elevated
 	// based on the current process permissions.

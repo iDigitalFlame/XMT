@@ -297,7 +297,7 @@ func (c *Chunk) WriteTo(w io.Writer) (int64, error) {
 		n   int
 		err error
 	)
-	for v, s, e := 0, c.pos, bufSize; n < len(c.buf) && err == nil; {
+	for v, s, e := 0, c.pos, c.pos+bufSize; n < len(c.buf) && err == nil; {
 		if e > len(c.buf) {
 			e = len(c.buf)
 		}

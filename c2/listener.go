@@ -201,7 +201,7 @@ func (l *Listener) Replace(addr string, p Profile) error {
 		return xerr.Wrap("unable to listen", err)
 	} else if v == nil {
 		l.Close()
-		return xerr.Sub("unable to listen", 0x8)
+		return xerr.Sub("unable to listen", 0x18)
 	}
 	l.listener, l.w, l.t, l.p = v, w, t, p
 	if l.state.Unset(stateReplacing); cout.Enabled {
@@ -309,7 +309,7 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
 	}
 	if s.Last = time.Now(); !ok {
 		if n.Flags&com.FlagProxy == 0 {
-			s.queue(&com.Packet{ID: SvComplete, Device: n.Device, Job: n.Job})
+			s.write(true, &com.Packet{ID: SvComplete, Device: n.Device, Job: n.Job})
 		}
 		if l.s.New != nil {
 			l.m.queue(event{s: s, sf: l.s.New})
@@ -404,7 +404,7 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 	}
 	if s.Last = time.Now(); !ok {
 		if n.Flags&com.FlagProxy == 0 {
-			s.queue(&com.Packet{ID: SvComplete, Device: n.Device, Job: n.Job})
+			s.write(true, &com.Packet{ID: SvComplete, Device: n.Device, Job: n.Job})
 		}
 		if l.s.New != nil {
 			l.m.queue(event{s: s, sf: l.s.New})

@@ -255,11 +255,11 @@ func (s *Server) ListenContext(x context.Context, name, addr string, p Profile) 
 		return nil, ErrInvalidProfile
 	}
 	if len(name) == 0 {
-		return nil, xerr.Sub("empty Listener name", 0x9)
+		return nil, xerr.Sub("empty Listener name", 0x1B)
 	}
 	n := strings.ToLower(name)
 	if _, ok := s.active[n]; ok {
-		return nil, xerr.Sub("listener already exists", 0x15)
+		return nil, xerr.Sub("listener already exists", 0x1C)
 	}
 	h, w, t := p.Next()
 	if len(addr) > 0 {
@@ -272,7 +272,7 @@ func (s *Server) ListenContext(x context.Context, name, addr string, p Profile) 
 	if err != nil {
 		return nil, xerr.Wrap("unable to listen", err)
 	} else if v == nil {
-		return nil, xerr.Sub("unable to listen", 0x8)
+		return nil, xerr.Sub("unable to listen", 0x18)
 	}
 	l := &Listener{
 		ch:         make(chan struct{}),

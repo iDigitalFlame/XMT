@@ -126,7 +126,7 @@ func taskRegistry(_ context.Context, r data.Reader, w data.Writer) error {
 		return registry.ErrUnexpectedType
 	}
 	if len(k) == 0 {
-		return xerr.Sub("empty key name", 0x9)
+		return xerr.Sub("empty key name", 0x37)
 	}
 	switch w.WriteUint8(o); o {
 	case regOpLs:
@@ -155,7 +155,7 @@ func taskRegistry(_ context.Context, r data.Reader, w data.Writer) error {
 		return err
 	}
 	if len(v) == 0 {
-		return xerr.Sub("empty value name", 0x9)
+		return xerr.Sub("empty value name", 0x38)
 	}
 	switch o {
 	case regOpGet:

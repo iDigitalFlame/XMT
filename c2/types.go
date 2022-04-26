@@ -27,6 +27,7 @@ type event struct {
 type cluster struct {
 	data []*com.Packet
 	max  uint16
+	e    uint16
 }
 type proxyData struct {
 	n, b string
@@ -54,7 +55,7 @@ type runnable interface {
 }
 type notifier interface {
 	accept(uint16)
-	frag(uint16, uint16, uint16)
+	frag(uint16, uint16, uint16, uint16)
 }
 type marshaler interface {
 	MarshalBinary() (data []byte, err error)
@@ -157,7 +158,7 @@ func (c *cluster) done() *com.Packet {
 	if len(c.data) == 0 {
 		return nil
 	}
-	if uint16(len(c.data)) >= c.max {
+	if uint16(len(c.data)) > (c.max + c.e) {
 		sort.Sort(c)
 		n := c.data[0]
 		for x := 1; x < len(c.data); x++ {
@@ -175,16 +176,14 @@ func (c *cluster) Less(i, j int) bool {
 	return c.data[i].Flags.Position() < c.data[j].Flags.Position()
 }
 func (c *cluster) add(p *com.Packet) error {
-	if p == nil || p.Empty() || p.Flags.Len() <= c.max {
+	if p == nil {
 		return nil
 	}
 	if len(c.data) > 0 && !c.data[0].Belongs(p) {
-		return xerr.Sub("packet ID does not match the supplied ID", 0xD)
+		return xerr.Sub("packet ID does not match the supplied ID", 0x28)
 	}
-	if p.Flags.Len() > c.max {
-		c.max = p.Flags.Len()
-	}
-	if p.Empty() {
+	if c.max = p.Flags.Len() - 1; p.Empty() {
+		c.e++
 		return nil
 	}
 	c.data = append(c.data, p)
