@@ -128,7 +128,7 @@ func formatTCPName(s string) string {
 		return local + s
 	}
 	h := uint32(2166136261)
-	for x := 0; x < len(s); x++ {
+	for x := range s {
 		h *= 16777619
 		h ^= uint32(s[x])
 	}

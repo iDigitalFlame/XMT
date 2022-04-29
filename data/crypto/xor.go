@@ -31,7 +31,7 @@ func (x XOR) Operate(b []byte) {
 	if len(x) == 0 {
 		return
 	}
-	for i := 0; i < len(b); i++ {
+	for i := range b {
 		b[i] = b[i] ^ x[i%len(x)]
 	}
 }

@@ -286,7 +286,9 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
 			}
 			return nil, err
 		}
-		if cout.Enabled {
+		// KeyCrypt: If client has indicated that they have a Key, generate
+		//           the set from the key data passed.
+		if s.sessionKeyInit(l, n); cout.Enabled {
 			l.log.Debug("[%s:%s] %s: Received client device info: (OS: %s, %s).", l.name, s.ID, a, s.Device.OS, s.Device.Version)
 		}
 		l.s.lock.Lock()
@@ -294,18 +296,17 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
 		if l.s.lock.Unlock(); cout.Enabled {
 			l.log.Info("[%s:%s] %s: New client registered as %q (0x%X).", l.name, s.ID, a, s.ID, i)
 		}
-		// TODO(dij): Generate encryption key here.
 	}
 	if s.host.Set(a); s.sleep == 0 && ok {
-		if s.parent.name != l.name { //BUG?
-			s.parent = l
-		}
 		switch {
 		case !s.Last.IsZero():
 			s.sleep = time.Since(s.Last)
 		case !s.Created.IsZero():
 			s.sleep = time.Since(s.Created)
 		}
+	}
+	if ok && s.parent != l {
+		s.parent = l
 	}
 	if s.Last = time.Now(); !ok {
 		if n.Flags&com.FlagProxy == 0 {
@@ -319,8 +320,10 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO(dij): If key is not new, decrypt packet here.
-	//            Then add key to conn struct.
+	// KeyCrypt: Decrypt Incoming Packet (only if non-new)
+	if ok {
+		s.sessionKeyUpdate(l, n)
+	}
 	if err = c.process(l.log, l, a, n, false); err != nil {
 		return nil, err
 	}
@@ -328,12 +331,13 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
 }
 func (l *Listener) resolve(s *Session, a string, t []uint32) (*conn, error) {
 	if len(t) == 0 {
-		return &conn{host: s}, nil
+		return &conn{host: s, key: &s.key}, nil
 	}
 	c := &conn{
 		add:  make([]*com.Packet, 0, len(t)),
 		subs: make(map[uint32]bool, len(t)),
 		host: s,
+		key:  &s.key, // KeyCrypt
 	}
 	return c, c.resolve(l.log, s, l, a, t, false)
 }
@@ -382,7 +386,9 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 			}
 			return nil, 0, nil, err
 		}
-		if cout.Enabled {
+		// KeyCrypt: If client has indicated that they have a Key, generate
+		//           the set from the key data passed.
+		if s.sessionKeyInit(l, n); cout.Enabled {
 			l.log.Debug("[%s:%s/M] %s: Received client device info: (OS: %s, %s).", l.name, s.ID, a, s.Device.OS, s.Device.Version)
 		}
 		l.s.lock.Lock()
@@ -410,6 +416,10 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 			l.m.queue(event{s: s, sf: l.s.New})
 		}
 	}
+	// KeyCrypt: Decrypt Incoming Packet (only if non-new)
+	if ok {
+		s.sessionKeyUpdate(l, n)
+	}
 	if err := receive(s, l, n); err != nil {
 		if cout.Enabled {
 			l.log.Error("[%s:%s/M] %s: Error processing Packet: %s!", l.name, s.ID, a, err)
@@ -419,5 +429,8 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 	if o {
 		return s, i, nil, nil
 	}
-	return s, i, s.next(true), nil
+	z := s.next(true)
+	z.Crypt(&s.key)
+	s.keyCheck()
+	return s, i, z, nil
 }

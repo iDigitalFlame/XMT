@@ -9,7 +9,7 @@ const table = "0123456789ABCDEF"
 // String returns a character representation of this Flag.
 func (f Flag) String() string {
 	var (
-		b [26]byte
+		b [27]byte
 		n int
 	)
 	if f&FlagFrag != 0 {
@@ -42,6 +42,10 @@ func (f Flag) String() string {
 	}
 	if f&FlagMultiDevice != 0 {
 		b[n] = 'X'
+		n++
+	}
+	if f&FlagCrypt != 0 {
+		b[n] = 'Z'
 		n++
 	}
 	if n == 0 {

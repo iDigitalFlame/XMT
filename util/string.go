@@ -11,7 +11,7 @@ func Decode(k, d []byte) string {
 	if len(k) == 0 || len(d) == 0 {
 		return ""
 	}
-	for i := 0; i < len(d); i++ {
+	for i := range d {
 		d[i] = d[i] ^ k[i%len(k)]
 	}
 	return string(d)

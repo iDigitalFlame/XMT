@@ -26,7 +26,7 @@ func (c *container) Wrap() {
 	if c.k[0] == 0 {
 		c.k[0] = 1
 	}
-	for i := 0; i < len(c.v); i++ {
+	for i := range c.v {
 		c.v[i] = c.v[i] ^ c.k[i%16]
 	}
 }
@@ -34,7 +34,7 @@ func (c *container) Unwrap() {
 	if c.k[0] == 0 {
 		return
 	}
-	for i := 0; i < len(c.v); i++ {
+	for i := range c.v {
 		c.v[i] = c.v[i] ^ c.k[i%16]
 	}
 }

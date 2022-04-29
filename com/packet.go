@@ -101,7 +101,7 @@ func (p *Packet) readBody(r io.Reader) error {
 			bugtrack.Track("com.Packet.readBody(): len(p.Tags)=%d", len(p.Tags))
 		}
 		var b [4]byte
-		for i := 0; i < len(p.Tags); i++ {
+		for i := range p.Tags {
 			n, err := io.ReadFull(r, b[:])
 			if err != nil {
 				return err

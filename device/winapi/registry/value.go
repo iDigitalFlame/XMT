@@ -58,7 +58,7 @@ func (k Key) SetBinary(n string, v []byte) error {
 func (k Key) SetStrings(n string, v []string) error {
 	var b util.Builder
 	for i := range v {
-		for x := 0; x < len(v[i]); i++ {
+		for x := range v[i] {
 			if v[i][x] == 0 {
 				return syscall.EINVAL
 			}

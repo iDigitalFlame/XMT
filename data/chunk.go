@@ -22,6 +22,9 @@ var bufs = sync.Pool{
 	},
 }
 
+// KeySize is the size of the Key array.
+const KeySize = 32
+
 // Chunk is a low level data container. Chunks allow for simple read/write
 // operations on static containers.
 //
@@ -33,6 +36,10 @@ type Chunk struct {
 
 	Limit int
 }
+
+// Key is a alias for a encryption key that can be used to protect Chunks
+// when non-empty.
+type Key [KeySize]byte
 
 // Reset resets the Chunk buffer to be empty but retains the underlying storage
 // for use by future writes.

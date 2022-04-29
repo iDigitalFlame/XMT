@@ -175,6 +175,7 @@ func (p *Proxy) subsRegister() {
 	}
 	p.lock.RUnlock()
 }
+func (proxyClient) keyCheck() {}
 
 // IsActive returns true if the Proxy is still able to send and receive Packets.
 func (p *Proxy) IsActive() bool {
@@ -236,6 +237,7 @@ func (p *Proxy) clientClear(i uint32) {
 func (p *Proxy) transform() Transform {
 	return p.t
 }
+
 func (c *proxyClient) chanStop() bool {
 	return c.state.ChannelCanStop()
 }
@@ -252,6 +254,9 @@ func (c *proxyClient) update(_ string) {
 func (p *Proxy) Done() <-chan struct{} {
 	return p.ch
 }
+func (proxyClient) keyValue() *data.Key {
+	return nil
+}
 func (c *proxyClient) chanRunning() bool {
 	return c.state.Channel()
 }
@@ -261,7 +266,6 @@ func (c *proxyClient) stateSet(v uint32) {
 func (c *proxyClient) stateUnset(v uint32) {
 	c.state.Unset(v)
 }
-
 func (p *Proxy) accept(n *com.Packet) bool {
 	if len(p.clients) == 0 {
 		return false

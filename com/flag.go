@@ -41,6 +41,9 @@ const (
 	// with separate device IDs. This is used to speed up processing and allows
 	// packets that are all destined for the same host to be batch processed.
 	FlagMultiDevice
+	// FlagCrypt is used to indicate that the Packet is carrying Crypt related
+	// information or a side of the conversation is asking for a re-key.
+	FlagCrypt
 )
 
 // Flag is a bitwise integer that represents important

