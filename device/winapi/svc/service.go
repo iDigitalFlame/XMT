@@ -74,7 +74,7 @@ const (
 )
 
 var (
-	service  *svcInstance
+	service  *Service
 	callBack struct {
 		sync.Once
 		f, m uintptr
@@ -117,19 +117,12 @@ type Status struct {
 	ExitCode   uint32
 }
 
-// Service is an interface that is passed to the Handler function and can be used
+// Service is an struct that is passed to the Handler function and can be used
 // to receive and send updates to the service control manager.
 //
 // NOTE(dij): The function 'DynamicStartReason' is only avaliable on Windows >7
 // and will return an error if it does not exist.
-type Service interface {
-	Update(Status)
-	Handle() uintptr
-	Requests() <-chan Change
-	UpdateState(State, ...Accepted)
-	DynamicStartReason() (Reason, error)
-}
-type svcInstance struct {
+type Service struct {
 	f     Handler
 	e, in chan Change
 	out   chan Status
@@ -154,12 +147,17 @@ type svcInstance struct {
 //
 // You can provide service exit code in the return parameter, with 0 being
 // "no error".
-type Handler func(context.Context, Service, []string) uint32
+type Handler func(context.Context, *Service, []string) uint32
 
-func (s *svcInstance) Handle() uintptr {
+// Handle returns a pointer to the current Service. This handle is only valid in
+// the context of the running service.
+func (s *Service) Handle() uintptr {
 	return s.h
 }
-func (s *svcInstance) Update(v Status) {
+
+// Update is used to send an update to the Service Control Manager. The
+// supplied Status struct can be used to indicate status and progress to SCM.
+func (s *Service) Update(v Status) {
 	s.out <- v
 }
 
@@ -167,6 +165,8 @@ func (s *svcInstance) Update(v Status) {
 //
 // This function will block until complete.
 // Any errors returned indicate that bootstrappping of the service failed.
+//
+// Attempts to call this multiple times will return 'os.ErrInvalid'.
 func Run(name string, f Handler) error {
 	if service.f != nil {
 		return os.ErrInvalid
@@ -176,7 +176,7 @@ func Run(name string, f Handler) error {
 		return err
 	}
 	callBack.Do(func() {
-		service = &svcInstance{e: make(chan Change)}
+		service = &Service{e: make(chan Change)}
 		callBack.m = syscall.NewCallback(serviceMain)
 		callBack.f = syscall.NewCallback(serviceHandler)
 	})
@@ -186,7 +186,12 @@ func Run(name string, f Handler) error {
 	}
 	return winapi.StartServiceCtrlDispatcher(&t[0])
 }
-func (s *svcInstance) Requests() <-chan Change {
+
+// Requests returns a receive-only chan that will receive any updates sent from
+// the Service control manager.
+//
+// It is required by SCM to act on these as soon as they are received.
+func (s *Service) Requests() <-chan Change {
 	return s.in
 }
 func serviceHandler(c, e, d, _ uintptr) uintptr {
@@ -288,7 +293,13 @@ loop:
 	service.h = 0
 	return 0
 }
-func (s *svcInstance) UpdateState(v State, a ...Accepted) {
+
+// UpdateState is used to send an update to the Service Control Manager. The
+// supplied state type is required and an optional vardic of Accepted control
+// types can be used to indicate to SCM what commands are accepted.
+//
+// This is a quick helper function for the 'Update' function.
+func (s *Service) UpdateState(v State, a ...Accepted) {
 	if len(a) == 0 {
 		s.out <- Status{State: v}
 		return
@@ -303,14 +314,17 @@ func (s *svcInstance) UpdateState(v State, a ...Accepted) {
 	}
 	s.out <- u
 }
-func (s *svcInstance) DynamicStartReason() (Reason, error) {
+
+// DynamicStartReason will return the DynamicStartReason type. This function is
+// only avaliable after Windows 7 and will return an error if it is not supported.
+func (s *Service) DynamicStartReason() (Reason, error) {
 	r, err := winapi.QueryServiceDynamicInformation(s.h, 1)
 	if err != nil {
 		return 0, err
 	}
 	return Reason(r), nil
 }
-func (s *svcInstance) update(u *Status, r bool, e uint32) error {
+func (s *Service) update(u *Status, r bool, e uint32) error {
 	if s.h == 0 {
 		return xerr.Sub("update with no service status handle", 0x96)
 	}

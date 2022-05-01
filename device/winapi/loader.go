@@ -70,9 +70,9 @@ func (d *lazyDLL) load() error {
 }
 func (p *lazyProc) find() error {
 	if atomic.LoadUintptr(&p.addr) == 0 {
+		var err error
 		if p.lock.Lock(); p.addr == 0 {
-			err := p.dll.load()
-			if err != nil {
+			if err = p.dll.load(); err != nil {
 				return err
 			}
 			var h uintptr
@@ -81,6 +81,7 @@ func (p *lazyProc) find() error {
 			}
 		}
 		p.lock.Unlock()
+		return err
 	}
 	return nil
 }

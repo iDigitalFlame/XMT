@@ -19,7 +19,7 @@ import (
 // NOTE: The 'name' argument is the service name on Windows, but is ignored
 // on *nix systems.
 func Daemon(name string, f DaemonFunc) error {
-	return svc.Run(name, func(x context.Context, s svc.Service, _ []string) uint32 {
+	return svc.Run(name, func(x context.Context, s *svc.Service, _ []string) uint32 {
 		var (
 			e   = make(chan error)
 			err error
@@ -52,7 +52,7 @@ func Daemon(name string, f DaemonFunc) error {
 // NOTE: The 'name' argument is the service name on Windows, but is ignored
 // on *nix systems.
 func DaemonTicker(name string, t time.Duration, f DaemonFunc) error {
-	return svc.Run(name, func(x context.Context, s svc.Service, _ []string) uint32 {
+	return svc.Run(name, func(x context.Context, s *svc.Service, _ []string) uint32 {
 		var (
 			v   = time.NewTimer(t)
 			err error

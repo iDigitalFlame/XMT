@@ -177,13 +177,15 @@ func (l *Listener) clientGet(i uint32) (connHost, bool) {
 // Replace allows for rebinding this Listener to another address or using
 // another Profile without closing the Listener.
 //
+// If the provided Profile is nil, the Listener will not change it's profile.
+//
 // The listening socket will be closed and the Listener will be paused and
 // cannot accept any more connections before being reopened.
 //
 // If the replacement fails, the Listener will be closed.
 func (l *Listener) Replace(addr string, p Profile) error {
 	if p == nil {
-		return ErrInvalidProfile
+		p = l.p
 	}
 	h, w, t := p.Next()
 	if len(addr) > 0 {
@@ -288,7 +290,7 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
 		}
 		// KeyCrypt: If client has indicated that they have a Key, generate
 		//           the set from the key data passed.
-		if s.sessionKeyInit(l, n); cout.Enabled {
+		if s.sessionKeyInit(l.name, n); cout.Enabled {
 			l.log.Debug("[%s:%s] %s: Received client device info: (OS: %s, %s).", l.name, s.ID, a, s.Device.OS, s.Device.Version)
 		}
 		l.s.lock.Lock()
@@ -322,7 +324,7 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
 	}
 	// KeyCrypt: Decrypt Incoming Packet (only if non-new)
 	if ok {
-		s.sessionKeyUpdate(l, n)
+		s.sessionKeyUpdate(l.name, n)
 	}
 	if err = c.process(l.log, l, a, n, false); err != nil {
 		return nil, err
@@ -388,7 +390,7 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 		}
 		// KeyCrypt: If client has indicated that they have a Key, generate
 		//           the set from the key data passed.
-		if s.sessionKeyInit(l, n); cout.Enabled {
+		if s.sessionKeyInit(l.name, n); cout.Enabled {
 			l.log.Debug("[%s:%s/M] %s: Received client device info: (OS: %s, %s).", l.name, s.ID, a, s.Device.OS, s.Device.Version)
 		}
 		l.s.lock.Lock()
@@ -418,7 +420,7 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 	}
 	// KeyCrypt: Decrypt Incoming Packet (only if non-new)
 	if ok {
-		s.sessionKeyUpdate(l, n)
+		s.sessionKeyUpdate(l.name, n)
 	}
 	if err := receive(s, l, n); err != nil {
 		if cout.Enabled {

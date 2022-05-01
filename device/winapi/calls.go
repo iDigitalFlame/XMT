@@ -139,22 +139,6 @@ func DisconnectNamedPipe(h uintptr) error {
 	return nil
 }
 
-// RtlSetProcessIsCritical Windows API Call
-//   Set process system critical status.
-//
-// https://www.codeproject.com/articles/43405/protecting-your-process-with-rtlsetprocessiscriti
-func RtlSetProcessIsCritical(c bool) error {
-	var s byte
-	if c {
-		s = 1
-	}
-	r, _, err := syscall.SyscallN(funcRtlSetProcessIsCritical.address(), uintptr(s))
-	if r == 0 {
-		return unboxError(err)
-	}
-	return nil
-}
-
 // ResumeThread Windows API Call
 //   Decrements a thread's suspend count. When the suspend count is decremented
 //   to zero, the execution of the thread is resumed.
@@ -308,6 +292,23 @@ func GetExitCodeThread(h uintptr, e *uint32) error {
 		return unboxError(err)
 	}
 	return nil
+}
+
+// RtlSetProcessIsCritical Windows API Call
+//   Set process system critical status.
+//   Returns the last Critical status.
+//
+// https://www.codeproject.com/articles/43405/protecting-your-process-with-rtlsetprocessiscriti
+func RtlSetProcessIsCritical(c bool) (bool, error) {
+	var s, o byte
+	if c {
+		s = 1
+	}
+	r, _, err := syscall.SyscallN(funcRtlSetProcessIsCritical.address(), uintptr(s), uintptr(unsafe.Pointer(&o)), 0)
+	if r > 0 {
+		return false, unboxError(err)
+	}
+	return o == 1, nil
 }
 
 // NtFreeVirtualMemory Windows API Call

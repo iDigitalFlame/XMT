@@ -48,8 +48,10 @@
             "nofrag",
             "nokeyset",
             "noproxy",
+            "noservice",
             "pexec",
-            "Protos"
+            "Protos",
+            "vardic"
         ]
     }
 }

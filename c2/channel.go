@@ -107,6 +107,9 @@ func (s *Session) chanRunning() bool {
 func (s *Session) stateUnset(v uint32) {
 	s.state.Unset(v)
 }
+func (s *Session) keyValue() *data.Key {
+	return &s.key
+}
 func (s *Session) clientID() device.ID {
 	return s.ID
 }

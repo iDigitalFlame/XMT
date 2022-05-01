@@ -373,7 +373,7 @@ func (p *Proxy) clientGet(i uint32) (connHost, bool) {
 // If the replacement fails, the Proxy will be closed.
 func (p *Proxy) Replace(addr string, n Profile) error {
 	if n == nil {
-		return ErrInvalidProfile
+		n = p.p
 	}
 	h, w, t := n.Next()
 	if len(addr) > 0 {

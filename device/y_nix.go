@@ -48,24 +48,6 @@ func GoExit() {}
 func RevertToSelf() error {
 	return ErrNoWindows
 }
-
-// SetCritical will set the critical flag on the current process. This function
-// requires administrative privileges and will attempt to get the
-// "SeDebugPrivilege" first before running.
-//
-// If successful, "critical" processes will BSOD the host when killed or will
-// be prevented from running.
-//
-// Use this function with "false" to disable the critical flag.
-//
-// NOTE: THIS MUST BE DISABED ON PROCESS EXIT OTHERWISE THE HOST WILL BSOD!!!
-//
-// Any errors when setting or obtaining privileges will be returned.
-//
-// Always returns 'ErrNoWindows' on non-Windows devices.
-func SetCritical(_ bool) error {
-	return ErrNoWindows
-}
 func dualEnv(o, t string) string {
 	if v, ok := syscall.Getenv(o); ok {
 		return v
@@ -92,6 +74,27 @@ func SetProcessName(s string) error {
 		d[n] = 0
 	}
 	return nil
+}
+
+// SetCritical will set the critical flag on the current process. This function
+// requires administrative privileges and will attempt to get the
+// "SeDebugPrivilege" first before running.
+//
+// If successful, "critical" processes will BSOD the host when killed or will
+// be prevented from running.
+//
+// The boolean returned is the last Critical status. It's set to True if the
+// process was already marked as critical.
+//
+// Use this function with "false" to disable the critical flag.
+//
+// NOTE: THIS MUST BE DISABED ON PROCESS EXIT OTHERWISE THE HOST WILL BSOD!!!
+//
+// Any errors when setting or obtaining privileges will be returned.
+//
+// Always returns 'ErrNoWindows' on non-Windows devices.
+func SetCritical(_ bool) (bool, error) {
+	return false, ErrNoWindows
 }
 
 // Impersonate attempts to steal the Token in use by the target process of the

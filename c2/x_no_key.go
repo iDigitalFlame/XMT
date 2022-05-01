@@ -11,5 +11,3 @@ func (s *Session) doNextKeySwap() bool {
 func (s *Session) generateSessionKey(n *com.Packet) {
 	n.Write(s.key[:])
 }
-func (*Session) sessionKeyInit(_ *Listener, _ *com.Packet)   {}
-func (*Session) sessionKeyUpdate(_ *Listener, _ *com.Packet) {}

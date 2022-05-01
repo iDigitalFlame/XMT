@@ -493,9 +493,6 @@ func (s *Session) queue(n *com.Packet) {
 		}
 	}
 }
-func (s *Session) keyValue() *data.Key {
-	return &s.key
-}
 
 // Time returns the value for the timeout period between C2 Server connections.
 func (s *Session) Time() time.Duration {
