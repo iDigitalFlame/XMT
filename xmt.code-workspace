@@ -4,9 +4,6 @@
             "path": "."
         },
         {
-            "path": "../ThunderStorm"
-        },
-        {
             "path": "../Libraries/PersistKit"
         }
     ],
