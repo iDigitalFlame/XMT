@@ -18,11 +18,11 @@
 from zlib import crc32
 from io import StringIO
 from hashlib import sha512
+from json import dumps, loads
 from secrets import token_bytes
 from traceback import format_exc
 from argparse import ArgumentParser
 from base64 import b64decode, b64encode
-from json import dumps, loads, JSONDecodeError
 from sys import argv, exit, stderr, stdin, stdout
 
 HELP_TEXT = """XMT cfg.Config Builder v1 Release
@@ -972,22 +972,7 @@ class Utils:
                 b = f.read()
         if len(b) == 0:
             raise ValueError("input: empty input data")
-        c = Config()
-        try:
-            c.parse(b.decode("UTF-8"))
-            return c
-        except (ValueError, JSONDecodeError):
-            pass
-        try:
-            # NOTE(dij): This will fail if we're not base64.
-            b.decode("UTF-8")
-            c.read(b64decode(b, validate=True))
-            return c
-        except (ValueError, UnicodeDecodeError):
-            pass
-        c.read(b)
-        del b
-        return c
+        return Config(b)
 
     @staticmethod
     def _leading_fraction(s):
@@ -1118,8 +1103,16 @@ class Config(bytearray):
     def __init__(self, b=None):
         self._connector = False
         self._transform = False
-        if isinstance(b, bytes) or isinstance(b, bytearray) and len(b) > 0:
-            self.extend(b)
+        if isinstance(b, str) and len(b) > 0:
+            if b[0] == "[" and b[-1].strip() == "]":
+                self.parse(b)
+            else:
+                self.extend(b64decode(b, validate=True))
+        elif (isinstance(b, bytes) or isinstance(b, bytearray)) and len(b) > 0:
+            if b[0] == 91 and b.decode("UTF-8", "ignore").strip()[-1] == "]":
+                self.parse(b.decode("UTF-8"))
+            else:
+                self.extend(b)
 
     def json(self):
         i = 0
@@ -1452,6 +1445,11 @@ class Config(bytearray):
             if x + 1 < len(v):
                 self.add(Cfg.seperator())
         del v
+
+    @staticmethod
+    def from_file(file):
+        with open(file, "rb") as f:
+            return Config(f.read())
 
     def _parse_inner(self, x):
         if not isinstance(x, dict) or len(x) == 0:
