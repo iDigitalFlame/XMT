@@ -45,19 +45,20 @@ type executable struct {
 }
 type closeFunc func() error
 
-func checkVersion() bool {
-	versionOnce.Do(func() {
-		if v, err := winapi.GetVersion(); err == nil && v > 0 {
-			switch m := byte(v & 0xFF); {
-			case m > 6:
-				versionOnce.v = true
-			case m == 6:
-				versionOnce.v = byte((v&0xFFFF)>>8) >= 1
-			default:
-				versionOnce.v = false
-			}
+func onceVersionCheck() {
+	if v, err := winapi.GetVersion(); err == nil && v > 0 {
+		switch m := byte(v & 0xFF); {
+		case m > 6:
+			versionOnce.v = true
+		case m == 6:
+			versionOnce.v = byte((v&0xFFFF)>>8) >= 1
+		default:
+			versionOnce.v = false
 		}
-	})
+	}
+}
+func checkVersion() bool {
+	versionOnce.Do(onceVersionCheck)
 	return versionOnce.v
 }
 func wait(h uintptr) error {

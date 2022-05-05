@@ -244,7 +244,10 @@ func ZeroTraceEvent() error {
 	return VirtualProtect(funcNtTraceEvent.address()+3, 1, o, &o)
 }
 func (p *dumpParam) close() {
+	// BUG(dij): I think the heap isn't getting freed properly.
+	// Increases by 7 MB, might be fixed with using HeapCreate.
 	heapFree(p.b, p.h)
+	heapDestroy(p.b)
 	CloseHandle(p.b)
 	p.Unlock()
 }
@@ -276,10 +279,11 @@ func getCurrentThreadID() uint32 {
 func (p *dumpParam) init() error {
 	p.Lock()
 	var err error
-	if p.b, err = getProcessHeap(); err != nil {
+	if p.b, err = heapCreate(2 << 20); err != nil {
 		return err
 	}
 	if p.h, err = heapAlloc(p.b, 2<<20, true); err != nil {
+		heapDestroy(p.b)
 		CloseHandle(p.b)
 		return err
 	}
@@ -319,6 +323,13 @@ func heapFree(h, m uintptr) error {
 	}
 	return nil
 }
+func heapDestroy(h uintptr) error {
+	r, _, err := syscall.SyscallN(funcHeapDestroy.address(), h)
+	if r == 0 {
+		return unboxError(err)
+	}
+	return nil
+}
 
 // IsTokenElevated returns true if this token has a High or System privileges.
 func IsTokenElevated(h uintptr) bool {
@@ -328,8 +339,8 @@ func IsTokenElevated(h uintptr) bool {
 	)
 	return err == nil && n == uint32(unsafe.Sizeof(e)) && e != 0
 }
-func getProcessHeap() (uintptr, error) {
-	r, _, err := syscall.SyscallN(funcGetProcessHeap.address())
+func heapCreate(n uint64) (uintptr, error) {
+	r, _, err := syscall.SyscallN(funcHeapCreate.address(), 0, uintptr(n), 0)
 	if r == 0 {
 		return 0, unboxError(err)
 	}

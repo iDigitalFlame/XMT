@@ -37,18 +37,24 @@ func watchSignals() {
 	}
 	close(watchChan)
 }
+func startSignals() {
+	atomic.StoreUint32(&watchStarted, 1)
+	watchChan = make(chan struct{})
+	watchSignalLoop = watchSignals
+	signalEnable(0)
+}
 
 //go:linkname signalRecv os/signal.signal_recv
 func signalRecv() uint32
-
-//go:linkname signalSend runtime.sigsend
-func signalSend(uint32) bool
 
 //go:linkname signalEnable os/signal.enableSignal
 func signalEnable(uint32)
 
 //go:linkname process os/signal.process
 func process(sig os.Signal)
+
+//go:linkname signalSend runtime.sigsend
+func signalSend(uint32) bool
 
 // StopNotify will stop the signal handeling loop from running and will cause
 // all signal handeling to stop.
@@ -89,11 +95,6 @@ func StopNotify(c chan<- os.Signal) {
 // This version will stop the signal handeling loop once the 'StopNotify'
 // function has been called.
 func Notify(c chan<- os.Signal, s ...os.Signal) {
-	watchStart.Do(func() {
-		atomic.StoreUint32(&watchStarted, 1)
-		watchChan = make(chan struct{})
-		watchSignalLoop = watchSignals
-		signalEnable(0)
-	})
+	watchStart.Do(startSignals)
 	signal.Notify(c, s...)
 }

@@ -36,9 +36,11 @@ var (
 	funcGetDIBits                                           = dllGdi32.proc(crypt.Get(228))    // GetDIBits
 	funcReleaseDC                                           = dllUser32.proc(crypt.Get(230))   // ReleaseDC
 	funcHeapAlloc                                           = dllKernel32.proc(crypt.Get(219)) // HeapAlloc
+	funcHeapCreate                                          = dllKernel32.proc(crypt.Get(249)) // HeapCreate
 	funcCreateFile                                          = dllKernel32.proc(crypt.Get(140)) // CreateFileW
 	funcGetVersion                                          = dllKernel32.proc(crypt.Get(141)) // GetVersion
 	funcCancelIoEx                                          = dllKernel32.proc(crypt.Get(142)) // CancelIoEx
+	funcHeapDestroy                                         = dllKernel32.proc(crypt.Get(250)) // HeapDestroy
 	funcLoadLibrary                                         = dllKernel32.proc(crypt.Get(143)) // LoadLibraryW
 	funcCreateMutex                                         = dllKernel32.proc(crypt.Get(144)) // CreateMutexW
 	funcCreateEvent                                         = dllKernel32.proc(crypt.Get(145)) // CreateEventW
@@ -63,7 +65,6 @@ var (
 	funcOpenSemaphore                                       = dllKernel32.proc(crypt.Get(160)) // OpenSemaphoreW
 	funcRegDeleteTree                                       = dllAdvapi32.proc(crypt.Get(242)) // RegDeleteTreeW
 	funcRtlCopyMemory                                       = dllNtdll.proc(crypt.Get(221))    // RtlCopyMemory
-	funcGetProcessHeap                                      = dllKernel32.proc(crypt.Get(249)) // GetProcessHeap
 	funcRegDeleteKeyEx                                      = dllAdvapi32.proc(crypt.Get(149)) // RegDeleteKeyExW
 	funcGetMonitorInfo                                      = dllUser32.proc(crypt.Get(231))   // GetMonitorInfoW
 	funcVirtualProtect                                      = dllKernel32.proc(crypt.Get(161)) // VirtualProtect

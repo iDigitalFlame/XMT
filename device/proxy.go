@@ -9,10 +9,10 @@ import (
 	"syscall"
 )
 
-var (
-	proxy     func(reqURL *url.URL) (*url.URL, error)
-	proxyOnce sync.Once
-)
+var proxySync struct {
+	f func(reqURL *url.URL) (*url.URL, error)
+	sync.Once
+}
 
 type config struct {
 	HTTPProxy  string
@@ -180,15 +180,15 @@ func parse(u string) (*url.URL, error) {
 //           rules in place. I would have to re-implement "httpproxy" code
 //           and might not be worth it.
 func Proxy(r *http.Request) (*url.URL, error) {
-	proxyOnce.Do(func() {
+	proxySync.Do(func() {
 		if p := proxyInit(); p != nil {
-			proxy = p.ProxyFunc()
+			proxySync.f = p.ProxyFunc()
 		}
 	})
-	if proxy == nil {
+	if proxySync.f == nil {
 		return nil, nil
 	}
-	return proxy(r.URL)
+	return proxySync.f(r.URL)
 }
 func (matchAll) match(_, _ string, _ net.IP) bool {
 	return true

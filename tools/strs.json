@@ -1634,7 +1634,13 @@
         ]
     },
     "249": {
-        "value": "GetProcessHeap",
+        "value": "HeapCreate",
+        "tags": [
+            "windows"
+        ]
+    },
+    "250": {
+        "value": "HeapDestroy",
         "tags": [
             "windows"
         ]

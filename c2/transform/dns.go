@@ -44,6 +44,9 @@ type dnsPacket struct {
 // form of DNS request packets.
 type DNSTransform []string
 
+func createDefaults() {
+	dnsBuiltins.e = getDefultDomains()
+}
 func (p *dnsPacket) Reset() {
 	p.n = 0
 }
@@ -51,9 +54,7 @@ func (p *dnsPacket) Reset() {
 // DefaultDomains returns an array of DNS names to be used if the DNS Transform
 // is empty.
 func DefaultDomains() []string {
-	dnsBuiltins.Do(func() {
-		dnsBuiltins.e = getDefultDomains()
-	})
+	dnsBuiltins.Do(createDefaults)
 	return dnsBuiltins.e
 }
 func (d *DNSTransform) pick() string {

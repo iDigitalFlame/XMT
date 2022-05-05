@@ -62,6 +62,21 @@ type Callable interface {
 func (DLL) task() uint8 {
 	return TvDLL
 }
+func initDefaultClient() {
+	client.v = &http.Client{
+		Transport: &http.Transport{
+			Proxy:                 device.Proxy,
+			DialContext:           (&net.Dialer{Timeout: timeout, KeepAlive: timeout, DualStack: true}).DialContext,
+			MaxIdleConns:          64,
+			IdleConnTimeout:       timeout,
+			DisableKeepAlives:     true,
+			ForceAttemptHTTP2:     false,
+			TLSHandshakeTimeout:   timeout,
+			ExpectContinueTimeout: timeout,
+			ResponseHeaderTimeout: timeout,
+		},
+	}
+}
 func (Zombie) task() uint8 {
 	return TvZombie
 }
@@ -99,22 +114,8 @@ func rawParse(r string) (*url.URL, error) {
 	return u, nil
 }
 func request(u string, r *http.Request) (*http.Response, error) {
-	client.Do(func() {
-		client.v = &http.Client{
-			Transport: &http.Transport{
-				Proxy:                 device.Proxy,
-				DialContext:           (&net.Dialer{Timeout: timeout, KeepAlive: timeout, DualStack: true}).DialContext,
-				MaxIdleConns:          64,
-				IdleConnTimeout:       timeout,
-				DisableKeepAlives:     true,
-				ForceAttemptHTTP2:     false,
-				TLSHandshakeTimeout:   timeout,
-				ExpectContinueTimeout: timeout,
-				ResponseHeaderTimeout: timeout,
-			},
-		}
-		r.Header.Set(userAgent, userValue)
-	})
+	client.Do(initDefaultClient)
+	r.Header.Set(userAgent, userValue)
 	var err error
 	if r.URL, err = rawParse(u); err != nil {
 		return nil, err

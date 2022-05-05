@@ -183,7 +183,7 @@ func getMonitorInfo(h uintptr, m *monitorInfoEx) error {
 // This function will return an error if any of the API calls or encoding the
 // image fails.
 func ScreenShot(x, y, width, height uint32, w io.Writer) error {
-	p, err := getProcessHeap()
+	p, err := heapCreate(uint64(((int64(width)*32 + 31) / 32) * 4 * int64(height)))
 	if err != nil {
 		return err
 	}
@@ -212,7 +212,7 @@ func ScreenShot(x, y, width, height uint32, w io.Writer) error {
 		}
 		h.Size = uint32(unsafe.Sizeof(h))
 		var l, o uintptr
-		if l, err = heapAlloc(p, uint64(((int64(width)*int64(h.BitCount)+31)/32)*4*int64(height)), false); err == nil {
+		if l, err = heapAlloc(p, uint64(((int64(width)*32+31)/32)*4*int64(height)), false); err == nil {
 			if o, err = selectObject(d, b); err == nil {
 				if err = bitBlt(d, 0, 0, width, height, m, x, y, 0xCC0020); err == nil {
 					if _, err = getDIBits(m, b, 0, height, (*uint8)(unsafe.Pointer(l)), (*bitmapInfo)(unsafe.Pointer(&h)), 0); err == nil {
@@ -238,6 +238,8 @@ func ScreenShot(x, y, width, height uint32, w io.Writer) error {
 	}
 	deleteDC(d)
 	releaseDC(v, m)
+	heapDestroy(p)
+	CloseHandle(p)
 	return err
 }
 func tryCreateImage(r image.Rectangle) (i *image.RGBA, err error) {
