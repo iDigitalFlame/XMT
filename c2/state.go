@@ -117,7 +117,7 @@ func (s state) ChannelUpdated() bool {
 	return atomic.LoadUint32((*uint32)(&s))&stateChannelUpdated != 0
 }
 func (s *state) ChannelCanStop() bool {
-	if s.Closed() || !s.Channel() {
+	if s.Closing() || !s.Channel() {
 		return true
 	}
 	if s.ChannelUpdated() {

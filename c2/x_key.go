@@ -26,8 +26,11 @@ func (s *Session) keyCheck() {
 	}
 	s.keyNew = nil
 }
+func (s *Session) keyRevert() {
+	s.keyNew = nil
+}
 func (s *Session) doNextKeySwap() bool {
-	if s.s != nil {
+	if s.s != nil || s.keyNew != nil {
 		return false
 	}
 	if util.FastRandN(125) != 0 {

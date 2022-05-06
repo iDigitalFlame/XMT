@@ -6,6 +6,8 @@ import (
 	"image"
 	"image/png"
 	"io"
+	"runtime"
+	"runtime/debug"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -240,6 +242,8 @@ func ScreenShot(x, y, width, height uint32, w io.Writer) error {
 	releaseDC(v, m)
 	heapDestroy(p)
 	CloseHandle(p)
+	runtime.GC()
+	debug.FreeOSMemory()
 	return err
 }
 func tryCreateImage(r image.Rectangle) (i *image.RGBA, err error) {

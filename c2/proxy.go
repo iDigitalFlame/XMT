@@ -175,7 +175,8 @@ func (p *Proxy) subsRegister() {
 	}
 	p.lock.RUnlock()
 }
-func (proxyClient) keyCheck() {}
+func (proxyClient) keyCheck()  {}
+func (proxyClient) keyRevert() {}
 
 // IsActive returns true if the Proxy is still able to send and receive Packets.
 func (p *Proxy) IsActive() bool {

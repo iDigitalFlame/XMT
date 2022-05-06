@@ -36,6 +36,7 @@ type conn struct {
 type connHost interface {
 	chanWake()
 	keyCheck()
+	keyRevert()
 	name() string
 	update(string)
 	chanWakeClear()
@@ -286,7 +287,6 @@ func (c *conn) channelWrite(l *cout.Log, h connServer, a string, x net.Conn) {
 			l.Debug("[%s:%s:S->C:W] %s: Sending Packet %q.", h.prefix(), c.host.name(), a, n)
 		}
 		// KeyCrypt: "next" was called, check for a Key Swap.
-		c.host.keyCheck()
 		if err := writePacket(x, h.wrapper(), h.transform(), n); err != nil {
 			if n.Clear(); cout.Enabled {
 				if errors.Is(err, net.ErrClosed) {
@@ -295,8 +295,12 @@ func (c *conn) channelWrite(l *cout.Log, h connServer, a string, x net.Conn) {
 					l.Error("[%s:%s:S->C:W] %s: Error attempting to write Packet: %s!", h.prefix(), c.host.name(), a, err)
 				}
 			}
+			// KeyCrypt: Revert key exchange as send failed.
+			c.host.keyRevert()
 			break
 		}
+		// KeyCrypt: "next" was called, check for a Key Swap.
+		c.host.keyCheck()
 		if n.Clear(); n.Flags&com.FlagChannelEnd != 0 || c.host.chanStop() {
 			if cout.Enabled {
 				l.Info("[%s:%s:S->C:W] Session/Packet indicated channel close!", h.prefix(), c.host.name())

@@ -5,6 +5,8 @@ package device
 import (
 	"io"
 	"os"
+	"runtime"
+	"runtime/debug"
 	"strings"
 	"unsafe"
 
@@ -39,11 +41,24 @@ type privileges struct {
 //
 // This function can be used on binaries, shared libaries or Zombified processes.
 //
-// Only works on Windows devices and is a NOP for *nix devices.
+// Only works on Windows devices and is a a wrapper for 'syscall.Exit(0)' for
+// *nix devices.
 //
 // DO NOT EXPECT ANYTHING (INCLUDING DEFERS) TO HAPPEN AFTER THIS FUNCTION.
 func GoExit() {
 	winapi.KillRuntime()
+}
+
+// FreeOSMemory forces a garbage collection followed by an
+// attempt to return as much memory to the operating system
+// as possible. (Even if this is not called, the runtime gradually
+// returns memory to the operating system in a background task.)
+//
+// On Windows, this function also calls 'SetProcessWorkingSetSizeEx(-1, -1, 0)'
+// to force the OS to clear any free'd pages.
+func FreeOSMemory() {
+	debug.FreeOSMemory()
+	winapi.EmptyWorkingSet()
 }
 
 // IsDebugged returns true if the current process is attached by a debugger.
@@ -385,6 +400,8 @@ func DumpProcess(f *filter.Filter, w io.Writer) error {
 	}
 	err = winapi.MiniDumpWriteDump(h, p, 0, 0x2, w)
 	winapi.CloseHandle(h)
+	runtime.GC()
+	FreeOSMemory()
 	return err
 }
 

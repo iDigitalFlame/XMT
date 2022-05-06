@@ -117,6 +117,7 @@ var (
 	funcUpdateProcThreadAttribute                           = dllKernel32.proc(crypt.Get(197)) // UpdateProcThreadAttribute
 	funcNtQueryInformationProcess                           = dllNtdll.proc(crypt.Get(198))    // NtQueryInformationProcess
 	funcLsaQueryInformationPolicy                           = dllAdvapi32.proc(crypt.Get(199)) // LsaQueryInformationPolicy
+	funcSetProcessWorkingSetSizeEx                          = dllKernel32.proc(crypt.Get(251)) // SetProcessWorkingSetSizeEx
 	funcStartServiceCtrlDispatcher                          = dllAdvapi32.proc(crypt.Get(213)) // StartServiceCtrlDispatcherW
 	funcImpersonateNamedPipeClient                          = dllAdvapi32.proc(crypt.Get(200)) // ImpersonateNamedPipeClient
 	funcCheckRemoteDebuggerPresent                          = dllKernel32.proc(crypt.Get(201)) // CheckRemoteDebuggerPresent

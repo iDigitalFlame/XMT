@@ -5,6 +5,7 @@ package device
 import (
 	"io"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -105,5 +106,7 @@ func DumpProcess(f *filter.Filter, w io.Writer) error {
 		}
 	}
 	d.Close()
+	runtime.GC()
+	FreeOSMemory()
 	return err
 }

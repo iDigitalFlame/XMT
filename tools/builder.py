@@ -17,14 +17,14 @@
 
 from os import environ
 from random import choice
+from subprocess import run
 from tempfile import mkdtemp
 from sys import stderr, exit
 from shutil import which, rmtree
-from os.path import isdir, isfile, join
 from traceback import format_exc
-from subprocess import check_call
 from string import ascii_lowercase
 from argparse import ArgumentParser
+from os.path import isdir, isfile, join
 
 C_SRC = """#define WINVER 0x0501
 #define _WIN32_WINNT 0x0501
@@ -185,7 +185,7 @@ def _main():
         if isinstance(p.gcflags, str) and len(p.gcflags) > 0:
             x += ["-gcflags", p.gcflags]
         x += ["-o", f"{join(d, o)}.a", p.input]
-        check_call(x, env=e)
+        run(x, env=e, text=True, check=True, capture_output=True)
         del x
 
         print(f'Creating C stub "{o}.c"..')
@@ -202,7 +202,7 @@ def _main():
             else:
                 f.write(C_BINARY.format(export=p.export))
         if not p.dll:
-            return check_call(
+            return run(
                 [
                     C_COMPILER,
                     "-mwindows",
@@ -218,8 +218,11 @@ def _main():
                     f"{join(d, o)}.a",
                 ],
                 env=e,
+                text=True,
+                check=True,
+                capture_output=True,
             )
-        check_call(
+        run(
             [
                 C_COMPILER,
                 "-c",
@@ -235,8 +238,11 @@ def _main():
                 f"{join(d, o)}.c",
             ],
             env=e,
+            text=True,
+            check=True,
+            capture_output=True,
         )
-        check_call(
+        run(
             [
                 C_COMPILER,
                 "-shared",
@@ -253,6 +259,9 @@ def _main():
                 f"{join(d, o)}.a",
             ],
             env=e,
+            text=True,
+            check=True,
+            capture_output=True,
         )
     finally:
         rmtree(d)

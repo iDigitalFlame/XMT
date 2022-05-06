@@ -4,7 +4,8 @@ package c2
 
 import "github.com/iDigitalFlame/xmt/com"
 
-func (s *Session) keyCheck() {}
+func (s *Session) keyCheck()  {}
+func (s *Session) keyRevert() {}
 func (s *Session) doNextKeySwap() bool {
 	return false
 }

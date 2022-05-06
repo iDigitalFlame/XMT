@@ -1644,5 +1644,11 @@
         "tags": [
             "windows"
         ]
+    },
+    "251": {
+        "value": "SetProcessWorkingSetSizeEx",
+        "tags": [
+            "windows"
+        ]
     }
 }

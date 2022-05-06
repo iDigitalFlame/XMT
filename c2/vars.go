@@ -237,13 +237,16 @@ func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 		}
 		v := &com.Packet{ID: SvHello, Job: uint16(util.FastRand()), Device: s.ID}
 		s.Device.MarshalStream(v)
+		for i := range s.key {
+			s.key[i] = 0
+		}
 		if s.generateSessionKey(v); cout.Enabled {
 			s.log.Debug("[%s] Generated KeyCrypt key set!", s.ID)
 		}
 		if bugtrack.Enabled {
 			bugtrack.Track("c2.receiveSingle(): %s KeyCrypt details [%v].", s.ID, s.key)
 		}
-		if s.write(true, v); len(s.send) <= 1 {
+		if s.queue(v); len(s.send) <= 1 {
 			s.Wake()
 		}
 		return

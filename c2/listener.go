@@ -235,6 +235,9 @@ func (l *Listener) notify(h connHost, n *com.Packet) error {
 	if !ok {
 		return nil
 	}
+	// KeyCrypt: Process new Packet here instead.
+	//           Fire if key is set in here for exchange.
+	s.sessionKeyUpdate(l.name, n)
 	return receive(s, l, n)
 }
 func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {

@@ -18,8 +18,8 @@
 from io import BytesIO
 from json import loads
 from os import environ
+from subprocess import run
 from secrets import token_bytes
-from subprocess import check_call
 from sys import stderr, exit, argv
 from base64 import urlsafe_b64encode
 from platform import system, architecture
@@ -164,6 +164,6 @@ if __name__ == "__main__":
         f" -X 'github.com/iDigitalFlame/xmt/util/crypt.payload={w.output()}'",
     ]
     a.extend(check_tags(argv[2:]))
-    check_call(a, env=environ)
+    run(a, env=environ, check=True, text=True, capture_output=True)
     print()
     del a

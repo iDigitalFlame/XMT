@@ -4,6 +4,7 @@ package device
 
 import (
 	"os"
+	"runtime/debug"
 	"syscall"
 	"unsafe"
 
@@ -33,13 +34,26 @@ func proxyInit() *config {
 // kill all Golang based OS-Threads based on their starting address (which
 // should be the same when starting from CGo).
 //
-// This function should NOT be used on real binary files and only used on
-// loaded libraries.
+// This function can be used on binaries, shared libaries or Zombified processes.
 //
-// Only works on Windows devices and is a NOP for *nix devices.
+// Only works on Windows devices and is a a wrapper for 'syscall.Exit(0)' for
+// *nix devices.
 //
 // DO NOT EXPECT ANYTHING (INCLUDING DEFERS) TO HAPPEN AFTER THIS FUNCTION.
-func GoExit() {}
+func GoExit() {
+	syscall.Exit(0)
+}
+
+// FreeOSMemory forces a garbage collection followed by an
+// attempt to return as much memory to the operating system
+// as possible. (Even if this is not called, the runtime gradually
+// returns memory to the operating system in a background task.)
+//
+// On Windows, this function also calls 'SetProcessWorkingSetSizeEx(-1, -1, 0)'
+// to force the OS to clear any free'd pages.
+func FreeOSMemory() {
+	debug.FreeOSMemory()
+}
 
 // RevertToSelf function terminates the impersonation of a client application.
 // Returns an error if no impersonation is being done.

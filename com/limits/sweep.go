@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 )
 
@@ -33,7 +34,7 @@ loop:
 			bugtrack.Track("limits.sweep(): Starting GC and Free.")
 		}
 		runtime.GC()
-		debug.FreeOSMemory()
+		device.FreeOSMemory()
 		select {
 		case <-v.C:
 		case <-x.Done():

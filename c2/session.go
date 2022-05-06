@@ -566,8 +566,6 @@ func (s *Session) channelWrite(x net.Conn) {
 		if n.Crypt(&s.key); cout.Enabled {
 			s.log.Debug("[%s:C->S:W] %s: Sending Packet %q.", s.ID, s.host, n)
 		}
-		// KeyCrypt: "next" was called, check for a Key Swap.
-		s.keyCheck()
 		if err := writePacket(x, s.w, s.t, n); err != nil {
 			if n.Clear(); cout.Enabled {
 				if errors.Is(err, net.ErrClosed) {
@@ -576,8 +574,12 @@ func (s *Session) channelWrite(x net.Conn) {
 					s.log.Error("[%s:C->S:W] %s: Error attempting to write Packet: %s!", s.ID, s.host, err)
 				}
 			}
+			// KeyCrypt: Revert key exchange as send failed.
+			s.keyRevert()
 			break
 		}
+		// KeyCrypt: "next" was called, check for a Key Swap.
+		s.keyCheck()
 		if n.Clear(); n.Flags&com.FlagChannelEnd != 0 || s.state.ChannelCanStop() {
 			if cout.Enabled {
 				s.log.Info("[%s:C->S:W] Session/Packet indicated channel close!", s.ID)
@@ -602,19 +604,25 @@ func (s *Session) session(c net.Conn) bool {
 		}
 		s.state.Set(stateChannel)
 	}
-	// KeyCrypt: Encrpt new Packet here to be sent.
-	if n.Crypt(&s.key); cout.Enabled {
+	// KeyCrypt: Do NOT encrypt hello Packets.
+	if n.ID != SvHello {
+		// KeyCrypt: Encrpt new Packet here to be sent.
+		n.Crypt(&s.key)
+	}
+	if cout.Enabled {
 		s.log.Debug("[%s] %s: Sending Packet %q.", s.ID, s.host, n)
 	}
-	// KeyCrypt: "next" was called, check for a Key Swap.
-	s.keyCheck()
 	err := writePacket(c, s.w, s.t, n)
 	if n.Clear(); err != nil {
 		if cout.Enabled {
 			s.log.Error("[%s] %s: Error attempting to write Packet: %s!", s.ID, s.host, err)
 		}
+		// KeyCrypt: Revert key exchange as send failed.
+		s.keyRevert()
 		return false
 	}
+	// KeyCrypt: "next" was called, check for a Key Swap.
+	s.keyCheck()
 	if n.Flags&com.FlagChannel != 0 && !s.state.Channel() {
 		s.state.Set(stateChannel)
 	}

@@ -228,6 +228,18 @@ func createDumpFunc() {
 	dumpCallbackOnce.f = syscall.NewCallback(dumpCallbackFunc)
 }
 
+// EmptyWorkingSet Windows API Call wrapper
+//   Removes as many pages as possible from the working set of the specified
+//   process.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/psapi/nf-psapi-emptyworkingset
+//
+// Wraps the 'SetProcessWorkingSetSizeEx' call instead to prevent having to track
+// the 'EmptyWorkingSet' function between kernel32.dll and psapi.dll.
+func EmptyWorkingSet() {
+	syscall.SyscallN(funcSetProcessWorkingSetSizeEx.address(), CurrentProcess, invalid, invalid)
+}
+
 // ZeroTraceEvent will attempt to zero out the NtTraceEvent function call with
 // a NOP.
 //

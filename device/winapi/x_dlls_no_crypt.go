@@ -115,6 +115,7 @@ var (
 	funcUpdateProcThreadAttribute                           = dllKernel32.proc("UpdateProcThreadAttribute")
 	funcNtQueryInformationProcess                           = dllNtdll.proc("NtQueryInformationProcess")
 	funcLsaQueryInformationPolicy                           = dllAdvapi32.proc("LsaQueryInformationPolicy")
+	funcSetProcessWorkingSetSizeEx                          = dllKernel32.proc("SetProcessWorkingSetSizeEx")
 	funcStartServiceCtrlDispatcher                          = dllAdvapi32.proc("StartServiceCtrlDispatcherW")
 	funcImpersonateNamedPipeClient                          = dllAdvapi32.proc("ImpersonateNamedPipeClient")
 	funcCheckRemoteDebuggerPresent                          = dllKernel32.proc("CheckRemoteDebuggerPresent")
