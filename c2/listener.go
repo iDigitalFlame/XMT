@@ -237,7 +237,7 @@ func (l *Listener) notify(h connHost, n *com.Packet) error {
 	}
 	// KeyCrypt: Process new Packet here instead.
 	//           Fire if key is set in here for exchange.
-	s.sessionKeyUpdate(l.name, n)
+	s.sessionKeyUpdate(l.name, n, false)
 	return receive(s, l, n)
 }
 func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
@@ -327,7 +327,7 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
 	}
 	// KeyCrypt: Decrypt Incoming Packet (only if non-new)
 	if ok {
-		s.sessionKeyUpdate(l.name, n)
+		s.sessionKeyUpdate(l.name, n, true)
 	}
 	if err = c.process(l.log, l, a, n, false); err != nil {
 		return nil, err
@@ -423,7 +423,7 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 	}
 	// KeyCrypt: Decrypt Incoming Packet (only if non-new)
 	if ok {
-		s.sessionKeyUpdate(l.name, n)
+		s.sessionKeyUpdate(l.name, n, true)
 	}
 	if err := receive(s, l, n); err != nil {
 		if cout.Enabled {

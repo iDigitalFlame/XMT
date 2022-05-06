@@ -23,8 +23,11 @@ func (s *Session) sessionKeyInit(l string, n *com.Packet) {
 		bugtrack.Track("c2.Session.sessionKeyInit(): %s Key details [%v].", s.ID, s.key)
 	}
 }
-func (s *Session) sessionKeyUpdate(l string, n *com.Packet) {
-	if n.Crypt(&s.key); n.Flags&com.FlagCrypt == 0 || n.Empty() {
+func (s *Session) sessionKeyUpdate(l string, n *com.Packet, d bool) {
+	if d {
+		n.Crypt(&s.key)
+	}
+	if n.Flags&com.FlagCrypt == 0 || n.Empty() {
 		return
 	}
 	s.sessionKeyInit(l, n)

@@ -22,7 +22,7 @@ func (s *Session) keyCheck() {
 	}
 	copy(s.key[:], (*s.keyNew)[:])
 	if generateKeys(&s.key, s.ID); bugtrack.Enabled {
-		bugtrack.Track("c2.Listener.talk(): %s KeyCrypt details [%v].", s.ID, s.key)
+		bugtrack.Track("c2.Session.keyCheck(): %s KeyCrypt details [%v].", s.ID, s.key)
 	}
 	s.keyNew = nil
 }
