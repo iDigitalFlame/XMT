@@ -27,5 +27,6 @@ var (
 	// CurrentProcess returns the handle for the current process. It is a pseudo
 	// handle that does not need to be closed.
 	CurrentProcess = ^uintptr(0)
+	layeredPtr     = ^uintptr(19)
 	invalid        = ^uintptr(0)
 )

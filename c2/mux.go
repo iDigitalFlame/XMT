@@ -159,10 +159,7 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 			return true, err
 		}
 		w.WriteUint32(uint32(len(l)))
-		for i := range l {
-			if i >= int(data.LimitLarge) {
-				break
-			}
+		for i, m := uint32(0), uint32(len(l)); i < m; i++ {
 			w.WriteString(l[i].Name())
 			if x, err := l[i].Info(); err == nil {
 				w.WriteInt32(int32(x.Mode()))

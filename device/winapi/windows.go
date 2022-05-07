@@ -136,7 +136,7 @@ func EnableWindow(h uintptr, e bool) (bool, error) {
 // SetWindowTransparency will attempt to set the transparency of the window handle
 // to 0-255, 0 being completely transparent and 255 being opaque.
 func SetWindowTransparency(h uintptr, t byte) error {
-	r, _, err := syscall.SyscallN(funcGetWindowLongPtr.address(), h, 0xFFFFFFFFFFFFFFEC)
+	r, _, err := syscall.SyscallN(funcGetWindowLongPtr.address(), h, layeredPtr)
 	if r == 0 && err > 0 {
 		return unboxError(err)
 	}

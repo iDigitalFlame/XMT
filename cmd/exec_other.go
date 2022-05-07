@@ -92,6 +92,7 @@ func (executable) SetWindowDisplay(_ int) {
 }
 func (executable) SetWindowTitle(_ string) {
 }
+func (executable) SetLogin(_, _, _ string) {}
 func (executable) SetWindowSize(_, _ uint32) {
 }
 func (executable) SetUID(_ int32, _ *Process) {

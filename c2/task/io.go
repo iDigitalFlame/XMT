@@ -275,10 +275,7 @@ func taskProcList(_ context.Context, _ data.Reader, w data.Writer) error {
 	if len(e) == 0 {
 		return nil
 	}
-	for i := range e {
-		if i >= int(data.LimitLarge) {
-			break
-		}
+	for i, m := uint32(0), uint32(len(e)); i < m; i++ {
 		if err = e[i].MarshalStream(w); err != nil {
 			return err
 		}

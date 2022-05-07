@@ -166,13 +166,6 @@ func WindowList(n *com.Packet) ([]Window, error) {
 	if n == nil || n.Empty() {
 		return nil, c2.ErrMalformedPacket
 	}
-	t, err := n.Uint8()
-	if err != nil {
-		return nil, err
-	}
-	if t != 0 {
-		return nil, nil
-	}
 	c, err := n.Uint32()
 	if err != nil {
 		return nil, err
