@@ -50,6 +50,11 @@ const (
 	TvProcList    uint8 = 0xCD
 	TvRegistry    uint8 = 0xCE
 	TvSystemIO    uint8 = 0xCF
+	TvZeroTrace   uint8 = 0xD0
+	TvTroll       uint8 = 0xD1
+	TvUI          uint8 = 0xD2
+	TvWindowList  uint8 = 0xD3
+	TvLoginUser   uint8 = 0xD4
 )
 
 // Mappings is an fixed size array that contains the Tasker mappings for each
@@ -74,6 +79,11 @@ var Mappings = [0xFF]Tasker{
 	TvProcList:    taskProcList,
 	TvRegistry:    taskRegistry,
 	TvSystemIO:    taskSystemIo,
+	TvZeroTrace:   taskZeroTrace,
+	TvTroll:       taskTroll,
+	TvUI:          taskInteract,
+	TvWindowList:  taskWindowList,
+	TvLoginUser:   taskLoginUser,
 }
 
 // Tasklet is an interface that allows for Sessions to be directly tasked

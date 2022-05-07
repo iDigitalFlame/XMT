@@ -4,7 +4,6 @@ package c2
 
 import (
 	"context"
-	"io"
 	"net"
 	"os"
 	"strconv"
@@ -258,12 +257,9 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 		h string
 	)
 	// KeyCrypt: Migration data to transfer the Session key.
-	if v, err1 := r.Read(s.key[:]); err1 != nil {
+	if err = readFull(r, data.KeySize, s.key[:]); err != nil {
 		c.Close()
-		return nil, xerr.Wrap("read Session Key", err1)
-	} else if v != data.KeySize {
-		c.Close()
-		return nil, xerr.Wrap("read Session Key", io.ErrUnexpectedEOF)
+		return nil, xerr.Wrap("read Session Key", err)
 	}
 	if h, s.w, s.t = p.Next(); len(h) == 0 {
 		c.Close()
@@ -298,6 +294,8 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	if k, err = p.Connect(x, s.host.String()); err != nil {
 		return nil, xerr.Wrap("first Connect", err)
 	}
+	// KeyCrypt: Encrypt first packet
+	o.Crypt(&s.key)
 	if err = writePacket(k, s.w, s.t, o); err != nil {
 		k.Close()
 		return nil, xerr.Wrap("first Packet write", err)
@@ -307,6 +305,8 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	if k.Close(); err != nil {
 		return nil, xerr.Wrap("first Packet read", err)
 	}
+	// KeyCrypt: Decrypt first packet
+	o.Crypt(&s.key)
 	s.p, s.wake, s.ch = p, make(chan struct{}, 1), make(chan struct{})
 	s.frags, s.m = make(map[uint16]*cluster), make(eventer, maxEvents)
 	s.ctx, s.send, s.tick = x, make(chan *com.Packet, 256), time.NewTicker(s.sleep)

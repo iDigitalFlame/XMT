@@ -14,6 +14,17 @@ import (
 	"github.com/iDigitalFlame/xmt/device/regedit"
 )
 
+// Window is a struct that represents a Windows Window. The handles are the same
+// for the duration of the Window's existence.
+//
+// Copied here from the winapi package.
+type Window struct {
+	Name   string
+	Handle uintptr
+	X, Y   uint32
+	Width  uint32
+	Height uint32
+}
 type fileInfo struct {
 	mod  time.Time
 	name string
@@ -144,6 +155,37 @@ func Pull(n *com.Packet) (string, uint64, error) {
 	return Upload(n)
 }
 
+// WindowList will parse the RvResult Packet from a TvWindows task.
+//
+// The return result is a slice of 'Window' structs that will indicate
+// the current Windows open on the target device.
+//
+// This function returns an error if any reading errors occur, the Packet is not
+// in the expected format or the Packet is nil or empty.
+func WindowList(n *com.Packet) ([]Window, error) {
+	if n == nil || n.Empty() {
+		return nil, c2.ErrMalformedPacket
+	}
+	t, err := n.Uint8()
+	if err != nil {
+		return nil, err
+	}
+	if t != 0 {
+		return nil, nil
+	}
+	c, err := n.Uint32()
+	if err != nil {
+		return nil, err
+	}
+	e := make([]Window, c)
+	for i := range e {
+		if err = e[i].UnmarshalStream(n); err != nil {
+			return nil, err
+		}
+	}
+	return e, nil
+}
+
 // ScreenShot will parse the RvResult Packet from a TvScreenShot task.
 //
 // The return result is a Reader with the resulting screenshot data encoded as
@@ -193,6 +235,32 @@ func Upload(n *com.Packet) (string, uint64, error) {
 	return s, c, nil
 }
 
+// UnmarshalStream transforms this struct from a binary format that is read from
+// the supplied data.Reader.
+func (w *Window) UnmarshalStream(r data.Reader) error {
+	v, err := r.Uint64()
+	if err != nil {
+		return err
+	}
+	w.Handle = uintptr(v)
+	if err = r.ReadString(&w.Name); err != nil {
+		return err
+	}
+	if err = r.ReadUint32(&w.X); err != nil {
+		return err
+	}
+	if err = r.ReadUint32(&w.Y); err != nil {
+		return err
+	}
+	if err = r.ReadUint32(&w.Width); err != nil {
+		return err
+	}
+	if err = r.ReadUint32(&w.Height); err != nil {
+		return err
+	}
+	return nil
+}
+
 // DLL will parse the RvResult Packet from a TvDLL task.
 //
 // The return result is a handle to the memory location of the DLL (as a
@@ -222,13 +290,7 @@ func ProcessList(n *com.Packet) ([]cmd.ProcessInfo, error) {
 	}
 	e := make([]cmd.ProcessInfo, c)
 	for i := range e {
-		if err = n.ReadUint32(&e[i].PID); err != nil {
-			return nil, err
-		}
-		if err = n.ReadUint32(&e[i].PPID); err != nil {
-			return nil, err
-		}
-		if err = n.ReadString(&e[i].Name); err != nil {
+		if err = e[i].UnmarshalStream(n); err != nil {
 			return nil, err
 		}
 	}

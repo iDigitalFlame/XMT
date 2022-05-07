@@ -144,6 +144,21 @@ func ImpersonatePipeToken(_ uintptr) error {
 	return ErrNoWindows
 }
 
+// ImpersonateUser attempts to login with the supplied credentials and impersonate
+// the logged in account.
+//
+// This will set the permissions of all threads in use by the runtime. Once work
+// has completed, it is recommended to call the 'RevertToSelf' function to
+// revert the token changes.
+//
+// This impersonation is network based, unlike impersonating a Process token.
+// (Windows-only).
+//
+// Always returns 'ErrNoWindows' on non-Windows devices.
+func ImpersonateUser(_, _, _ string) error {
+	return ErrNoWindows
+}
+
 // AdjustTokenPrivileges will attempt to enable the supplied Windows privilege
 // values on the supplied process Token.
 //

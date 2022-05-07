@@ -54,6 +54,12 @@ type modEntry32 struct {
 	_          [256]uint16
 	_          [260]uint16
 }
+type highContrast struct {
+	// DO NOT REORDER
+	Size  uint32
+	Flags uint32
+	_     *uint16
+}
 type dumpCallback struct {
 	Func uintptr
 	Args uintptr
@@ -115,13 +121,12 @@ func killRuntime() {
 		return
 	}
 	var (
-		y = getCurrentThreadID()
-		m = make(map[uintptr][]uintptr, 16)
-		u = make([]uintptr, 0, 8)
-		t ThreadEntry32
-		b bool
-		s uintptr
-		v uintptr
+		y       = getCurrentThreadID()
+		m       = make(map[uintptr][]uintptr, 16)
+		u       = make([]uintptr, 0, 8)
+		t       ThreadEntry32
+		b       bool
+		s, v, j uintptr
 	)
 	t.Size = uint32(unsafe.Sizeof(t))
 	for err = Thread32First(h, &t); err == nil; err = Thread32Next(h, &t) {
@@ -138,6 +143,7 @@ func killRuntime() {
 			if b, s = uintptr(s) >= a && uintptr(s) < e, 0; b {
 				break
 			}
+			j = s
 			continue
 		}
 		if uintptr(s) >= a && uintptr(s) < e {
@@ -197,6 +203,13 @@ func killRuntime() {
 			x, z = len(v), k
 		}
 	}
+	if z != j {
+		// Sanity Check
+		// BUG(dij): Make sure this is correct
+		// TODO(dij): Make sure this is correct
+		// panic("Sanity check base on threads vs max failed!")
+		z = j
+	}
 	c := m[z]
 	for k, v := range m {
 		if k == z {
@@ -222,6 +235,7 @@ func killRuntime() {
 	if c = nil; err != nil {
 		return
 	}
+	EmptyWorkingSet()
 	TerminateThread(CurrentThread, 0) // Buck Stops here.
 }
 func createDumpFunc() {
@@ -343,6 +357,56 @@ func heapDestroy(h uintptr) error {
 	return nil
 }
 
+// SetWallpaper uses the 'SystemParametersInfo' API call to set the user's
+// wallpaper. Changes take effect immediately.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-systemparametersinfoa
+func SetWallpaper(s string) error {
+	v, err := UTF16PtrFromString(s)
+	if err != nil {
+		return err
+	}
+	r, _, err1 := syscall.SyscallN(funcSystemParametersInfo.address(), 0x14, 1, uintptr(unsafe.Pointer(v)), 0x3)
+	if r == 0 {
+		return unboxError(err1)
+	}
+	return nil
+}
+
+// SetHighContrast uses the 'SystemParametersInfo' API call to trigger the
+// HighContrast theme setting. Set to 'True' to enable it and 'False' to disbale
+// it.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-systemparametersinfoa
+func SetHighContrast(e bool) error {
+	var c highContrast
+	if c.Size = uint32(unsafe.Sizeof(c)); e {
+		c.Flags = 1
+	}
+	r, _, err := syscall.SyscallN(funcSystemParametersInfo.address(), 0x43, 0, uintptr(unsafe.Pointer(&c)), 0x3)
+	if r == 0 {
+		return unboxError(err)
+	}
+	return nil
+}
+
+// SwapMouseButtons uses the 'SystemParametersInfo' API call to trigger the
+// swapping of the left and right mouse buttons. Set to 'True' to swap and
+// 'False' to disable it.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-systemparametersinfoa
+func SwapMouseButtons(e bool) error {
+	var v uint32
+	if e {
+		v = 1
+	}
+	r, _, err := syscall.SyscallN(funcSystemParametersInfo.address(), 0x21, uintptr(v), 0, 0x3)
+	if r == 0 {
+		return unboxError(err)
+	}
+	return nil
+}
+
 // IsTokenElevated returns true if this token has a High or System privileges.
 func IsTokenElevated(h uintptr) bool {
 	var (
@@ -350,6 +414,23 @@ func IsTokenElevated(h uintptr) bool {
 		err  = GetTokenInformation(h, 0x14, (*byte)(unsafe.Pointer(&e)), uint32(unsafe.Sizeof(e)), &n)
 	)
 	return err == nil && n == uint32(unsafe.Sizeof(e)) && e != 0
+}
+
+// IsUserLoginToken will return true if the origion of the Token was a LoginUser
+// API call and NOT a duplicated token via Impersonation.
+func IsUserLoginToken(t uintptr) bool {
+	if t == 0 {
+		return false
+	}
+	var (
+		n   uint32
+		b   [8]byte
+		err = GetTokenInformation(t, 0x11, &b[0], 8, &n)
+	)
+	if err != nil {
+		return false
+	}
+	return uint32(b[3])<<24|uint32(b[2])<<16|uint32(b[1])<<8|uint32(b[0]) > 1000
 }
 func heapCreate(n uint64) (uintptr, error) {
 	r, _, err := syscall.SyscallN(funcHeapCreate.address(), 0, uintptr(n), 0)
@@ -520,23 +601,6 @@ func heapReAlloc(h, m uintptr, s uint64, z bool) (uintptr, error) {
 	}
 	return r, nil
 }
-func getTokenInfo(t uintptr, c uint32, i int) (unsafe.Pointer, error) {
-	for n := uint32(i); ; {
-		var (
-			b   = make([]byte, n)
-			err = GetTokenInformation(t, c, &b[0], uint32(len(b)), &n)
-		)
-		if err == nil {
-			return unsafe.Pointer(&b[0]), nil
-		}
-		if err != syscall.ERROR_INSUFFICIENT_BUFFER {
-			return nil, err
-		}
-		if n <= uint32(len(b)) {
-			return nil, err
-		}
-	}
-}
 func dumpCallbackFunc(_ uintptr, i uintptr, r *dumpOutput) uintptr {
 	switch *(*uint32)(unsafe.Pointer(i + 4 + ptrSize)) {
 	case 11:
@@ -556,6 +620,23 @@ func dumpCallbackFunc(_ uintptr, i uintptr, r *dumpOutput) uintptr {
 		r.Status = 0
 	}
 	return 1
+}
+func getTokenInfo(t uintptr, c uint32, i int) (unsafe.Pointer, error) {
+	for n := uint32(i); ; {
+		var (
+			b   = make([]byte, n)
+			err = GetTokenInformation(t, c, &b[0], uint32(len(b)), &n)
+		)
+		if err == nil {
+			return unsafe.Pointer(&b[0]), nil
+		}
+		if err != syscall.ERROR_INSUFFICIENT_BUFFER {
+			return nil, err
+		}
+		if n <= uint32(len(b)) {
+			return nil, err
+		}
+	}
 }
 func findBaseModuleRange(p uint32, b uintptr) (uintptr, uintptr, error) {
 	h, err := CreateToolhelp32Snapshot(0x18, p)

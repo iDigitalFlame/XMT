@@ -101,6 +101,7 @@ func (executable) SetWindowDisplay(_ int) {
 }
 func (executable) SetWindowTitle(_ string) {
 }
+func (executable) SetLogin(_, _, _ string) {}
 func (executable) SetWindowSize(_, _ uint32) {
 }
 func (e *executable) SetUID(u int32, p *Process) {
@@ -119,6 +120,7 @@ func (e *executable) SetGID(g int32, p *Process) {
 		p.flags |= flagGID
 	}
 }
+
 func (executable) SetWindowPosition(_, _ uint32) {
 }
 func (executable) SetNoWindow(_ bool, _ *Process) {

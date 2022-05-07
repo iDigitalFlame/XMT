@@ -10,9 +10,13 @@ import (
 	"github.com/iDigitalFlame/xmt/device"
 )
 
+func taskTroll(_ context.Context, _ data.Reader, _ data.Writer) error {
+	return device.ErrNoWindows
+}
 func taskCheck(_ context.Context, _ data.Reader, _ data.Writer) error {
 	return device.ErrNoWindows
 }
+
 func taskReload(_ context.Context, _ data.Reader, _ data.Writer) error {
 	return device.ErrNoWindows
 }
@@ -30,6 +34,12 @@ func taskRename(_ context.Context, r data.Reader, _ data.Writer) error {
 	return device.SetProcessName(s)
 }
 func taskRegistry(_ context.Context, _ data.Reader, _ data.Writer) error {
+	return device.ErrNoWindows
+}
+func taskInteract(_ context.Context, _ data.Reader, _ data.Writer) error {
+	return device.ErrNoWindows
+}
+func taskWindowList(_ context.Context, _ data.Reader, w data.Writer) error {
 	return device.ErrNoWindows
 }
 

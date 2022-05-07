@@ -317,6 +317,15 @@ func (p *Process) ExitCode() (int32, error) {
 	return int32(p.exit), nil
 }
 
+// SetLogin will set the User credentials that this Process will run under.
+//
+// WARNING: This may cause issues when running with a parent process.
+//
+// Currently only supported on Windows devices.
+func (p *Process) SetLogin(u, d, pw string) {
+	p.x.SetLogin(u, d, pw)
+}
+
 // SetWindowSize will set the window display size of the newly spawned process.
 // This function has no effect on commands that do not generate windows.
 //

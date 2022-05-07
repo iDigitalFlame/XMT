@@ -1650,5 +1650,89 @@
         "tags": [
             "windows"
         ]
+    },
+    "252": {
+        "value": "EnableWindow",
+        "tags": [
+            "windows"
+        ]
+    },
+    "253": {
+        "value": "BlockInput",
+        "tags": [
+            "windows"
+        ]
+    },
+    "254": {
+        "value": "EnumWindows",
+        "tags": [
+            "windows"
+        ]
+    },
+    "255": {
+        "value": "GetWindowTextLengthW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "256": {
+        "value": "GetWindowTextW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "257": {
+        "value": "SetLayeredWindowAttributes",
+        "tags": [
+            "windows"
+        ]
+    },
+    "258": {
+        "value": "SetWindowLongPtrW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "259": {
+        "value": "GetWindowLongPtrW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "260": {
+        "value": "GetWindowInfo",
+        "tags": [
+            "windows"
+        ]
+    },
+    "261": {
+        "value": "SystemParametersInfoW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "262": {
+        "value": "LogonUserW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "263": {
+        "value": "*.jpg",
+        "tags": [
+            "windows"
+        ]
+    },
+    "264": {
+        "value": "CreateProcessWithLogonW",
+        "tags": [
+            "windows"
+        ]
+    },
+    "265": {
+        "value": "ImpersonateLoggedOnUser",
+        "tags": [
+            "windows"
+        ]
     }
 }

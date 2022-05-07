@@ -12,6 +12,7 @@ var (
 	execA     = crypt.Get(12)  // *.so
 	execB     = crypt.Get(13)  // *.dll
 	execC     = crypt.Get(14)  // *.exe
+	execD     = crypt.Get(263) // *.jpg
 	userAgent = crypt.Get(44)  // User-Agent
 	userValue = crypt.Get(243) // Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36
 )

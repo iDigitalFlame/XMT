@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -34,14 +35,15 @@ type fileFd interface {
 	Fd() uintptr
 }
 type executable struct {
-	r              *os.File
-	filter         *filter.Filter
-	title          string
-	closers        []io.Closer
-	i              winapi.ProcessInformation
-	token, parent  uintptr
-	sf, x, y, w, h uint32
-	mode           uint16
+	r                  *os.File
+	filter             *filter.Filter
+	title              string
+	user, domain, pass string
+	closers            []io.Closer
+	i                  winapi.ProcessInformation
+	token, parent      uintptr
+	sf, x, y, w, h     uint32
+	mode               uint16
 }
 type closeFunc func() error
 
@@ -146,6 +148,11 @@ func (e *executable) SetWindowTitle(s string) {
 		e.title = s
 	} else {
 		e.sf, e.title = e.sf&^0x1000, ""
+	}
+}
+func (e *executable) SetLogin(u, d, p string) {
+	if e.user, e.domain, e.pass = u, d, p; len(d) == 0 {
+		d = "."
 	}
 }
 func (executable) SetUID(_ int32, _ *Process) {}
@@ -388,14 +395,12 @@ func (e *executable) start(x context.Context, p *Process, sus bool) error {
 			v.StartupInfo.StdOutput = so
 			v.StartupInfo.Flags |= 0x100
 		} else if y != nil {
-			y.StdErr = se
-			y.StdInput = si
-			y.StdOutput = so
+			y.StdErr, y.StdInput, y.StdOutput = se, si, so
 			y.Flags |= 0x100
 		}
 	}
 	u := e.token
-	if u == 0 && e.parent == 0 {
+	if runtime.LockOSThread(); u == 0 && e.parent == 0 {
 		// NOTE(dij): Handle threads that currently have an impersonated Token
 		//            set. This will trigger this function call to use
 		//            'CreateProcessWithToken' instead of 'CreateProcess'.
@@ -403,7 +408,19 @@ func (e *executable) start(x context.Context, p *Process, sus bool) error {
 		//            Windows permissions cause some fucky stuff to happen.
 		//
 		//            Failing silently is fine.
-		winapi.OpenThreadToken(winapi.CurrentThread, 0xF01FF, true, &u)
+		//
+		// NOTE(dij): Added a 'IsUserLoginToken' token to check the Token origion
+		//            to see if it's a impersinated user token or a stolen elevated
+		//            process token, as impersonated user tokens do NOT like being
+		//            ran with 'CreateProcessWithToken'.
+		//
+		// BUG(dij):  Watch this function call, as it can cause problems when launching
+		//            non-parent processes under impersonation.
+		if winapi.OpenThreadToken(winapi.CurrentThread, 0xF01FF, true, &u); u > 0 && winapi.IsUserLoginToken(u) {
+			if u = 0; bugtrack.Enabled {
+				bugtrack.Track("cmd.executable.start(): Removing user login token.")
+			}
+		}
 	}
 	if sus {
 		p.flags |= 0x4
@@ -412,12 +429,25 @@ func (e *executable) start(x context.Context, p *Process, sus bool) error {
 		e.r.Close()
 		e.r = nil
 	}
-	if z := createEnvBlock(p.Env, p.split); u > 0 {
+	switch z := createEnvBlock(p.Env, p.split); {
+	case len(e.user) > 0:
+		if bugtrack.Enabled {
+			bugtrack.Track("cmd.executable.start(): Using API call CreateProcessWithLogin for execution.")
+		}
+		// NOTE(dij): Network Only (0x2) logins seem to fail here.
+		err = winapi.CreateProcessWithLogin(e.user, e.domain, e.pass, 0x1, r, strings.Join(p.Args, " "), p.flags, z, p.Dir, y, v, &e.i)
+	case u > 0:
+		if bugtrack.Enabled {
+			bugtrack.Track("cmd.executable.start(): Using API call CreateProcessWithToken for execution.")
+		}
 		err = winapi.CreateProcessWithToken(u, 0x2, r, strings.Join(p.Args, " "), p.flags, z, p.Dir, y, v, &e.i)
-	} else {
+	default:
+		if bugtrack.Enabled {
+			bugtrack.Track("cmd.executable.start(): Using API call CreateProcess for execution.")
+		}
 		err = winapi.CreateProcess(r, strings.Join(p.Args, " "), nil, nil, true, p.flags, z, p.Dir, y, v, &e.i)
 	}
-	if err != nil {
+	if runtime.UnlockOSThread(); err != nil {
 		return err
 	}
 	e.closers = append(e.closers, closer(e.i.Thread))

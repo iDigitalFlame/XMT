@@ -29,6 +29,22 @@ func IsDebuggerPresent() bool {
 	return r > 0
 }
 
+// BlockInput Windows API Call
+//   Blocks keyboard and mouse input events from reaching applications.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-blockinput
+func BlockInput(e bool) error {
+	var v uint32
+	if e {
+		v = 1
+	}
+	r, _, err := syscall.SyscallN(funcBlockInput.address(), uintptr(v))
+	if r == 0 {
+		return unboxError(err)
+	}
+	return nil
+}
+
 // CloseHandle Windows API Call
 //   Closes an open object handle.
 //
@@ -162,6 +178,19 @@ func GetProcessID(h uintptr) (uint32, error) {
 		return 0, unboxError(err)
 	}
 	return uint32(r), nil
+}
+
+// ImpersonateLoggedOnUser Windows API Call
+//   The ImpersonateLoggedOnUser function lets the calling thread impersonate the
+//   security context of a logged-on user. The user is represented by a token handle.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-impersonateloggedonuser
+func ImpersonateLoggedOnUser(h uintptr) error {
+	r, _, err := syscall.SyscallN(funcImpersonateLoggedOnUser.address(), h)
+	if r == 0 {
+		return unboxError(err)
+	}
+	return nil
 }
 
 // SuspendThread Windows API Call
@@ -939,6 +968,47 @@ func NtProtectVirtualMemory(h, address uintptr, size, access uint32) (uint32, er
 	return v, nil
 }
 
+// LoginUser Windows API Call
+//   The LogonUser function attempts to log a user on to the local computer. The
+//   local computer is the computer from which LogonUser was called. You cannot
+//   use LogonUser to log on to a remote computer. You specify the user with a
+//   user name and domain and authenticate the user with a plaintext password.
+//   If the function succeeds, you receive a handle to a token that represents
+//   the logged-on user. You can then use this token handle to impersonate the
+//   specified user or, in most cases, to create a process that runs in the
+//   context of the specified user.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-logonuserw
+func LoginUser(user, domain, pass string, logintype, provider uint32) (uintptr, error) {
+	if len(domain) == 0 {
+		domain = "."
+	}
+	u, err := UTF16PtrFromString(user)
+	if err != nil {
+		return 0, err
+	}
+	var p, d *uint16
+	if d, err = UTF16PtrFromString(domain); err != nil {
+		return 0, err
+	}
+	if len(pass) > 0 {
+		if p, err = UTF16PtrFromString(pass); err != nil {
+			return 0, err
+		}
+	}
+	var (
+		t          uintptr
+		r, _, err1 = syscall.SyscallN(
+			funcLogonUser.address(), uintptr(unsafe.Pointer(u)), uintptr(unsafe.Pointer(d)),
+			uintptr(unsafe.Pointer(p)), uintptr(logintype), uintptr(provider), uintptr(unsafe.Pointer(&t)),
+		)
+	)
+	if r == 0 {
+		return 0, unboxError(err1)
+	}
+	return t, nil
+}
+
 // RegSetValueEx Windows API Call
 //   Sets the data and type of a specified value under a registry key.
 //
@@ -1362,6 +1432,72 @@ func CreateProcess(name, cmd string, procSa, threadSa *SecurityAttributes, inher
 		funcCreateProcess.address(), uintptr(unsafe.Pointer(n)), uintptr(unsafe.Pointer(c)), uintptr(unsafe.Pointer(procSa)),
 		uintptr(unsafe.Pointer(threadSa)), uintptr(z), uintptr(flags), uintptr(unsafe.Pointer(e)), uintptr(unsafe.Pointer(d)),
 		uintptr(j), uintptr(unsafe.Pointer(i)),
+	)
+	if r == 0 {
+		return unboxError(err1)
+	}
+	return nil
+}
+
+// CreateProcessWithLogin Windows API Call
+//   Creates a new process and its primary thread. Then the new process runs the
+//   specified executable file in the security context of the specified credentials
+//   (user, domain, and password). It can optionally load the user profile for a
+//   specified user.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createprocesswithlogonw
+func CreateProcessWithLogin(user, domain, pass string, loginFlags uint32, name, cmd string, flags uint32, env []string, dir string, y *StartupInfo, x *StartupInfoEx, i *ProcessInformation) error {
+	var n, c, d, e, p, do *uint16
+	u, err := UTF16PtrFromString(user)
+	if err != nil {
+		return err
+	}
+	if len(domain) > 0 {
+		if do, err = UTF16PtrFromString(domain); err != nil {
+			return err
+		}
+	}
+	if len(pass) > 0 {
+		if p, err = UTF16PtrFromString(pass); err != nil {
+			return err
+		}
+	}
+	if len(name) > 0 {
+		if n, err = UTF16PtrFromString(name); err != nil {
+			return err
+		}
+	}
+	if len(cmd) > 0 {
+		if c, err = UTF16PtrFromString(cmd); err != nil {
+			return err
+		}
+	}
+	if len(dir) > 0 {
+		if d, err = UTF16PtrFromString(dir); err != nil {
+			return err
+		}
+	}
+	if len(env) > 0 {
+		if e, err = StringListToUTF16Block(env); err != nil {
+			return err
+		}
+		flags |= 0x400
+	}
+	var j unsafe.Pointer
+	if y == nil && x != nil {
+		// NOTE(dij): For some reason adding this flag causes the function
+		//            to return "invalid parameter", even this this IS THE ACCEPTED
+		//            thing to do???!
+		//
+		// flags |= 0x80000
+		j = unsafe.Pointer(x)
+	} else {
+		j = unsafe.Pointer(y)
+	}
+	r, _, err1 := syscall.SyscallN(
+		funcCreateProcessWithLogon.address(), uintptr(unsafe.Pointer(u)), uintptr(unsafe.Pointer(do)), uintptr(unsafe.Pointer(p)),
+		uintptr(loginFlags), uintptr(unsafe.Pointer(n)), uintptr(unsafe.Pointer(c)), uintptr(flags), uintptr(unsafe.Pointer(e)),
+		uintptr(unsafe.Pointer(d)), uintptr(j), uintptr(unsafe.Pointer(i)),
 	)
 	if r == 0 {
 		return unboxError(err1)

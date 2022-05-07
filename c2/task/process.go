@@ -33,6 +33,10 @@ import (
 //          uint32          // Flags
 //          bool            // Wait
 //          int64           // Timeout
+//          bool            // Hide
+//          string          // Username
+//          string          // Domain
+//          string          // Password
 //          Filter struct { // Filter
 //              bool        // Filter Status
 //              uint32      // PID
@@ -49,13 +53,14 @@ import (
 //      int32               // Exit Code
 //      []byte              // Output (Stdout and Stderr)
 type Process struct {
-	Filter *filter.Filter
-	Dir    string
+	Filter             *filter.Filter
+	Dir                string
+	User, Domain, Pass string
 
 	Env, Args []string
 	Stdin     []byte
+	Timeout   time.Duration
 
-	Timeout    time.Duration
 	Flags      uint32
 	Wait, Hide bool
 }
@@ -76,6 +81,10 @@ type Process struct {
 //          uint32          // Flags
 //          bool            // Wait
 //          int64           // Timeout
+//          bool            // Hide
+//          string          // Username
+//          string          // Domain
+//          string          // Password
 //          Filter struct { // Filter
 //              bool        // Filter Status
 //              uint32      // PID
@@ -120,6 +129,15 @@ func (p Process) MarshalStream(w data.Writer) error {
 	if err := w.WriteBool(p.Hide); err != nil {
 		return err
 	}
+	if err := w.WriteString(p.User); err != nil {
+		return err
+	}
+	if err := w.WriteString(p.Domain); err != nil {
+		return err
+	}
+	if err := w.WriteString(p.Pass); err != nil {
+		return err
+	}
 	if err := p.Filter.MarshalStream(w); err != nil {
 		return err
 	}
@@ -150,6 +168,15 @@ func (p *Process) UnmarshalStream(r data.Reader) error {
 		return err
 	}
 	if err := r.ReadBool(&p.Hide); err != nil {
+		return err
+	}
+	if err := r.ReadString(&p.User); err != nil {
+		return err
+	}
+	if err := r.ReadString(&p.Domain); err != nil {
+		return err
+	}
+	if err := r.ReadString(&p.Pass); err != nil {
 		return err
 	}
 	if err := filter.UnmarshalStream(r, &p.Filter); err != nil {
@@ -225,5 +252,6 @@ func ProcessUnmarshal(x context.Context, r data.Reader) (*cmd.Process, bool, err
 		v.Stdin = bytes.NewReader(p.Stdin)
 	}
 	v.Timeout, v.Dir, v.Env = p.Timeout, p.Dir, p.Env
+	v.SetLogin(p.User, p.Domain, p.Pass)
 	return v, p.Wait, nil
 }

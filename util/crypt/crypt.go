@@ -4,9 +4,11 @@ package crypt
 
 import "encoding/base64"
 
+const cryptMax = 300
+
 var (
 	key     string
-	values  [256]string
+	values  [cryptMax]string
 	payload string
 )
 
@@ -31,7 +33,7 @@ func init() {
 	for i := 0; i < v; i++ {
 		b[i] = b[i] ^ k[i%c]
 	}
-	for s, e, n := 0, 0, 0; e < v && n < 256; e++ {
+	for s, e, n := 0, 0, 0; e < v && n < cryptMax; e++ {
 		if b[e] != 0 {
 			continue
 		}
@@ -44,6 +46,6 @@ func init() {
 }
 
 // Get returns the crypt value at the provided string index.
-func Get(i uint8) string {
+func Get(i uint16) string {
 	return values[i]
 }

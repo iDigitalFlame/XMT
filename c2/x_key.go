@@ -33,7 +33,7 @@ func (s *Session) doNextKeySwap() bool {
 	if s.s != nil || s.keyNew != nil {
 		return false
 	}
-	if util.FastRandN(125) != 0 {
+	if util.FastRandN(100) != 0 {
 		return false
 	}
 	if cout.Enabled {
