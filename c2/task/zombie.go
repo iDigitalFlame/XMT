@@ -30,6 +30,10 @@ import (
 //          uint32          // Flags
 //          bool            // Wait
 //          int64           // Timeout
+//          bool            // Hide
+//          string          // Username
+//          string          // Domain
+//          string          // Password
 //          Filter struct { // Filter
 //              bool        // Filter Status
 //              uint32      // PID
@@ -48,9 +52,10 @@ import (
 type Zombie struct {
 	Filter *filter.Filter
 
-	Dir       string
-	Data      []byte
-	Env, Args []string
+	Dir                string
+	Data               []byte
+	Env, Args          []string
+	User, Domain, Pass string
 
 	Stdin   []byte
 	Timeout time.Duration
@@ -76,7 +81,10 @@ type Zombie struct {
 //          uint32          // Flags
 //          bool            // Wait
 //          int64           // Timeout
-//          bool            // Filter Status
+//          bool            // Hide
+//          string          // Username
+//          string          // Domain
+//          string          // Password
 //          Filter struct { // Filter
 //              bool        // Filter Status
 //              uint32      // PID
@@ -124,6 +132,15 @@ func (z Zombie) MarshalStream(w data.Writer) error {
 	if err := w.WriteBool(z.Hide); err != nil {
 		return err
 	}
+	if err := w.WriteString(z.User); err != nil {
+		return err
+	}
+	if err := w.WriteString(z.Domain); err != nil {
+		return err
+	}
+	if err := w.WriteString(z.Pass); err != nil {
+		return err
+	}
 	if err := z.Filter.MarshalStream(w); err != nil {
 		return err
 	}
@@ -157,6 +174,15 @@ func (z *Zombie) UnmarshalStream(r data.Reader) error {
 		return err
 	}
 	if err := r.ReadBool(&z.Hide); err != nil {
+		return err
+	}
+	if err := r.ReadString(&z.User); err != nil {
+		return err
+	}
+	if err := r.ReadString(&z.Domain); err != nil {
+		return err
+	}
+	if err := r.ReadString(&z.Pass); err != nil {
 		return err
 	}
 	if err := filter.UnmarshalStream(r, &z.Filter); err != nil {

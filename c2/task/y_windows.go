@@ -353,5 +353,6 @@ func ZombieUnmarshal(x context.Context, r data.Reader) (*cmd.Zombie, bool, error
 		v.Stdin = bytes.NewReader(z.Stdin)
 	}
 	v.Timeout, v.Dir, v.Env, v.Data = z.Timeout, z.Dir, z.Env, z.Data
+	v.SetLogin(z.User, z.Domain, z.Pass)
 	return v, z.Wait, nil
 }
