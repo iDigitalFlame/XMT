@@ -34,7 +34,8 @@ If you're using this, feel free to submit issue tickets or pull requests. (I don
   - Also the IP struct code and info.
 - mTLS insights by @kofoworola [kofo.dev/how-to-mtls-in-golang](https://kofo.dev/how-to-mtls-in-golang)
 - DLL loader by @monoxgas [github.com/monoxgas/sRDI](https://github.com/monoxgas/sRDI)
-- Initial idea for MiniDump/DLL Reload by the Sliver C2 framework [=github.com/BishopFox/sliver/](https://github.com/BishopFox/sliver/)
+- Initial idea for MiniDump/DLL Reload by the Sliver C2 framework [github.com/BishopFox/sliver/](https://github.com/BishopFox/sliver/)
+- Untrust idea by @zha0gongz1 [golangexample.com/...](https://golangexample.com/without-closing-windows-defender-to-make-defender-useless-by-removing-its-token-privileges-and-lowering-the-token-integrity/)
 
 # Licenses
 
