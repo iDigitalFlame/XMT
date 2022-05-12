@@ -20,6 +20,10 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
+// NOTE(dij): This needs to be a var as if it's a const 'UpdateProcThreadAttribute'
+//            will throw an access violation.
+// 0x100100000000 - PROCESS_CREATION_MITIGATION_POLICY_EXTENSION_POINT_DISABLE_ALWAYS_ON |
+//                   PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON
 var secProtect uint64 = 0x100100000000
 
 var versionOnce struct {
@@ -90,6 +94,7 @@ func (e *executable) Pid() uint32 {
 //
 // This will not affect already running processes.
 func ResumeProcess(p uint32) error {
+	// 0x800 - PROCESS_SUSPEND_RESUME
 	h, err := winapi.OpenProcess(0x800, false, p)
 	if err != nil {
 		return err
@@ -104,6 +109,7 @@ func ResumeProcess(p uint32) error {
 //
 // This will not affect already suspended processes.
 func SuspendProcess(p uint32) error {
+	// 0x800 - PROCESS_SUSPEND_RESUME
 	h, err := winapi.OpenProcess(0x800, false, p)
 	if err != nil {
 		return err
@@ -128,6 +134,7 @@ func (e *executable) SetToken(t uintptr) {
 	e.token = t
 }
 func (e *executable) SetFullscreen(f bool) {
+	// 0x20 - STARTF_RUNFULLSCREEN
 	if f {
 		e.sf |= 0x20
 	} else {
@@ -135,6 +142,7 @@ func (e *executable) SetFullscreen(f bool) {
 	}
 }
 func (e *executable) SetWindowDisplay(m int) {
+	// 0x1 - STARTF_USESHOWWINDOW
 	if m < 0 {
 		e.sf = e.sf &^ 0x1
 	} else {
@@ -143,6 +151,7 @@ func (e *executable) SetWindowDisplay(m int) {
 	}
 }
 func (e *executable) SetWindowTitle(s string) {
+	// 0x1000 - STARTF_TITLEISAPPID
 	if len(s) > 0 {
 		e.sf |= 0x1000
 		e.title = s
@@ -158,10 +167,12 @@ func (e *executable) SetLogin(u, d, p string) {
 func (executable) SetUID(_ int32, _ *Process) {}
 func (executable) SetGID(_ int32, _ *Process) {}
 func (e *executable) SetWindowSize(w, h uint32) {
+	// 0x2 - STARTF_USESIZE
 	e.sf |= 0x2
 	e.w, e.h = w, h
 }
 func (executable) SetNoWindow(h bool, p *Process) {
+	// 0x8000000 - CREATE_NO_WINDOW
 	if h {
 		p.flags |= 0x8000000
 	} else {
@@ -169,6 +180,8 @@ func (executable) SetNoWindow(h bool, p *Process) {
 	}
 }
 func (executable) SetDetached(d bool, p *Process) {
+	// 0x8  - DETACHED_PROCESS
+	// 0x10 - CREATE_NEW_CONSOLE
 	if d {
 		p.flags = (p.flags | 0x8) &^ 0x10
 	} else {
@@ -177,6 +190,7 @@ func (executable) SetDetached(d bool, p *Process) {
 }
 func (executable) SetChroot(_ string, _ *Process) {}
 func (executable) SetSuspended(s bool, p *Process) {
+	// 0x4 - CREATE_SUSPENDED
 	if s {
 		p.flags |= 0x4
 	} else {
@@ -184,10 +198,12 @@ func (executable) SetSuspended(s bool, p *Process) {
 	}
 }
 func (e *executable) SetWindowPosition(x, y uint32) {
+	// 0x4 - STARTF_USEPOSITION
 	e.sf |= 0x4
 	e.x, e.y = x, y
 }
 func (*executable) SetNewConsole(c bool, p *Process) {
+	// 0x10 - CREATE_NEW_CONSOLE
 	if c {
 		p.flags |= 0x10
 	} else {
@@ -199,6 +215,7 @@ func (e *executable) kill(x uint32, p *Process) error {
 	return winapi.TerminateProcess(e.i.Process, x)
 }
 func createEnvBlock(env []string, split bool) []string {
+	// TODO(dij): Should we cache the call to 'syscall.Environ()'?
 	if len(env) == 0 && !split {
 		return syscall.Environ()[4:]
 	}
@@ -264,6 +281,7 @@ func (e *executable) wait(x context.Context, p *Process) {
 func (e *executable) writer(w io.Writer) (uintptr, error) {
 	var h uintptr
 	if w == nil {
+		// 1 - WRITEONLY
 		f, err := os.OpenFile(os.DevNull, 1, 0)
 		if err != nil {
 			return 0, xerr.Wrap("cannot open null device", err)
@@ -303,6 +321,7 @@ func (e *executable) writer(w io.Writer) (uintptr, error) {
 	if e.parent > 0 {
 		v = e.parent
 	}
+	// 0x2 - DUPLICATE_SAME_ACCESS
 	if err = winapi.DuplicateHandle(winapi.CurrentProcess, h, v, &n, 0, true, 0x2); err != nil {
 		return 0, xerr.Wrap("DuplicateHandle", err)
 	}
@@ -312,6 +331,7 @@ func (e *executable) writer(w io.Writer) (uintptr, error) {
 func (e *executable) reader(r io.Reader) (uintptr, error) {
 	var h uintptr
 	if r == nil {
+		// 0 - READONLY
 		f, err := os.OpenFile(os.DevNull, 0, 0)
 		if err != nil {
 			return 0, xerr.Wrap("cannot open null device", err)
@@ -351,6 +371,7 @@ func (e *executable) reader(r io.Reader) (uintptr, error) {
 	if e.parent > 0 {
 		v = e.parent
 	}
+	// 0x2 - DUPLICATE_SAME_ACCESS
 	if err = winapi.DuplicateHandle(winapi.CurrentProcess, h, v, &n, 0, true, 0x2); err != nil {
 		return 0, xerr.Wrap("DuplicateHandle", err)
 	}
@@ -394,9 +415,11 @@ func (e *executable) start(x context.Context, p *Process, sus bool) error {
 			v.StartupInfo.StdInput = si
 			v.StartupInfo.StdOutput = so
 			v.StartupInfo.Flags |= 0x100
+			// 0x100 - STARTF_USESTDHANDLES
 		} else if y != nil {
 			y.StdErr, y.StdInput, y.StdOutput = se, si, so
 			y.Flags |= 0x100
+			// 0x100 - STARTF_USESTDHANDLES
 		}
 	}
 	u := e.token
@@ -416,6 +439,11 @@ func (e *executable) start(x context.Context, p *Process, sus bool) error {
 		//
 		// BUG(dij):  Watch this function call, as it can cause problems when launching
 		//            non-parent processes under impersonation.
+		//
+		// (old was 0xF01FF - TOKEN_ALL_ACCESS)
+		// 0x200EF - TOKEN_ASSIGN_PRIMARY | TOKEN_DUPLICATE | TOKEN_IMPERSONATE |
+		//            TOKEN_QUERY | TOKEN_WRITE (STANDARD_RIGHTS_WRITE | TOKEN_ADJUST_PRIVILEGES |
+		//            TOKEN_ADJUST_GROUPS | TOKEN_ADJUST_DEFAULT)
 		if winapi.OpenThreadToken(winapi.CurrentThread, 0xF01FF, true, &u); u > 0 && winapi.IsUserLoginToken(u) {
 			if u = 0; bugtrack.Enabled {
 				bugtrack.Track("cmd.executable.start(): Removing user login token.")
@@ -423,6 +451,7 @@ func (e *executable) start(x context.Context, p *Process, sus bool) error {
 		}
 	}
 	if sus {
+		// 0x4 - CREATE_SUSPENDED
 		p.flags |= 0x4
 	}
 	if e.r != nil {
@@ -435,11 +464,13 @@ func (e *executable) start(x context.Context, p *Process, sus bool) error {
 			bugtrack.Track("cmd.executable.start(): Using API call CreateProcessWithLogin for execution.")
 		}
 		// NOTE(dij): Network Only (0x2) logins seem to fail here.
+		// 0x1 - LOGON_WITH_PROFILE
 		err = winapi.CreateProcessWithLogin(e.user, e.domain, e.pass, 0x1, r, strings.Join(p.Args, " "), p.flags, z, p.Dir, y, v, &e.i)
 	case u > 0:
 		if bugtrack.Enabled {
 			bugtrack.Track("cmd.executable.start(): Using API call CreateProcessWithToken for execution.")
 		}
+		// 0x2 - LOGON_NETCREDENTIALS_ONLY
 		err = winapi.CreateProcessWithToken(u, 0x2, r, strings.Join(p.Args, " "), p.flags, z, p.Dir, y, v, &e.i)
 	default:
 		if bugtrack.Enabled {
@@ -474,7 +505,10 @@ func (e *executable) startInfo() (*winapi.StartupInfoEx, *winapi.StartupInfo, er
 		return nil, &x.StartupInfo, nil
 	}
 	if e.filter != nil && !e.filter.Empty() {
-		if e.parent, err = e.filter.HandleFunc(0x100CC1, nil); err != nil {
+		// (old 0x100CC1 - SYNCHRONIZE | PROCESS_DUP_HANDLE | PROCESS_CREATE_PROCESS |
+		//                  PROCESS_QUERY_INFORMATION | PROCESS_SUSPEND_RESUME | PROCESS_TERMINATE)
+		// 0x4C0 - PROCESS_QUERY_INFORMATION | PROCESS_DUP_HANDLE | PROCESS_CREATE_PROCESS
+		if e.parent, err = e.filter.HandleFunc(0x4C0, nil); err != nil {
 			return nil, nil, err
 		}
 		e.closers = append(e.closers, closer(e.parent))
@@ -496,6 +530,7 @@ func (e *executable) startInfo() (*winapi.StartupInfoEx, *winapi.StartupInfo, er
 		return nil, nil, xerr.Wrap("InitializeProcThreadAttributeList", err)
 	}
 	if x.StartupInfo.Cb = uint32(unsafe.Sizeof(x)); e.parent > 0 {
+		// 0x20000 - PROC_THREAD_ATTRIBUTE_PARENT_PROCESS
 		if err = winapi.UpdateProcThreadAttribute(x.AttributeList, 0x20000, unsafe.Pointer(&e.parent), uint64(unsafe.Sizeof(e.parent)), nil, nil); err != nil {
 			winapi.DeleteProcThreadAttributeList(x.AttributeList)
 			return nil, nil, xerr.Wrap("UpdateProcThreadAttribute", err)
@@ -503,6 +538,7 @@ func (e *executable) startInfo() (*winapi.StartupInfoEx, *winapi.StartupInfo, er
 		c--
 	}
 	if c == 1 {
+		// 0x20007 - PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY
 		if err = winapi.UpdateProcThreadAttribute(x.AttributeList, 0x20007, unsafe.Pointer(&secProtect), uint64(unsafe.Sizeof(secProtect)), nil, nil); err != nil {
 			winapi.DeleteProcThreadAttributeList(x.AttributeList)
 			return nil, nil, xerr.Wrap("UpdateProcThreadAttribute", err)

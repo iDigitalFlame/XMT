@@ -4,11 +4,11 @@ import (
 	"fmt"
 
 	"github.com/iDigitalFlame/xmt/cmd"
-	"github.com/iDigitalFlame/xmt/device"
+	"github.com/iDigitalFlame/xmt/device/winapi"
 )
 
 func testPrivs() {
-	if err := device.AdjustPrivileges("SeShutdownPrivilege", "SeUndockPrivilege"); err != nil {
+	if err := winapi.EnablePrivileges("SeShutdownPrivilege", "SeUndockPrivilege"); err != nil {
 		panic(err)
 	}
 

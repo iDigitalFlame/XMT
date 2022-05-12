@@ -8,7 +8,6 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strings"
-	"unsafe"
 
 	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/device/winapi"
@@ -25,10 +24,6 @@ type file interface {
 }
 type fileFd interface {
 	Fd() uintptr
-}
-type privileges struct {
-	PrivilegeCount uint32
-	Privileges     [5]winapi.LUIDAndAttributes
 }
 
 // GoExit attempts to walk through the process threads and will forcefully
@@ -63,9 +58,19 @@ func FreeOSMemory() {
 
 // IsDebugged returns true if the current process is attached by a debugger.
 func IsDebugged() bool {
+	// Try to open the DLLs first, so we don't alert to our attempts to detect
+	// a debugger.
+	if len(debugDlls) > 0 {
+		for _, v := range strings.Split(debugDlls, "\n") {
+			if winapi.CheckDebugWithLoad(v) {
+				return true
+			}
+		}
+	}
 	if winapi.IsDebuggerPresent() {
 		return true
 	}
+	// 0x400 - PROCESS_QUERY_INFORMATION
 	h, err := winapi.OpenProcess(0x400, false, winapi.GetCurrentProcessID())
 	if err != nil {
 		return false
@@ -145,7 +150,7 @@ func RevertToSelf() error {
 	// Revert
 	winapi.RevertToSelf()
 	// THEN set tokens to nil.
-	return forEachThread(func(t uintptr) error { return winapi.SetThreadToken(&t, 0) })
+	return winapi.ForEachThread(func(t uintptr) error { return winapi.SetThreadToken(&t, 0) })
 }
 func split(s string) []string {
 	if len(s) == 0 {
@@ -255,6 +260,11 @@ func Impersonate(f *filter.Filter) error {
 	if f.Empty() {
 		return filter.ErrNoProcessFound
 	}
+	// 0x2000F - TOKEN_READ (STANDARD_RIGHTS_READ | TOKEN_QUERY) | TOKEN_ASSIGN_PRIMARY
+	//            TOKEN_DUPLICATE | TOKEN_IMPERSONATE
+	// NOTE(dij): Might need to change this to "0x200EF" which adds "TOKEN_WRITE"
+	//            access. Also not sure if we need "TOKEN_IMPERSONATE" or "TOKEN_ASSIGN_PRIMARY"
+	//            as we're duplicating it.
 	x, err := f.TokenFunc(0x2000F, nil)
 	if err != nil {
 		return err
@@ -265,108 +275,53 @@ func Impersonate(f *filter.Filter) error {
 	//            instead and copy it to all running threads, as most likely it has
 	//            more rights than we currently have.
 	var y uintptr
+	// 0x2000000 - MAXIMUM_ALLOWED
+	// 0x2       - SecurityImpersonation
+	// 0x2       - TokenImpersonation
 	err = winapi.DuplicateTokenEx(x, 0x2000000, nil, 2, 2, &y)
 	if winapi.CloseHandle(x); err != nil {
 		return err
 	}
-	err = forEachThread(func(t uintptr) error { return winapi.SetThreadToken(&t, y) })
+	err = winapi.ForEachThread(func(t uintptr) error { return winapi.SetThreadToken(&t, y) })
 	winapi.CloseHandle(y)
 	return err
 }
 
-// AdjustPrivileges will attempt to enable the supplied Windows privilege values
-// on the current process's Token.
+// ImpersonateUser attempts to login with the supplied credentials and impersonate
+// the logged in account.
 //
-// Errors during encoding, lookup or assignment will be returned and not all
-// privileges will be assigned, if they occur.
+// This will set the permissions of all threads in use by the runtime. Once work
+// has completed, it is recommended to call the 'RevertToSelf' function to
+// revert the token changes.
 //
-// Always returns 'ErrNoWindows' on non-Windows devices.
-func AdjustPrivileges(s ...string) error {
-	if len(s) == 0 {
-		return nil
-	}
-	var (
-		t   uintptr
-		err = winapi.OpenProcessToken(winapi.CurrentProcess, 0x200E8, &t)
-	)
+// This impersonation is network based, unlike impersonating a Process token.
+// (Windows-only, would be cool to do a *nix one).
+func ImpersonateUser(user, domain, pass string) error {
+	// NOTE(dij): Do we need to do this?
+	//  AdjustPrivileges("SeAssignPrimaryTokenPrivilege", "SeIncreaseQuotaPrivilege")
+	// 0x9 - LOGON32_LOGON_NEW_CREDENTIALS
+	x, err := winapi.LoginUser(user, domain, pass, 0x9, 0)
 	if err != nil {
-		return xerr.Wrap("OpenProcessToken", err)
+		return err
 	}
-	err = AdjustTokenPrivileges(t, s...)
-	winapi.CloseHandle(t)
-	return err
-}
-func adjust(h uintptr, s []string) error {
-	var (
-		p   privileges
-		err error
-	)
-	for i := range s {
-		if i > 5 {
-			break
-		}
-		if err = winapi.LookupPrivilegeValue("", s[i], &p.Privileges[i].Luid); err != nil {
-			if xerr.Concat {
-				return xerr.Wrap(`cannot lookup "`+s[i]+`"`, err)
-			}
-			return xerr.Wrap("cannot lookup privilege", err)
-		}
-		p.Privileges[i].Attributes = 0x2
-	}
-	p.PrivilegeCount = uint32(len(s))
-	if err = winapi.AdjustTokenPrivileges(h, false, unsafe.Pointer(&p), uint32(unsafe.Sizeof(p)), nil, nil); err != nil {
-		return xerr.Wrap("cannot assign all privileges", err)
-	}
-	return nil
-}
-
-// ImpersonatePipeToken will attempt to impersonate the Token used by the Named
-// Pipe client.
-//
-// This function is only usable on Windows with a Server Pipe handle.
-//
-// Always returns 'ErrNoWindows' on non-Windows devices.
-func ImpersonatePipeToken(h uintptr) error {
+	runtime.LockOSThread()
 	// NOTE(dij): For best results, we FIRST impersonate the token, THEN
 	//            we try to set the token to each user thread with a duplicated
 	//            token set to impersonate. (Similar to an Impersonate call).
-	if err := winapi.ImpersonateLoggedOnUser(h); err != nil {
+	err = winapi.ImpersonateLoggedOnUser(x)
+	if winapi.CloseHandle(x); err != nil {
+		runtime.UnlockOSThread()
 		return err
 	}
 	var y uintptr
-	if err := winapi.DuplicateTokenEx(h, 0x2000000, nil, 2, 2, &y); err != nil {
+	// 0xF01FF - TOKEN_ALL_ACCESS
+	if err = winapi.OpenThreadToken(winapi.CurrentThread, 0xF01FF, false, &y); err != nil {
+		runtime.UnlockOSThread()
 		return err
 	}
-	err := forEachThread(func(t uintptr) error { return winapi.SetThreadToken(&t, y) })
+	err = winapi.ForEachThread(func(t uintptr) error { return winapi.SetThreadToken(&t, y) })
 	winapi.CloseHandle(y)
-	return err
-}
-func forEachThread(f func(uintptr) error) error {
-	h, err := winapi.CreateToolhelp32Snapshot(0x4, 0)
-	if err != nil {
-		return xerr.Wrap("CreateToolhelp32Snapshot", err)
-	}
-	var (
-		p = winapi.GetCurrentProcessID()
-		t winapi.ThreadEntry32
-		v uintptr
-	)
-	t.Size = uint32(unsafe.Sizeof(t))
-	for err = winapi.Thread32First(h, &t); err == nil; err = winapi.Thread32Next(h, &t) {
-		if t.OwnerProcessID != p {
-			continue
-		}
-		if v, err = winapi.OpenThread(0xE0, false, t.ThreadID); err != nil {
-			break
-		}
-		err = f(v)
-		if winapi.CloseHandle(v); err != nil {
-			break
-		}
-	}
-	if winapi.CloseHandle(h); err == winapi.ErrNoMoreFiles {
-		return nil
-	}
+	runtime.UnlockOSThread()
 	return err
 }
 
@@ -384,6 +339,7 @@ func DumpProcess(f *filter.Filter, w io.Writer) error {
 	if err := winapi.GetDebugPrivilege(); err != nil {
 		return err
 	}
+	// 0x450 - PROCESS_QUERY_INFORMATION | PROCESS_VM_READ | PROCESS_DUP_HANDLE
 	h, err := f.HandleFunc(0x450, nil)
 	if err != nil {
 		return err
@@ -398,6 +354,7 @@ func DumpProcess(f *filter.Filter, w io.Writer) error {
 		return xerr.Sub("cannot dump self", 0x91)
 	}
 	if v, ok := w.(fileFd); ok {
+		// 0x2 - MiniDumpWithFullMemory
 		err = winapi.MiniDumpWriteDump(h, p, v.Fd(), 0x2, nil)
 		winapi.CloseHandle(h)
 		return err
@@ -408,74 +365,15 @@ func DumpProcess(f *filter.Filter, w io.Writer) error {
 			winapi.CloseHandle(h)
 			return err
 		}
+		// 0x2 - MiniDumpWithFullMemory
 		err = winapi.MiniDumpWriteDump(h, p, x.Fd(), 0x2, nil)
 		winapi.CloseHandle(h)
 		return err
 	}
+	// 0x2 - MiniDumpWithFullMemory
 	err = winapi.MiniDumpWriteDump(h, p, 0, 0x2, w)
 	winapi.CloseHandle(h)
 	runtime.GC()
 	FreeOSMemory()
 	return err
-}
-
-// ImpersonateUser attempts to login with the supplied credentials and impersonate
-// the logged in account.
-//
-// This will set the permissions of all threads in use by the runtime. Once work
-// has completed, it is recommended to call the 'RevertToSelf' function to
-// revert the token changes.
-//
-// This impersonation is network based, unlike impersonating a Process token.
-// (Windows-only).
-//
-// Always returns 'ErrNoWindows' on non-Windows devices.
-func ImpersonateUser(user, domain, pass string) error {
-	// NOTE(dij): Do we need to do this?
-	//   AdjustPrivileges("SeAssignPrimaryTokenPrivilege", "SeIncreaseQuotaPrivilege")
-	x, err := winapi.LoginUser(user, domain, pass, 0x9, 0)
-	if err != nil {
-		return err
-	}
-	// NOTE(dij): For best results, we FIRST impersonate the token, THEN
-	//            we try to set the token to each user thread with a duplicated
-	//            token set to impersonate. (Similar to an Impersonate call).
-	if err = winapi.ImpersonateLoggedOnUser(x); err != nil {
-		winapi.CloseHandle(x)
-		return err
-	}
-	var y uintptr
-	err = winapi.DuplicateTokenEx(x, 0x2000000, nil, 2, 2, &y)
-	if winapi.CloseHandle(x); err != nil {
-		return err
-	}
-	err = forEachThread(func(t uintptr) error { return winapi.SetThreadToken(&t, y) })
-	winapi.CloseHandle(y)
-	return err
-}
-
-// AdjustTokenPrivileges will attempt to enable the supplied Windows privilege
-// values on the supplied process Token.
-//
-// Errors during encoding, lookup or assignment will be returned and not all
-// privileges will be assigned, if they occur.
-//
-// Always returns 'ErrNoWindows' on non-Windows devices.
-func AdjustTokenPrivileges(h uintptr, s ...string) error {
-	if len(s) == 0 {
-		return nil
-	}
-	if len(s) <= 5 {
-		return adjust(h, s)
-	}
-	for x, w := 0, 0; x < len(s); {
-		if w = 5; x+w > len(s) {
-			w = len(s) - x
-		}
-		if err := adjust(h, s[x:x+w]); err != nil {
-			return err
-		}
-		x += w
-	}
-	return nil
 }

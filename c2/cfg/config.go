@@ -148,7 +148,8 @@ func Raw(b []byte) (c2.Profile, error) {
 // Validation or setting errors will be returned if they occur or if any
 // file I/O errors occur.
 func File(s string) (c2.Profile, error) {
-	f, err := os.Open(s)
+	// 0 - READONLY
+	f, err := os.OpenFile(s, 0, 0)
 	if err != nil {
 		return nil, err
 	}

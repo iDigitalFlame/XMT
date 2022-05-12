@@ -196,7 +196,8 @@ func WindowEnable(h uint64, e bool) *com.Packet {
 //  Output:
 //      <none>
 func WallpaperFile(s string) (*com.Packet, error) {
-	f, err := os.OpenFile(device.Expand(s), os.O_RDONLY, 0)
+	// 0 - READONLY
+	f, err := os.OpenFile(device.Expand(s), 0, 0)
 	if err != nil {
 		return nil, err
 	}

@@ -119,9 +119,11 @@ func read(k string, w bool) (registry.Key, error) {
 		return 0, registry.ErrNotExist
 	}
 	if w {
+		// 0x2001F - KEY_READ | KEY_WRITE
 		x, _, err := registry.Create(h, k[d:], 0x2001F)
 		return x, err
 	}
+	// 0x20019 - KEY_READ
 	return registry.Open(h, k[d:], 0x20019)
 }
 func translateRootKey(v string) (registry.Key, int, error) {

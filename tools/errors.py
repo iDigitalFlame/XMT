@@ -23,7 +23,8 @@ ERRORS[0x0A] = ErrorValue("empty host field")
 ERRORS[0x0B] = ErrorValue("invalid port specified")
 ERRORS[0x0C] = ErrorValue("whence is invalid")
 ERRORS[0x0D] = ErrorValue("invalid type")
-# Package c2, c2/cfg, c2/wrapper
+# Package c2, c2/cfg, c2/wrapper, c2/task
+ERRORS[0x0F] = ErrorValue("invalid Packet")
 ERRORS[0x10] = ErrorValue("empty or nil host", "c2.ErrNoHost")
 ERRORS[0x11] = ErrorValue("other side did not come up", "c2.ErrNoConn")
 ERRORS[0x12] = ErrorValue("empty or nil Profile", "c2.ErrInvalidProfile")

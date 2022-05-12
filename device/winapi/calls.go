@@ -353,6 +353,7 @@ func NtFreeVirtualMemory(h, address uintptr) error {
 			funcNtFreeVirtualMemory.address(), h, uintptr(unsafe.Pointer(&address)), uintptr(unsafe.Pointer(&s)),
 			0x8000,
 		)
+		// 0x8000 - MEM_RELEASE
 	)
 	if r > 0 {
 		return unboxError(err)
@@ -603,6 +604,7 @@ func CreateToolhelp32Snapshot(flags, pid uint32) (uintptr, error) {
 // https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject
 func WaitForSingleObject(h uintptr, timeout int32) (uint32, error) {
 	r, _, err := syscall.SyscallN(funcWaitForSingleObject.address(), h, uintptr(uint32(timeout)))
+	// 0xFFFFFFFF - WAIT_FAILED
 	if r == 0xFFFFFFFF {
 		return 0, unboxError(err)
 	}
@@ -827,21 +829,6 @@ func OpenThreadToken(h uintptr, access uint32, self bool, t *uintptr) error {
 	return nil
 }
 
-// VirtualProtect Windows API Call
-//   Changes the protection on a region of committed pages in the virtual address
-//   space of the calling process.
-//
-// https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualprotect
-func VirtualProtect(addr uintptr, size uint64, val uint32, old *uint32) error {
-	r, _, err := syscall.SyscallN(
-		funcVirtualProtect.address(), addr, uintptr(size), uintptr(val), uintptr(unsafe.Pointer(old)),
-	)
-	if r == 0 {
-		return unboxError(err)
-	}
-	return nil
-}
-
 // OpenSemaphore Windows API Call
 //   Opens an existing named semaphore object.
 //
@@ -875,6 +862,7 @@ func NtAllocateVirtualMemory(h uintptr, size, access uint32) (uintptr, error) {
 			funcNtAllocateVirtualMemory.address(), h, uintptr(unsafe.Pointer(&a)), 0, uintptr(unsafe.Pointer(&x)),
 			0x3000, uintptr(access),
 		)
+		// 0x300 - MEM_COMMIT | MEM_RESERVE
 	)
 	if r > 0 {
 		return 0, unboxError(err)
@@ -892,7 +880,9 @@ func NtCreateThreadEx(h, address, args uintptr, suspended bool) (uintptr, error)
 	//            - NtQueueApcThread
 	//            - Kernel Table Callback
 	f := uint32(0x0004)
+	// 0x0004 - THREAD_CREATE_FLAGS_HIDE_FROM_DEBUGGER
 	if suspended {
+		// 0x0001 - CREATE_SUSPENDED
 		f |= 0x0001
 	}
 	var (
@@ -901,6 +891,7 @@ func NtCreateThreadEx(h, address, args uintptr, suspended bool) (uintptr, error)
 			funcNtCreateThreadEx.address(), uintptr(unsafe.Pointer(&t)), 0x10000000, 0, h, address, args, uintptr(f),
 			0, 0, 0, 0,
 		)
+		// 0x10000000 - THREAD_ALL_ACCESS
 		// NOTE(dij): Should we move to this?
 		//	ZwCreateThreadEx(
 		//		ref IntPtr threadHandle,
@@ -1363,6 +1354,7 @@ func CreateProcessWithToken(t uintptr, loginFlags uint32, name, cmd string, flag
 		if e, err = StringListToUTF16Block(env); err != nil {
 			return err
 		}
+		// 0x400 - CREATE_UNICODE_ENVIRONMENT
 		flags |= 0x400
 	}
 	var j unsafe.Pointer
@@ -1419,6 +1411,7 @@ func CreateProcess(name, cmd string, procSa, threadSa *SecurityAttributes, inher
 		if e, err = StringListToUTF16Block(env); err != nil {
 			return err
 		}
+		// 0x400 - CREATE_UNICODE_ENVIRONMENT
 		flags |= 0x400
 	}
 	var j unsafe.Pointer
@@ -1481,6 +1474,7 @@ func CreateProcessWithLogin(user, domain, pass string, loginFlags uint32, name, 
 		if e, err = StringListToUTF16Block(env); err != nil {
 			return err
 		}
+		// 0x400 - CREATE_UNICODE_ENVIRONMENT
 		flags |= 0x400
 	}
 	var j unsafe.Pointer

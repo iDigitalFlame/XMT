@@ -12,6 +12,7 @@ const (
 	// underlying OS type.
 	PowerShell = "powershell.exe"
 	home       = "%USERPROFILE%"
+	debugDlls  = "hal.dll\nwmi.dll\nwpx.dll\nwdc.dll\nzipfldr.dll"
 )
 
 func shell() string {

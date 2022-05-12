@@ -6,6 +6,7 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/PurpleSec/logx"
 	"github.com/iDigitalFlame/xmt/c2/cout"
@@ -36,13 +37,11 @@ type Server struct {
 	cancel   context.CancelFunc
 	active   map[string]*Listener
 	sessions map[uint32]*Session
+	run      uint32
 }
 
 // Wait will block until the current Server is closed and shutdown.
 func (s *Server) Wait() {
-	if s.ch == nil {
-		return
-	}
 	<-s.ch
 }
 func (s *Server) listen() {
@@ -52,7 +51,7 @@ func (s *Server) listen() {
 	if cout.Enabled {
 		s.log.Info("Server-side event processing thread started!")
 	}
-	for s.ch = make(chan struct{}); ; {
+	for atomic.StoreUint32(&s.run, 1); ; {
 		select {
 		case <-s.ctx.Done():
 			s.shutdown()
@@ -91,13 +90,14 @@ func (s *Server) shutdown() {
 	if cout.Enabled {
 		s.log.Debug("Stopping event processor.")
 	}
-	s.active = nil
+	if s.active = nil; atomic.SwapUint32(&s.run, 1) == 1 {
+		return
+	}
 	close(s.new)
 	close(s.delListener)
 	close(s.delSession)
-	if close(s.events); s.ch != nil {
-		close(s.ch)
-	}
+	close(s.events)
+	close(s.ch)
 }
 
 // Close stops the processing thread from this Server and releases all associated
@@ -105,9 +105,10 @@ func (s *Server) shutdown() {
 //
 // This will signal the shutdown of all attached Listeners and Sessions.
 func (s *Server) Close() error {
-	if s.cancel(); s.ch != nil {
-		<-s.ch
+	if s.cancel(); atomic.LoadUint32(&s.run) == 0 {
+		s.shutdown()
 	}
+	<-s.ch
 	return nil
 }
 func (s *Server) queue(e event) {
@@ -230,6 +231,7 @@ func (s *Server) Remove(i device.ID, shutdown bool) {
 // cancelation.
 func NewServerContext(x context.Context, l logx.Log) *Server {
 	s := &Server{
+		ch:          make(chan struct{}),
 		log:         cout.New(l),
 		new:         make(chan *Listener, 4),
 		active:      make(map[string]*Listener),

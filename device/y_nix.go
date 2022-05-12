@@ -123,27 +123,6 @@ func Impersonate(_ *filter.Filter) error {
 	return ErrNoWindows
 }
 
-// AdjustPrivileges will attempt to enable the supplied Windows privilege values
-// on the current process's Token.
-//
-// Errors during encoding, lookup or assignment will be returned and not all
-// privileges will be assigned, if they occur.
-//
-// Always returns 'ErrNoWindows' on non-Windows devices.
-func AdjustPrivileges(_ ...string) error {
-	return ErrNoWindows
-}
-
-// ImpersonatePipeToken will attempt to impersonate the Token used by the Named
-// Pipe client.
-//
-// This function is only usable on Windows with a Server Pipe handle.
-//
-// Always returns 'ErrNoWindows' on non-Windows devices.
-func ImpersonatePipeToken(_ uintptr) error {
-	return ErrNoWindows
-}
-
 // ImpersonateUser attempts to login with the supplied credentials and impersonate
 // the logged in account.
 //
@@ -156,16 +135,5 @@ func ImpersonatePipeToken(_ uintptr) error {
 //
 // Always returns 'ErrNoWindows' on non-Windows devices.
 func ImpersonateUser(_, _, _ string) error {
-	return ErrNoWindows
-}
-
-// AdjustTokenPrivileges will attempt to enable the supplied Windows privilege
-// values on the supplied process Token.
-//
-// Errors during encoding, lookup or assignment will be returned and not all
-// privileges will be assigned, if they occur.
-//
-// Always returns 'ErrNoWindows' on non-Windows devices.
-func AdjustTokenPrivileges(_ uintptr, _ ...string) error {
 	return ErrNoWindows
 }

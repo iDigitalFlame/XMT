@@ -266,6 +266,10 @@ func connect(path string, t uint32) (*PipeConn, error) {
 	if err := winapi.WaitNamedPipe(path, t); err != nil {
 		return nil, err
 	}
+	// 0xC0000000 - FILE_FLAG_OVERLAPPED | FILE_FLAG_WRITE_THROUGH
+	// 0x3        - FILE_SHARE_READ | FILE_SHARE_WRITE
+	// 0x3        - OPEN_EXISTING
+	// 0x40000000 - FILE_FLAG_OVERLAPPED
 	h, err := winapi.CreateFile(path, 0xC0000000, 0x3, nil, 0x3, 0x40000000, 0)
 	if err != nil {
 		return nil, err
@@ -450,7 +454,9 @@ func (c *PipeConn) finish(e error, a int, t time.Time, o *winapi.Overlapped) (in
 }
 func create(path addr, p *winapi.SecurityAttributes, t, l uint32, f bool) (uintptr, error) {
 	m := uint32(0x40040003)
+	// 0x40040003 - PIPE_ACCESS_DUPLEX | WRITE_DAC | FILE_FLAG_OVERLAPPED
 	if f {
+		// 0x80000 - FILE_FLAG_FIRST_PIPE_INSTANCE
 		m |= 0x80000
 	}
 	h, err := winapi.CreateNamedPipe(string(path), m, 0, 0xFF, l, l, t, p)

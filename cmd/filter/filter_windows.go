@@ -20,9 +20,9 @@ func isTokenElevated(h uintptr) bool {
 	switch u, err := winapi.GetTokenUser(h); {
 	case err != nil:
 		fallthrough
-	case u.User.Sid.IsWellKnown(0x17):
+	case u.User.Sid.IsWellKnown(0x17): // 0x17 - WinLocalServiceSid
 		fallthrough
-	case u.User.Sid.IsWellKnown(0x18):
+	case u.User.Sid.IsWellKnown(0x18): // 0x18 - WinNetworkServiceSid
 		return false
 	}
 	return true
@@ -90,7 +90,8 @@ func (f Filter) SelectFunc(x filter) (uint32, error) {
 		// NOTE(dij): No need to check info (we have no extra filter)
 		return f.PID, nil
 	}
-	h, err := f.HandleFunc(0x410, x)
+	// 0x400 - PROCESS_QUERY_INFORMATION
+	h, err := f.HandleFunc(0x400, x)
 	if err != nil {
 		return 0, err
 	}
@@ -115,7 +116,8 @@ func (f Filter) SelectFunc(x filter) (uint32, error) {
 //
 // This function returns 'ErrNoWindows' on non-Windows devices.
 func (f Filter) TokenFunc(a uint32, x filter) (uintptr, error) {
-	h, err := f.HandleFunc(0x440, x)
+	// 0x400 - PROCESS_QUERY_INFORMATION
+	h, err := f.HandleFunc(0x400, x)
 	if err != nil {
 		return 0, err
 	}
@@ -158,7 +160,9 @@ func (f Filter) HandleFunc(a uint32, x filter) (uintptr, error) {
 			return 0, xerr.Wrap("GetProcessFileName", err)
 		}
 		var t uintptr
-		if err = winapi.OpenProcessToken(h, 0x8, &t); err != nil {
+		// (old 0x8 - TOKEN_QUERY)
+		// 0x20008 - TOKEN_READ
+		if err = winapi.OpenProcessToken(h, 0x20008, &t); err != nil {
 			winapi.CloseHandle(h)
 			return 0, xerr.Wrap("OpenProcessToken", err)
 		}
@@ -212,7 +216,7 @@ func (f Filter) open(a uint32, r bool, x filter) (uintptr, error) {
 		}
 		if x == nil && ((f.Elevated == Empty && f.Session == Empty) || r) {
 			if bugtrack.Enabled {
-				bugtrack.Track("filter.Filter.open(): Added process s=%q, e.ProcessID=%d for eval.", s, e.ProcessID)
+				bugtrack.Track("filter.Filter.open(): Added process s=%q, e.ProcessID=%d, o=%X for eval.", s, e.ProcessID, o)
 			}
 			l = append(l, o)
 			// NOTE(dij): Left this commented to be un-commented if you want a fast-path to select.
@@ -223,11 +227,17 @@ func (f Filter) open(a uint32, r bool, x filter) (uintptr, error) {
 			// }
 			continue
 		}
-		if err = winapi.OpenProcessToken(o, 0x8, &t); err != nil {
+		// NOTE(dij): Watch this to be sure, I'm getting Access Denied on some
+		//            that should /have/ passed.
+		//
+		// (old 0x8 - TOKEN_QUERY)
+		// 0x20008 - TOKEN_READ
+		if err = winapi.OpenProcessToken(o, 0x20008, &t); err != nil {
 			winapi.CloseHandle(o)
 			continue
 		}
 		if j, d = isTokenElevated(t), 0; f.Session != Empty {
+			// 0xC - TokenSessionId
 			if err = winapi.GetTokenInformation(t, 0xC, (*byte)(unsafe.Pointer(&d)), 4, &z); err != nil || z != 4 {
 				d = 0
 			}
@@ -241,11 +251,14 @@ func (f Filter) open(a uint32, r bool, x filter) (uintptr, error) {
 			continue
 		}
 		if bugtrack.Enabled {
-			bugtrack.Track("filter.Filter.open(): Added process s=%q, e.ProcessID=%d, j=%t, d=%d for eval.", s, e.ProcessID, j, d)
+			bugtrack.Track("filter.Filter.open(): Added process s=%q, e.ProcessID=%d, j=%t, d=%d, o=%X for eval.", s, e.ProcessID, j, d, o)
 		}
 		l = append(l, o)
 	}
 	if winapi.CloseHandle(h); len(l) == 1 {
+		if bugtrack.Enabled {
+			bugtrack.Track("filter.Filter.open(): Choosing handle %X.", l[0])
+		}
 		return l[0], nil
 	}
 	if len(l) > 1 {
@@ -255,6 +268,9 @@ func (f Filter) open(a uint32, r bool, x filter) (uintptr, error) {
 				continue
 			}
 			winapi.CloseHandle(l[i])
+		}
+		if bugtrack.Enabled {
+			bugtrack.Track("filter.Filter.open(): Choosing handle %X.", o)
 		}
 		return o, nil
 	}

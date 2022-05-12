@@ -75,7 +75,8 @@ func (i ID) Signature() string {
 // Load will attempt to load the Session UUID from the specified file. This
 // function will return an error if the file cannot be read or not found.
 func (i ID) Load(s string) error {
-	r, err := os.OpenFile(s, os.O_RDONLY, 0)
+	// 0 - READONLY
+	r, err := os.OpenFile(s, 0, 0)
 	if err != nil {
 		return err
 	}
@@ -89,7 +90,8 @@ func (i ID) Load(s string) error {
 // Save will attempt to save the Session UUID to the specified file. This
 // function will return an error if the file cannot be written to or created.
 func (i ID) Save(s string) error {
-	w, err := os.OpenFile(s, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	// 0x242 - CREATE | TRUNCATE | RDWR
+	w, err := os.OpenFile(s, 0x242, 0644)
 	if err != nil {
 		return err
 	}

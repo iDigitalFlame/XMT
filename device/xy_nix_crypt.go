@@ -48,9 +48,11 @@ func IsDebugged() bool {
 // The return result (if no errors occurred) will be a string list of all the
 // mount points (or Windows drive letters).
 func Mounts() ([]string, error) {
-	f, err := os.Open(crypt.Get(210)) // /proc/self/mounts
+	// 0 - READONLY
+	f, err := os.OpenFile(crypt.Get(210), 0, 0) // /proc/self/mounts
 	if err != nil {
-		if f, err = os.Open(crypt.Get(211)); err != nil { // /etc/mtab
+		// 0 - READONLY
+		if f, err = os.OpenFile(crypt.Get(211), 0, 0); err != nil { // /etc/mtab
 			return nil, xerr.Wrap("cannot find mounts", err)
 		}
 	}
@@ -97,6 +99,7 @@ func DumpProcess(f *filter.Filter, w io.Writer) error {
 	if err != nil {
 		return err
 	}
+	// 0 - READONLY
 	d, err := os.OpenFile(v+crypt.Get(239), 0, 0) // /mem
 	if err != nil {
 		return err

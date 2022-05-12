@@ -1109,7 +1109,7 @@
         ]
     },
     "161": {
-        "value": "VirtualProtect",
+        "value": "FreeLibrary",
         "tags": [
             "windows"
         ]
@@ -1731,6 +1731,30 @@
     },
     "265": {
         "value": "ImpersonateLoggedOnUser",
+        "tags": [
+            "windows"
+        ]
+    },
+    "266": {
+        "value": "DbgBreakPoint",
+        "tags": [
+            "windows"
+        ]
+    },
+    "267": {
+        "value": "hal.dll\nwmi.dll\nwpx.dll\nwdc.dll\nzipfldr.dll",
+        "tags": [
+            "windows"
+        ]
+    },
+    "268": {
+        "value": "CreateWellKnownSid",
+        "tags": [
+            "windows"
+        ]
+    },
+    "269": {
+        "value": "SetTokenInformation",
         "tags": [
             "windows"
         ]

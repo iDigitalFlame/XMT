@@ -167,3 +167,97 @@ func (c *Chunk) WriteFloat64(f float64) error {
 	}
 	return c.WriteUint64(float64ToInt(f))
 }
+
+// WriteBoolPos writes the supplied boolean value to the Chunk payload buffer at
+// the supplied index 'p'.
+//
+// The error 'io.EOF' is returned if the position specified is greater than the
+// Chunk buffer size, or 'ErrLimit' if this position is greater than the set
+// Chunk limit.
+func (c *Chunk) WriteBoolPos(p int, b bool) error {
+	if p >= len(c.buf) {
+		return io.EOF
+	}
+	if c.Limit > 0 && p >= c.Limit {
+		return ErrLimit
+	}
+	if _ = c.buf[p]; b {
+		c.buf[p] = 1
+	} else {
+		c.buf[p] = 0
+	}
+	return nil
+}
+
+// WriteUint8Pos writes the supplied uint8 value to the Chunk payload buffer at
+// the supplied index 'p'.
+//
+// The error 'io.EOF' is returned if the position specified is greater than the
+// Chunk buffer size, or 'ErrLimit' if this position is greater than the set
+// Chunk limit.
+func (c *Chunk) WriteUint8Pos(p int, n uint8) error {
+	if p >= len(c.buf) {
+		return io.EOF
+	}
+	if c.Limit > 0 && p >= c.Limit {
+		return ErrLimit
+	}
+	_ = c.buf[p]
+	c.buf[p] = n
+	return nil
+}
+
+// WriteUint16Pos writes the supplied uint16 value to the Chunk payload buffer
+// at the supplied index 'p'.
+//
+// The error 'io.EOF' is returned if the position specified is greater than the
+// Chunk buffer size, or 'ErrLimit' if this position is greater than the set
+// Chunk limit.
+func (c *Chunk) WriteUint16Pos(p int, n uint16) error {
+	if p >= len(c.buf) || p+1 >= len(c.buf) {
+		return io.EOF
+	}
+	if c.Limit > 0 && (p >= c.Limit || p+1 >= c.Limit) {
+		return ErrLimit
+	}
+	_ = c.buf[p+1]
+	c.buf[p], c.buf[p+1] = byte(n>>8), byte(n)
+	return nil
+}
+
+// WriteUint32Pos writes the supplied uint16 value to the Chunk payload buffer
+// at the supplied index 'p'.
+//
+// The error 'io.EOF' is returned if the position specified is greater than the
+// Chunk buffer size, or 'ErrLimit' if this position is greater than the set
+// Chunk limit.
+func (c *Chunk) WriteUint32Pos(p int, n uint32) error {
+	if p >= len(c.buf) || p+3 >= len(c.buf) {
+		return io.EOF
+	}
+	if c.Limit > 0 && (p >= c.Limit || p+3 >= c.Limit) {
+		return ErrLimit
+	}
+	_ = c.buf[p+3]
+	c.buf[p], c.buf[p+1], c.buf[p+2], c.buf[p+3] = byte(n>>24), byte(n>>16), byte(n>>8), byte(n)
+	return nil
+}
+
+// WriteUint64Pos writes the supplied uint16 value to the Chunk payload buffer
+// at the supplied index 'p'.
+//
+// The error 'io.EOF' is returned if the position specified is greater than the
+// Chunk buffer size, or 'ErrLimit' if this position is greater than the set
+// Chunk limit.
+func (c *Chunk) WriteUint64Pos(p int, n uint64) error {
+	if p >= len(c.buf) || p+7 >= len(c.buf) {
+		return io.EOF
+	}
+	if c.Limit > 0 && (p >= c.Limit || p+7 >= c.Limit) {
+		return ErrLimit
+	}
+	_ = c.buf[p+7]
+	c.buf[p], c.buf[p+1], c.buf[p+2], c.buf[p+3] = byte(n>>56), byte(n>>48), byte(n>>40), byte(n>>32)
+	c.buf[p+4], c.buf[p+5], c.buf[p+6], c.buf[p+7] = byte(n>>24), byte(n>>16), byte(n>>8), byte(n)
+	return nil
+}

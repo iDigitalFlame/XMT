@@ -39,7 +39,8 @@ var (
 //
 // This function will truncate and overrite any file that exists at 'p'.
 func (s Sentinel) File(p string) error {
-	f, err := os.OpenFile(p, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	// 0x242 - CREATE | TRUNCATE | RDWR
+	f, err := os.OpenFile(p, 0x242, 0644)
 	if err != nil {
 		return err
 	}
@@ -233,7 +234,8 @@ func ParseDownloadHeader(h http.Header) uint8 {
 //
 // Any errors that occur during reading will be returned.
 func Crypt(c cipher.Block, p string) (*Sentinel, error) {
-	f, err := os.OpenFile(p, os.O_RDONLY, 0)
+	// 0 - READONLY
+	f, err := os.OpenFile(p, 0, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +293,8 @@ func (s Sentinel) CryptFile(c cipher.Block, p string) error {
 	if c == nil {
 		return s.File(p)
 	}
-	f, err := os.OpenFile(p, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	// 0x242 - CREATE | TRUNCATE | RDWR
+	f, err := os.OpenFile(p, 0x242, 0644)
 	if err != nil {
 		return err
 	}

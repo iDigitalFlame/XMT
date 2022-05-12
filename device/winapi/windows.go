@@ -72,6 +72,8 @@ func enumWindowsCallback(h, _ uintptr) uintptr {
 	if r, _, _ := syscall.SyscallN(funcGetWindowInfo.address(), h, uintptr(unsafe.Pointer(&i))); r == 0 {
 		return 1
 	}
+	// 0x80000000 - WS_POPUP
+	// 0x4C00000  - WS_CLIPSIBLINGS | WS_CAPTION
 	if i.Style&0x80000000 != 0 || i.Style == 0x4C00000 {
 		return 1
 	}
@@ -136,10 +138,12 @@ func EnableWindow(h uintptr, e bool) (bool, error) {
 // SetWindowTransparency will attempt to set the transparency of the window handle
 // to 0-255, 0 being completely transparent and 255 being opaque.
 func SetWindowTransparency(h uintptr, t byte) error {
+	// layeredPtr (-20) - GWL_EXSTYLE
 	r, _, err := syscall.SyscallN(funcGetWindowLongPtr.address(), h, layeredPtr)
 	if r == 0 && err > 0 {
 		return unboxError(err)
 	}
+	// 0x80000 - WS_EX_LAYERED
 	syscall.SyscallN(funcSetWindowLongPtr.address(), h, r|0x80000)
 	if r, _, err = syscall.SyscallN(funcSetLayeredWindowAttributes.address(), h, 0, uintptr(t), 3); r == 0 {
 		return unboxError(err)

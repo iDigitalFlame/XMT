@@ -406,8 +406,8 @@ func (c *Chunk) ReadFrom(r io.Reader) (int64, error) {
 // If the specific duration is greater than zero, the read deadline will be
 // applied. Timeout errors will NOT be returned and will instead break a read.
 func (c *Chunk) ReadDeadline(r net.Conn, d time.Duration) (int64, error) {
-	b := bufs.Get().(*[bufSize]byte)
 	var (
+		b         = bufs.Get().(*[bufSize]byte)
 		t         int64
 		n, w      int
 		err, err2 error

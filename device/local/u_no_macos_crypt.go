@@ -1,4 +1,4 @@
-//go:build plan9 && !crypt
+//go:build !windows && !js && !ios && !darwin && crypt
 
 package local
 
@@ -7,15 +7,14 @@ import (
 	"io/fs"
 	"os"
 	"strings"
+
+	"github.com/iDigitalFlame/xmt/util/crypt"
 )
 
-func uname() string {
-	return "plan9"
-}
 func release() map[string]string {
 	var (
-		f      = os.DirFS("/etc")
-		e, err = fs.Glob(f, "*release*")
+		f      = os.DirFS(crypt.Get(79))   // /etc
+		e, err = fs.Glob(f, crypt.Get(80)) // *release*
 	)
 	if err != nil || len(e) == 0 {
 		return nil

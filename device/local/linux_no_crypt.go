@@ -2,10 +2,7 @@
 
 package local
 
-import (
-	"os"
-	"os/user"
-)
+import "os"
 
 func sysID() []byte {
 	b, err := os.ReadFile("/var/lib/dbus/machine-id")
@@ -49,13 +46,4 @@ func version() string {
 		return n + " (" + b + ")"
 	}
 	return "Linux"
-}
-func isElevated() uint8 {
-	if os.Geteuid() == 0 || os.Getuid() == 0 {
-		return 1
-	}
-	if a, err := user.Current(); err == nil && a.Uid == "0" {
-		return 1
-	}
-	return 0
 }

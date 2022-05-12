@@ -42,6 +42,7 @@ var (
 	funcGetVersion                                          = dllKernel32.proc(crypt.Get(141)) // GetVersion
 	funcCancelIoEx                                          = dllKernel32.proc(crypt.Get(142)) // CancelIoEx
 	funcBlockInput                                          = dllUser32.proc(crypt.Get(253))   // BlockInput
+	funcFreeLibrary                                         = dllKernel32.proc(crypt.Get(161)) // FreeLibrary
 	funcHeapDestroy                                         = dllKernel32.proc(crypt.Get(250)) // HeapDestroy
 	funcLoadLibrary                                         = dllKernel32.proc(crypt.Get(143)) // LoadLibraryW
 	funcCreateMutex                                         = dllKernel32.proc(crypt.Get(144)) // CreateMutexW
@@ -71,9 +72,9 @@ var (
 	funcRegDeleteTree                                       = dllAdvapi32.proc(crypt.Get(242)) // RegDeleteTreeW
 	funcRtlCopyMemory                                       = dllNtdll.proc(crypt.Get(221))    // RtlCopyMemory
 	funcGetWindowInfo                                       = dllUser32.proc(crypt.Get(260))   // GetWindowInfo
+	funcDbgBreakPoint                                       = dllNtdll.proc(crypt.Get(266))    // DbgBreakPoint
 	funcRegDeleteKeyEx                                      = dllAdvapi32.proc(crypt.Get(149)) // RegDeleteKeyExW
 	funcGetMonitorInfo                                      = dllUser32.proc(crypt.Get(231))   // GetMonitorInfoW
-	funcVirtualProtect                                      = dllKernel32.proc(crypt.Get(161)) // VirtualProtect
 	funcIsWellKnownSID                                      = dllAdvapi32.proc(crypt.Get(162)) // IsWellKnownSid
 	funcProcess32First                                      = dllKernel32.proc(crypt.Get(163)) // Process32FirstW
 	funcCreateMailslot                                      = dllKernel32.proc(crypt.Get(164)) // CreateMailslotW
@@ -104,8 +105,10 @@ var (
 	funcGetExitCodeProcess                                  = dllKernel32.proc(crypt.Get(182)) // GetExitCodeProcess
 	funcCreateCompatibleDC                                  = dllGdi32.proc(crypt.Get(224))    // CreateCompatibleDC
 	funcGetCurrentThreadID                                  = dllKernel32.proc(crypt.Get(244)) // GetCurrentThreadId
+	funcCreateWellKnownSid                                  = dllAdvapi32.proc(crypt.Get(268)) // CreateWellKnownSid
 	funcEnumDisplayMonitors                                 = dllUser32.proc(crypt.Get(233))   // EnumDisplayMonitors
 	funcEnumDisplaySettings                                 = dllUser32.proc(crypt.Get(234))   // EnumDisplaySettingsW
+	funcSetTokenInformation                                 = dllAdvapi32.proc(crypt.Get(269)) // SetTokenInformation
 	funcGetTokenInformation                                 = dllAdvapi32.proc(crypt.Get(183)) // GetTokenInformation
 	funcGetOverlappedResult                                 = dllKernel32.proc(crypt.Get(184)) // GetOverlappedResult
 	funcNtFreeVirtualMemory                                 = dllNtdll.proc(crypt.Get(185))    // NtFreeVirtualMemory

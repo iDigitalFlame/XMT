@@ -170,7 +170,8 @@ func (s *Server) Connect(x context.Context, a string) (net.Conn, error) {
 	return connect(x, &s.Target, s.Client, a)
 }
 func (d directory) Open(_ string) (http.File, error) {
-	return os.OpenFile(string(d), os.O_RDONLY, 0)
+	// 0 - READONLY
+	return os.OpenFile(string(d), 0, 0)
 }
 
 // Listen returns a new C2 listener for this Web instance. This function creates

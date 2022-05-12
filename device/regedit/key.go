@@ -81,6 +81,7 @@ func DeleteEx(key, value string, force bool) error {
 	}
 	_, t, err := k.Value(value, nil)
 	if err == registry.ErrNotExist {
+		// 0x2001F - KEY_READ | KEY_WRITE
 		s, err1 := k.Open(value, 0x2001F)
 		if err1 != nil {
 			k.Close()

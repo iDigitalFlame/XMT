@@ -1,25 +1,19 @@
-//go:build (darwin || ios) && crypt
+//go:build (darwin || ios) && !crypt
 
 package local
 
 import (
-	"os"
 	"os/exec"
-	"os/user"
 	"strings"
-
-	"github.com/iDigitalFlame/xmt/util/crypt"
-	"golang.org/x/sys/unix"
 )
 
 func sysID() []byte {
-	// /usr/sbin/ioreg -rd1 -c IOPlatformExpertDevice
-	o, err := exec.Command(crypt.Get(82), crypt.Get(83), crypt.Get(35), crypt.Get(84)).CombinedOutput()
+	o, err := exec.Command("/usr/sbin/ioreg", "-rd1", "-c", "IOPlatformExpertDevice").CombinedOutput()
 	if err != nil || len(o) == 0 {
 		return nil
 	}
 	for _, v := range strings.Split(string(o), "\n") {
-		if !strings.Contains(v, crypt.Get(85)) { // IOPlatformUUID
+		if !strings.Contains(v, `"IOPlatformUUID"`) {
 			continue
 		}
 		x := strings.IndexByte(v, '=')
@@ -38,29 +32,9 @@ func sysID() []byte {
 	}
 	return nil
 }
-func uname() string {
-	var (
-		u   unix.Utsname
-		err = unix.Uname(&u)
-	)
-	if err != nil {
-		return ""
-	}
-	var (
-		v = make([]byte, 65)
-		i int
-	)
-	for ; i < 65; i++ {
-		if u.Release[i] == 0 {
-			break
-		}
-		v[i] = byte(u.Release[i])
-	}
-	return string(v[:i])
-}
 func version() string {
 	var b, n, v string
-	if o, err := exec.Command(crypt.Get(86)).CombinedOutput(); err == nil { // /usr/bin/sw_vers
+	if o, err := exec.Command("/usr/bin/sw_vers").CombinedOutput(); err == nil {
 		m := make(map[string]string)
 		for _, v := range strings.Split(string(o), "\n") {
 			x := strings.IndexByte(v, ':')
@@ -74,22 +48,22 @@ func version() string {
 			}
 			m[strings.ToUpper(v[:x])] = v[s : c+1]
 		}
-		n = m[crypt.Get(87)] // PRODUCTNAME
-		b = m[crypt.Get(88)] // BUILDVERSION
-		v = m[crypt.Get(89)] // PRODUCTVERSION
+		n = m["PRODUCTNAME"]
+		b = m["BUILDVERSION"]
+		v = m["PRODUCTVERSION"]
 	}
 	if len(v) == 0 {
 		v = uname()
 	}
 	switch {
 	case len(n) == 0 && len(b) == 0 && len(v) == 0:
-		return crypt.Get(23) // MacOS
+		return "MacOS"
 	case len(n) == 0 && len(b) > 0 && len(v) > 0:
-		return crypt.Get(23) + " (" + v + ", " + b + ")" // MacOS
+		return "MacOS (" + v + ", " + b + ")"
 	case len(n) == 0 && len(b) == 0 && len(v) > 0:
-		return crypt.Get(23) + " (" + v + ")" // MacOS
+		return "MacOS (" + v + ")"
 	case len(n) == 0 && len(b) > 0 && len(v) == 0:
-		return crypt.Get(23) + " (" + b + ")" // MacOS
+		return "MacOS (" + b + ")"
 	case len(n) > 0 && len(b) > 0 && len(v) > 0:
 		return n + " (" + v + ", " + b + ")"
 	case len(n) > 0 && len(b) == 0 && len(v) > 0:
@@ -97,14 +71,5 @@ func version() string {
 	case len(n) > 0 && len(b) > 0 && len(v) == 0:
 		return n + " (" + b + ")"
 	}
-	return crypt.Get(23) // MacOS
-}
-func isElevated() uint8 {
-	if os.Geteuid() == 0 || os.Getuid() == 0 {
-		return 1
-	}
-	if a, err := user.Current(); err == nil && a.Uid == "0" {
-		return 1
-	}
-	return 0
+	return "MacOS"
 }

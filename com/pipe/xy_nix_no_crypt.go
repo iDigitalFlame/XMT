@@ -18,7 +18,8 @@ func Format(s string) string {
 	if !filepath.IsAbs(s) {
 		var (
 			p      = "/run/" + s
-			f, err = os.OpenFile("/run/"+s, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400)
+			f, err = os.OpenFile("/run/"+s, 0x242, 0400)
+			// 0x242 - CREATE | TRUNCATE | RDWR
 		)
 		if err != nil {
 			return "/tmp/" + s

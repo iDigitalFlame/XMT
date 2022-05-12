@@ -19,8 +19,9 @@ var PermEveryone = crypt.Get(49) // 0766
 func Format(s string) string {
 	if !filepath.IsAbs(s) {
 		var (
-			p      = crypt.Get(50) + s                                                    // /run/
-			f, err = os.OpenFile(crypt.Get(50)+s, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0400) // /run/
+			p      = crypt.Get(50) + s                         // /run/
+			f, err = os.OpenFile(crypt.Get(50)+s, 0x242, 0400) // /run/
+			// 0x242 - CREATE | TRUNCATE | RDWR
 		)
 		if err != nil {
 			return crypt.Get(51) + s // /tmp/

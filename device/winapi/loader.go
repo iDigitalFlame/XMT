@@ -143,6 +143,7 @@ func loadLibraryEx(s string) (uintptr, error) {
 		f uintptr
 	)
 	if doSearchSystem32() {
+		// 0x800 - LOAD_LIBRARY_SEARCH_SYSTEM32
 		f = 0x800
 	} else if isBaseName(s) {
 		d, err := GetSystemDirectory()

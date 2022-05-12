@@ -58,7 +58,7 @@ func (f fileInfo) ModTime() time.Time {
 // This function returns an error if any reading errors occur, the Packet is not
 // in the expected format or the Packet is nil or empty.
 func Pwd(n *com.Packet) (string, error) {
-	if n == nil || n.Empty() {
+	if n == nil || n.Empty() || n.Flags&com.FlagError != 0 {
 		return "", c2.ErrMalformedPacket
 	}
 	return n.StringVal()
@@ -71,7 +71,7 @@ func Pwd(n *com.Packet) (string, error) {
 // This function returns an error if any reading errors occur, the Packet is not
 // in the expected format or the Packet is nil or empty.
 func Spawn(n *com.Packet) (uint32, error) {
-	if n == nil || n.Empty() {
+	if n == nil || n.Empty() || n.Flags&com.FlagError != 0 {
 		return 0, c2.ErrMalformedPacket
 	}
 	return n.Uint32()
@@ -86,7 +86,7 @@ func Spawn(n *com.Packet) (uint32, error) {
 // This function returns an error if any reading errors occur, the Packet is not
 // in the expected format or the Packet is nil or empty.
 func CheckDLL(n *com.Packet) (bool, error) {
-	if n == nil || n.Empty() {
+	if n == nil || n.Empty() || n.Flags&com.FlagError != 0 {
 		return false, c2.ErrMalformedPacket
 	}
 	return n.Bool()
@@ -100,11 +100,24 @@ func CheckDLL(n *com.Packet) (bool, error) {
 // This function returns an error if any reading errors occur, the Packet is not
 // in the expected format or the Packet is nil or empty.
 func Mounts(n *com.Packet) ([]string, error) {
-	if n == nil || n.Empty() {
+	if n == nil || n.Empty() || n.Flags&com.FlagError != 0 {
 		return nil, c2.ErrMalformedPacket
 	}
 	var s []string
 	return s, data.ReadStringList(n, &s)
+}
+
+// IsDebugged will parse the RvResult Packet from a TvCheckDebug task.
+//
+// The return result is True if a debugger is detected, false otherwise.
+//
+// This function returns an error if any reading errors occur, the Packet is not
+// in the expected format or the Packet is nil or empty.
+func IsDebugged(n *com.Packet) (bool, error) {
+	if n == nil || n.Empty() || n.Flags&com.FlagError != 0 {
+		return false, c2.ErrMalformedPacket
+	}
+	return n.Bool()
 }
 
 // Ls will parse the RvResult Packet from a MvList task.
@@ -115,7 +128,7 @@ func Mounts(n *com.Packet) ([]string, error) {
 // This function returns an error if any reading errors occur, the Packet is not
 // in the expected format or the Packet is nil or empty.
 func Ls(n *com.Packet) ([]fs.FileInfo, error) {
-	if n == nil || n.Empty() {
+	if n == nil || n.Empty() || n.Flags&com.FlagError != 0 {
 		return nil, c2.ErrMalformedPacket
 	}
 	c, err := n.Uint32()
@@ -163,7 +176,7 @@ func Pull(n *com.Packet) (string, uint64, error) {
 // This function returns an error if any reading errors occur, the Packet is not
 // in the expected format or the Packet is nil or empty.
 func WindowList(n *com.Packet) ([]Window, error) {
-	if n == nil || n.Empty() {
+	if n == nil || n.Empty() || n.Flags&com.FlagError != 0 {
 		return nil, c2.ErrMalformedPacket
 	}
 	c, err := n.Uint32()
@@ -190,6 +203,54 @@ func ScreenShot(n *com.Packet) (io.Reader, error) {
 	return ProcessDump(n)
 }
 
+// Script will parse the RvResult Packet from a MvScript task.
+//
+// The return result is a slice of the resulting Packet output. Some flags may
+// have their error values set, so it is important to check beforehand.
+//
+// This function returns an error if any reading errors occur, the Packet is not
+// in the expected format or the Packet is nil or empty.
+func Script(n *com.Packet) ([]*com.Packet, error) {
+	if n == nil || n.Empty() || n.Flags&com.FlagError != 0 {
+		return nil, c2.ErrMalformedPacket
+	}
+	var (
+		d   []byte
+		r   []*com.Packet
+		e   bool
+		err error
+	)
+	for err == nil {
+		var v com.Packet
+		if err = n.ReadUint8(&v.ID); err != nil {
+			break
+		}
+		if err = n.ReadBool(&e); err != nil {
+			break
+		}
+		if !e {
+			var m string
+			if err = n.ReadString(&m); err != nil {
+				break
+			}
+			v.Flags = com.FlagError
+			v.WriteString(m)
+			r = append(r, &v)
+			continue
+		}
+		if err = n.ReadBytes(&d); err != nil && err != io.EOF {
+			break
+		}
+		v.Grow(len(d))
+		v.Write(d)
+		d, r, err = nil, append(r, &v), nil
+	}
+	if err == io.EOF {
+		return r, nil
+	}
+	return r, err
+}
+
 // ProcessDump will parse the RvResult Packet from a TvProcDump task.
 //
 // The return result is a Reader with the resulting dump data inside.
@@ -197,7 +258,7 @@ func ScreenShot(n *com.Packet) (io.Reader, error) {
 // This function returns an error if any reading errors occur, the Packet is not
 // in the expected format or the Packet is nil or empty.
 func ProcessDump(n *com.Packet) (io.Reader, error) {
-	if n == nil || n.Empty() {
+	if n == nil || n.Empty() || n.Flags&com.FlagError != 0 {
 		return nil, c2.ErrMalformedPacket
 	}
 	return n, nil
@@ -211,7 +272,7 @@ func ProcessDump(n *com.Packet) (io.Reader, error) {
 // This function returns an error if any reading errors occur, the Packet is not
 // in the expected format or the Packet is nil or empty.
 func Upload(n *com.Packet) (string, uint64, error) {
-	if n == nil || n.Empty() {
+	if n == nil || n.Empty() || n.Flags&com.FlagError != 0 {
 		return "", 0, c2.ErrMalformedPacket
 	}
 	var (
@@ -274,7 +335,7 @@ func DLL(n *com.Packet) (uintptr, uint32, int32, error) {
 // This function returns an error if any reading errors occur, the Packet is not
 // in the expected format or the Packet is nil or empty.
 func ProcessList(n *com.Packet) ([]cmd.ProcessInfo, error) {
-	if n == nil || n.Empty() {
+	if n == nil || n.Empty() || n.Flags&com.FlagError != 0 {
 		return nil, c2.ErrMalformedPacket
 	}
 	c, err := n.Uint32()
@@ -302,7 +363,7 @@ func ProcessList(n *com.Packet) ([]cmd.ProcessInfo, error) {
 // This function returns an error if any reading errors occur, the Packet is not
 // in the expected format or the Packet is nil or empty.
 func SystemIO(n *com.Packet) (string, uint64, bool, error) {
-	if n == nil || n.Empty() {
+	if n == nil || n.Empty() || n.Flags&com.FlagError != 0 {
 		return "", 0, false, c2.ErrMalformedPacket
 	}
 	o, err := n.Uint8()
@@ -337,7 +398,7 @@ func SystemIO(n *com.Packet) (string, uint64, bool, error) {
 // This function returns an error if any reading errors occur, the Packet is not
 // in the expected format or the Packet is nil or empty.
 func Registry(n *com.Packet) ([]regedit.Entry, bool, error) {
-	if n == nil || n.Empty() {
+	if n == nil || n.Empty() || n.Flags&com.FlagError != 0 {
 		return nil, false, c2.ErrMalformedPacket
 	}
 	o, err := n.Uint8()
@@ -376,7 +437,7 @@ func Registry(n *com.Packet) ([]regedit.Entry, bool, error) {
 // This function returns an error if any reading errors occur, the Packet is not
 // in the expected format or the Packet is nil or empty.
 func Assembly(n *com.Packet) (uintptr, uint32, int32, error) {
-	if n == nil || n.Empty() {
+	if n == nil || n.Empty() || n.Flags&com.FlagError != 0 {
 		return 0, 0, 0, c2.ErrMalformedPacket
 	}
 	var (
@@ -418,7 +479,7 @@ func Zombie(n *com.Packet) (uint32, int32, io.Reader, error) {
 // This function returns an error if any reading errors occur, the Packet is not
 // in the expected format or the Packet is nil or empty.
 func Process(n *com.Packet) (uint32, int32, io.Reader, error) {
-	if n == nil || n.Empty() {
+	if n == nil || n.Empty() || n.Flags&com.FlagError != 0 {
 		return 0, 0, nil, c2.ErrMalformedPacket
 	}
 	var (
@@ -458,7 +519,7 @@ func PullExec(n *com.Packet) (uint32, int32, io.Reader, error) {
 // This function returns an error if any reading errors occur, the Packet is not
 // in the expected format or the Packet is nil or empty.
 func Download(n *com.Packet) (string, bool, uint64, io.Reader, error) {
-	if n == nil || n.Empty() {
+	if n == nil || n.Empty() || n.Flags&com.FlagError != 0 {
 		return "", false, 0, nil, c2.ErrMalformedPacket
 	}
 	var (

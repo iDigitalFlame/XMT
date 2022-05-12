@@ -16,7 +16,6 @@ func taskTroll(_ context.Context, _ data.Reader, _ data.Writer) error {
 func taskCheck(_ context.Context, _ data.Reader, _ data.Writer) error {
 	return device.ErrNoWindows
 }
-
 func taskReload(_ context.Context, _ data.Reader, _ data.Writer) error {
 	return device.ErrNoWindows
 }
@@ -32,6 +31,9 @@ func taskRename(_ context.Context, r data.Reader, _ data.Writer) error {
 		return err
 	}
 	return device.SetProcessName(s)
+}
+func taskUntrust(_ context.Context, _ data.Reader, _ data.Writer) error {
+	return device.ErrNoWindows
 }
 func taskRegistry(_ context.Context, _ data.Reader, _ data.Writer) error {
 	return device.ErrNoWindows

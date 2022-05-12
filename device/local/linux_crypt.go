@@ -4,7 +4,6 @@ package local
 
 import (
 	"os"
-	"os/user"
 
 	"github.com/iDigitalFlame/xmt/util/crypt"
 )
@@ -51,13 +50,4 @@ func version() string {
 		return n + " (" + b + ")"
 	}
 	return crypt.Get(21) // Linux
-}
-func isElevated() uint8 {
-	if os.Geteuid() == 0 || os.Getuid() == 0 {
-		return 1
-	}
-	if a, err := user.Current(); err == nil && a.Uid == "0" {
-		return 1
-	}
-	return 0
 }

