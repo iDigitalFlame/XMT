@@ -73,7 +73,7 @@ func dualEnv(o, t string) string {
 }
 
 // SetProcessName will attempt to overrite the process name on *nix systems
-// by overriting the argv block.
+// by overwriting the argv block.
 //
 // Returns 'ErrNoNix' on Windows devices.
 //

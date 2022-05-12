@@ -257,7 +257,7 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 		}
 		return true, nil
 	case task.MvTime:
-		j, err := n.Uint8()
+		j, err := n.Int8()
 		if err != nil {
 			return true, err
 		}
@@ -265,10 +265,22 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 		if err != nil {
 			return true, err
 		}
-		if j > 100 {
-			j = 100
+		switch {
+		case j == -1:
+			// NOTE(dij): This handles a special case where Script packets are
+			//            used to set the sleep/jitter since they don't have access
+			//            to the previous values.
+			//            A packet with a '-1' Jitter value will be ignored.
+		case j > 100:
+			s.jitter = 100
+		case j < 0:
+			s.jitter = 0
+		default:
+			s.jitter = uint8(j)
 		}
-		if s.jitter = j; d > 0 {
+		if d > 0 {
+			// NOTE(dij): Ditto here, except for sleep. Anything less than zero
+			//            will work.
 			s.sleep = time.Duration(d)
 		}
 		return true, nil

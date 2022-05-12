@@ -9,6 +9,8 @@ import (
 
 // Address represents an encoded IPv4 or IPv6 address.
 // NOTE(dij): Might get replaced in Go1.18 with netip.Address
+//            Probally not, I can't seem to find a way to handle the data and
+//            transfer it.
 //
 // The address struct was built on the great work from the great inet.af/netaddr
 // package thanks and great work y'all!
@@ -193,6 +195,21 @@ func (a Address) grab(i uint8) uint16 {
 func (a Address) IsUnspecified() bool {
 	return a.hi == 0 && a.low == 0
 }
+
+/*
+// ToAddr will return this Address as a netip.Addr struct. This will choose the
+// type based on the underlying address size.
+func (a *Address) ToAddr() netip.Addr {
+	if a.Is4() {
+		return netip.AddrFrom4([4]byte{byte(a.low >> 24), byte(a.low >> 16), byte(a.low >> 8), byte(a.low)})
+	}
+	return netip.AddrFrom16([16]byte{
+		byte(a.hi >> 56), byte(a.hi >> 48), byte(a.hi >> 40), byte(a.hi >> 32),
+		byte(a.hi >> 24), byte(a.hi >> 16), byte(a.hi >> 8), byte(a.hi),
+		byte(a.low >> 56), byte(a.low >> 48), byte(a.low >> 40), byte(a.low >> 32),
+		byte(a.low >> 24), byte(a.low >> 16), byte(a.low >> 8), byte(a.low),
+	})
+}*/
 
 // IsGlobalUnicast reports whether this is a global unicast address.
 //

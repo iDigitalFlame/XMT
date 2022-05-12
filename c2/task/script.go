@@ -41,6 +41,22 @@ func (s *Script) Output(e bool) {
 	s.n.WriteBoolPos(1, e)
 }
 
+// Channel (if true) will set this Script payload to enable Channeling mode
+// (if supported) before running.
+//
+// NOTE: There is not a way to Scripts to disable channeling themselves.
+func (s *Script) Channel(e bool) {
+	if s.n == nil {
+		s.n = &com.Packet{ID: MvScript}
+		s.n.WriteUint16(1)
+	}
+	if e {
+		s.n.Flags.Set(com.FlagChannel)
+	} else {
+		s.n.Flags.Unset(com.FlagChannel)
+	}
+}
+
 // StopOnError controls the 'stop on error' setting for this Script.
 //
 // If set to True, the Script will STOP processing if one of the Tasks returns

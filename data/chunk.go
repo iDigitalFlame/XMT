@@ -122,7 +122,7 @@ func (c *Chunk) Remaining() int {
 //
 // This may be empty depending on the read status of this chunk. To retrieve the
 // full buffer, use the 'Seek' function to set the read cursor to zero.
-func (c Chunk) Payload() []byte {
+func (c *Chunk) Payload() []byte {
 	if len(c.buf) == 0 || len(c.buf) <= c.pos {
 		return nil
 	}
