@@ -2,4 +2,4 @@
 
 package local
 
-const vers = "framework-v5"
+const vers = "framework-v6"

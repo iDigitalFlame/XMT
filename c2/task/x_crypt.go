@@ -57,12 +57,11 @@ func Shell(c string) Process {
 }
 func createEnvironment() map[string]interface{} {
 	return map[string]interface{}{
-		crypt.Get(117): local.Device.OS.String(), // OS
-		crypt.Get(92):  local.UUID.String(),      // ID
-		crypt.Get(118): local.Device.PID,         // PID
-		crypt.Get(119): local.Device.PPID,        // PPID
-		crypt.Get(120): local.Version,            // OSVER
-		crypt.Get(121): local.Elevated(),         // ADMIN
-		crypt.Get(122): local.Device.Hostname,    // HOSTNAME
+		crypt.Get(92):  local.UUID.String(),   // ID
+		crypt.Get(118): local.Device.PID,      // PID
+		crypt.Get(119): local.Device.PPID,     // PPID
+		crypt.Get(120): local.Version,         // OSVER
+		crypt.Get(121): local.Elevated(),      // ADMIN
+		crypt.Get(122): local.Device.Hostname, // HOSTNAME
 	}
 }

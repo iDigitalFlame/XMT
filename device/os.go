@@ -5,40 +5,33 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/iDigitalFlame/xmt/device/arch"
 	"github.com/iDigitalFlame/xmt/util"
 )
 
+// Arch represents the current device Architecture type.
+const Arch = arch.Current
+
 const (
 	// Windows represents the Windows family of Operating Systems.
-	Windows deviceOS = 0x0
+	Windows OSType = 0x0
 	// Linux represents the Linux family of Operating Systems
-	Linux deviceOS = 0x1
-	// Unix represents the Unix family of Operating Systems
-	Unix deviceOS = 0x2
-	// Mac represents the MacOS/BSD family of Operating Systems
-	Mac deviceOS = 0x3
+	Linux OSType = 0x1
+	// Unix represents the Unix/BSD family of Operating Systems
+	Unix OSType = 0x2
+	// Mac represents the MacOS family of Operating Systems
+	Mac OSType = 0x3
+	// IOS represents the iOS family of Operating Systems
+	// Technically is Mac, but deserves it's own type for any special actions.
+	IOS OSType = 0x4
+	// Android represents the Android family of Operating Systems
+	// Technically is Linux, but deserves it's own type for any special actions.
+	Android OSType = 0x5
+	// Plan9 represents the Plan9 family of Operating Systems
+	Plan9 OSType = 0x6
 	// Unsupported represents a device type that does not have direct support
 	// any may not work properly.
-	Unsupported deviceOS = 0x4
-
-	// Arch64 represents the 64-bit chipset family.
-	Arch64 deviceArch = 0x0
-	// Arch86 represents the 32-bit chipset family.
-	Arch86 deviceArch = 0x1
-	// ArchARM represents the ARM chipset family.
-	ArchARM deviceArch = 0x2
-	// ArchPowerPC represents the PowerPC chipset family.
-	ArchPowerPC deviceArch = 0x3
-	// ArchMips represents the MIPS chipset family.
-	ArchMips deviceArch = 0x4
-	// ArchRisc represents the RiscV chipset family.
-	ArchRisc deviceArch = 0x5
-	// ArchARM64 represents the ARM64 chipset family.
-	ArchARM64 deviceArch = 0x6
-	// ArchWASM represents the WASM/JavaScript software family.
-	ArchWASM deviceArch = 0x7
-	// ArchUnknown represents an unknown chipset family.
-	ArchUnknown deviceArch = 0x8
+	Unsupported OSType = 0x7
 )
 
 var builders = sync.Pool{
@@ -47,8 +40,8 @@ var builders = sync.Pool{
 	},
 }
 
-type deviceOS uint8
-type deviceArch uint8
+// OSType is a numerical representation of the device Operating System type.
+type OSType uint8
 
 func init() {
 	t := os.TempDir()

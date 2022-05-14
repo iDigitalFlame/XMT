@@ -1,4 +1,4 @@
-//go:build !windows && !js && !wasm && crypt
+//go:build !windows && !js && crypt
 
 package device
 

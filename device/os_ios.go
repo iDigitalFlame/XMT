@@ -1,6 +1,6 @@
-//go:build linux && !android
+//go:build ios
 
 package device
 
 // OS is the local machine's Operating System type.
-const OS = Linux
+const OS = IOS

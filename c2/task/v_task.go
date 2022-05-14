@@ -174,7 +174,8 @@ func ProcessList() *com.Packet {
 //      int8   // Jitter
 //      uint64 // Sleep (0 for this)
 //  Output:
-//      <none>
+//      uint8  // Jitter
+//      uint64 // Sleep
 func Jitter(j int) *com.Packet {
 	return Duration(0, j)
 }
@@ -404,7 +405,8 @@ func Pull(url, path string) *com.Packet {
 //      int8   // Jitter (-1 for this)
 //      uint64 // Sleep
 //  Output:
-//      <none>
+//      uint8  // Jitter
+//      uint64 // Sleep
 func Sleep(d time.Duration) *com.Packet {
 	return Duration(d, -1)
 }
@@ -687,7 +689,8 @@ func UploadFile(dst, src string) (*com.Packet, error) {
 //      int8   // Jitter
 //      uint64 // Sleep
 //  Output:
-//      <none>
+//      uint8  // Jitter
+//      uint64 // Sleep
 func Duration(d time.Duration, j int) *com.Packet {
 	n := &com.Packet{ID: MvTime}
 	n.WriteInt8(int8(j))

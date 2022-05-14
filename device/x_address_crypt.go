@@ -1,7 +1,7 @@
 //go:build crypt
 
-package local
+package device
 
 import "github.com/iDigitalFlame/xmt/util/crypt"
 
-var vers = crypt.Get(67) // framework-v5
+var emptyIP = crypt.Get(18) // "0.0.0.0"

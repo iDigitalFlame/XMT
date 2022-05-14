@@ -152,8 +152,8 @@ func (s *Session) JSON(w io.Writer) error {
 		`"user":` + escape.JSON(s.Device.User) + `,` +
 		`"hostname":` + escape.JSON(s.Device.Hostname) + `,` +
 		`"version":` + escape.JSON(s.Device.Version) + `,` +
-		`"arch":"` + s.Device.Arch.String() + `",` +
-		`"os":` + escape.JSON(s.Device.OS.String()) + `,` +
+		`"arch":"` + s.Device.Arch().String() + `",` +
+		`"os":` + escape.JSON(s.Device.OS().String()) + `,` +
 		`"elevated":` + strconv.FormatBool(s.Device.IsElevated()) + `,` +
 		`"domain":` + strconv.FormatBool(s.Device.IsDomainJoined()) + `,` +
 		`"pid":` + strconv.Itoa(int(s.Device.PID)) + `,` +

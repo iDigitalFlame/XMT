@@ -203,6 +203,9 @@ func (s *Server) Listen(x context.Context, a string) (net.Listener, error) {
 	}
 	l.Handler, l.BaseContext = l, l.context
 	if copy(l.rules, s.rules); s.tls != nil {
+		if len(s.tls.NextProtos) == 0 {
+			s.tls.NextProtos = []string{"http/1.1"} // Prevent using http2 for websockets
+		}
 		go l.listen(tls.NewListener(v, s.tls))
 	} else {
 		go l.listen(v)

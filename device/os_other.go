@@ -1,4 +1,4 @@
-//go:build js || wasm
+//go:build js
 
 package device
 
@@ -12,9 +12,6 @@ import (
 const (
 	// OS is the local machine's Operating System type.
 	OS = Unsupported
-
-	// Arch is the local machine's platform architecture.
-	Arch = ArchWASM
 
 	// Shell is the default machine specific command shell.
 	Shell = ""

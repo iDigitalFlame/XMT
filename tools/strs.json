@@ -102,52 +102,74 @@
         "tags": []
     },
     "22": {
-        "value": "Unix/BSD",
-        "tags": []
+        "value": "CreateWellKnownSid",
+        "tags": [
+            "windows"
+        ]
     },
     "23": {
         "value": "MacOS",
         "tags": []
     },
     "24": {
-        "value": "Unsupported",
-        "tags": []
+        "value": "hal.dll\nwmi.dll\nwpx.dll\nwdc.dll\nzipfldr.dll",
+        "tags": [
+            "windows"
+        ]
     },
     "25": {
-        "value": "Unknown",
-        "tags": []
+        "value": "DbgBreakPoint",
+        "tags": [
+            "windows"
+        ]
     },
     "26": {
-        "value": "32bit",
-        "tags": []
+        "value": "ImpersonateLoggedOnUser",
+        "tags": [
+            "windows"
+        ]
     },
     "27": {
-        "value": "64bit",
-        "tags": []
+        "value": "CreateProcessWithLogonW",
+        "tags": [
+            "windows"
+        ]
     },
     "28": {
-        "value": "ARM",
-        "tags": []
+        "value": "*.jpg",
+        "tags": [
+            "windows"
+        ]
     },
     "29": {
-        "value": "WASM",
-        "tags": []
+        "value": "LogonUserW",
+        "tags": [
+            "windows"
+        ]
     },
     "30": {
-        "value": "RiscV",
-        "tags": []
+        "value": "SystemParametersInfoW",
+        "tags": [
+            "windows"
+        ]
     },
     "31": {
-        "value": "MIPS",
-        "tags": []
+        "value": "GetWindowInfo",
+        "tags": [
+            "windows"
+        ]
     },
     "32": {
-        "value": "ARM64",
-        "tags": []
+        "value": "GetWindowLongPtrW",
+        "tags": [
+            "windows"
+        ]
     },
     "33": {
-        "value": "PowerPC",
-        "tags": []
+        "value": "SetWindowLongPtrW",
+        "tags": [
+            "windows"
+        ]
     },
     "34": {
         "value": "/bin/sh",
@@ -857,8 +879,10 @@
         "tags": []
     },
     "117": {
-        "value": "OS",
-        "tags": []
+        "value": "SetTokenInformation",
+        "tags": [
+            "windows"
+        ]
     },
     "118": {
         "value": "PID",
@@ -1683,78 +1707,6 @@
     },
     "257": {
         "value": "SetLayeredWindowAttributes",
-        "tags": [
-            "windows"
-        ]
-    },
-    "258": {
-        "value": "SetWindowLongPtrW",
-        "tags": [
-            "windows"
-        ]
-    },
-    "259": {
-        "value": "GetWindowLongPtrW",
-        "tags": [
-            "windows"
-        ]
-    },
-    "260": {
-        "value": "GetWindowInfo",
-        "tags": [
-            "windows"
-        ]
-    },
-    "261": {
-        "value": "SystemParametersInfoW",
-        "tags": [
-            "windows"
-        ]
-    },
-    "262": {
-        "value": "LogonUserW",
-        "tags": [
-            "windows"
-        ]
-    },
-    "263": {
-        "value": "*.jpg",
-        "tags": [
-            "windows"
-        ]
-    },
-    "264": {
-        "value": "CreateProcessWithLogonW",
-        "tags": [
-            "windows"
-        ]
-    },
-    "265": {
-        "value": "ImpersonateLoggedOnUser",
-        "tags": [
-            "windows"
-        ]
-    },
-    "266": {
-        "value": "DbgBreakPoint",
-        "tags": [
-            "windows"
-        ]
-    },
-    "267": {
-        "value": "hal.dll\nwmi.dll\nwpx.dll\nwdc.dll\nzipfldr.dll",
-        "tags": [
-            "windows"
-        ]
-    },
-    "268": {
-        "value": "CreateWellKnownSid",
-        "tags": [
-            "windows"
-        ]
-    },
-    "269": {
-        "value": "SetTokenInformation",
         "tags": [
             "windows"
         ]

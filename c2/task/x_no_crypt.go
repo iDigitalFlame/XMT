@@ -54,7 +54,6 @@ func Shell(c string) Process {
 }
 func createEnvironment() map[string]interface{} {
 	return map[string]interface{}{
-		"OS":       local.Device.OS.String(),
 		"ID":       local.UUID.String(),
 		"PID":      local.Device.PID,
 		"PPID":     local.Device.PPID,

@@ -769,6 +769,30 @@ func (s *Session) handle(p *com.Packet) bool {
 		if err := p.ReadString(&j.Error); err != nil {
 			j.Error = err.Error()
 		}
+	} else if j.Result != nil {
+		// Handle server-side updates to info
+		switch j.Type {
+		case task.MvTime:
+			if err := j.Result.ReadUint8(&s.jitter); err != nil {
+				if cout.Enabled {
+					s.log.Warning("[%s:/ShC] Error reading MvTime Job %d time: %s!", s.ID, p.Job, err.Error())
+				}
+			} else {
+				if err = j.Result.ReadInt64((*int64)(&s.sleep)); err != nil {
+					if cout.Enabled {
+						s.log.Warning("[%s:/ShC] Error reading MvTime Job %d time: %s!", s.ID, p.Job, err.Error())
+					}
+				}
+			}
+			j.Result.Seek(0, 0)
+		case task.MvRefresh:
+			if err := s.Device.UnmarshalStream(j.Result); err != nil {
+				if cout.Enabled {
+					s.log.Warning("[%s:/ShC] Error reading MvRefresh Job %d Machine: %s!", s.ID, p.Job, err.Error())
+				}
+			}
+			j.Result.Seek(0, 0)
+		}
 	}
 	s.lock.Lock()
 	delete(s.jobs, j.ID)

@@ -246,7 +246,8 @@ func ProcessUnmarshal(x context.Context, r data.Reader) (*cmd.Process, bool, err
 	if v.SetParent(p.Filter); len(p.Stdin) > 0 {
 		v.Stdin = bytes.NewReader(p.Stdin)
 	}
-	v.Timeout, v.Dir, v.Env = p.Timeout, p.Dir, p.Env
-	v.SetLogin(p.User, p.Domain, p.Pass)
+	if v.Timeout, v.Dir, v.Env = p.Timeout, p.Dir, p.Env; len(p.User) > 0 {
+		v.SetLogin(p.User, p.Domain, p.Pass)
+	}
 	return v, p.Wait, nil
 }

@@ -4,6 +4,28 @@ package device
 
 import "github.com/iDigitalFlame/xmt/util"
 
+// String returns a string representation of the OSType.
+func (o OSType) String() string {
+	switch o {
+	case Windows:
+		return "Windows"
+	case Linux:
+		return "Linux"
+	case Unix:
+		return "Unix/BSD"
+	case Mac:
+		return "MacOS"
+	case IOS:
+		return "iOS"
+	case Android:
+		return "Android"
+	case Plan9:
+		return "Plan9"
+	case Unsupported:
+		return "Unsupported"
+	}
+	return "Unknown"
+}
 func (d device) String() string {
 	b := builders.Get().(*util.Builder)
 	b.Grow(30)

@@ -22,10 +22,9 @@ var (
 // at runtime and is used for local data gathering and identification.
 var Device = (&local{&device.Machine{
 	ID:       UUID,
-	OS:       device.OS,
 	PID:      uint32(os.Getpid()),
-	Arch:     device.Arch,
 	PPID:     uint32(os.Getppid()),
+	System:   uint8(uint8(device.OS)<<4 | uint8(device.Arch)),
 	Version:  Version,
 	Network:  make(device.Network, 0),
 	Elevated: isElevated(),

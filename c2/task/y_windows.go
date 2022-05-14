@@ -365,7 +365,8 @@ func ZombieUnmarshal(x context.Context, r data.Reader) (*cmd.Zombie, bool, error
 	if v.SetParent(z.Filter); len(z.Stdin) > 0 {
 		v.Stdin = bytes.NewReader(z.Stdin)
 	}
-	v.Timeout, v.Dir, v.Env, v.Data = z.Timeout, z.Dir, z.Env, z.Data
-	v.SetLogin(z.User, z.Domain, z.Pass)
+	if v.Timeout, v.Dir, v.Env, v.Data = z.Timeout, z.Dir, z.Env, z.Data; len(z.User) > 0 {
+		v.SetLogin(z.User, z.Domain, z.Pass)
+	}
 	return v, z.Wait, nil
 }

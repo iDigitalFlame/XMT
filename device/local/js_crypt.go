@@ -1,4 +1,4 @@
-//go:build (wasm || js) && crypt
+//go:build js && crypt
 
 package local
 

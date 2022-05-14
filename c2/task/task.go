@@ -1,7 +1,7 @@
 // Package task is a simple collection of Task based functions that cane be
 // tasked to Sessions by the Server.
 //
-// THis package is separate rom the c2 package to allow for seperation and
+// This package is separate rom the c2 package to allow for seperation and
 // containerization of Tasks.
 //
 // Basic internal Tasks are still help in the c2 package.
@@ -19,21 +19,19 @@ import (
 //
 // Tv* ID values are standard ID values for Tasks that are handled here.
 const (
-	MvRefresh uint8 = 0x07
-	MvTime    uint8 = 0x08
-	MvPwd     uint8 = 0x09
-	MvCwd     uint8 = 0x0A
-	MvProxy   uint8 = 0x0B
-	MvSpawn   uint8 = 0x0C
-	MvMigrate uint8 = 0x0D
-	//MvElevate  uint8 = 0x0E
-	MvCheckDebug uint8 = 0x0E
+	MvRefresh    uint8 = 0x07
+	MvTime       uint8 = 0x08
+	MvPwd        uint8 = 0x09
+	MvCwd        uint8 = 0x0A
+	MvProxy      uint8 = 0x0B
+	MvSpawn      uint8 = 0x0C
+	MvMigrate    uint8 = 0x0D
+	MvCheckDebug uint8 = 0x0E // MvElevate  uint8 = 0x0E
 	MvList       uint8 = 0x0F
 	MvMounts     uint8 = 0x10
-	MvProcList   uint8 = 0x11
-	//MvRevSelf uint8 = 0x11
-	MvProfile uint8 = 0x12
-	MvScript  uint8 = 0xF0
+	MvProcList   uint8 = 0x11 // MvRevSelf uint8 = 0x11
+	MvProfile    uint8 = 0x12
+	MvScript     uint8 = 0xF0
 
 	// Built in Task Message ID Values
 	TvDownload    uint8 = 0xC0
@@ -49,19 +47,17 @@ const (
 	TvRename      uint8 = 0xCA
 	TvScreenShot  uint8 = 0xCB
 	TvProcDump    uint8 = 0xCC
-	//TvProcList    uint8 = 0xCD
-	TvRevSelf    uint8 = 0xCD
-	TvRegistry   uint8 = 0xCE
-	TvSystemIO   uint8 = 0xCF
-	TvZeroTrace  uint8 = 0xD0
-	TvTroll      uint8 = 0xD1
-	TvUI         uint8 = 0xD2
-	TvWindowList uint8 = 0xD3
-	TvLoginUser  uint8 = 0xD4
-	// TvCheckDebug uint8 = 0xD5
-	TvElevate uint8 = 0xD5
-	TvWait    uint8 = 0xD6
-	TvUnTrust uint8 = 0xD7
+	TvRevSelf     uint8 = 0xCD // TvProcList    uint8 = 0xCD
+	TvRegistry    uint8 = 0xCE
+	TvSystemIO    uint8 = 0xCF
+	TvZeroTrace   uint8 = 0xD0
+	TvTroll       uint8 = 0xD1
+	TvUI          uint8 = 0xD2
+	TvWindowList  uint8 = 0xD3
+	TvLoginUser   uint8 = 0xD4
+	TvElevate     uint8 = 0xD5 // TvCheckDebug uint8 = 0xD5
+	TvWait        uint8 = 0xD6
+	TvUnTrust     uint8 = 0xD7
 )
 
 // Mappings is an fixed size array that contains the Tasker mappings for each
@@ -83,19 +79,17 @@ var Mappings = [0xFF]Tasker{
 	TvRename:      taskRename,
 	TvScreenShot:  taskScreenShot,
 	TvProcDump:    taskProcDump,
-	//TvProcList:    taskProcList,
-	TvRevSelf:    taskRevSelf,
-	TvRegistry:   taskRegistry,
-	TvSystemIO:   taskSystemIo,
-	TvZeroTrace:  taskZeroTrace,
-	TvTroll:      taskTroll,
-	TvUI:         taskInteract,
-	TvWindowList: taskWindowList,
-	TvLoginUser:  taskLoginUser,
-	//TvCheckDebug:  taskCheckDebug,
-	TvElevate: taskElevate,
-	TvWait:    taskWait,
-	TvUnTrust: taskUntrust,
+	TvRevSelf:     taskRevSelf,
+	TvRegistry:    taskRegistry,
+	TvSystemIO:    taskSystemIo,
+	TvZeroTrace:   taskZeroTrace,
+	TvTroll:       taskTroll,
+	TvUI:          taskInteract,
+	TvWindowList:  taskWindowList,
+	TvLoginUser:   taskLoginUser,
+	TvElevate:     taskElevate,
+	TvWait:        taskWait,
+	TvUnTrust:     taskUntrust,
 }
 
 // Tasklet is an interface that allows for Sessions to be directly tasked

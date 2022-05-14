@@ -1,4 +1,4 @@
-//go:build (aix || dragonfly || freebsd || hurd || illumos || nacl || netbsd || openbsd || plan9 || solaris || zos) && crypt
+//go:build !windows && !plan9 && !js && !darwin && !linux && !android && crypt
 
 package local
 
@@ -13,8 +13,8 @@ import (
 )
 
 func sysID() []byte {
-	switch runtime.GOOS {
-	case "aix":
+	switch {
+	case runtime.GOOS[0] == 'a':
 		// AIX specific support: https://github.com/denisbrodbeck/machineid/pull/16
 		// lsattr -l  sys0 -a os_uuid -E
 		if b, err := exec.Command(crypt.Get(98), crypt.Get(99), crypt.Get(100), crypt.Get(101), crypt.Get(102), crypt.Get(103)).CombinedOutput(); err == nil {
@@ -23,7 +23,7 @@ func sysID() []byte {
 			}
 			return b
 		}
-	case "openbsd":
+	case runtime.GOOS[0] == 'o':
 		// Support get hardware UUID for OpenBSD: https://github.com/denisbrodbeck/machineid/pull/14
 		// sysctl -n hw.uuid
 		if b, err := exec.Command(crypt.Get(104), crypt.Get(105), crypt.Get(106)).CombinedOutput(); err == nil {

@@ -1,19 +1,5 @@
 #!/usr/bin/bash
 
-arch_386=( android freebsd linux netbsd openbsd plan9 windows )
-arch_amd64=( android darwin dragonfly freebsd illumos ios linux netbsd openbsd plan9 solaris windows )
-arch_arm=( android freebsd linux netbsd openbsd plan9 windows )
-arch_arm64=( android darwin freebsd ios linux netbsd openbsd windows )
-arch_mips=( linux )
-arch_mips64=( linux openbsd )
-arch_mips64le=( linux )
-arch_mipsle=( linux )
-arch_ppc64=( aix linux )
-arch_ppc64le=( linux )
-arch_riscv64=( linux )
-arch_s390x=( linux )
-arch_wasm=( js )
-
 build_tags=(
               bugs implant crypt stdrand nojson nosweep no6 tiny small medium large nofrag regexp nopanic noservice ews noproxy nokeyswap
               bugs,implant
@@ -62,49 +48,13 @@ run_vet() {
     env GOARCH=$1 GOOS=$2 go vet ./cmd
     env GOARCH=$1 GOOS=$2 go vet ./com
     env GOARCH=$1 GOOS=$2 go vet ./data
-    env GOARCH=$1 GOOS=$2 go vet ./device
+    env GOARCH=$1 GOOS=$2 go vet ./device 2>&1 | grep -vE 'github.com/iDigitalFlame/xmt/device$|device/y_nix.go:84:24: possible misuse of unsafe.Pointer$'
     env GOARCH=$1 GOOS=$2 go vet ./man
     env GOARCH=$1 GOOS=$2 go vet ./util
 }
 run_vet_all() {
-    for os in ${arch_amd64[@]}; do
-        run_vet amd64 $os
-    done
-    for os in ${arch_ppc64[@]}; do
-        run_vet ppc64 $os
-    done
-    for os in ${arch_386[@]}; do
-        run_vet 386 $os
-    done
-    for os in ${arch_arm[@]}; do
-        run_vet arm $os
-    done
-    for os in ${arch_arm64[@]}; do
-        run_vet arm64 $os
-    done
-    for os in ${arch_wasm[@]}; do
-        run_vet wasm $os
-    done
-    for os in ${arch_mips[@]}; do
-        run_vet mips $os
-    done
-    for os in ${arch_mips64[@]}; do
-        run_vet mips64 $os
-    done
-    for os in ${arch_mips64le[@]}; do
-        run_vet mips64le $os
-    done
-    for os in ${arch_mipsle[@]}; do
-        run_vet mipsle $os
-    done
-    for os in ${arch_ppc64le[@]}; do
-        run_vet ppc64le $os
-    done
-    for os in ${arch_riscv64[@]}; do
-        run_vet riscv64 $os
-    done
-    for os in ${arch_s390x[@]}; do
-        run_vet s390x $os
+    for entry in $(go tool dist list); do
+        run_vet "$(echo $entry | cut -d '/' -f 2)" "$(echo $entry | cut -d '/' -f 1)"
     done
 }
 run_staticcheck() {
@@ -116,44 +66,8 @@ run_staticcheck() {
     done
 }
 run_staticcheck_all() {
-    for os in ${arch_amd64[@]}; do
-        run_staticcheck amd64 $os
-    done
-    for os in ${arch_ppc64[@]}; do
-        run_staticcheck ppc64 $os
-    done
-    for os in ${arch_386[@]}; do
-        run_staticcheck 386 $os
-    done
-    for os in ${arch_arm[@]}; do
-        run_staticcheck arm $os
-    done
-    for os in ${arch_arm64[@]}; do
-        run_staticcheck arm64 $os
-    done
-    for os in ${arch_wasm[@]}; do
-        run_staticcheck wasm $os
-    done
-    for os in ${arch_mips[@]}; do
-        run_staticcheck mips $os
-    done
-    for os in ${arch_mips64[@]}; do
-        run_staticcheck mips64 $os
-    done
-    for os in ${arch_mips64le[@]}; do
-        run_staticcheck mips64le $os
-    done
-    for os in ${arch_mipsle[@]}; do
-        run_staticcheck mipsle $os
-    done
-    for os in ${arch_ppc64le[@]}; do
-        run_staticcheck ppc64le $os
-    done
-    for os in ${arch_riscv64[@]}; do
-        run_staticcheck riscv64 $os
-    done
-    for os in ${arch_s390x[@]}; do
-        run_staticcheck s390x $os
+    for entry in $(go tool dist list); do
+        run_staticcheck "$(echo $entry | cut -d '/' -f 2)" "$(echo $entry | cut -d '/' -f 1)"
     done
 }
 

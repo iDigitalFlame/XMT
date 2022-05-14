@@ -283,6 +283,8 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 			//            will work.
 			s.sleep = time.Duration(d)
 		}
+		w.WriteUint8(s.jitter)
+		w.WriteUint64(uint64(s.sleep))
 		return true, nil
 	case task.MvProxy:
 		var (

@@ -2,6 +2,10 @@
 
 package device
 
+// String returns a string representation of the OSType.
+func (OSType) String() string {
+	return ""
+}
 func (device) String() string {
 	return ""
 }

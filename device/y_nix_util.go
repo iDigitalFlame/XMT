@@ -1,4 +1,4 @@
-//go:build !windows && !js && !wasm
+//go:build !windows && !js
 
 package device
 

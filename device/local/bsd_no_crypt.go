@@ -1,4 +1,4 @@
-//go:build (aix || dragonfly || freebsd || hurd || illumos || nacl || netbsd || openbsd || plan9 || solaris || zos) && !crypt
+//go:build !windows && !plan9 && !js && !darwin && !linux && !android && !crypt
 
 package local
 

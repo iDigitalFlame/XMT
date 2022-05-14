@@ -1,6 +1,6 @@
-//go:build darwin || ios
+//go:build android
 
 package device
 
 // OS is the local machine's Operating System type.
-const OS = Mac
+const OS = Android
