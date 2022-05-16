@@ -2,10 +2,7 @@
 
 package task
 
-import (
-	"github.com/iDigitalFlame/xmt/device/local"
-	"github.com/iDigitalFlame/xmt/util/crypt"
-)
+import "github.com/iDigitalFlame/xmt/util/crypt"
 
 var (
 	pwsh      = crypt.Get(115) // -comm
@@ -54,14 +51,4 @@ var (
 //      []byte              // Output (Stdout and Stderr)
 func Shell(c string) Process {
 	return Process{Args: []string{crypt.Get(208), c}, Wait: true} // @SHELL@
-}
-func createEnvironment() map[string]interface{} {
-	return map[string]interface{}{
-		crypt.Get(92):  local.UUID.String(),   // ID
-		crypt.Get(118): local.Device.PID,      // PID
-		crypt.Get(119): local.Device.PPID,     // PPID
-		crypt.Get(120): local.Version,         // OSVER
-		crypt.Get(121): local.Elevated(),      // ADMIN
-		crypt.Get(122): local.Device.Hostname, // HOSTNAME
-	}
 }

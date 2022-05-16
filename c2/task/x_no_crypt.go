@@ -2,8 +2,6 @@
 
 package task
 
-import "github.com/iDigitalFlame/xmt/device/local"
-
 const (
 	pwsh      = "-comm"
 	execA     = "*.so"
@@ -51,14 +49,4 @@ const (
 //      []byte              // Output (Stdout and Stderr)
 func Shell(c string) Process {
 	return Process{Args: []string{"@SHELL@", c}, Wait: true}
-}
-func createEnvironment() map[string]interface{} {
-	return map[string]interface{}{
-		"ID":       local.UUID.String(),
-		"PID":      local.Device.PID,
-		"PPID":     local.Device.PPID,
-		"OSVER":    local.Version,
-		"ADMIN":    local.Elevated(),
-		"HOSTNAME": local.Device.Hostname,
-	}
 }

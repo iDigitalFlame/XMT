@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 
 build_tags=(
-              bugs implant crypt stdrand nojson nosweep no6 tiny small medium large nofrag regexp nopanic noservice ews noproxy nokeyswap
+              bugs implant crypt stdrand nojson nosweep no6 tiny small medium large nofrag regexp nopanic noservice ews noproxy nokeyswap scripts
               bugs,implant
               bugs,implant,crypt
               bugs,implant,crypt,stdrand

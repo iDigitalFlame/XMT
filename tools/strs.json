@@ -175,24 +175,21 @@
         "value": "/bin/sh",
         "tags": [
             "!windows",
-            "!js",
-            "!wasm"
+            "!js"
         ]
     },
     "35": {
         "value": "-c",
         "tags": [
             "!windows",
-            "!js",
-            "!wasm"
+            "!js"
         ]
     },
     "36": {
         "value": "pwsh",
         "tags": [
             "!windows",
-            "!js",
-            "!wasm"
+            "!js"
         ]
     },
     "37": {
@@ -422,10 +419,8 @@
         "tags": [
             "!windows",
             "!js",
-            "!plan9",
             "!darwin",
-            "!ios",
-            "plan9"
+            "!ios"
         ]
     },
     "80": {
@@ -433,10 +428,8 @@
         "tags": [
             "!windows",
             "!js",
-            "!plan9",
             "!darwin",
-            "!ios",
-            "plan9"
+            "!ios"
         ]
     },
     "81": {
@@ -522,352 +515,222 @@
     "93": {
         "value": "PRETTY_NAME",
         "tags": [
-            "android",
-            "linux",
-            "aix",
-            "dragonfly",
-            "freebsd",
-            "hurd",
-            "illumos",
-            "nacl",
-            "netbsd",
-            "openbsd",
-            "plan9",
-            "solaris",
-            "zos"
+            "!windows",
+            "!js",
+            "!darwin"
         ]
     },
     "94": {
         "value": "NAME",
         "tags": [
-            "android",
-            "linux",
-            "aix",
-            "dragonfly",
-            "freebsd",
-            "hurd",
-            "illumos",
-            "nacl",
-            "netbsd",
-            "openbsd",
-            "plan9",
-            "solaris",
-            "zos"
+            "!windows",
+            "!js",
+            "!darwin"
         ]
     },
     "95": {
         "value": "VERSION_ID",
         "tags": [
-            "android",
-            "linux",
-            "aix",
-            "dragonfly",
-            "freebsd",
-            "hurd",
-            "illumos",
-            "nacl",
-            "netbsd",
-            "openbsd",
-            "plan9",
-            "solaris",
-            "zos"
+            "!windows",
+            "!js",
+            "!darwin"
         ]
     },
     "96": {
         "value": "VERSION",
         "tags": [
-            "android",
-            "linux",
-            "aix",
-            "dragonfly",
-            "freebsd",
-            "hurd",
-            "illumos",
-            "nacl",
-            "netbsd",
-            "openbsd",
-            "plan9",
-            "solaris",
-            "zos"
+            "!windows",
+            "!js",
+            "!darwin"
         ]
     },
     "97": {
         "value": "JavaScript",
         "tags": [
-            "wasm",
             "js"
         ]
     },
     "98": {
         "value": "lsattr",
         "tags": [
-            "aix",
-            "dragonfly",
-            "freebsd",
-            "hurd",
-            "illumos",
-            "nacl",
-            "netbsd",
-            "openbsd",
-            "plan9",
-            "solaris",
-            "zos"
+            "!windows",
+            "!js",
+            "!plan9",
+            "!darwin",
+            "!linux",
+            "!android"
         ]
     },
     "99": {
         "value": "-l",
         "tags": [
-            "aix",
-            "dragonfly",
-            "freebsd",
-            "hurd",
-            "illumos",
-            "nacl",
-            "netbsd",
-            "openbsd",
-            "plan9",
-            "solaris",
-            "zos"
+            "!windows",
+            "!js",
+            "!plan9",
+            "!darwin",
+            "!linux",
+            "!android"
         ]
     },
     "100": {
         "value": "sys0",
         "tags": [
-            "aix",
-            "dragonfly",
-            "freebsd",
-            "hurd",
-            "illumos",
-            "nacl",
-            "netbsd",
-            "openbsd",
-            "plan9",
-            "solaris",
-            "zos"
+            "!windows",
+            "!js",
+            "!plan9",
+            "!darwin",
+            "!linux",
+            "!android"
         ]
     },
     "101": {
         "value": "-a",
         "tags": [
-            "aix",
-            "dragonfly",
-            "freebsd",
-            "hurd",
-            "illumos",
-            "nacl",
-            "netbsd",
-            "openbsd",
-            "plan9",
-            "solaris",
-            "zos"
+            "!windows",
+            "!js",
+            "!plan9",
+            "!darwin",
+            "!linux",
+            "!android"
         ]
     },
     "102": {
         "value": "os_uuid",
         "tags": [
-            "aix",
-            "dragonfly",
-            "freebsd",
-            "hurd",
-            "illumos",
-            "nacl",
-            "netbsd",
-            "openbsd",
-            "plan9",
-            "solaris",
-            "zos"
+            "!windows",
+            "!js",
+            "!plan9",
+            "!darwin",
+            "!linux",
+            "!android"
         ]
     },
     "103": {
         "value": "-E",
         "tags": [
-            "aix",
-            "dragonfly",
-            "freebsd",
-            "hurd",
-            "illumos",
-            "nacl",
-            "netbsd",
-            "openbsd",
-            "plan9",
-            "solaris",
-            "zos"
+            "!windows",
+            "!js",
+            "!plan9",
+            "!darwin",
+            "!linux",
+            "!android"
         ]
     },
     "104": {
         "value": "sysctl",
         "tags": [
-            "aix",
-            "dragonfly",
-            "freebsd",
-            "hurd",
-            "illumos",
-            "nacl",
-            "netbsd",
-            "openbsd",
-            "plan9",
-            "solaris",
-            "zos"
+            "!windows",
+            "!js",
+            "!plan9",
+            "!darwin",
+            "!linux",
+            "!android"
         ]
     },
     "105": {
         "value": "-n",
         "tags": [
-            "aix",
-            "dragonfly",
-            "freebsd",
-            "hurd",
-            "illumos",
-            "nacl",
-            "netbsd",
-            "openbsd",
-            "plan9",
-            "solaris",
-            "zos"
+            "!windows",
+            "!js",
+            "!plan9",
+            "!darwin",
+            "!linux",
+            "!android"
         ]
     },
     "106": {
         "value": "hw.uuid",
         "tags": [
-            "aix",
-            "dragonfly",
-            "freebsd",
-            "hurd",
-            "illumos",
-            "nacl",
-            "netbsd",
-            "openbsd",
-            "plan9",
-            "solaris",
-            "zos"
+            "!windows",
+            "!js",
+            "!plan9",
+            "!darwin",
+            "!linux",
+            "!android"
         ]
     },
     "107": {
         "value": "/etc/hostid",
         "tags": [
-            "aix",
-            "dragonfly",
-            "freebsd",
-            "hurd",
-            "illumos",
-            "nacl",
-            "netbsd",
-            "openbsd",
-            "plan9",
-            "solaris",
-            "zos"
+            "!windows",
+            "!js",
+            "!darwin",
+            "!linux",
+            "!android"
         ]
     },
     "108": {
         "value": "kenv",
         "tags": [
-            "aix",
-            "dragonfly",
-            "freebsd",
-            "hurd",
-            "illumos",
-            "nacl",
-            "netbsd",
-            "openbsd",
-            "plan9",
-            "solaris",
-            "zos"
+            "!windows",
+            "!js",
+            "!darwin",
+            "!linux",
+            "!android"
         ]
     },
     "109": {
         "value": "-q",
         "tags": [
-            "aix",
-            "dragonfly",
-            "freebsd",
-            "hurd",
-            "illumos",
-            "nacl",
-            "netbsd",
-            "openbsd",
-            "plan9",
-            "solaris",
-            "zos"
+            "!windows",
+            "!js",
+            "!darwin",
+            "!linux",
+            "!android"
         ]
     },
     "110": {
         "value": "smbios.system.uuid",
         "tags": [
-            "aix",
-            "dragonfly",
-            "freebsd",
-            "hurd",
-            "illumos",
-            "nacl",
-            "netbsd",
-            "openbsd",
-            "plan9",
-            "solaris",
-            "zos"
+            "!windows",
+            "!js",
+            "!darwin",
+            "!linux",
+            "!android"
         ]
     },
     "111": {
         "value": "bsd",
         "tags": [
-            "aix",
-            "dragonfly",
-            "freebsd",
-            "hurd",
-            "illumos",
-            "nacl",
-            "netbsd",
-            "openbsd",
-            "plan9",
-            "solaris",
-            "zos"
+            "!windows",
+            "!js",
+            "!plan9",
+            "!darwin",
+            "!linux",
+            "!android"
         ]
     },
     "112": {
         "value": "freebsd-version",
         "tags": [
-            "aix",
-            "dragonfly",
-            "freebsd",
-            "hurd",
-            "illumos",
-            "nacl",
-            "netbsd",
-            "openbsd",
-            "plan9",
-            "solaris",
-            "zos"
+            "!windows",
+            "!js",
+            "!plan9",
+            "!darwin",
+            "!linux",
+            "!android"
         ]
     },
     "113": {
         "value": "-k",
         "tags": [
-            "aix",
-            "dragonfly",
-            "freebsd",
-            "hurd",
-            "illumos",
-            "nacl",
-            "netbsd",
-            "openbsd",
-            "plan9",
-            "solaris",
-            "zos"
+            "!windows",
+            "!js",
+            "!plan9",
+            "!darwin",
+            "!linux",
+            "!android"
         ]
     },
     "114": {
         "value": "BSD",
         "tags": [
-            "aix",
-            "dragonfly",
-            "freebsd",
-            "hurd",
-            "illumos",
-            "nacl",
-            "netbsd",
-            "openbsd",
-            "plan9",
-            "solaris",
-            "zos"
+            "!windows",
+            "!js",
+            "!plan9",
+            "!darwin",
+            "!linux",
+            "!android"
         ]
     },
     "115": {
@@ -886,23 +749,33 @@
     },
     "118": {
         "value": "PID",
-        "tags": []
+        "tags": [
+            "scripts"
+        ]
     },
     "119": {
         "value": "PPID",
-        "tags": []
+        "tags": [
+            "scripts"
+        ]
     },
     "120": {
-        "value": "OSVER",
-        "tags": []
+        "value": "OS",
+        "tags": [
+            "scripts"
+        ]
     },
     "121": {
         "value": "ADMIN",
-        "tags": []
+        "tags": [
+            "scripts"
+        ]
     },
     "122": {
         "value": "HOSTNAME",
-        "tags": []
+        "tags": [
+            "scripts"
+        ]
     },
     "123": {
         "value": "SeDebugPrivilege",
@@ -1428,16 +1301,14 @@
         "value": "/proc/self/mounts",
         "tags": [
             "!windows",
-            "!js",
-            "!wasm"
+            "!js"
         ]
     },
     "211": {
         "value": "/etc/mtab",
         "tags": [
             "!windows",
-            "!js",
-            "!wasm"
+            "!js"
         ]
     },
     "212": {

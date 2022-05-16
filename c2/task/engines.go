@@ -1,3 +1,5 @@
+//go:build scripts
+
 package task
 
 import (
