@@ -34,6 +34,16 @@ func (s *Script) Clear() {
 	s.d.Clear()
 }
 
+// Size returns the internal size of the backing Script buffer, similar to len(s).
+func (s *Script) Size() int {
+	return s.d.Size()
+}
+
+// Empty returns true if this Scripts's backing buffer is empty.
+func (s *Script) Empty() bool {
+	return s.d.Empty()
+}
+
 // Output controls the 'return output' setting for this Script.
 //
 // If set to True (the default), the results of all executed Tasks in this
