@@ -52,7 +52,7 @@ func (s *Script) Empty() bool {
 // unless errors occur.
 func (s *Script) Output(e bool) {
 	if e {
-		s.f = s.f &^ flagStopOnError
+		s.f = s.f &^ flagNoReturnOutput
 	} else {
 		s.f |= flagNoReturnOutput
 	}
@@ -114,7 +114,7 @@ func (s *Script) StopOnError(e bool) {
 
 // IsStopOnError returns true if the 'stop on error' setting is set to true.
 func (s *Script) IsStopOnError() bool {
-	return s.f&flagNoReturnOutput == 0
+	return s.f&flagStopOnError != 0
 }
 
 // Add will add the supplied Task (in Packet form), to the Script. If this Script

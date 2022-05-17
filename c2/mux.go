@@ -23,7 +23,7 @@ import (
 const fourOhFour = "0x404"
 
 const (
-	flagChannel uint8 = 1 << iota
+	_ uint8 = 1 << iota
 	flagNoReturnOutput
 	flagStopOnError
 )
