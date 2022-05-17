@@ -6,6 +6,12 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
+const (
+	flagChannel uint8 = 1 << iota
+	flagNoReturnOutput
+	flagStopOnError
+)
+
 // Script is a Tasklet type that allows for chaining the results of multiple
 // Tasks in a single instance to be run as one.
 //
@@ -18,23 +24,14 @@ import (
 // tasks.
 type Script struct {
 	d data.Chunk
-	c bool
+	f uint8
 }
 
 // Clear will reset the Script and empty it's contents.
 //
-// This also removes the error and output settings. Use the 'Reset' function
-// to keep those instead.
+// This does not remove the error and output settings.
 func (s *Script) Clear() {
 	s.d.Clear()
-}
-
-// Reset will reset the Script and empty it's contents, but keep its error and
-// output settings intact.
-func (s *Script) Reset() {
-	v, _ := s.d.Uint16()
-	s.d.Clear()
-	s.d.WriteUint16(v)
 }
 
 // Output controls the 'return output' setting for this Script.
@@ -44,12 +41,16 @@ func (s *Script) Reset() {
 // Otherwise, False will disable output and all Task output will be ignored,
 // unless errors occur.
 func (s *Script) Output(e bool) {
-	if s.d.Empty() {
-		s.d.WriteUint8(0)
-		s.d.WriteBool(e)
-		return
+	if e {
+		s.f = s.f &^ flagStopOnError
+	} else {
+		s.f |= flagNoReturnOutput
 	}
-	s.d.WriteBoolPos(1, e)
+}
+
+// IsOutput returns true if the 'return output' setting is set to true.
+func (s *Script) IsOutput() bool {
+	return s.f&flagNoReturnOutput == 0
 }
 
 // Channel (if true) will set this Script payload to enable Channeling mode
@@ -57,11 +58,20 @@ func (s *Script) Output(e bool) {
 //
 // NOTE: There is not a way to Scripts to disable channeling themselves.
 func (s *Script) Channel(e bool) {
-	s.c = e
+	if e {
+		s.f |= flagChannel
+	} else {
+		s.f = s.f &^ flagChannel
+	}
+}
+
+// IsChannel returns true if the 'channel' setting is set to true.
+func (s *Script) IsChannel() bool {
+	return s.f&flagChannel != 0
 }
 
 // Payload returns the raw, underlying bytes in this Script.
-// If this script is empty or initialized, the return will be empty.
+// If this script is empty the return will be empty.
 func (s *Script) Payload() []byte {
 	if s.d.Empty() {
 		return nil
@@ -85,12 +95,16 @@ func (s *Script) Replace(b []byte) {
 // an error during runtime. Otherwise False (the default), will report the error
 // in the chain and will keep going.
 func (s *Script) StopOnError(e bool) {
-	if s.d.Empty() {
-		s.d.WriteBool(e)
-		s.d.WriteUint8(1)
-		return
+	if e {
+		s.f |= flagStopOnError
+	} else {
+		s.f = s.f &^ flagStopOnError
 	}
-	s.d.WriteBoolPos(0, e)
+}
+
+// IsStopOnError returns true if the 'stop on error' setting is set to true.
+func (s *Script) IsStopOnError() bool {
+	return s.f&flagNoReturnOutput == 0
 }
 
 // Add will add the supplied Task (in Packet form), to the Script. If this Script
@@ -109,9 +123,6 @@ func (s *Script) Add(n *com.Packet) error {
 	if n == nil || n.ID == 0 || n.ID < MvRefresh || n.Flags > 0 || n.ID == MvScript {
 		return xerr.Sub("invalid Packet", 0xF)
 	}
-	if s.d.Empty() {
-		s.d.WriteUint16(1)
-	}
 	s.d.WriteUint8(n.ID)
 	s.d.WriteBytes(n.Payload())
 	return nil
@@ -123,8 +134,12 @@ func (s *Script) Add(n *com.Packet) error {
 // Non intalized Scripts can be used instead of calling this function directly.
 func NewScript(errors, output bool) *Script {
 	s := new(Script)
-	s.d.WriteBool(errors)
-	s.d.WriteBool(output)
+	if errors {
+		s.f |= flagStopOnError
+	}
+	if !output {
+		s.f |= flagNoReturnOutput
+	}
 	return s
 }
 
@@ -169,9 +184,15 @@ func (s *Script) AddTasklet(t Tasklet) error {
 //      ...bool   // Result is not error
 //      ...[]byte // Result Data
 func (s *Script) Packet() (*com.Packet, error) {
-	n := &com.Packet{ID: MvScript} // Make a copy
+	if s.d.Empty() {
+		return nil, xerr.Sub("script is empty", 0x39)
+	}
+	n := &com.Packet{ID: MvScript}
+	n.WriteUint8(s.f)
 	s.d.Seek(0, 0)
-	n.Write(s.d.Payload())
+	if n.Write(s.d.Payload()); s.IsChannel() {
+		n.Flags |= com.FlagChannel
+	}
 	return n, nil
 }
 

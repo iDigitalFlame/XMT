@@ -22,6 +22,12 @@ import (
 
 const fourOhFour = "0x404"
 
+const (
+	flagChannel uint8 = 1 << iota
+	flagNoReturnOutput
+	flagStopOnError
+)
+
 var (
 	_ runnable = (*cmd.DLL)(nil)
 	_ runnable = (*cmd.Zombie)(nil)
@@ -48,16 +54,14 @@ func wrapScript(s *Session, n *com.Packet) {
 	}
 }
 func runScript(s *Session, n, w *com.Packet) error {
-	e, err := n.Bool()
+	y, err := n.Uint8()
 	if err != nil {
-		return err
-	}
-	var o bool
-	if err = n.ReadBool(&o); err != nil {
 		return err
 	}
 	var (
 		b = buffers.Get().(*data.Chunk)
+		e = y&flagStopOnError != 0
+		o = y&flagNoReturnOutput == 0
 		d []byte
 		k bool
 		v com.Packet
