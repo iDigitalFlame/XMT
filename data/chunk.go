@@ -160,10 +160,10 @@ func (c *Chunk) Truncate(n int) error {
 		c.Reset()
 		return nil
 	}
-	if n < 0 || n > len(c.buf) {
+	if n < 0 || n > len(c.buf) || n+c.pos > len(c.buf) {
 		return ErrInvalidIndex
 	}
-	c.buf = c.buf[:c.pos+n]
+	c.buf = c.buf[c.pos : c.pos+n]
 	return nil
 }
 func (c *Chunk) grow(n int) (int, error) {

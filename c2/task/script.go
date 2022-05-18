@@ -117,6 +117,15 @@ func (s *Script) IsStopOnError() bool {
 	return s.f&flagStopOnError != 0
 }
 
+// Truncate discards all but the first n unread bytes from the underlying buffer
+// but continues to use the same allocated storage.
+//
+// This will return an error if n is negative or greater than the length of the
+// buffer.
+func (s *Script) Truncate(n int) error {
+	return s.d.Truncate(n)
+}
+
 // Add will add the supplied Task (in Packet form), to the Script. If this Script
 // was not initalized, it will be initalized with the default options first.
 //
