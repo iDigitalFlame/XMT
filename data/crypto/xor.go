@@ -4,13 +4,14 @@ import (
 	"io"
 	"sync"
 
+	"github.com/iDigitalFlame/xmt/data/crypto/subtle"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 )
 
 const bufMax = 2 << 14 // Should cover the default chunk.Write buffer size
 
 var bufs = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		b := make([]byte, 512, bufMax)
 		return &b
 	},
@@ -31,9 +32,7 @@ func (x XOR) Operate(b []byte) {
 	if len(x) == 0 {
 		return
 	}
-	for i := range b {
-		b[i] = b[i] ^ x[i%len(x)]
-	}
+	subtle.XorOp(b, x)
 }
 
 // Flush satisfies the crypto.Writer interface.
@@ -46,14 +45,12 @@ func (XOR) Flush(w io.Writer) error {
 
 // Decrypt preforms the XOR operation on the specified byte array using the cipher as the key.
 func (x XOR) Decrypt(dst, src []byte) {
-	n := copy(dst, src)
-	x.Operate(dst[:n])
+	subtle.XorBytes(dst, x, src)
 }
 
 // Encrypt preforms the XOR operation on the specified byte array using the cipher as the key.
 func (x XOR) Encrypt(dst, src []byte) {
-	n := copy(dst, src)
-	x.Operate(dst[:n])
+	subtle.XorBytes(dst, x, src)
 }
 
 // Read satisfies the crypto.Reader interface.

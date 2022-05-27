@@ -16,19 +16,19 @@ import (
 
 var (
 	// Shell is the default machine specific command shell.
-	Shell = crypt.Get(34) // /bin/sh
+	Shell = crypt.Get(43) // /bin/sh
 	// ShellArgs is the default machine specific command shell arguments to run
 	// commands.
-	ShellArgs = crypt.Get(35) // -c
+	ShellArgs = crypt.Get(44) // -c
 	// PowerShell is the path to the PowerShell binary, which is based on the
 	// underlying OS type.
-	PowerShell = crypt.Get(36) // pwsh
-	home       = crypt.Get(17) // $HOME
+	PowerShell = crypt.Get(45) // pwsh
+	home       = crypt.Get(46) // $HOME
 )
 
 // IsDebugged returns true if the current process is attached by a debugger.
 func IsDebugged() bool {
-	b, err := os.ReadFile(crypt.Get(240)) // /proc/self/status
+	b, err := os.ReadFile(crypt.Get(47)) // /proc/self/status
 	if err != nil {
 		return false
 	}
@@ -49,10 +49,10 @@ func IsDebugged() bool {
 // mount points (or Windows drive letters).
 func Mounts() ([]string, error) {
 	// 0 - READONLY
-	f, err := os.OpenFile(crypt.Get(210), 0, 0) // /proc/self/mounts
+	f, err := os.OpenFile(crypt.Get(48), 0, 0) // /proc/self/mounts
 	if err != nil {
 		// 0 - READONLY
-		if f, err = os.OpenFile(crypt.Get(211), 0, 0); err != nil { // /etc/mtab
+		if f, err = os.OpenFile(crypt.Get(49), 0, 0); err != nil { // /etc/mtab
 			return nil, xerr.Wrap("cannot find mounts", err)
 		}
 	}
@@ -94,13 +94,13 @@ func DumpProcess(f *filter.Filter, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	v := crypt.Get(237) + strconv.FormatUint(uint64(p), 10) // /proc/
-	b, err := os.ReadFile(v + crypt.Get(238))               // /maps
+	v := crypt.Get(16) + strconv.FormatUint(uint64(p), 10) // /proc/
+	b, err := os.ReadFile(v + crypt.Get(50))               // /maps
 	if err != nil {
 		return err
 	}
 	// 0 - READONLY
-	d, err := os.OpenFile(v+crypt.Get(239), 0, 0) // /mem
+	d, err := os.OpenFile(v+crypt.Get(51), 0, 0) // /mem
 	if err != nil {
 		return err
 	}

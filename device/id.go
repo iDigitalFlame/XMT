@@ -91,7 +91,7 @@ func (i ID) Load(s string) error {
 // function will return an error if the file cannot be written to or created.
 func (i ID) Save(s string) error {
 	// 0x242 - CREATE | TRUNCATE | RDWR
-	w, err := os.OpenFile(s, 0x242, 0644)
+	w, err := os.OpenFile(s, 0x242, 0o644)
 	if err != nil {
 		return err
 	}

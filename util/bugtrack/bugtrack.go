@@ -63,6 +63,6 @@ func Recover(v string) {
 // Not recommended to be used in production environments.
 //
 // The "-tags bugs" option is required in order for this function to be used.
-func Track(s string, m ...interface{}) {
+func Track(s string, m ...any) {
 	log.Trace(s, m...)
 }

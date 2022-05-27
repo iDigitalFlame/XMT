@@ -19,7 +19,7 @@ const Otto ottoEngine = 0xD0
 
 var (
 	ottoPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return newOtto()
 		},
 	}
@@ -140,7 +140,7 @@ func InvokeContext(x context.Context, s string) (string, error) {
 // to be the command line arguments.
 //
 // This Ex function allows to specify a map that contains any starting variables to be supplied at runtime.
-func InvokeEx(x context.Context, m map[string]interface{}, s string) (string, error) {
+func InvokeEx(x context.Context, m map[string]any, s string) (string, error) {
 	var (
 		c   = make(chan error, 1)
 		h   = ottoPool.Get().(*ottoScript)
@@ -168,6 +168,6 @@ func InvokeEx(x context.Context, m map[string]interface{}, s string) (string, er
 	}
 	return o, err
 }
-func (ottoEngine) Invoke(x context.Context, m map[string]interface{}, s string) (string, error) {
+func (ottoEngine) Invoke(x context.Context, m map[string]any, s string) (string, error) {
 	return InvokeEx(x, m, s)
 }

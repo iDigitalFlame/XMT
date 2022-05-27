@@ -2,6 +2,8 @@
 
 package data
 
+import "github.com/iDigitalFlame/xmt/data/crypto/subtle"
+
 // Crypt will perform an "encryption" operation on the underlying Chunk buffer.
 // No bytes are added or removed and this will not change the Chunk's size.
 //
@@ -11,7 +13,5 @@ func (c *Chunk) Crypt(k *Key) {
 	if len(c.buf) == 0 || k == nil {
 		return
 	}
-	for i := range c.buf {
-		c.buf[i] = c.buf[i] ^ (*k)[i%KeySize]
-	}
+	subtle.XorOp(c.buf, (*k)[:])
 }

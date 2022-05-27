@@ -21,7 +21,7 @@ import (
 // By default, the 'ID', 'OS', 'PID' 'PPID', 'OSVER' and 'HOSTNAME' variables
 // are built-in to assist with code runtime.
 type Engine interface {
-	Invoke(context.Context, map[string]interface{}, string) (string, error)
+	Invoke(context.Context, map[string]any, string) (string, error)
 }
 
 // RegisterEngine is a function that can be used to register a Scripting engine

@@ -10,13 +10,12 @@ import (
 )
 
 func sysID() []byte {
-	// /usr/sbin/ioreg -rd1 -c IOPlatformExpertDevice
-	o, err := exec.Command(crypt.Get(82), crypt.Get(83), crypt.Get(35), crypt.Get(84)).CombinedOutput()
+	o, err := output(crypt.Get(71)) // /usr/sbin/ioreg -rd1 -c IOPlatformExpertDevice
 	if err != nil || len(o) == 0 {
 		return nil
 	}
 	for _, v := range strings.Split(string(o), "\n") {
-		if !strings.Contains(v, crypt.Get(85)) { // IOPlatformUUID
+		if !strings.Contains(v, crypt.Get(72)) { // IOPlatformUUID
 			continue
 		}
 		x := strings.IndexByte(v, '=')
@@ -37,7 +36,7 @@ func sysID() []byte {
 }
 func version() string {
 	var b, n, v string
-	if o, err := exec.Command(crypt.Get(86)).CombinedOutput(); err == nil { // /usr/bin/sw_vers
+	if o, err := exec.Command(crypt.Get(73)).CombinedOutput(); err == nil { // /usr/bin/sw_vers
 		m := make(map[string]string)
 		for _, v := range strings.Split(string(o), "\n") {
 			x := strings.IndexByte(v, ':')
@@ -51,22 +50,22 @@ func version() string {
 			}
 			m[strings.ToUpper(v[:x])] = v[s : c+1]
 		}
-		n = m[crypt.Get(87)] // PRODUCTNAME
-		b = m[crypt.Get(88)] // BUILDVERSION
-		v = m[crypt.Get(89)] // PRODUCTVERSION
+		n = m[crypt.Get(74)] // PRODUCTNAME
+		b = m[crypt.Get(75)] // BUILDVERSION
+		v = m[crypt.Get(76)] // PRODUCTVERSION
 	}
 	if len(v) == 0 {
 		v = uname()
 	}
 	switch {
 	case len(n) == 0 && len(b) == 0 && len(v) == 0:
-		return crypt.Get(23) // MacOS
+		return crypt.Get(77) // MacOS
 	case len(n) == 0 && len(b) > 0 && len(v) > 0:
-		return crypt.Get(23) + " (" + v + ", " + b + ")" // MacOS
+		return crypt.Get(77) + " (" + v + ", " + b + ")" // MacOS
 	case len(n) == 0 && len(b) == 0 && len(v) > 0:
-		return crypt.Get(23) + " (" + v + ")" // MacOS
+		return crypt.Get(77) + " (" + v + ")" // MacOS
 	case len(n) == 0 && len(b) > 0 && len(v) == 0:
-		return crypt.Get(23) + " (" + b + ")" // MacOS
+		return crypt.Get(77) + " (" + b + ")" // MacOS
 	case len(n) > 0 && len(b) > 0 && len(v) > 0:
 		return n + " (" + v + ", " + b + ")"
 	case len(n) > 0 && len(b) == 0 && len(v) > 0:
@@ -74,5 +73,5 @@ func version() string {
 	case len(n) > 0 && len(b) > 0 && len(v) == 0:
 		return n + " (" + b + ")"
 	}
-	return crypt.Get(23) // MacOS
+	return crypt.Get(77) // MacOS
 }

@@ -46,6 +46,7 @@ func (s *Session) doNextKeySwap() bool {
 }
 func generateKeys(k *data.Key, d device.ID) {
 	for i := 0; i < data.KeySize; i++ {
+		// NOTE(dij): Since the pos index is added here we can't use the "subtle" package.
 		(*k)[i] = ((*k)[i] ^ d[i]) + byte(i)
 	}
 }

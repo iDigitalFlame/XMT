@@ -35,7 +35,7 @@ func (l *Log) Set(v logx.Log) {
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.
-func (l *Log) Info(s string, v ...interface{}) {
+func (l *Log) Info(s string, v ...any) {
 	if l == nil || l.Log == nil {
 		return
 	}
@@ -46,7 +46,7 @@ func (l *Log) Info(s string, v ...interface{}) {
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.
-func (l *Log) Error(s string, v ...interface{}) {
+func (l *Log) Error(s string, v ...any) {
 	if l == nil || l.Log == nil {
 		return
 	}
@@ -57,7 +57,7 @@ func (l *Log) Error(s string, v ...interface{}) {
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.
-func (l *Log) Trace(s string, v ...interface{}) {
+func (l *Log) Trace(s string, v ...any) {
 	if l == nil || l.Log == nil {
 		return
 	}
@@ -68,7 +68,7 @@ func (l *Log) Trace(s string, v ...interface{}) {
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.
-func (l *Log) Debug(s string, v ...interface{}) {
+func (l *Log) Debug(s string, v ...any) {
 	if l == nil || l.Log == nil {
 		return
 	}
@@ -79,7 +79,7 @@ func (l *Log) Debug(s string, v ...interface{}) {
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.
-func (l *Log) Warning(s string, v ...interface{}) {
+func (l *Log) Warning(s string, v ...any) {
 	if l == nil || l.Log == nil {
 		return
 	}

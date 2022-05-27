@@ -666,6 +666,16 @@ func (p *dumpParam) write(w io.Writer) error {
 	}
 	return nil
 }
+
+// UserFromToken will attempt to get the User SID from the supplied Token and
+// return the associated User Name and Doamin string from the SID.
+func UserFromToken(h uintptr) (string, error) {
+	u, err := GetTokenUser(h)
+	if err != nil {
+		return "", err
+	}
+	return u.User.Sid.UserName()
+}
 func mod32Next(h uintptr, m *modEntry32) error {
 	r, _, err := syscall.SyscallN(funcModule32Next.address(), h, uintptr(unsafe.Pointer(m)))
 	if r == 0 {

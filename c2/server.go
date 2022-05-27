@@ -45,13 +45,16 @@ func (s *Server) Wait() {
 	<-s.ch
 }
 func (s *Server) listen() {
+	if atomic.SwapUint32(&s.run, 1) != 0 {
+		return
+	}
 	if bugtrack.Enabled {
 		defer bugtrack.Recover("c2.Server.listen()")
 	}
 	if cout.Enabled {
 		s.log.Info("Server-side event processing thread started!")
 	}
-	for atomic.StoreUint32(&s.run, 1); ; {
+	for {
 		select {
 		case <-s.ctx.Done():
 			s.shutdown()
@@ -87,11 +90,11 @@ func (s *Server) shutdown() {
 	for len(s.active) > 0 {
 		delete(s.active, <-s.delListener)
 	}
+	if s.active = nil; atomic.SwapUint32(&s.run, 2) == 2 {
+		return
+	}
 	if cout.Enabled {
 		s.log.Debug("Stopping event processor.")
-	}
-	if s.active = nil; atomic.SwapUint32(&s.run, 1) == 1 {
-		return
 	}
 	close(s.new)
 	close(s.delListener)

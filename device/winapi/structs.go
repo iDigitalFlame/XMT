@@ -346,6 +346,29 @@ func (s *SID) String() string {
 	return v
 }
 
+// UserName attempts to return a Domain\User string from the SID.
+func (s *SID) UserName() (string, error) {
+	var c, x, t uint32 = 64, 64, 0
+	for {
+		var (
+			n, d      = make([]uint16, c), make([]uint16, x)
+			r, _, err = syscall.SyscallN(funcLookupAccountSid.address(),
+				0, uintptr(unsafe.Pointer(s)), uintptr(unsafe.Pointer(&n[0])),
+				uintptr(unsafe.Pointer(&c)), uintptr(unsafe.Pointer(&d[0])),
+				uintptr(unsafe.Pointer(&x)), uintptr(unsafe.Pointer(&t)),
+			)
+		)
+		if r > 0 {
+			u, q := UTF16ToString(n), UTF16ToString(d)
+			n, d = nil, nil
+			return q + "\\" + u, nil
+		}
+		if err != ErrInsufficientBuffer || c <= uint32(len(n)) {
+			return "", unboxError(err)
+		}
+	}
+}
+
 // IsWellKnown returns true if this SID matches the well known SID type index.
 func (s *SID) IsWellKnown(t uint32) bool {
 	r, _, _ := syscall.SyscallN(funcIsWellKnownSID.address(), uintptr(unsafe.Pointer(s)), uintptr(t))

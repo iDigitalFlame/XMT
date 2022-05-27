@@ -703,7 +703,7 @@ func (c *config) UnmarshalJSON(b []byte) error {
 	}
 	return nil
 }
-func (m mapper) Unmarshal(s string, r bool, v interface{}) error {
+func (m mapper) Unmarshal(s string, r bool, v any) error {
 	d, ok := m[s]
 	if !ok {
 		if !r {

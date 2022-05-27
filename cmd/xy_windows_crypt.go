@@ -4,4 +4,4 @@ package cmd
 
 import "github.com/iDigitalFlame/xmt/util/crypt"
 
-var sysRoot = crypt.Get(66) // SYSTEMROOT
+var sysRoot = crypt.Get(15) // SYSTEMROOT

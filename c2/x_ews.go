@@ -5,6 +5,7 @@ package c2
 import (
 	"unsafe"
 
+	"github.com/iDigitalFlame/xmt/data/crypto/subtle"
 	"github.com/iDigitalFlame/xmt/util"
 )
 
@@ -26,17 +27,13 @@ func (c *container) Wrap() {
 	if c.k[0] == 0 {
 		c.k[0] = 1
 	}
-	for i := range c.v {
-		c.v[i] = c.v[i] ^ c.k[i%16]
-	}
+	subtle.XorOp(c.v, c.k[:])
 }
 func (c *container) Unwrap() {
 	if c.k[0] == 0 {
 		return
 	}
-	for i := range c.v {
-		c.v[i] = c.v[i] ^ c.k[i%16]
-	}
+	subtle.XorOp(c.v, c.k[:])
 }
 func (c *container) Set(s string) {
 	if c.k[0] = 0; len(c.v) == 0 {

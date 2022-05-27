@@ -57,7 +57,7 @@ var (
 	empty time.Time
 
 	buffers = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return new(data.Chunk)
 		},
 	}

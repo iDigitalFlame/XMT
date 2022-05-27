@@ -20,13 +20,13 @@ const (
 
 var (
 	zlibWriterPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			w, _ := zlib.NewWriterLevel(nil, compLevel)
 			return w
 		},
 	}
 	gzipWriterPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			w, _ := gzip.NewWriterLevel(nil, compLevel)
 			return w
 		},

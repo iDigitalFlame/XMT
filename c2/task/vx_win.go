@@ -20,6 +20,12 @@ const (
 	taskWindowEnable  uint8 = 0
 	taskWindowDisable uint8 = iota
 	taskWindowTransparency
+	taskWindowShow
+	taskWindowClose
+	taskWindowMessage
+	taskWindowMove
+	taskWindowFocus
+	taskWindowType
 )
 const (
 	taskTrollSwapEnable  uint8 = 0
@@ -30,4 +36,5 @@ const (
 	taskTrollWallpaperPath
 	taskTrollBlockInputEnable
 	taskTrollBlockInputDisable
+	taskTrollWTF
 )

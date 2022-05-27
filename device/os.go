@@ -35,7 +35,7 @@ const (
 )
 
 var builders = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return new(util.Builder)
 	},
 }

@@ -1,12 +1,8 @@
-//go:build windows && !crypt
+//go:build windows && !crypt && !altload
 
 package winapi
 
-const debugPriv = "SeDebugPrivilege"
-
 var (
-	dllKernel32 = &lazyDLL{Name: "kernel32.dll"}
-
 	funcLoadLibraryEx       = dllKernel32.proc("LoadLibraryExW")
 	funcGetSystemDirectory  = dllKernel32.proc("GetSystemDirectoryW")
 	funcOpenProcess         = dllKernel32.proc("OpenProcess")
@@ -14,15 +10,10 @@ var (
 	funcCloseHandle         = dllKernel32.proc("CloseHandle")
 	funcGetCurrentProcessID = dllKernel32.proc("GetCurrentProcessId")
 
-	dllNtdll    = &lazyDLL{Name: "ntdll.dll"}
-	dllGdi32    = &lazyDLL{Name: "gdi32.dll"}
-	dllUser32   = &lazyDLL{Name: "user32.dll"}
-	dllWinhttp  = &lazyDLL{Name: "winhttp.dll"}
-	dllDbgHelp  = &lazyDLL{Name: "DbgHelp.dll"}
-	dllAdvapi32 = &lazyDLL{Name: "advapi32.dll"}
-
 	funcGetDC                                               = dllUser32.proc("GetDC")
 	funcBitBlt                                              = dllGdi32.proc("BitBlt")
+	funcIsZoomed                                            = dllUser32.proc("IsZoomed")
+	funcIsIconic                                            = dllUser32.proc("IsIconic")
 	funcHeapFree                                            = dllKernel32.proc("HeapFree")
 	funcReadFile                                            = dllKernel32.proc("ReadFile")
 	funcLsaClose                                            = dllAdvapi32.proc("LsaClose")
@@ -35,11 +26,14 @@ var (
 	funcGetDIBits                                           = dllGdi32.proc("GetDIBits")
 	funcReleaseDC                                           = dllUser32.proc("ReleaseDC")
 	funcHeapAlloc                                           = dllKernel32.proc("HeapAlloc")
+	funcSendInput                                           = dllUser32.proc("SendInput")
 	funcHeapCreate                                          = dllKernel32.proc("HeapCreate")
 	funcCreateFile                                          = dllKernel32.proc("CreateFileW")
 	funcGetVersion                                          = dllKernel32.proc("GetVersion")
 	funcCancelIoEx                                          = dllKernel32.proc("CancelIoEx")
 	funcBlockInput                                          = dllUser32.proc("BlockInput")
+	funcShowWindow                                          = dllUser32.proc("ShowWindow")
+	funcMessageBox                                          = dllUser32.proc("MessageBoxW")
 	funcFreeLibrary                                         = dllKernel32.proc("FreeLibrary")
 	funcHeapDestroy                                         = dllKernel32.proc("HeapDestroy")
 	funcLoadLibrary                                         = dllKernel32.proc("LoadLibraryW")
@@ -57,6 +51,7 @@ var (
 	funcRevertToSelf                                        = dllAdvapi32.proc("RevertToSelf")
 	funcRegEnumValue                                        = dllAdvapi32.proc("RegEnumValueW")
 	funcModule32Next                                        = dllKernel32.proc("Module32NextW")
+	funcSetWindowPos                                        = dllUser32.proc("SetWindowPos")
 	funcGetWindowText                                       = dllUser32.proc("GetWindowTextW")
 	funcModule32First                                       = dllKernel32.proc("Module32FirstW")
 	funcWaitNamedPipe                                       = dllKernel32.proc("WaitNamedPipeW")
@@ -85,6 +80,8 @@ var (
 	funcTerminateThread                                     = dllKernel32.proc("TerminateThread")
 	funcOpenThreadToken                                     = dllAdvapi32.proc("OpenThreadToken")
 	funcNtResumeProcess                                     = dllNtdll.proc("NtResumeProcess")
+	funcIsWindowVisible                                     = dllUser32.proc("IsWindowVisible")
+	funcLookupAccountSid                                    = dllAdvapi32.proc("LookupAccountSidW")
 	funcSetServiceStatus                                    = dllAdvapi32.proc("SetServiceStatus")
 	funcConnectNamedPipe                                    = dllKernel32.proc("ConnectNamedPipe")
 	funcTerminateProcess                                    = dllKernel32.proc("TerminateProcess")
@@ -96,6 +93,7 @@ var (
 	funcGetDesktopWindow                                    = dllUser32.proc("GetDesktopWindow")
 	funcGetWindowLongPtr                                    = dllUser32.proc("GetWindowLongPtrW")
 	funcSetWindowLongPtr                                    = dllUser32.proc("SetWindowLongPtrW")
+	funcSendNotifyMessage                                   = dllUser32.proc("SendNotifyMessageW")
 	funcGetModuleHandleEx                                   = dllKernel32.proc("GetModuleHandleExW")
 	funcIsDebuggerPresent                                   = dllKernel32.proc("IsDebuggerPresent")
 	funcMiniDumpWriteDump                                   = dllDbgHelp.proc("MiniDumpWriteDump")
@@ -113,6 +111,7 @@ var (
 	funcWaitForSingleObject                                 = dllKernel32.proc("WaitForSingleObject")
 	funcDisconnectNamedPipe                                 = dllKernel32.proc("DisconnectNamedPipe")
 	funcGetWindowTextLength                                 = dllUser32.proc("GetWindowTextLengthW")
+	funcSetForegroundWindow                                 = dllUser32.proc("SetForegroundWindow")
 	funcNtWriteVirtualMemory                                = dllNtdll.proc("NtWriteVirtualMemory")
 	funcLookupPrivilegeValue                                = dllAdvapi32.proc("LookupPrivilegeValueW")
 	funcSystemParametersInfo                                = dllUser32.proc("SystemParametersInfoW")

@@ -32,12 +32,11 @@ type Proxy struct {
 	connection
 
 	listener net.Listener
-	//f        func(bool, string)
-	ch      chan struct{}
-	close   chan uint32
-	parent  *Session
-	cancel  context.CancelFunc
-	clients map[uint32]*proxyClient
+	ch       chan struct{}
+	close    chan uint32
+	parent   *Session
+	cancel   context.CancelFunc
+	clients  map[uint32]*proxyClient
 
 	name, addr string
 	state      state
@@ -85,6 +84,10 @@ func (p *Proxy) listen() {
 		}
 		if p.state.Closing() {
 			break
+		}
+		if p.listener == nil && p.state.Replacing() {
+			time.Sleep(time.Millisecond * 30) // Prevent CPU buring loops.
+			continue
 		}
 		c, err := p.listener.Accept()
 		if err != nil {

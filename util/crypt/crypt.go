@@ -2,9 +2,13 @@
 
 package crypt
 
-import "encoding/base64"
+import (
+	"encoding/base64"
 
-const cryptMax = 300
+	"github.com/iDigitalFlame/xmt/data/crypto/subtle"
+)
+
+const cryptMax = 0xFF
 
 var (
 	key     string
@@ -30,9 +34,7 @@ func init() {
 	if c, err = base64.URLEncoding.Decode(k, []byte(key)); err != nil || len(k) == 0 || c == 0 {
 		return
 	}
-	for i := 0; i < v; i++ {
-		b[i] = b[i] ^ k[i%c]
-	}
+	subtle.XorOp(b[:v], k[:c])
 	for s, e, n := 0, 0, 0; e < v && n < cryptMax; e++ {
 		if b[e] != 0 {
 			continue
@@ -46,6 +48,6 @@ func init() {
 }
 
 // Get returns the crypt value at the provided string index.
-func Get(i uint16) string {
+func Get(i uint8) string {
 	return values[i]
 }

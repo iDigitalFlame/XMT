@@ -25,4 +25,4 @@ func Recover(_ string) {}
 // Not recommended to be used in production environments.
 //
 // The "-tags bugs" option is required in order for this function to be used.
-func Track(_ string, _ ...interface{}) {}
+func Track(_ string, _ ...any) {}

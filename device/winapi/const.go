@@ -6,18 +6,19 @@ import "syscall"
 
 // Windows API Specific syscall error values.
 const (
-	ErrNoData           syscall.Errno = 232
-	ErrPipeBusy         syscall.Errno = 231
-	ErrIoPending        syscall.Errno = 997
-	ErrBrokenPipe       syscall.Errno = 109
-	ErrSemTimeout       syscall.Errno = 121
-	ErrBadPathname      syscall.Errno = 161
-	ErrInvalidName      syscall.Errno = 123
-	ErrNoMoreFiles      syscall.Errno = 18
-	ErrIoIncomplete     syscall.Errno = 996
-	ErrFileNotFound     syscall.Errno = 2
-	ErrPipeConnected    syscall.Errno = 535
-	ErrOperationAborted syscall.Errno = 995
+	ErrNoData             syscall.Errno = 232
+	ErrPipeBusy           syscall.Errno = 231
+	ErrIoPending          syscall.Errno = 997
+	ErrBrokenPipe         syscall.Errno = 109
+	ErrSemTimeout         syscall.Errno = 121
+	ErrBadPathname        syscall.Errno = 161
+	ErrInvalidName        syscall.Errno = 123
+	ErrNoMoreFiles        syscall.Errno = 18
+	ErrIoIncomplete       syscall.Errno = 996
+	ErrFileNotFound       syscall.Errno = 2
+	ErrPipeConnected      syscall.Errno = 535
+	ErrOperationAborted   syscall.Errno = 995
+	ErrInsufficientBuffer syscall.Errno = 122
 )
 
 var (

@@ -5,7 +5,7 @@ package cmd
 import "github.com/iDigitalFlame/xmt/device"
 
 type thread struct {
-	ctx interface{}
+	ctx any
 }
 
 func (thread) Pid() uint32 {

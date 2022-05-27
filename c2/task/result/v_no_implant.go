@@ -19,11 +19,11 @@ import (
 //
 // Copied here from the winapi package.
 type Window struct {
-	Name   string
-	Handle uintptr
-	X, Y   uint32
-	Width  uint32
-	Height uint32
+	Name          string
+	Flags         uint8
+	Handle        uintptr
+	X, Y          int32
+	Width, Height int32
 }
 type fileInfo struct {
 	mod  time.Time
@@ -32,6 +32,9 @@ type fileInfo struct {
 	mode fs.FileMode
 }
 
+func (fileInfo) Sys() any {
+	return nil
+}
 func (f fileInfo) Size() int64 {
 	return f.size
 }
@@ -41,8 +44,17 @@ func (f fileInfo) IsDir() bool {
 func (f fileInfo) Name() string {
 	return f.name
 }
-func (fileInfo) Sys() interface{} {
-	return nil
+
+// IsMinimized returns true if the Window state was minimized at the time of
+// discovery.
+func (w Window) IsMinimized() bool {
+	return w.Flags&0x2 != 0
+}
+
+// IsMaximized returns true if the Window state was maximized at the time of
+// discovery.
+func (w Window) IsMaximized() bool {
+	return w.Flags&0x1 != 0
 }
 func (f fileInfo) Mode() fs.FileMode {
 	return f.mode
@@ -300,16 +312,19 @@ func (w *Window) UnmarshalStream(r data.Reader) error {
 	if err = r.ReadString(&w.Name); err != nil {
 		return err
 	}
-	if err = r.ReadUint32(&w.X); err != nil {
+	if err = r.ReadUint8(&w.Flags); err != nil {
 		return err
 	}
-	if err = r.ReadUint32(&w.Y); err != nil {
+	if err = r.ReadInt32(&w.X); err != nil {
 		return err
 	}
-	if err = r.ReadUint32(&w.Width); err != nil {
+	if err = r.ReadInt32(&w.Y); err != nil {
 		return err
 	}
-	if err = r.ReadUint32(&w.Height); err != nil {
+	if err = r.ReadInt32(&w.Width); err != nil {
+		return err
+	}
+	if err = r.ReadInt32(&w.Height); err != nil {
 		return err
 	}
 	return nil

@@ -4,4 +4,4 @@ package device
 
 import "github.com/iDigitalFlame/xmt/util/crypt"
 
-var emptyIP = crypt.Get(18) // "0.0.0.0"
+var emptyIP = crypt.Get(60) // 0.0.0.0

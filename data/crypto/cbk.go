@@ -12,13 +12,13 @@ const size = 128
 
 var (
 	chains = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			var b [size + 1]byte
 			return &b
 		},
 	}
 	tables = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			var b [size + 1][256]byte
 			return &b
 		},

@@ -53,23 +53,23 @@ func stringToDec(s string) (os.FileMode, error) {
 		case i == 0 && (c == 't' || c == 'T'):
 			p |= os.ModeSticky
 		case i < 3 && (c == 'r' || c == 'R'):
-			p |= 0400
+			p |= 0o400
 		case i < 3 && (c == 'w' || c == 'W'):
-			p |= 0200
+			p |= 0o200
 		case i < 3 && (c == 'x' || c == 'X'):
-			p |= 0100
+			p |= 0o100
 		case i >= 3 && i < 6 && (c == 'r' || c == 'R'):
-			p |= 0040
+			p |= 0o040
 		case i >= 3 && i < 6 && (c == 'w' || c == 'W'):
-			p |= 0020
+			p |= 0o020
 		case i >= 3 && i < 6 && (c == 'x' || c == 'X'):
-			p |= 0010
+			p |= 0o010
 		case i >= 6 && (c == 'r' || c == 'R'):
-			p |= 0004
+			p |= 0o004
 		case i >= 6 && (c == 'w' || c == 'W'):
-			p |= 0002
+			p |= 0o002
 		case i >= 6 && (c == 'x' || c == 'X'):
-			p |= 0001
+			p |= 0o001
 		case c == '-' || c == ' ':
 		case c != 'r' && c != 'R' && c != 'x' && c != 'X' && c != 'w' && c != 'W':
 			if xerr.Concat {

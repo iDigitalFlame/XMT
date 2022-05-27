@@ -16,7 +16,7 @@ const (
 )
 
 var bufs = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		var b [bufSize]byte
 		return &b
 	},

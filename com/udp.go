@@ -25,7 +25,7 @@ var (
 	udpDeadline = new(udpErr)
 
 	buffers = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			var b [udpLimit]byte
 			return &b
 		},
@@ -76,6 +76,9 @@ type udpAddr netip.AddrPort
 
 func (udpErr) Timeout() bool {
 	return true
+}
+func (udpErr) Error() string {
+	return context.DeadlineExceeded.Error()
 }
 func (l *udpListener) purge() {
 	for {

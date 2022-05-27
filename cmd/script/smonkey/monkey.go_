@@ -26,7 +26,7 @@ const Monkey monkeyEngine = 0xD1
 
 var (
 	monkeyPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return &monkeyScript{Environment: object.NewEnvironment()}
 		},
 	}
@@ -135,7 +135,7 @@ func printf(e *object.Environment, a ...object.Object) object.Object {
 	}
 	monkeyLock.RLock()
 	var (
-		d     = make([]interface{}, len(a)-1)
+		d     = make([]any, len(a)-1)
 		m, ok = monkeyTracker[uintptr(unsafe.Pointer(e))]
 	)
 	if monkeyLock.RUnlock(); !ok {
@@ -161,7 +161,7 @@ func println(e *object.Environment, a ...object.Object) object.Object {
 // to be the command line arguments.
 //
 // This Ex function allows to specify a map that contains any starting variables to be supplied at runtime.
-func InvokeEx(x context.Context, m map[string]interface{}, s string) (string, error) {
+func InvokeEx(x context.Context, m map[string]any, s string) (string, error) {
 	p := parser.New(lexer.New(s))
 	if len(p.Errors()) != 0 {
 		return "", xerr.Sub(strings.Join(p.Errors(), ";"), 0x1)
@@ -243,6 +243,6 @@ func InvokeEx(x context.Context, m map[string]interface{}, s string) (string, er
 	monkeyPool.Put(e)
 	return r, err
 }
-func (monkeyEngine) Invoke(x context.Context, m map[string]interface{}, s string) (string, error) {
+func (monkeyEngine) Invoke(x context.Context, m map[string]any, s string) (string, error) {
 	return InvokeEx(x, m, s)
 }

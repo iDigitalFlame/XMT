@@ -1,5 +1,7 @@
 package util
 
+import "github.com/iDigitalFlame/xmt/data/crypto/subtle"
+
 // Decode is used to un-encode a string written in a XOR byte array "encrypted"
 // by the specified key.
 //
@@ -11,8 +13,6 @@ func Decode(k, d []byte) string {
 	if len(k) == 0 || len(d) == 0 {
 		return ""
 	}
-	for i := range d {
-		d[i] = d[i] ^ k[i%len(k)]
-	}
+	subtle.XorOp(d, k)
 	return string(d)
 }

@@ -5,12 +5,12 @@ package task
 import "github.com/iDigitalFlame/xmt/util/crypt"
 
 var (
-	pwsh      = crypt.Get(115) // -comm
-	execA     = crypt.Get(12)  // *.so
-	execB     = crypt.Get(13)  // *.dll
-	execC     = crypt.Get(14)  // *.exe
-	userAgent = crypt.Get(44)  // User-Agent
-	userValue = crypt.Get(243) // Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36
+	pwsh      = crypt.Get(0) // -comm
+	execA     = crypt.Get(1) // *.so
+	execB     = crypt.Get(2) // *.dll
+	execC     = crypt.Get(3) // *.exe
+	userAgent = crypt.Get(4) // User-Agent
+	userValue = crypt.Get(5) // Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36
 )
 
 // Shell will create a Task that will instruct the client to run a shell
@@ -50,5 +50,5 @@ var (
 //      int32               // Exit Code
 //      []byte              // Output (Stdout and Stderr)
 func Shell(c string) Process {
-	return Process{Args: []string{crypt.Get(208), c}, Wait: true} // @SHELL@
+	return Process{Args: []string{crypt.Get(6), c}, Wait: true} // @SHELL@
 }

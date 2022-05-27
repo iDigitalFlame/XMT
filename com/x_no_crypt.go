@@ -11,7 +11,3 @@ const (
 	NameUnix = "unix"
 	NameHTTP = "http"
 )
-
-func (udpErr) Error() string {
-	return "deadline exceeded"
-}

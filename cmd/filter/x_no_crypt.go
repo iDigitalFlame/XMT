@@ -7,7 +7,7 @@ import "encoding/json"
 // MarshalJSON will attempt to convert the data in this Filter into the returned
 // JSON byte array.
 func (f Filter) MarshalJSON() ([]byte, error) {
-	m := map[string]interface{}{"fallback": f.Fallback}
+	m := map[string]any{"fallback": f.Fallback}
 	if f.PID != 0 {
 		m["pid"] = f.PID
 	}

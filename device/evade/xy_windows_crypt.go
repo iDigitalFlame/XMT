@@ -7,7 +7,7 @@ import (
 	"github.com/iDigitalFlame/xmt/util/crypt"
 )
 
-var sect = crypt.Get(56) // .text
+var sect = crypt.Get(104) // .text
 
 func fullPath(n string) string {
 	if !isBaseName(n) {
@@ -15,7 +15,7 @@ func fullPath(n string) string {
 	}
 	d, err := winapi.GetSystemDirectory()
 	if err != nil {
-		d = crypt.Get(57) // C:\Windows\System32
+		d = crypt.Get(105) // C:\Windows\System32
 	}
 	return d + "\\" + n
 }

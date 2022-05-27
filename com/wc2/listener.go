@@ -49,6 +49,9 @@ func (a addr) String() string {
 func (complete) Timeout() bool {
 	return true
 }
+func (complete) Error() string {
+	return context.DeadlineExceeded.Error()
+}
 func (complete) Temporary() bool {
 	return true
 }

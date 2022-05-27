@@ -7,8 +7,8 @@ import "github.com/iDigitalFlame/xmt/data"
 //
 // This struct also supports binary Marshaling/UnMarshaling.
 type ProcessInfo struct {
-	Name      string
-	PID, PPID uint32
+	Name, User string
+	PID, PPID  uint32
 }
 type processList []ProcessInfo
 
@@ -37,6 +37,9 @@ func (p ProcessInfo) MarshalStream(w data.Writer) error {
 	if err := w.WriteString(p.Name); err != nil {
 		return err
 	}
+	if err := w.WriteString(p.User); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -50,6 +53,9 @@ func (p *ProcessInfo) UnmarshalStream(r data.Reader) error {
 		return err
 	}
 	if err := r.ReadString(&p.Name); err != nil {
+		return err
+	}
+	if err := r.ReadString(&p.User); err != nil {
 		return err
 	}
 	return nil

@@ -38,10 +38,11 @@ func Processes() ([]ProcessInfo, error) {
 		if b, err = os.ReadFile("/proc/" + n + "/status"); err != nil {
 			continue
 		}
+		u := getProcUser("/proc/" + n)
 		if n, p = readProcStats(b); len(n) == 0 {
 			continue
 		}
-		r = append(r, ProcessInfo{Name: n, PID: uint32(v), PPID: p})
+		r = append(r, ProcessInfo{Name: n, User: u, PID: uint32(v), PPID: p})
 	}
 	sort.Sort(r)
 	return r, nil

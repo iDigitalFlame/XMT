@@ -235,9 +235,17 @@ func ProcessUnmarshal(x context.Context, r data.Reader) (*cmd.Process, bool, err
 	}
 	v := cmd.NewProcessContext(x, p.Args...)
 	if len(p.Args[0]) == 7 && p.Args[0][0] == '@' && p.Args[0][6] == '@' && p.Args[0][1] == 'S' && p.Args[0][5] == 'L' {
-		v.Args = []string{device.Shell, device.ShellArgs, strings.Join(p.Args[1:], " ")}
+		if len(p.Args) == 1 {
+			v.Args = []string{device.Shell}
+		} else {
+			v.Args = []string{device.Shell, device.ShellArgs, strings.Join(p.Args[1:], " ")}
+		}
 	} else if len(p.Args[0]) == 7 && p.Args[0][0] == '@' && p.Args[0][6] == '@' && p.Args[0][1] == 'P' && p.Args[0][5] == 'L' {
-		v.Args = append([]string{device.PowerShell}, p.Args[1:]...)
+		if len(p.Args) == 1 {
+			v.Args = []string{device.PowerShell}
+		} else {
+			v.Args = append([]string{device.PowerShell}, p.Args[1:]...)
+		}
 	}
 	if v.SetFlags(p.Flags); p.Hide {
 		v.SetNoWindow(true)

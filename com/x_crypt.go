@@ -6,14 +6,10 @@ import "github.com/iDigitalFlame/xmt/util/crypt"
 
 // Named Network Constants
 var (
-	NameIP   = crypt.Get(2)   // ip
-	NameTCP  = crypt.Get(3)   // tcp
-	NameUDP  = crypt.Get(4)   // udp
-	NameUnix = crypt.Get(5)   // unix
-	NamePipe = crypt.Get(6)   // pipe
-	NameHTTP = crypt.Get(116) // http
+	NameIP   = crypt.Get(26) // ip
+	NameTCP  = crypt.Get(27) // tcp
+	NameUDP  = crypt.Get(28) // udp
+	NameUnix = crypt.Get(29) // unix
+	NamePipe = crypt.Get(30) // pipe
+	NameHTTP = crypt.Get(31) // http
 )
-
-func (udpErr) Error() string {
-	return crypt.Get(43) // deadline exceeded
-}

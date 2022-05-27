@@ -11,7 +11,7 @@ import (
 )
 
 func Processes() ([]ProcessInfo, error) {
-	l, err := os.ReadDir(crypt.Get(237)) // /proc/
+	l, err := os.ReadDir(crypt.Get(16)) // /proc/
 	if err != nil {
 		return nil, err
 	}
@@ -35,13 +35,19 @@ func Processes() ([]ProcessInfo, error) {
 		if v, err = strconv.ParseUint(n, 10, 32); err != nil {
 			continue
 		}
-		if b, err = os.ReadFile(crypt.Get(237) + n + crypt.Get(78)); err != nil { // /proc/ , /status
+		b, err = os.ReadFile(
+			crypt.Get(16) + // /proc/
+				n +
+				crypt.Get(17), // /status
+		)
+		if err != nil {
 			continue
 		}
+		u := getProcUser(crypt.Get(16) + n) // /proc/
 		if n, p = readProcStats(b); len(n) == 0 {
 			continue
 		}
-		r = append(r, ProcessInfo{Name: n, PID: uint32(v), PPID: p})
+		r = append(r, ProcessInfo{Name: n, User: u, PID: uint32(v), PPID: p})
 	}
 	sort.Sort(r)
 	return r, nil

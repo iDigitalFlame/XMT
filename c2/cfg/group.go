@@ -69,7 +69,7 @@ type Group struct {
 type profile struct {
 	w    c2.Wrapper
 	t    c2.Transform
-	conn interface{}
+	conn any
 
 	src   []byte
 	hosts []string

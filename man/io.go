@@ -40,7 +40,7 @@ var (
 // This function will truncate and overrite any file that exists at 'p'.
 func (s Sentinel) File(p string) error {
 	// 0x242 - CREATE | TRUNCATE | RDWR
-	f, err := os.OpenFile(p, 0x242, 0644)
+	f, err := os.OpenFile(p, 0x242, 0o644)
 	if err != nil {
 		return err
 	}
@@ -294,7 +294,7 @@ func (s Sentinel) CryptFile(c cipher.Block, p string) error {
 		return s.File(p)
 	}
 	// 0x242 - CREATE | TRUNCATE | RDWR
-	f, err := os.OpenFile(p, 0x242, 0644)
+	f, err := os.OpenFile(p, 0x242, 0o644)
 	if err != nil {
 		return err
 	}
