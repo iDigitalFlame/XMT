@@ -3,7 +3,6 @@
 package filter
 
 import (
-	"strconv"
 	"strings"
 	"unsafe"
 
@@ -145,9 +144,6 @@ func (f Filter) HandleFunc(a uint32, x filter) (uintptr, error) {
 	if f.PID > 4 {
 		h, err := winapi.OpenProcess(a, true, f.PID)
 		if h == 0 || err != nil {
-			if xerr.Concat {
-				return 0, xerr.Wrap("OpenProcess "+strconv.Itoa(int(f.PID)), err)
-			}
 			return 0, xerr.Wrap("OpenProcess", err)
 		}
 		if x == nil {

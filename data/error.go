@@ -26,33 +26,33 @@ type dataError uint8
 type limitError struct{}
 
 func (limitError) Error() string {
-	if xerr.Concat {
-		return "buffer size limit reached"
+	if xerr.ExtendedInfo {
+		return "buffer limit reached"
 	}
-	return "92"
+	return "0x23"
 }
 func (limitError) Unwrap() error {
 	return io.EOF
 }
 func (e dataError) Error() string {
-	if xerr.Concat {
+	if xerr.ExtendedInfo {
 		switch e {
-		case ErrInvalidType:
-			return "could not find the buffer type"
-		case ErrInvalidIndex:
-			return "index provided is invalid"
 		case ErrTooLarge:
-			return "buffer size is too large"
+			return "buffer is too large"
+		case ErrInvalidType:
+			return "invalid buffer type"
+		case ErrInvalidIndex:
+			return "invalid index"
 		}
 		return "unknown error"
 	}
 	switch e {
-	case ErrInvalidType:
-		return "93"
-	case ErrInvalidIndex:
-		return "94"
 	case ErrTooLarge:
-		return "95"
+		return "0x26"
+	case ErrInvalidType:
+		return "0x24"
+	case ErrInvalidIndex:
+		return "0x25"
 	}
-	return "96"
+	return "0x1"
 }

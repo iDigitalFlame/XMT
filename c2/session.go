@@ -1,23 +1,19 @@
 package c2
 
 import (
-	"context"
 	"errors"
 	"io"
 	"net"
 	"strconv"
-	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/c2/cout"
-	"github.com/iDigitalFlame/xmt/c2/task"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/com/limits"
 	"github.com/iDigitalFlame/xmt/com/pipe"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/data/crypto"
-	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/device/local"
 	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
@@ -32,60 +28,15 @@ const (
 )
 
 var (
-	// ErrNoTask is returned from some functions that return Jobs. This will
-	// be returned when the Job object will be nil due to the fact the function
-	// was called on the client-side instead of the server-side.
-	//
-	// This is more of an informational message than an error, as this does NOT
-	// indicate that the function failed, but that the Job object should NOT be
-	// used as it is nil. (In case the Job object is not checked.)
-	ErrNoTask = xerr.Sub("no Job created for client Session", 0x1D)
 	// ErrFullBuffer is returned from the WritePacket function when the send
 	// buffer for the Session is full.
 	//
 	// This error also indicates that a call to 'Send' would block.
-	ErrFullBuffer = xerr.Sub("send buffer is full", 0x1E)
+	ErrFullBuffer = xerr.Sub("send buffer is full", 0x4C)
 	// ErrInvalidPacketCount is returned when attempting to read a packet marked
 	// as multi or frag an the total count returned is zero.
-	ErrInvalidPacketCount = xerr.Sub("frag/multi total is zero on a frag/multi packet", 0x1F)
+	ErrInvalidPacketCount = xerr.Sub("frag/multi total is zero on a frag/multi packet", 0x4D)
 )
-
-// Session is a struct that represents a connection between the client and the
-// Listener.
-//
-// This struct does some automatic handeling and acts as the communication
-// channel between the client and server.
-type Session struct {
-	lock   sync.RWMutex
-	keyNew *data.Key
-
-	Last    time.Time
-	Created time.Time
-	connection
-
-	swap            Profile
-	ch, wake        chan struct{}
-	parent          *Listener
-	send, recv, chn chan *com.Packet
-	frags           map[uint16]*cluster
-	jobs            map[uint16]*Job
-
-	Shutdown func(*Session)
-	Receive  func(*Session, *com.Packet)
-	proxy    *proxyBase
-	tick     *time.Ticker
-	peek     *com.Packet
-	host     container
-	proxyState
-
-	Device device.Machine
-	sleep  time.Duration
-	state  state
-	key    data.Key
-
-	ID             device.ID
-	jitter, errors uint8
-}
 
 // Wait will block until the current Session is closed and shutdown.
 func (s *Session) Wait() {
@@ -125,12 +76,9 @@ func (s *Session) wait() {
 	}
 	select {
 	case <-s.wake:
-		break
 	case <-s.tick.C:
-		break
 	case <-s.ctx.Done():
 		s.state.Set(stateClosing)
-		break
 	}
 }
 
@@ -139,7 +87,7 @@ func (s *Session) wait() {
 //
 // This is not valid for Server side Sessions.
 func (s *Session) Wake() {
-	if s.wake == nil || s.s != nil || s.state.WakeClosed() {
+	if s.wake == nil || !s.IsClient() || s.state.WakeClosed() {
 		return
 	}
 	select {
@@ -148,7 +96,7 @@ func (s *Session) Wake() {
 	}
 }
 func (s *Session) listen() {
-	if _ = s.proxyState; s.s != nil {
+	if !s.IsClient() {
 		// NOTE(dij): Server side sessions shouldn't be running this, bail.
 		return
 	}
@@ -265,7 +213,7 @@ func (s *Session) shutdown() {
 	if s.tick != nil {
 		s.tick.Stop()
 	}
-	if s.state.Set(stateClosed); s.s != nil {
+	if s.state.Set(stateClosed); !s.IsClient() {
 		s.s.Remove(s.ID, false)
 	}
 	s.m.close()
@@ -273,23 +221,6 @@ func (s *Session) shutdown() {
 		return
 	}
 	close(s.ch)
-}
-
-// Jobs returns all current Jobs for this Session.
-//
-// This returns nil if there are no Jobs or this Session does not have the
-// ability to schedule them.
-func (s *Session) Jobs() []*Job {
-	if s.jobs == nil || len(s.jobs) == 0 {
-		return nil
-	}
-	s.lock.RLock()
-	r := make([]*Job, 0, len(s.jobs))
-	for _, j := range s.jobs {
-		r = append(r, j)
-	}
-	s.lock.RUnlock()
-	return r
 }
 
 // Close stops the listening thread from this Session and releases all
@@ -309,23 +240,16 @@ func (s *Session) Jitter() uint8 {
 // IsProxy returns true when a Proxy has been attached to this Session and is
 // active.
 func (s *Session) IsProxy() bool {
-	return !s.state.Closing() && s.proxy != nil && s.proxy.IsActive()
+	return !s.state.Closing() && s.IsClient() && s.proxy != nil && s.proxy.IsActive()
+}
+func (s *Session) isMoving() bool {
+	return s.IsClient() && s.state.Moving()
 }
 
 // IsActive returns true if this Session is still able to send and receive
 // Packets.
 func (s *Session) IsActive() bool {
 	return !s.state.Closing()
-}
-func (s *Session) isMoving() bool {
-	return s.parent == nil && s.state.Moving()
-}
-
-// IsClient returns true when this Session is not associated to a Listener on
-// this end, which signifies that this session is Client initiated or we are
-// on a client device.
-func (s *Session) IsClient() bool {
-	return s.parent == nil
 }
 
 // IsClosed returns true if the Session is considered "Closed" and cannot
@@ -339,38 +263,6 @@ func (s *Session) IsClosed() bool {
 // Session is currently in Channel mode, even if not explicitly set.
 func (s *Session) InChannel() bool {
 	return s.state.Channel() || s.state.ChannelValue()
-}
-func (s *Session) accept(i uint16) {
-	if i < 2 || s.parent == nil || s.jobs == nil || len(s.jobs) == 0 {
-		return
-	}
-	s.lock.RLock()
-	j, ok := s.jobs[i]
-	if s.lock.RUnlock(); !ok {
-		return
-	}
-	if j.Status = StatusAccepted; j.Update != nil {
-		s.m.queue(event{j: j, jf: j.Update})
-	}
-	if cout.Enabled {
-		s.log.Trace("[%s] Set JobID %d to accepted.", s.ID, i)
-	}
-}
-func (s *Session) newJobID() uint16 {
-	var (
-		ok   bool
-		i, c uint16
-	)
-	s.lock.RLock()
-	for ; c < 512; c++ {
-		i = uint16(util.FastRand())
-		if _, ok = s.jobs[i]; !ok && i > 1 {
-			s.lock.RUnlock()
-			return i
-		}
-	}
-	s.lock.RUnlock()
-	return 0
 }
 
 // Read attempts to grab a Packet from the receiving buffer.
@@ -402,21 +294,9 @@ func (s *Session) SetChannel(c bool) {
 	} else {
 		s.queue(&com.Packet{Flags: com.FlagChannelEnd, Device: s.ID})
 	}
-	if !s.state.Channel() && s.parent == nil && s.wake != nil && len(s.wake) < cap(s.wake) {
+	if !s.state.Channel() && s.IsClient() && s.wake != nil && len(s.wake) < cap(s.wake) {
 		s.wake <- wake
 	}
-}
-
-// Job returns a Job with the associated ID, if it exists. It returns nil
-// otherwise.
-func (s *Session) Job(i uint16) *Job {
-	if i < 2 || s.jobs == nil || len(s.jobs) == 0 {
-		return nil
-	}
-	s.lock.RLock()
-	j := s.jobs[i]
-	s.lock.RUnlock()
-	return j
 }
 
 // RemoteAddr returns a string representation of the remotely connected IP
@@ -439,7 +319,7 @@ func (s *Session) close(w bool) error {
 	if s.state.Closing() {
 		return nil
 	}
-	if s.s != nil && !s.state.ShutdownWait() {
+	if !s.IsClient() && !s.state.ShutdownWait() {
 		s.peek = &com.Packet{ID: SvShutdown, Device: s.ID}
 		if !s.state.SendClosed() {
 			for len(s.send) > 0 {
@@ -454,7 +334,7 @@ func (s *Session) close(w bool) error {
 	s.state.Unset(stateChannelValue)
 	s.state.Unset(stateChannelUpdated)
 	s.state.Unset(stateChannel)
-	if s.state.Set(stateClosing); s.s != nil {
+	if s.state.Set(stateClosing); !s.IsClient() {
 		s.shutdown()
 		return nil
 	}
@@ -497,12 +377,6 @@ func (s *Session) queue(n *com.Packet) {
 // Time returns the value for the timeout period between C2 Server connections.
 func (s *Session) Time() time.Duration {
 	return s.sleep
-}
-
-// Listener will return the Listener that created the Session. This will return
-// nil if the session is not on the server side.
-func (s *Session) Listener() *Listener {
-	return s.parent
 }
 
 // Done returns a channel that's closed when this Session is closed.
@@ -667,7 +541,7 @@ func (s *Session) pick(i bool) *com.Packet {
 		return <-s.send
 	}
 	switch {
-	case s.s != nil && s.state.Channel():
+	case !s.IsClient() && s.state.Channel():
 		select {
 		case <-s.wake:
 			return nil
@@ -737,90 +611,6 @@ func (s *Session) next(i bool) *com.Packet {
 func (s *Session) Write(p *com.Packet) error {
 	return s.write(false, p)
 }
-func (s *Session) handle(p *com.Packet) bool {
-	if p == nil || p.Device.Empty() || (p.ID != RvResult && p.ID != RvMigrate) || p.Job < 2 {
-		return false
-	}
-	if s.jobs == nil || len(s.jobs) == 0 {
-		if cout.Enabled {
-			s.log.Warning("[%s/ShC] Received an un-tracked Job ID %d!", s.ID, p.Job)
-		}
-		return false
-	}
-	if s.state.Moving() {
-		if cout.Enabled {
-			s.log.Warning("[%s/ShC] Dropping Job ID %d as Session is being Migrated!", s.ID, p.Job)
-		}
-		return true
-	}
-	s.lock.RLock()
-	j, ok := s.jobs[p.Job]
-	if s.lock.RUnlock(); !ok {
-		if cout.Enabled {
-			s.log.Warning("[%s:/ShC] Received an un-tracked Job ID %d!", s.ID, p.Job)
-		}
-		return false
-	}
-	if cout.Enabled {
-		s.log.Info("[%s/ShC] Received response for Job ID %d.", s.ID, j.ID)
-	}
-	if j.Result, j.Complete, j.Status = p, time.Now(), StatusCompleted; p.Flags&com.FlagError != 0 {
-		j.Status = StatusError
-		if err := p.ReadString(&j.Error); err != nil {
-			j.Error = err.Error()
-		}
-	} else if j.Result != nil {
-		// Handle server-side updates to info
-		switch j.Type {
-		case task.MvTime:
-			if err := j.Result.ReadUint8(&s.jitter); err != nil {
-				if cout.Enabled {
-					s.log.Warning("[%s:/ShC] Error reading MvTime Job %d time: %s!", s.ID, p.Job, err.Error())
-				}
-			} else {
-				if err = j.Result.ReadInt64((*int64)(&s.sleep)); err != nil {
-					if cout.Enabled {
-						s.log.Warning("[%s:/ShC] Error reading MvTime Job %d time: %s!", s.ID, p.Job, err.Error())
-					}
-				}
-			}
-			j.Result.Seek(0, 0)
-		case task.MvRefresh:
-			if err := s.Device.UnmarshalStream(j.Result); err != nil {
-				if cout.Enabled {
-					s.log.Warning("[%s:/ShC] Error reading MvRefresh Job %d Machine: %s!", s.ID, p.Job, err.Error())
-				}
-			}
-			j.Result.Seek(0, 0)
-		}
-	}
-	s.lock.Lock()
-	delete(s.jobs, j.ID)
-	s.lock.Unlock()
-	if j.cancel(); j.Update != nil {
-		s.m.queue(event{j: j, jf: j.Update})
-	}
-	return true
-}
-func (s *Session) frag(i, id, max, cur uint16) {
-	if i < 2 || s.parent == nil || s.jobs == nil || len(s.jobs) == 0 {
-		return
-	}
-	s.lock.RLock()
-	j, ok := s.jobs[i]
-	if s.lock.RUnlock(); !ok {
-		return
-	}
-	if j.Frags == 0 {
-		j.Status = StatusReceiving
-	}
-	if j.Frags, j.Current = max, cur; j.Update != nil {
-		s.m.queue(event{j: j, jf: j.Update})
-	}
-	if cout.Enabled {
-		s.log.Trace("[%s/Frag] Tracking Job %d Frag Group %X, Current %d of %d.", s.ID, i, id, cur+1, max)
-	}
-}
 
 // Packets will create and setup the Packet receiver channel. This function will
 // then return the read-only Packet channel for use.
@@ -841,65 +631,6 @@ func (s *Session) Packets() <-chan *com.Packet {
 	}
 	s.lock.Unlock()
 	return s.recv
-}
-
-// SetJitter sets Jitter percentage of the Session's wake interval. This is a 0
-// to 100 percentage (inclusive) that will determine any +/- time is added to
-// the waiting period. This assists in evading IDS/NDS devices/systems.
-//
-// A value of 0 will disable Jitter and any value over 100 will set the value to
-// 100, which represents using Jitter 100% of the time.
-//
-// If this is a Server-side Session, the new value will be sent to the Client in
-// a MvTime Packet.
-func (s *Session) SetJitter(j int) (*Job, error) {
-	return s.SetDuration(s.sleep, j)
-}
-
-// Task is a function that will attach a JobID to the specified Packet (if
-// empty) and wil return a Job promise that can be used to internally keep track
-// of a response Packet with a matching Job ID.
-//
-// Errors will be returned if Task is attempted on an invalid Packet, this
-// Session is a client-side Session, Job ID is already used or the scheduler is
-// full.
-func (s *Session) Task(n *com.Packet) (*Job, error) {
-	if n == nil {
-		return nil, xerr.Sub("empty or nil Job", 0x20)
-	}
-	if s.parent == nil || s.jobs == nil {
-		return nil, xerr.Sub("cannot be a client session", 0x21)
-	}
-	if s.isMoving() {
-		return nil, xerr.Sub("migration in progress", 0x22)
-	}
-	if n.Job == 0 {
-		if n.Job = s.newJobID(); n.Job == 0 {
-			return nil, xerr.Sub("cannot assign a Job ID", 0x23)
-		}
-	}
-	if n.Device.Empty() {
-		n.Device = s.Device.ID
-	}
-	s.lock.RLock()
-	_, ok := s.jobs[n.Job]
-	if s.lock.RUnlock(); ok {
-		if xerr.Concat {
-			return nil, xerr.Sub("job ID "+strconv.Itoa(int(n.Job))+" is in use", 0x24)
-		}
-		return nil, xerr.Sub("job ID is in use", 0x24)
-	}
-	if err := s.write(false, n); err != nil {
-		return nil, err
-	}
-	j := &Job{ID: n.Job, Type: n.ID, Start: time.Now(), Session: s}
-	j.ctx, j.cancel = context.WithCancel(s.ctx)
-	s.lock.Lock()
-	s.jobs[n.Job] = j
-	if s.lock.Unlock(); cout.Enabled {
-		s.log.Info("[%s/ShC] Added JobID %d to Track!", s.ID, n.Job)
-	}
-	return j, nil
 }
 func (s *Session) write(w bool, n *com.Packet) error {
 	if s.state.Closing() || s.state.SendClosed() {
@@ -953,95 +684,6 @@ func (s *Session) write(w bool, n *com.Packet) error {
 	n.Clear()
 	return err
 }
-func (s *Session) setProfile(b []byte) (*Job, error) {
-	if s.parent == nil {
-		return nil, ErrNoTask
-	}
-	n := &com.Packet{ID: task.MvProfile, Device: s.Device.ID}
-	n.WriteBytes(b)
-	return s.Task(n)
-}
-
-// SetProfile will set the Profile used by this Session. This function will
-// ensure that the profile is marshalable before setting and will then pass it
-// to be set by the client Session (if this isn't one already).
-//
-// If this is a server-side Session, this will trigger the sending of a MvProfile
-// Packet to update the client-side instance, which will update on it's next
-// wakeup cycle.
-//
-// If this is a client-side session the error 'ErrNoTask' will be returned AFTER
-// setting the Profile and indicates that no Packet will be sent and that the
-// Job object result is nil.
-func (s *Session) SetProfile(p Profile) (*Job, error) {
-	if p == nil {
-		return nil, ErrInvalidProfile
-	}
-	m, ok := p.(marshaler)
-	if !ok {
-		return nil, xerr.Sub("cannot marshal Profile", 0x25)
-	}
-	b, err := m.MarshalBinary()
-	if err != nil {
-		return nil, xerr.Wrap("cannot marshal Profile", err)
-	}
-	s.p = p
-	return s.setProfile(b)
-}
-
-// Tasklet is a function similar to Task and will attach a JobID to the specified
-// Packet created by the supplied Tasklet and wil return a Job promise that can be
-// used to internally keep track of a response Packet with a matching Job ID.
-//
-// If the Tasklet has an issue generating the payload, it will return an error
-// before scheduling.
-//
-// Errors will be returned if Task is attempted on an invalid Packet, this Session
-// is a client-side Session, Job ID is already or the scheduler is full.
-func (s *Session) Tasklet(t task.Tasklet) (*Job, error) {
-	if t == nil {
-		return nil, xerr.Sub("empty or nil Tasklet", 0x26)
-	}
-	n, err := t.Packet()
-	if err != nil {
-		return nil, err
-	}
-	return s.Task(n)
-}
-
-// SetSleep sets the wake interval period for this Session. This is the time value
-// between connections to the C2 Server.
-//
-// If this is a Server-side Session, the new value will be sent to the Client in
-// a MvTime Packet. This setting does not affect Jitter.
-func (s *Session) SetSleep(t time.Duration) (*Job, error) {
-	return s.SetDuration(t, int(s.jitter))
-}
-
-// SetProfileBytes will set the Profile used by this Session. This function will
-// unmarshal and set the server-side before setting and will then pass it to be
-// set by the client Session (if this isn't one already).
-//
-// If this is a server-side Session, this will trigger the sending of a MvProfile
-// Packet to update the client-side instance, which will update on it's next
-// wakeup cycle.
-//
-// This function will fail if no ProfileParser is set.
-//
-// If this is a client-side session the error 'ErrNoTask' will be returned AFTER
-// setting the Profile and indicates that no Packet will be sent and that the
-// Job object result is nil.
-func (s *Session) SetProfileBytes(b []byte) (*Job, error) {
-	if ProfileParser == nil {
-		return nil, xerr.Sub("no Profile parser loaded", 0x15)
-	}
-	p, err := ProfileParser(b)
-	if err != nil {
-		return nil, xerr.Wrap("parse Profile", err)
-	}
-	s.p = p
-	return s.setProfile(b)
-}
 
 // Spawn will execute the provided runnable and will wait up to the provided
 // duration to transfer profile and Session information to the new runnable
@@ -1055,38 +697,6 @@ func (s *Session) SetProfileBytes(b []byte) (*Job, error) {
 // may have occurred during the Spawn.
 func (s *Session) Spawn(n string, r runnable) (uint32, error) {
 	return s.SpawnProfile(n, nil, 0, r)
-}
-
-// SetDuration sets the wake interval period and Jitter for this Session. This is
-// the time value between connections to the C2 Server.
-//
-// Jitter is a 0 to 100 percentage (inclusive) that will determine any +/- time
-// is added to the waiting period. This assists in evading IDS/NDS devices/systems.
-//
-// A value of 0 will disable Jitter and any value over 100 will set the value to
-// 100, which represents using Jitter 100% of the time.
-//
-// If this is a Server-side Session, the new value will be sent to the Client in
-// a MvTime Packet.
-func (s *Session) SetDuration(t time.Duration, j int) (*Job, error) {
-	switch {
-	case j < 0:
-		s.jitter = 0
-	case j > 100:
-		s.jitter = 100
-	default:
-		s.jitter = uint8(j)
-	}
-	// NOTE(dij): This may cause a de-sync issue when combined with a smaller
-	//            initial timeout only on channels.
-	//            (Just the bail below)
-	if s.sleep = t; s.parent == nil {
-		return nil, ErrNoTask
-	}
-	n := &com.Packet{ID: task.MvTime, Device: s.Device.ID}
-	n.WriteUint8(s.jitter)
-	n.WriteUint64(uint64(s.sleep))
-	return s.Task(n)
 }
 
 // Migrate will execute the provided runnable and will wait up to 60 seconds
@@ -1121,21 +731,21 @@ func (s *Session) Migrate(wait bool, n string, job uint16, r runnable) (uint32, 
 // The return values for this function are the new PID used and any errors that
 // may have occurred during the Spawn.
 func (s *Session) SpawnProfile(n string, b []byte, t time.Duration, e runnable) (uint32, error) {
-	if s.s != nil {
-		return 0, xerr.Sub("must be a client session", 0x21)
+	if !s.IsClient() {
+		return 0, xerr.Sub("must be a client session", 0x4E)
 	}
 	if s.isMoving() {
-		return 0, xerr.Sub("migration in progress", 0x22)
+		return 0, xerr.Sub("migration in progress", 0x4F)
 	}
 	if len(n) == 0 {
-		return 0, xerr.Sub("empty or invalid loader name", 0x14)
+		return 0, xerr.Sub("empty or invalid loader name", 0x43)
 	}
 	var err error
 	if len(b) == 0 {
 		// ^ Use our own Profile if one is not provided.
 		p, ok := s.p.(marshaler)
 		if !ok {
-			return 0, xerr.Sub("cannot marshal Profile", 0x25)
+			return 0, xerr.Sub("cannot marshal Profile", 0x50)
 		}
 		if b, err = p.MarshalBinary(); err != nil {
 			return 0, xerr.Wrap("cannot marshal Profile", err)
@@ -1181,7 +791,7 @@ func (s *Session) SpawnProfile(n string, b []byte, t time.Duration, e runnable) 
 		return 0, err
 	}
 	if c.Close(); buf[0] != 'O' && buf[1] != 'K' {
-		return 0, xerr.Sub("unexpected OK value", 0x16)
+		return 0, xerr.Sub("unexpected OK value", 0x45)
 	}
 	if cout.Enabled {
 		s.log.Info("[%s/SpN] Received 'OK' from new process, Spawn complete!", s.ID)
@@ -1207,28 +817,28 @@ func (s *Session) SpawnProfile(n string, b []byte, t time.Duration, e runnable) 
 // The return values for this function are the new PID used and any errors that
 // may have occurred during Migration.
 func (s *Session) MigrateProfile(wait bool, n string, b []byte, job uint16, t time.Duration, e runnable) (uint32, error) {
-	if s.s != nil {
-		return 0, xerr.Sub("must be a client session", 0x21)
+	if !s.IsClient() {
+		return 0, xerr.Sub("must be a client session", 0x4E)
 	}
 	if s.isMoving() {
-		return 0, xerr.Sub("migration in progress", 0x22)
+		return 0, xerr.Sub("migration in progress", 0x4F)
 	}
 	if len(n) == 0 {
-		return 0, xerr.Sub("empty or invalid loader name", 0x14)
+		return 0, xerr.Sub("empty or invalid pipe name", 0x43)
 	}
 	var err error
 	if len(b) == 0 {
 		// ^ Use our own Profile if one is not provided.
 		p, ok := s.p.(marshaler)
 		if !ok {
-			return 0, xerr.Sub("cannot marshal Profile", 0x25)
+			return 0, xerr.Sub("cannot marshal Profile", 0x50)
 		}
 		if b, err = p.MarshalBinary(); err != nil {
 			return 0, xerr.Wrap("cannot marshal Profile", err)
 		}
 	}
 	if !s.checkProxyMarshal() {
-		return 0, xerr.Sub("cannot marshal Proxy data", 0x27)
+		return 0, xerr.Sub("cannot marshal Proxy data", 0x51)
 	}
 	if cout.Enabled {
 		s.log.Info("[%s/Mg8] Starting Migrate process!", s.ID)
@@ -1241,17 +851,6 @@ func (s *Session) MigrateProfile(wait bool, n string, b []byte, job uint16, t ti
 		for s.m.count() > 0 {
 			if time.Sleep(time.Millisecond * 500); cout.Enabled {
 				s.log.Trace("[%s/Mg8] Waiting for Jobs, left %d..", s.ID, s.m.count())
-			}
-		}
-	}
-	if len(s.jobs) > 0 {
-		// ^ NOTE(dij): I don't think client sessions will have Jobs tbh.
-		//              This might be a NOP.
-		for _, j := range s.jobs {
-			if j.cancel != nil && !j.IsDone() {
-				if j.cancel(); cout.Enabled {
-					s.log.Trace("[%s/Mg8] Canceling JobID %d..", s.ID, j.ID)
-				}
 			}
 		}
 	}
@@ -1322,7 +921,7 @@ func (s *Session) MigrateProfile(wait bool, n string, b []byte, job uint16, t ti
 		c.Close()
 		s.state.Unset(stateMoving)
 		s.lock.Unlock()
-		return 0, xerr.Sub("unexpected OK value", 0x16)
+		return 0, xerr.Sub("unexpected OK value", 0x45)
 	}
 	if s.state.Set(stateClosing); cout.Enabled {
 		s.log.Debug("[%s/Mg8] Received 'OK' from host, proceeding with shutdown!", s.ID)

@@ -53,12 +53,12 @@ func (f Flag) String() string {
 	}
 	switch {
 	case f&FlagMulti != 0 && f.Len() > 0:
-		n += copy(b[n:], "["+strconv.Itoa(int(f.Len()))+"]")
+		n += copy(b[n:], "["+strconv.FormatUint(uint64(f.Len()), 10)+"]")
 	case f&FlagFrag != 0 && f&FlagMulti == 0:
 		if f.Len() == 0 {
 			n += copy(b[n:], "["+strconv.FormatUint(uint64(f.Group()), 16)+"]")
 		} else {
-			n += copy(b[n:], "["+strconv.FormatUint(uint64(f.Group()), 16)+":"+strconv.Itoa(int(f.Position())+1)+"/"+strconv.Itoa(int(f.Len()))+"]")
+			n += copy(b[n:], "["+strconv.FormatUint(uint64(f.Group()), 16)+":"+strconv.FormatUint(uint64(f.Position())+1, 10)+"/"+strconv.FormatUint(uint64(f.Len()), 10)+"]")
 		}
 	}
 	return string(b[:n])
@@ -81,36 +81,36 @@ func (p *Packet) String() string {
 	case p.Empty() && p.Flags == 0 && p.Job == 0:
 		return "0x" + byteHexStr(p.ID)
 	case p.Empty() && p.Flags == 0 && p.ID == 0:
-		return "<invalid>NoP/" + strconv.Itoa(int(p.Job))
+		return "<invalid>NoP/" + strconv.FormatUint(uint64(p.Job), 10)
 	case p.Empty() && p.Flags == 0:
-		return "0x" + byteHexStr(p.ID) + "/" + strconv.Itoa(int(p.Job))
+		return "0x" + byteHexStr(p.ID) + "/" + strconv.FormatUint(uint64(p.Job), 10)
 	case p.Empty() && p.Job == 0 && p.ID == 0:
 		return p.Flags.String()
 	case p.Empty() && p.Job == 0:
 		return "0x" + byteHexStr(p.ID) + " " + p.Flags.String()
 	case p.Empty() && p.ID == 0:
-		return "NoP/" + strconv.Itoa(int(p.Job)) + " " + p.Flags.String()
+		return "NoP/" + strconv.FormatUint(uint64(p.Job), 10) + " " + p.Flags.String()
 	case p.Empty():
-		return "0x" + byteHexStr(p.ID) + "/" + strconv.Itoa(int(p.Job)) + " " + p.Flags.String()
+		return "0x" + byteHexStr(p.ID) + "/" + strconv.FormatUint(uint64(p.Job), 10) + " " + p.Flags.String()
 	case p.Flags == 0 && p.Job == 0 && p.ID == 0:
-		return "<invalid>NoP: " + strconv.Itoa(p.Size()) + "B"
+		return "<invalid>NoP: " + strconv.FormatUint(uint64(p.Size()), 10) + "B"
 	case p.Flags == 0 && p.Job == 0:
-		return "0x" + byteHexStr(p.ID) + ": " + strconv.Itoa(p.Size()) + "B"
+		return "0x" + byteHexStr(p.ID) + ": " + strconv.FormatUint(uint64(p.Size()), 10) + "B"
 	case p.Flags == 0 && p.ID == 0:
-		return "<invalid>NoP/" + strconv.Itoa(int(p.Job)) + ": " + strconv.Itoa(p.Size()) + "B"
+		return "<invalid>NoP/" + strconv.FormatUint(uint64(p.Job), 10) + ": " + strconv.FormatUint(uint64(p.Size()), 10) + "B"
 	case p.Flags == 0:
-		return "0x" + byteHexStr(p.ID) + "/" + strconv.Itoa(int(p.Job)) + ": " + strconv.Itoa(p.Size()) + "B"
+		return "0x" + byteHexStr(p.ID) + "/" + strconv.FormatUint(uint64(p.Job), 10) + ": " + strconv.FormatUint(uint64(p.Size()), 10) + "B"
 	case p.Job == 0 && p.ID == 0:
-		return p.Flags.String() + ": " + strconv.Itoa(p.Size()) + "B"
+		return p.Flags.String() + ": " + strconv.FormatUint(uint64(p.Size()), 10) + "B"
 	case p.Job == 0:
-		return "0x" + byteHexStr(p.ID) + " " + p.Flags.String() + ": " + strconv.Itoa(p.Size()) + "B"
+		return "0x" + byteHexStr(p.ID) + " " + p.Flags.String() + ": " + strconv.FormatUint(uint64(p.Size()), 10) + "B"
 	case p.ID == 0:
-		return "<invalid>NoP/" + strconv.Itoa(int(p.Job)) + " " + p.Flags.String() + ": " + strconv.Itoa(p.Size()) + "B"
+		return "<invalid>NoP/" + strconv.FormatUint(uint64(p.Job), 10) + " " + p.Flags.String() + ": " + strconv.FormatUint(uint64(p.Size()), 10) + "B"
 	}
-	return "0x" + byteHexStr(p.ID) + "/" + strconv.Itoa(int(p.Job)) + " " + p.Flags.String() + ": " + strconv.Itoa(p.Size()) + "B"
+	return "0x" + byteHexStr(p.ID) + "/" + strconv.FormatUint(uint64(p.Job), 10) + " " + p.Flags.String() + ": " + strconv.FormatUint(uint64(p.Size()), 10) + "B"
 }
 func (i *ipListener) String() string {
-	return "IP:" + strconv.Itoa(int(i.proto)) + "/" + i.Addr().String()
+	return "IP:" + strconv.FormatUint(uint64(i.proto), 10) + "/" + i.Addr().String()
 }
 func (t *tcpListener) String() string {
 	return "TCP/" + t.Addr().String()

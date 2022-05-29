@@ -66,7 +66,7 @@ func loadDLL(s string) (uintptr, error) {
 	}
 	h, err2 := syscallLoadLibrary(n)
 	if err2 != 0 {
-		if xerr.Concat {
+		if xerr.ExtendedInfo {
 			return 0, xerr.Wrap(`cannot load DLL "`+s+`"`, err)
 		}
 		return 0, xerr.Wrap("cannot load DLL", err)

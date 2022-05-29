@@ -14,9 +14,6 @@ import (
 
 const maxEvents = 2048
 
-type proxyState struct {
-	proxies []proxyData
-}
 type stringer interface {
 	String() string
 }
@@ -36,6 +33,8 @@ func (s status) String() string {
 		return "waiting"
 	case StatusAccepted:
 		return "accepted"
+	case StatusCanceled:
+		return "canceled"
 	case StatusReceiving:
 		return "receiving"
 	case StatusCompleted:
@@ -47,16 +46,16 @@ func (s status) String() string {
 // String returns the details of this Session as a string.
 func (s *Session) String() string {
 	switch {
-	case s.s == nil && s.sleep == 0:
+	case s.IsClient() && s.sleep == 0:
 		return "[" + s.ID.String() + "] -> " + s.host.String() + " " + s.Last.Format(time.RFC1123)
-	case s.s == nil && (s.jitter == 0 || s.jitter > 100):
+	case s.IsClient() && (s.jitter == 0 || s.jitter > 100):
 		return "[" + s.ID.String() + "] " + s.sleep.String() + " -> " + s.host.String()
-	case s.s == nil:
-		return "[" + s.ID.String() + "] " + s.sleep.String() + "/" + strconv.Itoa(int(s.jitter)) + "% -> " + s.host.String()
-	case s.s != nil && (s.jitter == 0 || s.jitter > 100):
+	case s.IsClient():
+		return "[" + s.ID.String() + "] " + s.sleep.String() + "/" + strconv.FormatUint(uint64(s.jitter), 10) + "% -> " + s.host.String()
+	case !s.IsClient() && (s.jitter == 0 || s.jitter > 100):
 		return "[" + s.ID.String() + "] " + s.sleep.String() + " -> " + s.host.String() + " " + s.Last.Format(time.RFC1123)
 	}
-	return "[" + s.ID.String() + "] " + s.sleep.String() + "/" + strconv.Itoa(int(s.jitter)) + "% -> " + s.host.String() + " " + s.Last.Format(time.RFC1123)
+	return "[" + s.ID.String() + "] " + s.sleep.String() + "/" + strconv.FormatUint(uint64(s.jitter), 10) + "% -> " + s.host.String() + " " + s.Last.Format(time.RFC1123)
 }
 
 // JSON returns the data of this Job as a JSON blob.
@@ -65,16 +64,16 @@ func (j *Job) JSON(w io.Writer) error {
 		_, err := w.Write([]byte(`{}`))
 		return err
 	}
-	if _, err := w.Write([]byte(`{"id":` + strconv.Itoa(int(j.ID)) + `,` +
-		`"type":` + strconv.Itoa(int(j.Type)) + `,` +
+	if _, err := w.Write([]byte(`{"id":` + strconv.FormatUint(uint64(j.ID), 10) + `,` +
+		`"type":` + strconv.FormatUint(uint64(j.Type), 10) + `,` +
 		`"error":` + escape.JSON(j.Error) + `,` +
 		`"status":"` + j.Status.String() + `",` +
 		`"start":"` + j.Start.Format(time.RFC3339) + `"`,
 	)); err != nil {
 		return err
 	}
-	if j.Session != nil && !j.Session.ID.Empty() {
-		if _, err := w.Write([]byte(`,"host":"` + j.Session.ID.String() + `"`)); err != nil {
+	if j.s != nil && !j.s.ID.Empty() {
+		if _, err := w.Write([]byte(`,"host":"` + j.s.ID.String() + `"`)); err != nil {
 			return err
 		}
 	}
@@ -84,7 +83,7 @@ func (j *Job) JSON(w io.Writer) error {
 		}
 	}
 	if j.Result != nil {
-		if _, err := w.Write([]byte(`,"result":` + strconv.Itoa(j.Result.Size()))); err != nil {
+		if _, err := w.Write([]byte(`,"result":` + strconv.FormatUint(uint64(j.Result.Size()), 10))); err != nil {
 			return err
 		}
 	}
@@ -145,7 +144,7 @@ func (l *Listener) oneshot(n *com.Packet) {
 func (s *Session) JSON(w io.Writer) error {
 	if _, err := w.Write([]byte(`{` +
 		`"id":"` + s.ID.String() + `",` +
-		`"hash":"` + strconv.Itoa(int(s.ID.Hash())) + `",` +
+		`"hash":"` + strconv.FormatUint(uint64(s.ID.Hash()), 10) + `",` +
 		`"channel":` + strconv.FormatBool(s.InChannel()) + `,` +
 		`"device":{` +
 		`"id":"` + s.ID.Full() + `",` +
@@ -156,8 +155,8 @@ func (s *Session) JSON(w io.Writer) error {
 		`"os":` + escape.JSON(s.Device.OS().String()) + `,` +
 		`"elevated":` + strconv.FormatBool(s.Device.IsElevated()) + `,` +
 		`"domain":` + strconv.FormatBool(s.Device.IsDomainJoined()) + `,` +
-		`"pid":` + strconv.Itoa(int(s.Device.PID)) + `,` +
-		`"ppid":` + strconv.Itoa(int(s.Device.PPID)) + `,` +
+		`"pid":` + strconv.FormatUint(uint64(s.Device.PID), 10) + `,` +
+		`"ppid":` + strconv.FormatUint(uint64(s.Device.PPID), 10) + `,` +
 		`"network":[`,
 	)); err != nil {
 		return err
@@ -192,8 +191,8 @@ func (s *Session) JSON(w io.Writer) error {
 		`]},"created":"` + s.Created.Format(time.RFC3339) + `",` +
 			`"last":"` + s.Last.Format(time.RFC3339) + `",` +
 			`"via":` + escape.JSON(s.host.String()) + `,` +
-			`"sleep":` + strconv.Itoa(int(s.sleep)) + `,` +
-			`"jitter":` + strconv.Itoa(int(s.jitter)),
+			`"sleep":` + strconv.FormatUint(uint64(s.sleep), 10) + `,` +
+			`"jitter":` + strconv.FormatUint(uint64(s.jitter), 10),
 	))
 	if err != nil {
 		return err
@@ -208,7 +207,7 @@ func (s *Session) JSON(w io.Writer) error {
 			return err
 		}
 	}
-	if s.s != nil && len(s.proxies) > 0 {
+	if !s.IsClient() && len(s.proxies) > 0 {
 		if _, err = w.Write([]byte(`,"proxy":[`)); err != nil {
 			return err
 		}

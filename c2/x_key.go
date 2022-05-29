@@ -30,7 +30,7 @@ func (s *Session) keyRevert() {
 	s.keyNew = nil
 }
 func (s *Session) doNextKeySwap() bool {
-	if s.s != nil || s.keyNew != nil {
+	if !s.IsClient() || s.keyNew != nil {
 		return false
 	}
 	if util.FastRandN(100) != 0 {

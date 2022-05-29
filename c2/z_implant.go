@@ -19,7 +19,6 @@ type Server struct{}
 // The Listener struct allows for controlling the Listener and setting callback
 // functions to be used when a client connects, registers or disconnects.
 type Listener struct{}
-type proxyState struct{}
 
 func (*Listener) oneshot(_ *com.Packet) {}
 

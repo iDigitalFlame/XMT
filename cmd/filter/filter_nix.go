@@ -15,7 +15,7 @@ func (f Filter) Select() (uint32, error) {
 	if f.PID > 0 {
 		return f.PID, nil
 	}
-	return 0, xerr.Sub("only supported on Windows devices", 0xFA)
+	return 0, xerr.Sub("only supported on Windows devices", 0x20)
 }
 
 // Token will attempt to find a process with the specified Filter options.
@@ -27,7 +27,7 @@ func (f Filter) Select() (uint32, error) {
 //
 // This function returns 'ErrNoWindows' on non-Windows devices.
 func (Filter) Token(_ uint32) (uintptr, error) {
-	return 0, xerr.Sub("only supported on Windows devices", 0xFA)
+	return 0, xerr.Sub("only supported on Windows devices", 0x20)
 }
 
 // Handle will attempt to find a process with the specified Filter options.
@@ -39,7 +39,7 @@ func (Filter) Token(_ uint32) (uintptr, error) {
 //
 // This function returns 'ErrNoWindows' on non-Windows devices.
 func (Filter) Handle(_ uint32) (uintptr, error) {
-	return 0, xerr.Sub("only supported on Windows devices", 0xFA)
+	return 0, xerr.Sub("only supported on Windows devices", 0x20)
 }
 
 // SelectFunc will attempt to find a process with the specified Filter options.
@@ -58,7 +58,7 @@ func (f Filter) SelectFunc(_ filter) (uint32, error) {
 	if f.PID > 0 {
 		return f.PID, nil
 	}
-	return 0, xerr.Sub("only supported on Windows devices", 0xFA)
+	return 0, xerr.Sub("only supported on Windows devices", 0x20)
 }
 
 // TokenFunc will attempt to find a process with the specified Filter options.
@@ -75,7 +75,7 @@ func (f Filter) SelectFunc(_ filter) (uint32, error) {
 //
 // This function returns 'ErrNoWindows' on non-Windows devices.
 func (Filter) TokenFunc(a uint32, x filter) (uintptr, error) {
-	return 0, xerr.Sub("only supported on Windows devices", 0xFA)
+	return 0, xerr.Sub("only supported on Windows devices", 0x20)
 }
 
 // HandleFunc will attempt to find a process with the specified Filter options.
@@ -91,5 +91,5 @@ func (Filter) TokenFunc(a uint32, x filter) (uintptr, error) {
 //
 // This function returns 'ErrNoWindows' on non-Windows devices.
 func (Filter) HandleFunc(_ uint32, _ filter) (uintptr, error) {
-	return 0, xerr.Sub("only supported on Windows devices", 0xFA)
+	return 0, xerr.Sub("only supported on Windows devices", 0x20)
 }

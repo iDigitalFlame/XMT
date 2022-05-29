@@ -41,9 +41,9 @@ func version() string {
 	}
 	if i, _, err := k.Integer("CurrentMajorVersionNumber"); err == nil {
 		if x, _, err := k.Integer("CurrentMinorVersionNumber"); err == nil {
-			v = strconv.Itoa(int(i)) + "." + strconv.Itoa(int(x))
+			v = strconv.FormatUint(i, 10) + "." + strconv.FormatUint(x, 10)
 		} else {
-			v = strconv.Itoa(int(i))
+			v = strconv.FormatUint(i, 10)
 		}
 	} else {
 		v, _, _ = k.String("CurrentVersion")

@@ -11,17 +11,17 @@ var (
 	// ErrNotStarted is an error returned by multiple functions functions when
 	// attempting to access a Runnable function that requires the Runnable to be
 	// started first.
-	ErrNotStarted = xerr.Sub("process has not been started", 0x63)
+	ErrNotStarted = xerr.Sub("process has not started", 0x3A)
 	// ErrEmptyCommand is an error returned when attempting to start a Runnable
 	// that has empty arguments.
-	ErrEmptyCommand = xerr.Sub("process arguments are empty", 0x64)
+	ErrEmptyCommand = xerr.Sub("process arguments are empty", 0x3B)
 	// ErrStillRunning is returned when attempting to access the exit code on a
 	// Runnable.
-	ErrStillRunning = xerr.Sub("process is still running", 0x65)
+	ErrStillRunning = xerr.Sub("process still running", 0x3C)
 	// ErrAlreadyStarted is an error returned by the 'Start' or 'Run' functions
 	// when attempting to start a Runnable that has already been started via a
 	// 'Start' or 'Run' function call.
-	ErrAlreadyStarted = xerr.Sub("process has already been started", 0x66)
+	ErrAlreadyStarted = xerr.Sub("process already started", 0x3D)
 )
 
 // ExitError is a type of error that is returned by the Wait and Run functions

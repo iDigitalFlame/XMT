@@ -53,7 +53,7 @@ func (s *stream) Unwrap(r io.Reader) (io.Reader, error) {
 // Block returns a Wrapper based on a Block Cipher, such as AES.
 func Block(b cipher.Block, v []byte) (c2.Wrapper, error) {
 	if b == nil || len(v) == 0 {
-		return nil, xerr.Sub("arguments cannot be nil or empty", 0xE)
+		return nil, xerr.Sub("arguments cannot be nil or empty", 0x6E)
 	}
 	return &block{v: v, Block: b}, nil
 }

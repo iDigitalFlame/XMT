@@ -4,7 +4,6 @@ import (
 	"net"
 
 	"github.com/iDigitalFlame/xmt/data"
-	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 // Address represents an encoded IPv4 or IPv6 address.
@@ -248,25 +247,6 @@ func (a Address) IsLinkLocalMulticast() bool {
 // MarshalText implements the encoding.TextMarshaler interface.
 func (a Address) MarshalText() ([]byte, error) {
 	return []byte(`"` + a.String() + `"`), nil
-}
-
-// MarshalJSON implements the json.Marshaler interface.
-func (a Address) MarshalJSON() ([]byte, error) {
-	return []byte(`"` + a.String() + `"`), nil
-}
-
-// UnmarshalJSON implements the json.Unmarshaler interface.
-func (a *Address) UnmarshalJSON(b []byte) error {
-	if len(b) < 1 || b[len(b)-1] != '"' || b[0] != '"' {
-		if xerr.Concat {
-			return xerr.Sub(`invalid address value "`+string(b)+`"`, 0x90)
-		}
-		return xerr.Sub("invalid address value", 0xD)
-	}
-	if i := net.ParseIP(string(b[1 : len(b)-2])); i != nil {
-		a.Set(i)
-	}
-	return nil
 }
 
 // UnmarshalText implements the encoding.TextUnmarshaler interface.

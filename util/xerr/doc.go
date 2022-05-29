@@ -11,18 +11,3 @@
 // error codes instead.
 //
 package xerr
-
-type err struct {
-	e error
-	s string
-}
-
-func (e err) Error() string {
-	return e.s
-}
-func (e err) Unwrap() error {
-	return e.e
-}
-func (e err) String() string {
-	return e.Error()
-}

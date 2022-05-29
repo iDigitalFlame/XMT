@@ -70,7 +70,7 @@ func ReloadDLL(d string) error {
 	}
 	s := p.Section(sect)
 	if f.Close(); s == nil {
-		return xerr.Sub("cannot find '.text' section", 0x67)
+		return xerr.Sub("cannot find '.text' section", 0x1D)
 	}
 	var (
 		v = b[s.Offset:s.Size]
@@ -141,7 +141,7 @@ func CheckDLL(d string) (bool, error) {
 	}
 	s := p.Section(sect)
 	if f.Close(); s == nil {
-		return false, xerr.Sub("cannot find '.text' section", 0x67)
+		return false, xerr.Sub("cannot find '.text' section", 0x1D)
 	}
 	var (
 		v = b[s.Offset:s.Size]

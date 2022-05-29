@@ -21,7 +21,7 @@ import (
 //
 // Invalid Packets are packets that do not have a proper ID value or contain
 // an empty device ID.
-var ErrMalformedPacket = xerr.Sub("empty or nil Packet", 0x17)
+var ErrMalformedPacket = xerr.Sub("empty or nil Packet", 0x46)
 
 var _ connHost = (*Session)(nil)
 

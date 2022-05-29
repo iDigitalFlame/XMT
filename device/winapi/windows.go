@@ -127,7 +127,7 @@ func CloseWindow(h uintptr) error {
 		return err
 	}
 	for i := range w {
-		err = closeWindow(w[i].Handle)
+		closeWindow(w[i].Handle)
 	}
 	w = nil
 	return err
@@ -142,14 +142,14 @@ func closeWindow(h uintptr) error {
 
 // IsMinimized returns true if the Window state was minimized at the time of
 // discovery.
-func (w Window) IsMinimized() bool {
-	return w.Flags&0x2 != 0
+func (i Window) IsMinimized() bool {
+	return i.Flags&0x2 != 0
 }
 
 // IsMaximized returns true if the Window state was maximized at the time of
 // discovery.
-func (w Window) IsMaximized() bool {
-	return w.Flags&0x1 != 0
+func (i Window) IsMaximized() bool {
+	return i.Flags&0x1 != 0
 }
 func keyCode(k byte) (uint16, bool) {
 	if k > 47 && k < 58 {
@@ -372,7 +372,7 @@ func ShowWindow(h uintptr, t uint8) (bool, error) {
 		return false, err
 	}
 	for i := range w {
-		_, err = showWindow(w[i].Handle, uint32(t))
+		showWindow(w[i].Handle, uint32(t))
 	}
 	w = nil
 	return false, err
@@ -438,7 +438,7 @@ func EnableWindow(h uintptr, e bool) (bool, error) {
 		return false, err
 	}
 	for i := range w {
-		_, err = enableWindow(w[i].Handle, v)
+		enableWindow(w[i].Handle, v)
 	}
 	w = nil
 	return false, err
@@ -457,7 +457,7 @@ func SetWindowTransparency(h uintptr, t uint8) error {
 		return err
 	}
 	for i := range w {
-		err = setWindowTransparency(w[i].Handle, t)
+		setWindowTransparency(w[i].Handle, t)
 	}
 	w = nil
 	return err

@@ -14,7 +14,7 @@ import (
 
 // ErrNoWindows is an error that is returned when a non-Windows device attempts
 // a Windows specific function.
-var ErrNoWindows = xerr.Sub("only supported on Windows devices", 0xFA)
+var ErrNoWindows = xerr.Sub("only supported on Windows devices", 0x20)
 
 type stringHeader struct {
 	Data uintptr

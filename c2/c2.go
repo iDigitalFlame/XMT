@@ -25,13 +25,13 @@ import (
 var (
 	// ErrNoHost is a error returned by the Connect and Listen functions when
 	// the provided Profile does not provide a host string.
-	ErrNoHost = xerr.Sub("empty or nil Host", 0x10)
+	ErrNoHost = xerr.Sub("empty or nil Host", 0x3F)
 	// ErrNoConn is an error returned by the Load* functions when an attempt to
 	// discover the parent host failed due to a timeout.
-	ErrNoConn = xerr.Sub("other side did not come up", 0x11)
+	ErrNoConn = xerr.Sub("other side did not come up", 0x40)
 	// ErrInvalidProfile is an error returned by c2 functions when the Profile
 	// given is nil.
-	ErrInvalidProfile = xerr.Sub("empty or nil Profile", 0x12)
+	ErrInvalidProfile = xerr.Sub("empty or nil Profile", 0x41)
 )
 
 // Shoot sends the packet with the specified data to the server and does NOT
@@ -149,7 +149,7 @@ func ConnectContext(x context.Context, l logx.Log, p Profile) (*Session, error) 
 		return nil, xerr.Wrap("first Packet read", err)
 	}
 	if r == nil || r.ID != SvComplete {
-		return nil, xerr.Sub("first Packet is invalid", 0x13)
+		return nil, xerr.Sub("first Packet is invalid", 0x42)
 	}
 	if r.Clear(); cout.Enabled {
 		s.log.Info("[%s] Client connected to %q!", s.ID, h)
@@ -174,10 +174,10 @@ func ConnectContext(x context.Context, l logx.Log, p Profile) (*Session, error) 
 // or a timeout with a nil Session.
 func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Session, error) {
 	if len(n) == 0 {
-		return nil, xerr.Sub("empty or invalid loader name", 0x14)
+		return nil, xerr.Sub("empty or invalid pipe name", 0x43)
 	}
 	if ProfileParser == nil {
-		return nil, xerr.Sub("no Profile parser loaded", 0x15)
+		return nil, xerr.Sub("no Profile parser loaded", 0x44)
 	}
 	if t == 0 {
 		t = spawnDefaultTime
@@ -230,9 +230,9 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	c.SetDeadline(time.Now().Add(spawnDefaultTime))
 	if err = readFull(r, 3, buf[0:3]); err != nil {
 		if c.Close(); bugtrack.Enabled {
-			bugtrack.Track("c2.LoadContext(): Read JobID failed: %s", err.Error())
+			bugtrack.Track("c2.LoadContext(): Read Job failed: %s", err.Error())
 		}
-		return nil, xerr.Wrap("read Job ID", err)
+		return nil, xerr.Wrap("read Job", err)
 	}
 	var (
 		u = uint16(buf[1]) | uint16(buf[0])<<8
@@ -320,7 +320,7 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 		if bugtrack.Enabled {
 			bugtrack.Track("c2.LoadContext(): Bad OK value received.")
 		}
-		return nil, xerr.Sub("unexpected OK value", 0x16)
+		return nil, xerr.Sub("unexpected OK value", 0x45)
 	}
 	if s.log, s.sleep = cout.New(l), p.Sleep(); s.sleep <= 0 {
 		s.sleep = DefaultSleep

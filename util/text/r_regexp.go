@@ -56,13 +56,13 @@ func (s Matcher) String() string {
 		case s[m[x][1]-1] == 's' && s[m[x][1]-2] == 'f' && v > 0:
 			c = Rand.String(v)
 		case s[m[x][1]-1] == 'd' && s[m[x][1]-2] == 'f' && v >= 0:
-			c = strconv.Itoa(v)
+			c = strconv.FormatUint(uint64(v), 10)
 		case s[m[x][1]-1] == 'h' && s[m[x][1]-2] == 'f' && v >= 0:
-			c = strconv.FormatInt(int64(v), 16)
+			c = strconv.FormatUint(uint64(v), 16)
 		case s[m[x][1]-1] == 'd' && v >= 0:
-			c = strconv.Itoa(int(util.FastRandN(v)))
+			c = strconv.FormatUint(uint64(util.FastRandN(v)), 10)
 		case s[m[x][1]-1] == 'h' && v >= 0:
-			c = strconv.FormatInt(int64(util.FastRandN(v)), 16)
+			c = strconv.FormatUint(uint64(util.FastRandN(v)), 16)
 		case s[m[x][1]-1] == 'n' && v > 0:
 			c = Rand.StringNumberRange(1, v)
 		case s[m[x][1]-1] == 'c' && v > 0:
@@ -76,9 +76,9 @@ func (s Matcher) String() string {
 		case s[m[x][1]-1] == 's':
 			c = Rand.StringRange(1, 1+int(util.FastRandN(256)))
 		case s[m[x][1]-1] == 'd':
-			c = strconv.Itoa(int(util.FastRand()))
+			c = strconv.FormatUint(uint64(util.FastRand()), 10)
 		case s[m[x][1]-1] == 'h':
-			c = strconv.FormatInt(int64(util.FastRand()), 16)
+			c = strconv.FormatUint(uint64(util.FastRand()), 16)
 		default:
 			c = string(s[m[x][0]:m[x][1]])
 		}
@@ -140,7 +140,7 @@ func (s Matcher) MatchEx(o bool) Regexp {
 			if err != nil {
 				v, q = -1, "0"
 			} else {
-				q = strconv.Itoa(v)
+				q = strconv.FormatUint(uint64(v), 10)
 			}
 		} else {
 			v = -1

@@ -41,10 +41,10 @@ type Engine interface {
 //      string (output)
 func RegisterEngine(i uint8, s Engine) error {
 	if i < 21 {
-		return xerr.Sub("mapping ID is invalid", 0x35)
+		return xerr.Sub("mapping ID is invalid", 0x63)
 	}
 	if Mappings[i] != nil {
-		return xerr.Sub("mapping ID is already exists", 0x36)
+		return xerr.Sub("mapping ID is already exists", 0x64)
 	}
 	Mappings[i] = func(x context.Context, r data.Reader, w data.Writer) error {
 		c, err := r.StringVal()

@@ -180,7 +180,7 @@ func (c *cluster) add(p *com.Packet) error {
 		return nil
 	}
 	if len(c.data) > 0 && !c.data[0].Belongs(p) {
-		return xerr.Sub("packet ID does not match the supplied ID", 0x28)
+		return xerr.Sub("packet ID does not match the supplied ID", 0x52)
 	}
 	if c.max = p.Flags.Len() - 1; p.Empty() {
 		c.e++

@@ -104,7 +104,7 @@ func MustGuardContext(x context.Context, l Linker, n string) *Guardian {
 // This function also takes a context.Context to be used for resource control.
 func GuardContext(x context.Context, l Linker, n string) (*Guardian, error) {
 	if len(n) == 0 {
-		return nil, xerr.Sub("empty or invalid Guardian name", 0x50)
+		return nil, xerr.Sub("empty or invalid Guardian name", 0x10)
 	}
 	if l == nil {
 		l = Pipe

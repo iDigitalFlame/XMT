@@ -14,8 +14,8 @@ const (
 
 var (
 	// ErrUnexpectedSize is returned when the key data size was unexpected.
-	ErrUnexpectedSize = xerr.Sub("unexpected key size", 0x94)
+	ErrUnexpectedSize = xerr.Sub("unexpected key size", 0x15)
 	// ErrUnexpectedType is returned by Get*Value when the value's type was
 	// unexpected.
-	ErrUnexpectedType = xerr.Sub("unexpected key type", 0x95)
+	ErrUnexpectedType = xerr.Sub("unexpected key type", 0x16)
 )

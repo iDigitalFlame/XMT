@@ -10,7 +10,7 @@ import (
 // ErrInvalidTLSConfig is returned when attempting to use the default TLS Connector
 // as a listener. This error is also returned when attemtping to use a TLS
 // configuration that does not have a valid server certificates.
-var ErrInvalidTLSConfig = xerr.Sub("missing TLS certificates", 0x3C)
+var ErrInvalidTLSConfig = xerr.Sub("invalid or missing TLS certificates", 0x2D)
 
 // NewTLSConfig generates a new 'tls.Config' struct from the provided TLS details.
 // This can be used to generate mTLS or just simple CA-based TLS server/clients

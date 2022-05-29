@@ -42,9 +42,9 @@ func version() string {
 	}
 	if i, _, err := k.Integer(crypt.Get(68)); err == nil { // CurrentMajorVersionNumber
 		if x, _, err := k.Integer(crypt.Get(69)); err == nil { // CurrentMinorVersionNumber
-			v = strconv.Itoa(int(i)) + "." + strconv.Itoa(int(x))
+			v = strconv.FormatUint(i, 10) + "." + strconv.FormatUint(x, 10)
 		} else {
-			v = strconv.Itoa(int(i))
+			v = strconv.FormatUint(i, 10)
 		}
 	} else {
 		v, _, _ = k.String(crypt.Get(70)) // CurrentVersion

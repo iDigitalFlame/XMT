@@ -20,10 +20,10 @@ const (
 var (
 	// ErrMalformedTag is an error returned when a read on a Packet Tag returns
 	// an empty (zero) tag value.
-	ErrMalformedTag = xerr.Sub("malformed Tag", 0x3A)
+	ErrMalformedTag = xerr.Sub("malformed Tag", 0x2A)
 	// ErrTagsTooLarge is an error returned when attempting to write a Packet
 	// that contains too many Tags (> 32768)
-	ErrTagsTooLarge = xerr.Sub("tags list is too large", 0x3B)
+	ErrTagsTooLarge = xerr.Sub("tags list is too large", 0x2B)
 )
 
 // Packet is a struct that is a Reader and Writer that can be generated to be
@@ -68,7 +68,7 @@ func (p *Packet) Add(n *Packet) error {
 		return nil
 	}
 	if p.ID != n.ID {
-		return xerr.Sub("packet ID does not match the supplied ID", 0x28)
+		return xerr.Sub("packet ID does not match the supplied ID", 0x2C)
 	}
 	if _, err := n.WriteTo(p); err != nil {
 		return xerr.Wrap("unable to write to Packet", err)

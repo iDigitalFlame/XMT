@@ -326,7 +326,7 @@ func (s *Service) DynamicStartReason() (Reason, error) {
 }
 func (s *Service) update(u *Status, r bool, e uint32) error {
 	if s.h == 0 {
-		return xerr.Sub("update with no service status handle", 0x96)
+		return xerr.Sub("update without a service status handle", 0x14)
 	}
 	v := winapi.ServiceStatus{ServiceType: 16, CurrentState: uint32(u.State)}
 	if u.Accepts&AcceptStop != 0 {

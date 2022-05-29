@@ -107,10 +107,10 @@ func rawParse(r string) (*url.URL, error) {
 		return nil, err
 	}
 	if len(u.Host) == 0 {
-		return nil, xerr.Sub("empty host field", 0xA)
+		return nil, xerr.Sub("empty host field", 0x65)
 	}
 	if u.Host[len(u.Host)-1] == ':' {
-		return nil, xerr.Sub("invalid port specified", 0xB)
+		return nil, xerr.Sub("invalid port specified", 0x66)
 	}
 	if len(u.Scheme) == 0 {
 		u.Scheme = com.NameHTTP
@@ -169,7 +169,7 @@ func taskPull(x context.Context, r data.Reader, w data.Writer) error {
 	}
 	if o.StatusCode >= http.StatusBadRequest {
 		o.Body.Close()
-		return xerr.Sub("invalid HTTP response", 0x3F)
+		return xerr.Sub("invalid HTTP response", 0x67)
 	}
 	var (
 		v = device.Expand(p)
@@ -422,7 +422,7 @@ func taskSystemIo(x context.Context, r data.Reader, w data.Writer) error {
 		}
 		return os.Remove(k)
 	default:
-		return xerr.Sub("invalid io operation", 0x34)
+		return xerr.Sub("invalid operation", 0x68)
 	}
 }
 func taskLoginUser(_ context.Context, r data.Reader, _ data.Writer) error {

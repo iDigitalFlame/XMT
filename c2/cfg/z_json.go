@@ -691,7 +691,7 @@ func (c *config) UnmarshalJSON(b []byte) error {
 	}
 	v, ok := m["type"]
 	if !ok {
-		return xerr.Sub(`missing "type" string`, 0x32)
+		return xerr.Sub(`missing "type" string`, 0x61)
 	}
 	if err := json.Unmarshal(v, &c.Type); err != nil {
 		return err
@@ -709,10 +709,10 @@ func (m mapper) Unmarshal(s string, r bool, v any) error {
 		if !r {
 			return nil
 		}
-		if xerr.Concat {
-			return xerr.Sub(`"`+s+`" not found`, 0x33)
+		if xerr.ExtendedInfo {
+			return xerr.Sub(`"`+s+`" not found`, 0x62)
 		}
-		return xerr.Sub("key not found", 0x33)
+		return xerr.Sub("key not found", 0x62)
 	}
 	return json.Unmarshal(d, v)
 }

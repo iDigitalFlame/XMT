@@ -308,7 +308,7 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 			return true, os.ErrNotExist
 		}
 		if ProfileParser == nil {
-			return true, xerr.Sub("no Profile parser loaded", 0x15)
+			return true, xerr.Sub("no Profile parser loaded", 0x44)
 		}
 		var (
 			b string
@@ -378,7 +378,7 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 		return true, nil
 	case task.MvProfile:
 		if ProfileParser == nil {
-			return true, xerr.Sub("no Profile parser loaded", 0x15)
+			return true, xerr.Sub("no Profile parser loaded", 0x44)
 		}
 		b, err := n.Bytes()
 		if err != nil {

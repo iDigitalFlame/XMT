@@ -2,7 +2,12 @@
 
 package device
 
-import "github.com/iDigitalFlame/xmt/util"
+import (
+	"net"
+
+	"github.com/iDigitalFlame/xmt/util"
+	"github.com/iDigitalFlame/xmt/util/xerr"
+)
 
 // String returns a string representation of the OSType.
 func (o OSType) String() string {
@@ -49,4 +54,20 @@ func (m Machine) String() string {
 		e = "*"
 	}
 	return "[" + m.ID.String() + "] " + m.Hostname + " (" + m.Version + ") " + e + m.User
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+func (a Address) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + a.String() + `"`), nil
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface.
+func (a *Address) UnmarshalJSON(b []byte) error {
+	if len(b) < 1 || b[len(b)-1] != '"' || b[0] != '"' {
+		return xerr.Sub("invalid address value", 0x1E)
+	}
+	if i := net.ParseIP(string(b[1 : len(b)-2])); i != nil {
+		a.Set(i)
+	}
+	return nil
 }

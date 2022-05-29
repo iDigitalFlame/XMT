@@ -338,7 +338,7 @@ func (c *Chunk) Seek(o int64, w int) (int64, error) {
 	case io.SeekEnd:
 		o += int64(len(c.buf))
 	default:
-		return 0, xerr.Sub("whence is invalid", 0xD)
+		return 0, xerr.Sub("invalid whence", 0x27)
 	}
 	if o < 0 || int(o) > len(c.buf) {
 		return 0, ErrInvalidIndex

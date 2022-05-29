@@ -203,7 +203,7 @@ func (l *Listener) Replace(addr string, p Profile) error {
 		return xerr.Wrap("unable to listen", err)
 	} else if v == nil {
 		l.Close()
-		return xerr.Sub("unable to listen", 0x18)
+		return xerr.Sub("unable to listen", 0x49)
 	}
 	l.listener, l.w, l.t, l.p = v, w, t, p
 	if l.state.Unset(stateReplacing); cout.Enabled {

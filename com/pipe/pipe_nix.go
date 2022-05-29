@@ -72,10 +72,10 @@ func stringToDec(s string) (os.FileMode, error) {
 			p |= 0o001
 		case c == '-' || c == ' ':
 		case c != 'r' && c != 'R' && c != 'x' && c != 'X' && c != 'w' && c != 'W':
-			if xerr.Concat {
-				return 0, xerr.Sub(`invalid permission "`+s+`"`, 0x3D)
+			if xerr.ExtendedInfo {
+				return 0, xerr.Sub(`invalid permission "`+s+`"`, 0x2E)
 			}
-			return 0, xerr.Sub("invalid permissions", 0x3D)
+			return 0, xerr.Sub("invalid permissions", 0x2E)
 		}
 	}
 	return p, nil
@@ -87,10 +87,10 @@ func getPerms(s string) (os.FileMode, int, int, error) {
 	}
 	v := strings.Split(s, ";")
 	if len(v) > 3 {
-		if xerr.Concat {
-			return 0, -1, -1, xerr.Sub(`invalid permission "`+s+`" size `+strconv.Itoa(len(v)), 0x3E)
+		if xerr.ExtendedInfo {
+			return 0, -1, -1, xerr.Sub(`invalid permission "`+s+`" size `+strconv.FormatUint(uint64(len(v)), 10), 0x2F)
 		}
-		return 0, -1, -1, xerr.Sub("invalid permission size", 0x3E)
+		return 0, -1, -1, xerr.Sub("invalid permission size", 0x2F)
 	}
 	var (
 		u, g   = -1, -1

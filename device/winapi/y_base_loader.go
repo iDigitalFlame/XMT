@@ -32,9 +32,6 @@ func (d *lazyDLL) load() error {
 	if atomic.LoadUintptr(&d.addr) > 0 {
 		return nil
 	}
-	if len(d.name) == 0 {
-		return xerr.Sub("empty DLL name", 0x93)
-	}
 	d.Lock()
 	var (
 		h   uintptr
@@ -86,7 +83,7 @@ func findProc(h uintptr, s, n string) (uintptr, error) {
 	}
 	h, err2 := syscallGetProcAddress(h, v)
 	if err2 != 0 {
-		if xerr.Concat {
+		if xerr.ExtendedInfo {
 			return 0, xerr.Wrap(`cannot load DLL "`+n+`" function "`+s+`"`, err)
 		}
 		return 0, xerr.Wrap("cannot load DLL function", err)

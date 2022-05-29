@@ -284,7 +284,7 @@ func (p *Process) SetWindowTitle(s string) {
 // will usually be of type *ExitError.
 func (p *Process) Output() ([]byte, error) {
 	if p.Stdout != nil {
-		return nil, xerr.Sub("stdout already set", 0x60)
+		return nil, xerr.Sub("stdout already set", 0x37)
 	}
 	var b bytes.Buffer
 	p.Stdout = &b
@@ -355,10 +355,10 @@ func (p *Process) SetWindowPosition(x, y uint32) {
 // and standard error. Any returned error will usually be of type *ExitError.
 func (p *Process) CombinedOutput() ([]byte, error) {
 	if p.Stdout != nil {
-		return nil, xerr.Sub("stdout already set", 0x60)
+		return nil, xerr.Sub("stdout already set", 0x37)
 	}
 	if p.Stderr != nil {
-		return nil, xerr.Sub("stderr already set", 0x61)
+		return nil, xerr.Sub("stderr already set", 0x38)
 	}
 	var b bytes.Buffer
 	p.Stdout = &b
@@ -400,7 +400,7 @@ func (p *Process) StdinPipe() (io.WriteCloser, error) {
 		return nil, ErrAlreadyStarted
 	}
 	if p.Stdin != nil {
-		return nil, xerr.Sub("stdin already set", 0x62)
+		return nil, xerr.Sub("stdin already set", 0x39)
 	}
 	return p.x.StdinPipe(p)
 }
@@ -419,7 +419,7 @@ func (p *Process) StdoutPipe() (io.ReadCloser, error) {
 		return nil, ErrAlreadyStarted
 	}
 	if p.Stdout != nil {
-		return nil, xerr.Sub("stdout already set", 0x60)
+		return nil, xerr.Sub("stdout already set", 0x37)
 	}
 	return p.x.StdoutPipe(p)
 }
@@ -438,7 +438,7 @@ func (p *Process) StderrPipe() (io.ReadCloser, error) {
 		return nil, ErrAlreadyStarted
 	}
 	if p.Stdout != nil {
-		return nil, xerr.Sub("stderr already set", 0x61)
+		return nil, xerr.Sub("stderr already set", 0x38)
 	}
 	return p.x.StderrPipe(p)
 }

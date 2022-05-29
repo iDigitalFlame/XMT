@@ -140,7 +140,7 @@ func (s *Script) Truncate(n int) error {
 // - Any Script
 func (s *Script) Add(n *com.Packet) error {
 	if n == nil || n.ID == 0 || n.ID < MvRefresh || n.Flags > 0 || n.ID == MvScript {
-		return xerr.Sub("invalid Packet", 0xF)
+		return xerr.Sub("invalid Packet", 0x69)
 	}
 	s.d.WriteUint8(n.ID)
 	s.d.WriteBytes(n.Payload())
@@ -176,7 +176,7 @@ func NewScript(errors, output bool) *Script {
 // - Any Script
 func (s *Script) AddTasklet(t Tasklet) error {
 	if t == nil {
-		return xerr.Sub("empty or nil Tasklet", 0x26)
+		return xerr.Sub("empty or nil Tasklet", 0x6A)
 	}
 	n, err := t.Packet()
 	if err != nil {
@@ -204,7 +204,7 @@ func (s *Script) AddTasklet(t Tasklet) error {
 //      ...[]byte // Result Data
 func (s *Script) Packet() (*com.Packet, error) {
 	if s.d.Empty() {
-		return nil, xerr.Sub("script is empty", 0x39)
+		return nil, xerr.Sub("script is empty", 0x6B)
 	}
 	n := &com.Packet{ID: MvScript}
 	n.WriteUint8(s.f)

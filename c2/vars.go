@@ -52,7 +52,7 @@ var (
 	// ErrTooManyPackets is an error returned by many of the Packet writing
 	// functions when attempts to combine Packets would create a Packet grouping
 	// size larger than the maximum size (65535 or 0xFFFF).
-	ErrTooManyPackets = xerr.Sub("frag/multi count is larger than 0xFFFF", 0x2C)
+	ErrTooManyPackets = xerr.Sub("frag/multi count is larger than 0xFFFF", 0x56)
 
 	empty time.Time
 
@@ -192,7 +192,7 @@ func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 		s.updateProxyInfo(v)
 		return
 	case RvMigrate:
-		if s.s == nil {
+		if s.IsClient() {
 			return
 		}
 		if cout.Enabled {
@@ -208,7 +208,7 @@ func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 			}
 		}
 	case SvShutdown:
-		if s.s != nil {
+		if !s.IsClient() {
 			if cout.Enabled {
 				s.log.Info("[%s] Client indicated shutdown, acknowledging and closing Session.", s.ID)
 			}
@@ -226,7 +226,7 @@ func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 		s.close(false)
 		return
 	case SvRegister:
-		if s.s != nil {
+		if !s.IsClient() {
 			return
 		}
 		if cout.Enabled {
@@ -274,10 +274,10 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 		if s.proxy != nil && s.proxy.IsActive() && s.proxy.accept(n) {
 			return nil
 		}
-		if xerr.Concat {
-			return xerr.Sub(`received Packet for "`+n.Device.String()+`" that does not match our own device ID "`+s.ID.String()+`"`, 0x2D)
+		if xerr.ExtendedInfo {
+			return xerr.Sub(`received Packet for "`+n.Device.String()+`" that does not match our own device ID "`+s.ID.String()+`"`, 0x57)
 		}
-		return xerr.Sub("received Packet that does not match our own device ID", 0x2D)
+		return xerr.Sub("received Packet that does not match our own device ID", 0x57)
 	}
 	if n.Flags&com.FlagOneshot != 0 {
 		l.oneshot(n)
@@ -408,7 +408,7 @@ func readPacketFrom(c io.Reader, w Wrapper, n *com.Packet) error {
 	}
 	i, err := w.Unwrap(c)
 	if err != nil {
-		return xerr.Wrap("unable to unwrap reader", err)
+		return xerr.Wrap("unable to unwrap Reader", err)
 	}
 	if err = n.Unmarshal(i); err != nil {
 		return err
@@ -424,7 +424,7 @@ func writePacketTo(c *data.Chunk, w Wrapper, n *com.Packet) error {
 	}
 	o, err := w.Wrap(c)
 	if err != nil {
-		return xerr.Wrap("unable to wrap writer", err)
+		return xerr.Wrap("unable to wrap Writer", err)
 	}
 	if bugtrack.Enabled {
 		bugtrack.Track("c2.writePacketTo(): n=%s, n.Len()=%d, n.Size()=%d", n, n.Size(), n.Size())
@@ -433,7 +433,7 @@ func writePacketTo(c *data.Chunk, w Wrapper, n *com.Packet) error {
 		return err
 	}
 	if err = o.Close(); err != nil {
-		xerr.Wrap("unable to close wrapper", err)
+		return xerr.Wrap("unable to close Wrapper", err)
 	}
 	return nil
 }

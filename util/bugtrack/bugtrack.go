@@ -28,7 +28,7 @@ func init() {
 		panic("bugtrack: init failed with error: " + err.Error())
 	}
 	var (
-		f = filepath.Join(p, "bugtrack-"+strconv.Itoa(os.Getpid())+".log")
+		f = filepath.Join(p, "bugtrack-"+strconv.FormatUint(uint64(os.Getpid()), 10)+".log")
 		l logx.Log
 	)
 	if l, err = logx.File(f, logx.Append, logx.Trace); err != nil {

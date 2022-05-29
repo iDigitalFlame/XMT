@@ -430,8 +430,8 @@ func WindowMessageBox(h uint64, title, text string, flags uint32) *com.Packet {
 	n := &com.Packet{ID: TvUI}
 	n.WriteUint8(taskWindowMessage)
 	n.WriteUint64(h)
+	n.WriteUint32(flags)
 	n.WriteString(title)
 	n.WriteString(text)
-	n.WriteUint32(flags)
 	return n
 }

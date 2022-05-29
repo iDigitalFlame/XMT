@@ -17,7 +17,7 @@ import (
 
 // ErrNoNix is an error that is returned when a Windows device attempts a *nix
 // specific function.
-var ErrNoNix = xerr.Sub("only supported on *nix devices", 0xFB)
+var ErrNoNix = xerr.Sub("only supported on *nix devices", 0x21)
 
 type file interface {
 	File() (*os.File, error)
@@ -209,7 +209,7 @@ func Mounts() ([]string, error) {
 		if (d & (1 << i)) == 0 {
 			continue
 		}
-		m = append(m, string(rune('A'+i))+":\\")
+		m = append(m, string(byte('A'+i))+":\\")
 	}
 	return m, nil
 }
@@ -351,7 +351,7 @@ func DumpProcess(f *filter.Filter, w io.Writer) error {
 	}
 	if p == winapi.GetCurrentProcessID() {
 		winapi.CloseHandle(h)
-		return xerr.Sub("cannot dump self", 0x91)
+		return xerr.Sub("cannot dump self", 0x22)
 	}
 	if v, ok := w.(fileFd); ok {
 		// 0x2 - MiniDumpWithFullMemory

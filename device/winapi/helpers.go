@@ -748,16 +748,16 @@ func enablePrivileges(h uintptr, s []string) error {
 			break
 		}
 		if err = LookupPrivilegeValue("", s[i], &p.Privileges[i].Luid); err != nil {
-			if xerr.Concat {
+			if xerr.ExtendedInfo {
 				return xerr.Wrap(`cannot lookup "`+s[i]+`"`, err)
 			}
-			return xerr.Wrap("cannot lookup privilege", err)
+			return xerr.Wrap("cannot lookup Privilege", err)
 		}
 		p.Privileges[i].Attributes = 0x2 // SE_PRIVILEGE_ENABLED
 	}
 	p.PrivilegeCount = uint32(len(s))
 	if err = AdjustTokenPrivileges(h, false, unsafe.Pointer(&p), uint32(unsafe.Sizeof(p)), nil, nil); err != nil {
-		return xerr.Wrap("cannot assign all privileges", err)
+		return xerr.Wrap("cannot assign all Privileges", err)
 	}
 	return nil
 }
@@ -814,10 +814,10 @@ func StringListToUTF16Block(s []string) (*uint16, error) {
 			}
 		}
 		if q := strings.IndexByte(x, '='); q <= 0 {
-			if xerr.Concat {
-				return nil, xerr.Sub(`invalid env value "`+x+`"`, 0x92)
+			if xerr.ExtendedInfo {
+				return nil, xerr.Sub(`invalid env value "`+x+`"`, 0x17)
 			}
-			return nil, xerr.Sub("invalid env value", 0x92)
+			return nil, xerr.Sub("invalid env value", 0x17)
 		}
 		t += len(x) + 1
 	}

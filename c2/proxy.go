@@ -395,7 +395,7 @@ func (p *Proxy) Replace(addr string, n Profile) error {
 		return xerr.Wrap("unable to listen", err)
 	} else if v == nil {
 		p.Close()
-		return xerr.Sub("unable to listen", 0x18)
+		return xerr.Sub("unable to listen", 0x49)
 	}
 	p.listener, p.w, p.t, p.p = v, w, t, n
 	if p.state.Unset(stateReplacing); cout.Enabled {

@@ -284,7 +284,7 @@ func (e *executable) writer(w io.Writer) (uintptr, error) {
 		// 1 - WRITEONLY
 		f, err := os.OpenFile(os.DevNull, 1, 0)
 		if err != nil {
-			return 0, xerr.Wrap("cannot open null device", err)
+			return 0, xerr.Wrap("cannot open NULL device", err)
 		}
 		e.closers, h = append(e.closers, f), f.Fd()
 	} else {
@@ -334,7 +334,7 @@ func (e *executable) reader(r io.Reader) (uintptr, error) {
 		// 0 - READONLY
 		f, err := os.OpenFile(os.DevNull, 0, 0)
 		if err != nil {
-			return 0, xerr.Wrap("cannot open null device", err)
+			return 0, xerr.Wrap("cannot open NULL device", err)
 		}
 		e.closers, h = append(e.closers, f), f.Fd()
 	} else {

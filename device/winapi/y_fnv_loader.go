@@ -61,9 +61,6 @@ func (d *lazyDLL) load() error {
 	if atomic.LoadUintptr(&d.addr) > 0 {
 		return nil
 	}
-	if len(d.name) == 0 {
-		return xerr.Sub("empty DLL name", 0x93)
-	}
 	d.Lock()
 	var (
 		h   uintptr
@@ -93,7 +90,7 @@ func (p *lazyProc) find() error {
 	if atomic.LoadUintptr(&p.addr) > 0 {
 		return nil
 	}
-	return xerr.Sub("cannot load DLL function", 0x97)
+	return xerr.Sub("cannot load DLL function", 0x18)
 }
 func fnvHash(b [256]byte) uint32 {
 	h := uint32(2166136261)
@@ -117,17 +114,17 @@ func (d *lazyDLL) proc(h uint32) *lazyProc {
 func (d *lazyDLL) initFunctions(h uintptr) error {
 	b := (*imageDosHeader)(unsafe.Pointer(h))
 	if b.magic != 0x5A4D {
-		return xerr.Sub("base is not a valid DOS header", 0x98)
+		return xerr.Sub("base is not a valid DOS header", 0x19)
 	}
 	n := (*imageNtHeader)(unsafe.Pointer(h + uintptr(b.pos)))
 	if n.Signature != 0x00004550 {
-		return xerr.Sub("offset base is not a valid NT header", 0x99)
+		return xerr.Sub("offset base is not a valid NT header", 0x1A)
 	}
 	if n.File.Characteristics&0x2000 == 0 {
-		return xerr.Sub("header does not represent a DLL", 0x9A)
+		return xerr.Sub("header does not represent a DLL", 0x1B)
 	}
 	if n.Optional.Directory[0].Size == 0 || n.Optional.Directory[0].VirtualAddress == 0 {
-		return xerr.Sub("header has an invalid first entry point", 0x9B)
+		return xerr.Sub("header has an invalid first entry point", 0x1C)
 	}
 	var (
 		i = (*imageExportDir)(unsafe.Pointer(h + uintptr(n.Optional.Directory[0].VirtualAddress)))
