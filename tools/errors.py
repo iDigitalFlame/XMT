@@ -130,6 +130,7 @@ ERRORS[0x6B] = ErrorValue("script is empty", "c2/task")
 ERRORS[0x6C] = ErrorValue("empty key name", "c2/task")
 ERRORS[0x6D] = ErrorValue("empty value name", "c2/task")
 ERRORS[0x6E] = ErrorValue("arguments cannot be nil or empty", "c2/wrapper")
+ERRORS[0xFE] = ErrorValue("invalid Task mapping", "c2")
 
 
 def find_error(v):

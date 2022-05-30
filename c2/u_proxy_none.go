@@ -31,6 +31,7 @@ func (proxyBase) tags() []uint32 {
 func (proxyBase) IsActive() bool {
 	return false
 }
+func (*Session) updateProxyStats() {}
 
 // Proxy returns the current Proxy (if enabled). This function take a name
 // argument that is a string that specifies the Proxy name.

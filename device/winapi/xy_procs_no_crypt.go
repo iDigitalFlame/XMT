@@ -18,6 +18,7 @@ var (
 	funcReadFile                                            = dllKernel32.proc("ReadFile")
 	funcLsaClose                                            = dllAdvapi32.proc("LsaClose")
 	funcDeleteDC                                            = dllGdi32.proc("DeleteDC")
+	funcSetFocus                                            = dllUser32.proc("SetFocus")
 	funcLogonUser                                           = dllAdvapi32.proc("LogonUserW")
 	funcWriteFile                                           = dllKernel32.proc("WriteFile")
 	funcOpenMutex                                           = dllKernel32.proc("OpenMutexW")

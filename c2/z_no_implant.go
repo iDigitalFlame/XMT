@@ -295,7 +295,7 @@ func (l *Listener) MarshalJSON() ([]byte, error) {
 	return d, nil
 }
 func (s *Session) updateProxyInfo(v []proxyData) {
-	if s.parent == nil {
+	if s.IsClient() {
 		return
 	}
 	s.proxies = v

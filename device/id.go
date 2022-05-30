@@ -106,6 +106,9 @@ func (i ID) Save(s string) error {
 func (i *ID) Read(r io.Reader) error {
 	n, err := io.ReadFull(r, i[:])
 	if n != IDSize || i[0] == 0 {
+		// NOTE(dij): This line causes empty ID values to be considered read
+		//            errors. Technically this is incorrect, but we should never
+		//            be using empty ID values to communicate so it's sorta ok.
 		if err != nil {
 			return err
 		}

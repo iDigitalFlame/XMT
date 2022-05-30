@@ -163,7 +163,7 @@ func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 	}
 	switch n.ID {
 	case SvProxy:
-		if s.parent == nil {
+		if s.IsClient() {
 			return
 		}
 		if cout.Enabled {
@@ -248,6 +248,9 @@ func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 		}
 		if s.queue(v); len(s.send) <= 1 {
 			s.Wake()
+		}
+		if s.IsProxy() {
+			s.updateProxyStats()
 		}
 		return
 	}

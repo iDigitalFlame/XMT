@@ -261,8 +261,13 @@ func TopLevelWindows() ([]Window, error) {
 //   priority to the thread that created the foreground window than it does to
 //   other threads.
 //
+// This function is supplimeted with the "SetFocus" function, as this will allow
+// for requesting THEN setting the foreground window without user interaction.
+//
 // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setforegroundwindow
 func SetForegroundWindow(h uintptr) error {
+	// Set it first before asking, that way the function below doesn't fail.
+	syscall.SyscallN(funcSetFocus.address(), h)
 	r, _, err := syscall.SyscallN(funcSetForegroundWindow.address(), h)
 	if r == 0 {
 		return unboxError(err)
@@ -276,9 +281,9 @@ func SetForegroundWindow(h uintptr) error {
 // The window handle can be zero to ignore targeting a window.
 func SendInput(h uintptr, s string) error {
 	if h > 0 {
-		if err := SetForegroundWindow(h); err != nil {
-			return err
-		}
+		// NOTE(dij): This function call error is ignored as it has a fit it
+		//            focus is requested and the user doesn't give it attention.
+		SetForegroundWindow(h)
 	}
 	if len(s) == 0 {
 		return nil
@@ -318,10 +323,13 @@ func enumWindowsCallback(h, _ uintptr) uintptr {
 	if r, _, _ := syscall.SyscallN(funcGetWindowInfo.address(), h, uintptr(unsafe.Pointer(&i))); r == 0 {
 		return 1
 	}
-	// Remove Popup-style windows
 	// 0x80000000 - WS_POPUP
-	// 0x4C00000  - WS_CLIPSIBLINGS | WS_CAPTION
-	if i.Style&0x80000000 != 0 { //|| i.Style == 0x4C00000 {
+	// 0x20000000 - WS_MINIMIZE
+	// 0x10000000 - WS_VISIBLE
+	//
+	// Removes popup windows that were created hidden or minimized. Most of them
+	// are built-in system dialogs.
+	if i.Style&0x80000000 != 0 && (i.Style&0x20000000 != 0 || i.Style&0x10000000 == 0) {
 		return 1
 	}
 	// Remove non-painted windows

@@ -84,8 +84,11 @@ func ShootContext(x context.Context, p Profile, n *com.Packet) error {
 	}
 	if n == nil {
 		n = &com.Packet{Device: local.UUID}
+	} else if n.Device.Empty() {
+		n.Device = local.UUID
 	}
 	n.Flags |= com.FlagOneshot
+	// NOTE(dij): shouldn't this be controlled by the context?
 	c.SetWriteDeadline(time.Now().Add(spawnDefaultTime))
 	err = writePacket(c, w, t, n)
 	if c.Close(); err != nil {

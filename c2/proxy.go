@@ -132,7 +132,7 @@ func (p *Proxy) listen() {
 	}
 	p.listener.Close()
 	p.state.Set(stateClosed)
-	p.parent.updateProxyStats(false, p.name)
+	p.parent.updateProxyStats() // false, p.name)
 	p.parent = nil
 	close(p.ch)
 }
@@ -397,10 +397,11 @@ func (p *Proxy) Replace(addr string, n Profile) error {
 		p.Close()
 		return xerr.Sub("unable to listen", 0x49)
 	}
-	p.listener, p.w, p.t, p.p = v, w, t, n
+	p.listener, p.w, p.t, p.p, p.addr = v, w, t, n, h
 	if p.state.Unset(stateReplacing); cout.Enabled {
 		p.log.Info("[%s] Replaced Proxy listener socket, now bound to %s!", p.prefix(), h)
 	}
+	p.parent.updateProxyStats() // true, p.name)
 	return nil
 }
 func (p proxyData) MarshalStream(w data.Writer) error {
