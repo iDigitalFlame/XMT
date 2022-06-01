@@ -46,8 +46,7 @@ if __name__ == "__main__":
         exit(1)
 
     out = xor(key, data)
-    del key
-    del data
+    del key, data
 
     print(
         "Paste this data into your Golang code, then call 'util.Decode(key, value)'\n",

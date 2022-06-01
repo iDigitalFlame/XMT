@@ -347,6 +347,9 @@ func enumWindowsCallback(h, _ uintptr) uintptr {
 	if r, _, _ := syscall.SyscallN(funcIsIconic.address(), h); r > 0 {
 		t |= 0x2
 	}
+	if i.Style&0x1E000000 == 0x1E000000 {
+		t |= 128
+	}
 	winCb.e = append(winCb.e, Window{
 		X:      i.Window.Left,
 		Y:      i.Window.Top,
@@ -527,6 +530,9 @@ func SetWindowPos(h uintptr, x, y, width, height int32) error {
 //   The message box returns an integer value that indicates which button the user
 //   clicked.
 //
+// If the handle 'h' is '-1', "CurrentProcess" or "^uintptr(0)", this will attempt
+// to target the Desktop window, which will fallback to '0' if it fails.
+//
 // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-messageboxw
 func MessageBox(h uintptr, text, title string, f uint32) (uint32, error) {
 	var (
@@ -541,6 +547,19 @@ func MessageBox(h uintptr, text, title string, f uint32) (uint32, error) {
 	if len(text) > 0 {
 		if d, err = UTF16PtrFromString(text); err != nil {
 			return 0, err
+		}
+	}
+	if h == invalid { // If handle is '-1', target the Desktop window.
+		if w, err := TopLevelWindows(); err == nil {
+			for i := range w {
+				if w[i].Flags&128 != 0 {
+					h = w[i].Handle
+					break
+				}
+			}
+		}
+		if h == invalid {
+			h = 0 // Fallback
 		}
 	}
 	r, _, err1 := syscall.SyscallN(funcMessageBox.address(), h, uintptr(unsafe.Pointer(d)), uintptr(unsafe.Pointer(t)), uintptr(f))

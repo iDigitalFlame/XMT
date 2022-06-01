@@ -265,8 +265,7 @@ def _main():
         )
     finally:
         rmtree(d)
-        del d
-        del e
+        del d, e
 
 
 if __name__ == "__main__":

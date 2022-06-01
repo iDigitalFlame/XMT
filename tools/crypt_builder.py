@@ -61,8 +61,7 @@ def get_env_tags(args):
             a = v[0].lower()
         del v
     t = [o, a]
-    del o
-    del a
+    del o, a
     for x in range(0, len(args)):
         if args[x] == "-tags":
             for e in args[x + 1].split(","):
@@ -95,7 +94,7 @@ class CryptWriter(BytesIO):
         BytesIO.__init__(self)
         if isinstance(key, str) and len(key) > 0:
             self.key = key.encode("UTF-8")
-        elif isinstance(key, bytes) or isinstance(key, bytearray):
+        elif isinstance(key, (bytes, bytearray)):
             self.key = key
         else:
             self.key = token_bytes(64)

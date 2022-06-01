@@ -150,5 +150,4 @@ if __name__ == "__main__":
 
     v = CryptMapper()
     v.start(argv[1], d)
-    del d
-    del v
+    del d, v

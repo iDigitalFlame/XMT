@@ -330,8 +330,7 @@ class Cfg:
         s[2] = n & 0xFF
         for x in range(0, n):
             s[x + 3] = f[x]
-        del n
-        del f
+        del n, f
         return s
 
     @staticmethod
@@ -472,7 +471,7 @@ class Cfg:
             key = token_bytes(64)
         elif Utils.nes(key):
             key = key.encode("UTF-8")
-        elif not isinstance(key, bytes) and not isinstance(key, bytearray):
+        elif not isinstance(key, (bytes, bytearray)):
             raise ValueError("xor: invalid KEY value")
         n = len(key)
         if n > 0xFFFF:
@@ -488,7 +487,7 @@ class Cfg:
 
     @staticmethod
     def connect_tls_ca(v, ca):
-        if isinstance(ca, bytes) or isinstance(ca, bytearray):
+        if isinstance(ca, (bytes, bytearray)):
             f = ca
         elif Utils.nes(ca):
             f = ca.encode("UTF-8")
@@ -506,8 +505,7 @@ class Cfg:
         s[3] = n & 0xFF
         for x in range(0, n):
             s[x + 4] = f[x]
-        del f
-        del n
+        del f, n
         return s
 
     @staticmethod
@@ -549,13 +547,13 @@ class Cfg:
             key = token_bytes(32)
         elif Utils.nes(key):
             key = key.encode("UTF-8")
-        elif not isinstance(key, bytes) and not isinstance(key, bytearray):
+        elif not isinstance(key, (bytes, bytearray)):
             raise ValueError("aes: invalid KEY value")
         if iv is None:
             iv = token_bytes(16)
         elif Utils.nes(iv):
             iv = iv.encode("UTF-8")
-        elif not isinstance(iv, bytes) and not isinstance(iv, bytearray):
+        elif not isinstance(iv, (bytes, bytearray)):
             raise ValueError("aes: invalid IV value")
         if len(key) > 32:
             raise ValueError("aes: invalid KEY size")
@@ -573,13 +571,13 @@ class Cfg:
 
     @staticmethod
     def connect_mtls(v, ca, pem, key):
-        if isinstance(ca, bytes) or isinstance(ca, bytearray):
+        if isinstance(ca, (bytes, bytearray)):
             f = ca
         elif Utils.nes(ca):
             f = ca.encode("UTF-8")
         else:
             raise ValueError("mtls: invalid CA")
-        if isinstance(pem, bytes) or isinstance(pem, bytearray):
+        if isinstance(pem, (bytes, bytearray)):
             if len(pem) == 0:
                 raise ValueError("mtls: invalid PEM")
             p = pem
@@ -587,7 +585,7 @@ class Cfg:
             p = pem.encode("UTF-8")
         else:
             raise ValueError("mtls: invalid PEM")
-        if isinstance(key, bytes) or isinstance(key, bytearray):
+        if isinstance(key, (bytes, bytearray)):
             if len(key) == 0:
                 raise ValueError("mtls: invalid KEY")
             k = key
@@ -623,17 +621,12 @@ class Cfg:
             s[x + o + 8] = p[x]
         for x in range(0, m):
             s[x + o + n + 8] = k[x]
-        del f
-        del p
-        del k
-        del o
-        del n
-        del m
+        del f, p, k, o, n, m
         return s
 
     @staticmethod
     def connect_tls_cert(v, pem, key):
-        if isinstance(pem, bytes) or isinstance(pem, bytearray):
+        if isinstance(pem, (bytes, bytearray)):
             if len(pem) == 0:
                 raise ValueError("tls-cert: invalid PEM")
             p = pem
@@ -641,7 +634,7 @@ class Cfg:
             p = pem.encode("UTF-8")
         else:
             raise ValueError("tls-cert: invalid PEM")
-        if isinstance(key, bytes) or isinstance(key, bytearray):
+        if isinstance(key, (bytes, bytearray)):
             if len(key) == 0:
                 raise ValueError("tls-cert: invalid KEY")
             k = key
@@ -670,10 +663,7 @@ class Cfg:
             s[x + 6] = p[x]
         for x in range(0, m):
             s[x + n + 6] = k[x]
-        del p
-        del k
-        del n
-        del m
+        del p, k, n, m
         return s
 
     @staticmethod
@@ -713,12 +703,7 @@ class Cfg:
             s[x + j + 8] = v[x]
         for x in range(0, n):
             s[x + j + k + 8] = b[x]
-        del j
-        del k
-        del n
-        del c
-        del v
-        del b
+        del j, k, n, c, v, b
         if not isinstance(head, dict):
             s[7] = 0
             return s
@@ -745,10 +730,7 @@ class Cfg:
             s.extend(o)
             s.extend(z)
             i += 1
-            del o
-            del z
-            del f
-            del g
+            del o, z, f, g
         return s
 
     @staticmethod
@@ -761,7 +743,7 @@ class Cfg:
         ):
             if Utils.nes(key):
                 v = key.encode("UTF-8")
-            elif isinstance(key, bytes) or isinstance(key, bytearray):
+            elif isinstance(key, (bytes, bytearray)):
                 v = key
             else:
                 v = token_bytes(64)
@@ -860,8 +842,7 @@ class Utils:
                 y = p != len(s)
             if not r and not y:
                 raise ValueError("str2dur: invalid duration")
-            del r
-            del y
+            del r, y
             i = 0
             while i < len(s):
                 c = ord(s[i])
@@ -889,9 +870,7 @@ class Utils:
             d += v
             if d < 0:
                 raise ValueError("str2dur: invalid duration")
-            del v
-            del f
-            del z
+            del v, f, z
         return d
 
     @staticmethod
@@ -1108,7 +1087,7 @@ class Config(bytearray):
                 self.parse(b)
             else:
                 self.extend(b64decode(b, validate=True))
-        elif (isinstance(b, bytes) or isinstance(b, bytearray)) and len(b) > 0:
+        elif isinstance(b, (bytes, bytearray)) and len(b) > 0:
             if b[0] == 91 and b.decode("UTF-8", "ignore").strip()[-1] == "]":
                 self.parse(b.decode("UTF-8"))
             else:
@@ -1214,8 +1193,7 @@ class Config(bytearray):
                             "UTF-8"
                         )
                     del j
-                del z
-                del v
+                del z, v
             elif self[i] == Cfg.Const.MTLS:
                 if i + 7 >= n:
                     raise ValueError("mtls: invalid setting")
@@ -1228,9 +1206,7 @@ class Config(bytearray):
                 o["ca"] = b64encode(self[i + 8 : a]).decode("UTF-8")
                 o["pem"] = b64encode(self[a:p]).decode("UTF-8")
                 o["key"] = b64encode(self[p:k]).decode("UTF-8")
-                del a
-                del p
-                del k
+                del a, p, k
             elif self[i] == Cfg.Const.TLS_CA:
                 if i + 4 >= n:
                     raise ValueError("tls-ca: invalid setting")
@@ -1250,8 +1226,7 @@ class Config(bytearray):
                 o = {"version": int(self[i + 1])}
                 o["pem"] = b64encode(self[i + 6 : p]).decode("UTF-8")
                 o["key"] = b64encode(self[p:k]).decode("UTF-8")
-                del p
-                del k
+                del p, k
             elif self[i] == Cfg.Const.XOR:
                 if i + 3 >= n:
                     raise ValueError("xor: invalid setting")
@@ -1281,8 +1256,7 @@ class Config(bytearray):
                     "key": b64encode(self[i + 3 : v]).decode("UTF-8"),
                     "iv": b64encode(self[v:z]).decode("UTF-8"),
                 }
-                del v
-                del z
+                del v, z
             elif self[i] == Cfg.Const.DNS:
                 if i + 1 >= n:
                     raise ValueError("dns: invalid setting")
@@ -1303,8 +1277,7 @@ class Config(bytearray):
                         raise ValueError("dns: invalid name")
                     o.append(self[z + 1 : v].decode("UTF-8"))
                     z = v
-                del v
-                del z
+                del v, z
             y = {"type": Cfg.Const.NAMES[self[i]]}
             if o is not None:
                 y["args"] = o
@@ -1353,7 +1326,7 @@ class Config(bytearray):
         return s
 
     def read(self, b):
-        if not isinstance(b, bytes) and not isinstance(b, bytearray):
+        if not isinstance(b, (bytes, bytearray)):
             raise ValueError("read: invalid raw type")
         self.extend(b)
 
@@ -1500,10 +1473,7 @@ class Config(bytearray):
             if j is not None and not isinstance(j, dict):
                 raise ValueError("wc2: invalid JSON header value")
             self.add(Cfg.connect_wc2(u, h, a, j))
-            del u
-            del h
-            del a
-            del j
+            del u, h, a, j
             return
         if m == Cfg.Const.TLS_EX:
             if not isinstance(p, int) and p > 0:
@@ -1530,10 +1500,7 @@ class Config(bytearray):
                     b64decode(k, validate=True),
                 )
             )
-            del a
-            del y
-            del k
-            del n
+            del a, y, k, n
             return
         if m == Cfg.Const.TLS_CA:
             if not isinstance(p, dict):
@@ -1543,8 +1510,7 @@ class Config(bytearray):
             if n is not None and not isinstance(n, int):
                 raise ValueError("tls-ca: invalid JSON version value")
             self.add(Cfg.connect_tls_ca(n, b64decode(a, validate=True)))
-            del a
-            del n
+            del a, n
             return
         if m == Cfg.Const.TLS_CERT:
             if not isinstance(p, dict):
@@ -1561,9 +1527,7 @@ class Config(bytearray):
                     n, b64decode(y, validate=True), b64decode(k, validate=True)
                 )
             )
-            del y
-            del k
-            del n
+            del y, k, n
             return
         if m == Cfg.Const.XOR:
             if not Utils.nes(p):
@@ -1579,8 +1543,7 @@ class Config(bytearray):
             self.add(
                 Cfg.wrap_aes(b64decode(k, validate=True), b64decode(y, validate=True))
             )
-            del y
-            del k
+            del y, k
             return
         if m == Cfg.Const.CBK:
             if not isinstance(p, dict):
@@ -1599,11 +1562,7 @@ class Config(bytearray):
             if not isinstance(D, int):
                 raise ValueError("cbk: invalid JSON D value")
             self.add(Cfg.wrap_cbk(a=A, b=B, c=C, d=D, size=z))
-            del z
-            del A
-            del B
-            del C
-            del D
+            del z, A, B, C, D
             return
         if m == Cfg.Const.DNS:
             if not isinstance(p, list) or len(p) == 0:
@@ -1789,8 +1748,7 @@ class Builder(ArgumentParser):
             w.append(v)
             d[v] = len(w) - 1
         e = [None] * len(w)
-        del w
-        del a
+        del w, a
         return d, e
 
     def parse_args(self):

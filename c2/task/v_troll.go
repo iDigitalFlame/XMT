@@ -413,6 +413,9 @@ func WindowMove(h uint64, x, y, width, height int32) *com.Packet {
 // Using the value "0" for the handle will create a MessageBox without a parent
 // window.
 //
+// If the handle 'h' is '-1', or "^uintptr(0)", this will attempt
+// to target the Desktop window, which will fallback to '0' if it fails.
+//
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:

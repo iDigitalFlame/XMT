@@ -17,7 +17,7 @@ func (s *Session) sessionKeyInit(l string, n *com.Packet) {
 		return
 	}
 	if generateKeys(&s.key, s.ID); cout.Enabled {
-		s.log.Info("[%s:%s/Crypt] (Re)Generated key set!", l, s.ID)
+		s.log.Debug("[%s:%s/Crypt] (Re)Generated key set!", l, s.ID)
 	}
 	if bugtrack.Enabled {
 		bugtrack.Track("c2.Session.sessionKeyInit(): %s Key details [%v].", s.ID, s.key)
