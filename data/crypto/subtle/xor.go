@@ -10,14 +10,40 @@ import (
 )
 
 // XorOp will call the 'XorBytes' function but write the value back to the value
-// instead.
+// instead. This one assumes that the key value is less than or equal to the
+// value.
 //
 // If you need finer control, use the 'XorBytes' function.
 func XorOp(value, key []byte) {
-	XorBytes(value, key, value)
+	if len(key) == len(value) {
+		xorBytes(value, key, value)
+		return
+	}
+	for n := 0; n < len(value); {
+		n += xorBytes(value[n:], key, value[n:])
+	}
 }
+
+//go:linkname xorBytes crypto/cipher.xorBytes
+func xorBytes(dst, a, b []byte) int
 
 // XorBytes is the runtime import from "crypto/cipher.xorBytes" that can use
 // hardware instructions for a 200% faster XOR operation.
-//go:linkname XorBytes crypto/cipher.xorBytes
-func XorBytes(dst, a, b []byte) int
+//
+// This variant will overlap the xor for the entire backing array, depending
+// on which one is larger.
+func XorBytes(dst, a, b []byte) int {
+	var n int
+	if len(a) < len(b) {
+		for n < len(b) {
+			//println("n", n, "b", len(b), "a", len(a))
+			n += xorBytes(dst[n:], a, b[n:])
+		}
+		return n
+	}
+	for n < len(a) {
+		//println("n", n, "b", len(b), "a", len(a))
+		n += xorBytes(dst[n:], b, a[n:])
+	}
+	return n
+}
