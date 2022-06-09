@@ -1,3 +1,19 @@
+// Copyright (C) 2020 - 2022 iDigitalFlame
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+
 package data
 
 import (
@@ -68,8 +84,9 @@ func (r *ctxReader) Read(b []byte) (int, error) {
 	}
 }
 
-// ReadStringList attempts to read a string list written using the 'WriteStringList' function from the supplied
-// string into the string list pointer. If the provided array is nil or not large enough, it will be resized.
+// ReadStringList attempts to read a string list written using the 'WriteStringList'
+// function from the supplied string into the string list pointer. If the provided
+// array is nil or not large enough, it will be resized.
 func ReadStringList(r Reader, s *[]string) error {
 	t, err := r.Uint8()
 	if err != nil {
@@ -117,8 +134,9 @@ func ReadStringList(r Reader, s *[]string) error {
 	return nil
 }
 
-// WriteStringList will attempt to write the supplied string list to the writer. If the string list is nil or
-// empty, it will write a zero byte to the Writer. The resulting data can be read using the 'ReadStringList' function.
+// WriteStringList will attempt to write the supplied string list to the writer.
+// If the string list is nil or empty, it will write a zero byte to the Writer.
+// The resulting data can be read using the 'ReadStringList' function.
 func WriteStringList(w Writer, s []string) error {
 	switch l := uint64(len(s)); {
 	case l == 0:
@@ -163,9 +181,10 @@ func WriteStringList(w Writer, s []string) error {
 	return nil
 }
 
-// NewCtxReader creates a reader backed by the supplied Reader and Context. This reader will automatically close
-// when the parent context is canceled. This is useful in situations when direct copies using 'io.Copy' on threads
-// or timed operations are required.
+// NewCtxReader creates a reader backed by the supplied Reader and Context. This
+// reader will automatically close when the parent context is canceled. This is
+// useful in situations when direct copies using 'io.Copy' on threads or timed
+// operations are required.
 func NewCtxReader(x context.Context, r io.Reader) io.ReadCloser {
 	i := new(ctxReader)
 	if c, ok := r.(io.ReadCloser); ok {

@@ -1,5 +1,21 @@
 //go:build medium
 
+// Copyright (C) 2020 - 2022 iDigitalFlame
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+
 package limits
 
 // Frag is the max size used to fragment packets into.
@@ -7,6 +23,6 @@ package limits
 const Frag = 16_777_216
 
 // Packets determines how many Packets may be processed by the Session thread before
-// waiting another wait cycle. If this is set to anything less than one, only a single
-// Packet will be processed at a time.
+// waiting another wait cycle. If this is set to anything less than one, only a
+// single Packet will be processed at a time.
 const Packets = 128

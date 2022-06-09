@@ -1,33 +1,47 @@
-#!/usr/bin/bash
+#!/usr/bin/bash -e
+# Copyright (C) 2021 - 2022 iDigitalFlame
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
 
 build_tags=(
-              bugs implant crypt stdrand nojson nosweep no6 tiny small medium large nofrag regexp nopanic noservice ews noproxy nokeyswap scripts
+              bugs implant crypt stdrand nojson nosweep tiny small medium large nofrag regexp nopanic noservice ews noproxy nokeyswap scripts
               bugs,implant
               bugs,implant,crypt
               bugs,implant,crypt,stdrand
               bugs,implant,crypt,stdrand,nojson
               bugs,implant,crypt,stdrand,nojson,nosweep
-              bugs,implant,crypt,stdrand,nojson,nosweep,no6
-              bugs,implant,crypt,stdrand,nojson,nosweep,no6,tiny
-              bugs,implant,crypt,stdrand,nojson,nosweep,no6,small
-              bugs,implant,crypt,stdrand,nojson,nosweep,no6,medium
-              bugs,implant,crypt,stdrand,nojson,nosweep,no6,nofrag
-              bugs,implant,crypt,stdrand,nojson,nosweep,no6,nofrag,regexp
-              bugs,implant,crypt,stdrand,nojson,nosweep,no6,nofrag,regexp,ews
-              bugs,implant,crypt,stdrand,nojson,nosweep,no6,nofrag,regexp,ews,noproxy
-              implant,crypt,stdrand,nojson,nosweep,no6,nofrag,regexp,ews,noproxy
-              crypt,stdrand,nojson,nosweep,no6,nofrag,regexp,ews,noproxy
-              crypt,stdrand,nojson,nosweep,no6,nofrag,regexp,noproxy
-              stdrand,nojson,nosweep,no6,nofrag,regexp,ews,noproxy
-              nojson,nosweep,no6,nofrag,regexp,ews,noproxy
-              nosweep,no6,nofrag,regexp,ews,noproxy
-              nosweep,no6,nofrag,ews,noproxy
-              nosweep,no6,nofrag,noproxy
-              nosweep,no6,nofrag,ews
-              no6,nofrag,regexp,ews
-              no6,nofrag,regexp
-              no6,nofrag,ews
-              no6,nofrag
+              bugs,implant,crypt,stdrand,nojson,nosweep,tiny
+              bugs,implant,crypt,stdrand,nojson,nosweep,small
+              bugs,implant,crypt,stdrand,nojson,nosweep,medium
+              bugs,implant,crypt,stdrand,nojson,nosweep,nofrag
+              bugs,implant,crypt,stdrand,nojson,nosweep,nofrag,regexp
+              bugs,implant,crypt,stdrand,nojson,nosweep,nofrag,regexp,ews
+              bugs,implant,crypt,stdrand,nojson,nosweep,nofrag,regexp,ews,noproxy
+              implant,crypt,stdrand,nojson,nosweep,nofrag,regexp,ews,noproxy
+              crypt,stdrand,nojson,nosweep,nofrag,regexp,ews,noproxy
+              crypt,stdrand,nojson,nosweep,nofrag,regexp,noproxy
+              stdrand,nojson,nosweep,nofrag,regexp,ews,noproxy
+              nojson,nosweep,nofrag,regexp,ews,noproxy
+              nosweep,nofrag,regexp,ews,noproxy
+              nosweep,nofrag,ews,noproxy
+              nosweep,nofrag,noproxy
+              nosweep,nofrag,ews
+              nofrag,regexp,ews
+              nofrag,regexp
+              nofrag,ews
+              nofrag
            )
 
 go mod tidy

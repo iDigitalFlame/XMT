@@ -1,3 +1,19 @@
+// Copyright (C) 2020 - 2022 iDigitalFlame
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+
 package crypto
 
 import (
@@ -43,8 +59,8 @@ type source interface {
 	Int63() int64
 }
 
-// NewCBK returns a new CBK Cipher with the D value specified. The other A, B and C values
-// are randomally generated at runtime.
+// NewCBK returns a new CBK Cipher with the D value specified. The other A, B and
+// C values are randomally generated at runtime.
 func NewCBK(d int) *CBK {
 	c, _ := NewCBKEx(d, size, nil)
 	return c
@@ -89,7 +105,8 @@ func (e *CBK) Shuffle(b []byte) {
 	}
 }
 
-// Deshuffle will reverse the switch around the bytes in the array based on the Cipher bytes.
+// Deshuffle will reverse the switch around the bytes in the array based on the
+// Cipher bytes.
 func (e *CBK) Deshuffle(b []byte) {
 	if len(b) > 1 {
 		b[0] -= e.A
@@ -121,14 +138,16 @@ func (e *CBK) adjust(i uint16) uint16 {
 	return 1
 }
 
-// Encrypt encrypts the first block in src into dst. Dst and src must overlap entirely or not at all.
+// Encrypt encrypts the first block in src into dst. Dst and src must overlap entirely
+// or not at all.
 func (e *CBK) Encrypt(dst, src []byte) {
 	copy(dst, src)
 	e.Shuffle(dst)
 	e.scramble(dst, true)
 }
 
-// Decrypt decrypts the first block in src into dst. Dst and src must overlap entirely or not at all.
+// Decrypt decrypts the first block in src into dst. Dst and src must overlap entirely
+// or not at all.
 func (e *CBK) Decrypt(dst, src []byte) {
 	copy(dst, src)
 	e.scramble(dst, false)
@@ -300,7 +319,8 @@ func (e *CBK) flushOutput(w io.Writer) (int, error) {
 	return n, err
 }
 
-// NewCBKSource returns a new CBK Cipher with the A, B, C, D, BlockSize values specified.
+// NewCBKSource returns a new CBK Cipher with the A, B, C, D, BlockSize values
+// specified.
 func NewCBKSource(a, b, c, d, sz byte) (*CBK, error) {
 	switch sz {
 	case 0:
@@ -320,8 +340,8 @@ func clear(b *[size + 1]byte, z *[size + 1][256]byte) {
 	}
 }
 
-// NewCBKEx returns a new CBK Cipher with the D value, BlockSize and Entropy source specified. The other
-// A, B and C values are randomally generated at runtime.
+// NewCBKEx returns a new CBK Cipher with the D value, BlockSize and Entropy source
+// specified. The other A, B and C values are randomally generated at runtime.
 func NewCBKEx(d int, sz int, src source) (*CBK, error) {
 	switch sz {
 	case 0:
@@ -335,7 +355,8 @@ func NewCBKEx(d int, sz int, src source) (*CBK, error) {
 	return c, nil
 }
 
-// Read reads the contents of the Reader to the byte array after decrypting with this Cipher.
+// Read reads the contents of the Reader to the byte array after decrypting with
+// this Cipher.
 func (e *CBK) Read(r io.Reader, b []byte) (int, error) {
 	if e.buf == nil {
 		e.buf = make([]byte, size+1)
@@ -371,7 +392,8 @@ func (e *CBK) Read(r io.Reader, b []byte) (int, error) {
 	return n, nil
 }
 
-// Write writes the contents of the byte array to the Writer after encrypting with this Cipher.
+// Write writes the contents of the byte array to the Writer after encrypting with
+// this Cipher.
 func (e *CBK) Write(w io.Writer, b []byte) (int, error) {
 	if e.buf == nil {
 		e.buf = make([]byte, size+1)

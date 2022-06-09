@@ -1,3 +1,19 @@
+// Copyright (C) 2020 - 2022 iDigitalFlame
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+
 package crypto
 
 import (
@@ -23,12 +39,14 @@ type flusher interface {
 	Flush() error
 }
 
-// Reader is an interface that supports reading bytes from a Reader through the wrapped Cipher.
+// Reader is an interface that supports reading bytes from a Reader through the
+// wrapped Cipher.
 type Reader interface {
 	Read(io.Reader, []byte) (int, error)
 }
 
-// Writer is an interface that supports writing bytes to a Writer through the wrapped Cipher.
+// Writer is an interface that supports writing bytes to a Writer through the
+// wrapped Cipher.
 type Writer interface {
 	Flush(io.Writer) error
 	Write(io.Writer, []byte) (int, error)
@@ -53,8 +71,8 @@ func (w *writer) Close() error {
 	return nil
 }
 
-// NewAes attempts to create a new AES block Cipher from the provided key data. Errors will be returned
-// if the key length is invalid.
+// NewAes attempts to create a new AES block Cipher from the provided key data.
+// Errors will be returned if the key length is invalid.
 func NewAes(k []byte) (cipher.Block, error) {
 	return aes.NewCipher(k)
 }
@@ -81,10 +99,11 @@ func NewWriter(c Writer, w io.Writer) io.WriteCloser {
 	return &writer{c: c, w: w}
 }
 
-// Decrypter creates a data.Reader type from the specified block Cipher, IV and Reader.
+// Decrypter creates a data.Reader type from the specified block Cipher, IV and
+// Reader.
 //
-// This is used to Decrypt data. This function returns an error if the blocksize of the Block does not equal
-// the length of the supplied IV.
+// This is used to Decrypt data. This function returns an error if the blocksize
+// of the Block does not equal the length of the supplied IV.
 func Decrypter(b cipher.Block, iv []byte, r io.Reader) (io.ReadCloser, error) {
 	if len(iv) != b.BlockSize() {
 		return nil, xerr.Sub("block size must equal IV size", 0x29)
@@ -92,10 +111,11 @@ func Decrypter(b cipher.Block, iv []byte, r io.Reader) (io.ReadCloser, error) {
 	return io.NopCloser(&cipher.StreamReader{R: r, S: cipher.NewCFBDecrypter(b, iv)}), nil
 }
 
-// Encrypter creates a data.Reader type from the specified block Cipher, IV and Writer.
+// Encrypter creates a data.Reader type from the specified block Cipher, IV and
+// Writer.
 //
-// This is used to Encrypt data. This function returns an error if the blocksize of the Block does not equal
-// the length of the supplied IV.
+// This is used to Encrypt data. This function returns an error if the blocksize
+// of the Block does not equal the length of the supplied IV.
 func Encrypter(b cipher.Block, iv []byte, w io.Writer) (io.WriteCloser, error) {
 	if len(iv) != b.BlockSize() {
 		return nil, xerr.Sub("block size must equal IV size", 0x29)

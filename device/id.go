@@ -1,3 +1,19 @@
+// Copyright (C) 2020 - 2022 iDigitalFlame
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+
 package device
 
 import (
@@ -104,8 +120,7 @@ func (i ID) Save(s string) error {
 
 // Read will attempt to read up to 'IDSize' bytes from the reader into this ID.
 func (i *ID) Read(r io.Reader) error {
-	n, err := io.ReadFull(r, i[:])
-	if n != IDSize || i[0] == 0 {
+	if n, err := io.ReadFull(r, i[:]); n != IDSize || i[0] == 0 {
 		// NOTE(dij): This line causes empty ID values to be considered read
 		//            errors. Technically this is incorrect, but we should never
 		//            be using empty ID values to communicate so it's sorta ok.

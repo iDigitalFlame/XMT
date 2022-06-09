@@ -1,7 +1,24 @@
+// Copyright (C) 2020 - 2022 iDigitalFlame
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+
 package device
 
 import (
 	"net"
+	"net/netip"
 
 	"github.com/iDigitalFlame/xmt/data"
 )
@@ -57,19 +74,6 @@ func (a Address) IP() net.IP {
 	}
 }
 
-// FromIP  will create a new Address struct and set it's contents based on the
-// value of the supplied 'net.IP'.
-func FromIP(i net.IP) *Address {
-	var a Address
-	a.Set(i)
-	return &a
-}
-
-// IsZero returns true if this struct represents an empty or unset address.
-func (a Address) IsZero() bool {
-	return a.hi == 0 && a.low == 0
-}
-
 // Set will set the internal values of this address to the specified 'net.IP'
 // address.
 func (a *Address) Set(i net.IP) {
@@ -88,25 +92,9 @@ func (a *Address) Set(i net.IP) {
 		uint64(i[11])<<32 | uint64(i[10])<<40 | uint64(i[9])<<48 | uint64(i[8])<<56
 }
 
-// ParseIP parses s as an IP address, returning the result. The string s can be
-// in IPv4 dotted decimal ("192.0.2.1"), IPv6 ("2001:db8::68"), or IPv4-mapped
-// IPv6 ("::ffff:192.0.2.1") form.
-//
-// If s is not a valid textual representation of an IP address, ParseIP returns
-// nil.
-func ParseIP(s string) *Address {
-	i := net.ParseIP(s)
-	if len(i) == 0 {
-		return nil
-	}
-	var a Address
-	a.Set(i)
-	return &a
-}
-
 // String returns the string form of the IP address.
 func (a Address) String() string {
-	if a.IsZero() {
+	if a.IsUnspecified() {
 		if a.Is4() {
 			return emptyIP
 		}
@@ -157,16 +145,6 @@ func (a Address) String() string {
 	return string(b[:n])
 }
 
-// IsPrivate reports whether ip is a private address, according to RFC 1918
-// (IPv4 addresses) and RFC 4193 (IPv6 addresses).
-func (a Address) IsPrivate() bool {
-	if a.Is4() {
-		f, s := byte(a.low>>24), byte(a.low>>16)
-		return f == 10 || (f == 172 && s&0xf0 == 16) || (f == 192 && s == 168)
-	}
-	return byte(a.hi>>56)&0xFE == 0xFC
-}
-
 // IsLoopback reports whether this is a loopback address.
 func (a Address) IsLoopback() bool {
 	return (a.Is4() && uint8(a.low>>24) == 0x7F) || (a.Is6() && a.hi == 0 && a.low == 1)
@@ -190,12 +168,11 @@ func (a Address) grab(i uint8) uint16 {
 }
 
 // IsUnspecified reports whether ip is an unspecified address, either the IPv4
-// address "0.0.0.0" or the IPv6 address "::". Same as 'IsZero'.
+// address "0.0.0.0" or the IPv6 address "::".
 func (a Address) IsUnspecified() bool {
 	return a.hi == 0 && a.low == 0
 }
 
-/*
 // ToAddr will return this Address as a netip.Addr struct. This will choose the
 // type based on the underlying address size.
 func (a *Address) ToAddr() netip.Addr {
@@ -208,7 +185,7 @@ func (a *Address) ToAddr() netip.Addr {
 		byte(a.low >> 56), byte(a.low >> 48), byte(a.low >> 40), byte(a.low >> 32),
 		byte(a.low >> 24), byte(a.low >> 16), byte(a.low >> 8), byte(a.low),
 	})
-}*/
+}
 
 // IsGlobalUnicast reports whether this is a global unicast address.
 //
@@ -219,7 +196,7 @@ func (a *Address) ToAddr() netip.Addr {
 // It returns true even if this is in IPv4 private address space or local IPv6
 // unicast address space.
 func (a Address) IsGlobalUnicast() bool {
-	return !a.IsBroadcast() && !a.IsUnspecified() && !a.IsLoopback() && !a.IsMulticast() && !a.IsLinkLocalUnicast()
+	return !a.IsUnspecified() && !a.IsBroadcast() && !a.IsLoopback() && !a.IsMulticast() && !a.IsLinkLocalUnicast()
 }
 
 // IsLinkLocalUnicast reports whether this is a link-local unicast address.
@@ -243,22 +220,6 @@ func write(b *[15]byte, v uint8, n int) int {
 func (a Address) IsLinkLocalMulticast() bool {
 	return (a.Is4() && a.low>>8 == 0xFFFFE00000) || (a.Is6() && uint16(a.hi>>48) == 0xFF02)
 }
-
-// MarshalText implements the encoding.TextMarshaler interface.
-func (a Address) MarshalText() ([]byte, error) {
-	return []byte(`"` + a.String() + `"`), nil
-}
-
-// UnmarshalText implements the encoding.TextUnmarshaler interface.
-func (a *Address) UnmarshalText(b []byte) error {
-	if len(b) == 0 {
-		return nil
-	}
-	if i := net.ParseIP(string(b)); i != nil {
-		a.Set(i)
-	}
-	return nil
-}
 func writeHex(b *[39]byte, v uint16, n int) int {
 	if v >= 0x1000 {
 		b[n] = table[v>>12]
@@ -274,12 +235,6 @@ func writeHex(b *[39]byte, v uint16, n int) int {
 	}
 	b[n] = table[v&0xF]
 	return n + 1
-}
-
-// IsInterfaceLocalMulticast reports whether this is an interface-local multicast
-// address.
-func (a Address) IsInterfaceLocalMulticast() bool {
-	return a.Is6() && uint8(a.hi>>56) == 0xFF && uint8(a.hi>>48) == 1
 }
 
 // MarshalStream writes the data of this Address to the supplied Writer.

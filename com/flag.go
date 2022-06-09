@@ -1,3 +1,19 @@
+// Copyright (C) 2020 - 2022 iDigitalFlame
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+
 package com
 
 import "github.com/iDigitalFlame/xmt/data"
@@ -49,12 +65,12 @@ const (
 // Flag is a bitwise integer that represents important
 // information about the packet that its assigned to.
 //
-//
 // Mapping
-// 64        56        48        40        32        24        16         8         0
-//  | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 |
-//  |    Frag Total     |   Frag Position   |   Frag Group ID   |       Flags       |
-//  |                         Frag Data                         |                   |
+//
+//  64        56        48        40        32        24        16         8         0
+//   | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 |
+//   |    Frag Total     |   Frag Position   |   Frag Group ID   |       Flags       |
+//   |                         Frag Data                         |                   |
 //
 type Flag uint64
 

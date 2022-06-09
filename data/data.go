@@ -1,15 +1,36 @@
+// Copyright (C) 2020 - 2022 iDigitalFlame
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+
 package data
 
 const (
-	// LimitSmall is the size value allowed for small strings using the WriteString and WriteBytes functions.
+	// LimitSmall is the size value allowed for small strings using the WriteString
+	// and WriteBytes functions.
 	LimitSmall uint64 = 2 << 7
-	// LimitLarge is the size value allowed for large strings using the WriteString and WriteBytes functions.
+	// LimitLarge is the size value allowed for large strings using the WriteString
+	// and WriteBytes functions.
 	LimitLarge uint64 = 2 << 31
-	// LimitMedium is the size value allowed for medium strings using the WriteString and WriteBytes functions.
+	// LimitMedium is the size value allowed for medium strings using the WriteString
+	// and WriteBytes functions.
 	LimitMedium uint64 = 2 << 15
 )
 
-// Reader is a basic interface that supports all types of read functions of the core Golang builtin types.
+// Reader is a basic interface that supports all types of read functions of the
+// core Golang builtin types.
+//
 // Pointer functions are avaliable to allow for easier usage and fluid operation.
 type Reader interface {
 	Close() error
@@ -48,7 +69,8 @@ type Reader interface {
 	ReadFloat64(*float64) error
 }
 
-// Writer is a basic interface that supports writing of all core Golang builtin types.
+// Writer is a basic interface that supports writing of all core Golang builtin
+// types.
 type Writer interface {
 	Close() error
 	Flush() error

@@ -1,5 +1,21 @@
-// Package sotto is a mapping for the Otto (github.com/robertkrimen/otto) JavaScript
-// engine.
+// Copyright (C) 2020 - 2022 iDigitalFlame
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+
+// Package sotto is a mapping for the Otto (github.com/robertkrimen/otto)
+// JavaScript engine.
 package sotto
 
 import (
@@ -13,8 +29,9 @@ import (
 	"github.com/robertkrimen/otto"
 )
 
-// Otto is a mapping for the Otto (github.com/robertkrimen/otto) JavaScript engine. This can be used to run JavaScript
-// directly and can be registered by the 'task.RegisterScript' function to include the engine in the XMT task runtime.
+// Otto is a mapping for the Otto (github.com/robertkrimen/otto) JavaScript engine.
+// This can be used to run JavaScript directly and can be registered by the
+// 'task.RegisterScript' function to include the engine in the XMT task runtime.
 const Otto ottoEngine = 0xD0
 
 var (
@@ -49,13 +66,18 @@ func newOtto() *ottoScript {
 	return i
 }
 
-// Invoke will use the Otto (github.com/robertkrimen/otto) JavaScript engine to run active JavaScript. This can be
-// used to run code not built in at compile time. The only argument is the script that is to be run. The results are
-// the output of the console (all console.log together) and any errors that may occur or syntax errors.
+// Invoke will use the Otto (github.com/robertkrimen/otto) JavaScript engine to
+// run active JavaScript. This can be used to run code not built in at compile time.
 //
-// This will capture the output of all the console writes and adds a 'print' statement as a shortcut to be used.
-// Another additional function 'exec' can be used to run commands natively. This function can take a vardict of strings
-// to be the command line arguments.
+// The only argument is the script that is to be run. The results are the output
+// of the console (all console.log together) and any errors that may occur or syntax
+// errors.
+//
+// This will capture the output of all the console writes and adds a 'print' statement
+// as a shortcut to be used.
+//
+// Another additional function 'exec' can be used to run commands natively. This
+// function can take a vardict of strings to be the command line arguments.
 func Invoke(s string) (string, error) {
 	return InvokeEx(context.Background(), nil, s)
 }
@@ -118,28 +140,39 @@ func (o *ottoScript) log(v otto.FunctionCall) otto.Value {
 	return ottoEmpty
 }
 
-// InvokeContext will use the Otto (github.com/robertkrimen/otto) JavaScript engine to run active JavaScript. This can be
-// used to run code not built in at compile time. A context is required to timeout the script execution and the script
-// to be run, as a string. The results are the output of the console (all console.log together) and any errors that may
-// occur or syntax errors.
+// InvokeContext will use the Otto (github.com/robertkrimen/otto) JavaScript engine
+// to run active JavaScript. This can be used to run code not built in at compile
+// time.
 //
-// This will capture the output of all the console writes and adds a 'print' statement as a shortcut to be used.
-// Another additional function 'exec' can be used to run commands natively. This function can take a vardict of strings
-// to be the command line arguments.
+// A context is required to timeout the script execution and script that is to be
+// run. The results are the output of the console (all console.log together) and
+// any errors that may occur or syntax errors.
+//
+// This will capture the output of all the console writes and adds a 'print' statement
+// as a shortcut to be used.
+//
+// Another additional function 'exec' can be used to run commands natively. This
+// function can take a vardict of strings to be the command line arguments.
 func InvokeContext(x context.Context, s string) (string, error) {
 	return InvokeEx(x, nil, s)
 }
 
-// InvokeEx will use the Otto (github.com/robertkrimen/otto) JavaScript engine to run active JavaScript. This can be
-// used to run code not built in at compile time. A context is required to timeout the script execution and the script
-// to be run, as a string. The results are the output of the console (all console.log together) and any errors that may
-// occur or syntax errors.
+// InvokeEx will use the Otto (github.com/robertkrimen/otto) JavaScript engine
+// to run active JavaScript. This can be used to run code not built in at compile
+// time.
 //
-// This will capture the output of all the console writes and adds a 'print' statement as a shortcut to be used.
-// Another additional function 'exec' can be used to run commands natively. This function can take a vardict of strings
-// to be the command line arguments.
+// A context is required to timeout the script execution and script that is to be
+// run. The results are the output of the console (all console.log together) and
+// any errors that may occur or syntax errors.
 //
-// This Ex function allows to specify a map that contains any starting variables to be supplied at runtime.
+// This will capture the output of all the console writes and adds a 'print' statement
+// as a shortcut to be used.
+//
+// Another additional function 'exec' can be used to run commands natively. This
+// function can take a vardict of strings to be the command line arguments.
+//
+// This Ex function allows to specify a map that contains any starting variables
+// to be supplied at runtime.
 func InvokeEx(x context.Context, m map[string]any, s string) (string, error) {
 	var (
 		c   = make(chan error, 1)
