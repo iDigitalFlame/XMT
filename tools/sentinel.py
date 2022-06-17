@@ -104,7 +104,9 @@ SENTINEL ARGUMENTS:
   --agent                           used when downloading a URL path. This argument
                                     may be used multiple times to add more User-Agents.
                                     When multiple are present, one is selected at
-                                    random.
+                                    random. Supports the Text matcher verbs in the
+                                    'text' package. See the 'ADDITIONAL RESOURCES'
+                                    section for more info.
   -F                <fake-cmd>    Sets or adds the 'Fake' commands line args used
   --fake                            when a Zombie process is started. The first
                                     argument (the target binary) MUST exist. This
@@ -139,6 +141,10 @@ FILTER ARGUMENTS:
   -R                              Disable the Filter's ability to fallback if no
   --no-fallback                     suitable processes were found during the first
                                     run.
+
+ADDITIONAL RESOURCES:
+  Text Matcher Guide
+    https://pkg.go.dev/github.com/iDigitalFlame/xmt@v0.3.3/util/text#Matcher
 """
 
 
