@@ -19,7 +19,6 @@
 package winapi
 
 import (
-	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -81,24 +80,17 @@ func (p *lazyProc) find() error {
 	p.Unlock()
 	return err
 }
+func byteSlicePtr(s string) *byte {
+	a := make([]byte, len(s)+1)
+	copy(a, s)
+	return &a[0]
+}
 func (d *lazyDLL) proc(n string) *lazyProc {
 	return &lazyProc{name: n, dll: d}
 }
-func byteSlicePtr(s string) (*byte, error) {
-	if strings.IndexByte(s, 0) != -1 {
-		return nil, syscall.EINVAL
-	}
-	a := make([]byte, len(s)+1)
-	copy(a, s)
-	return &a[0], nil
-}
 func findProc(h uintptr, s, n string) (uintptr, error) {
-	v, err := byteSlicePtr(s)
-	if err != nil {
-		return 0, err
-	}
-	h, err2 := syscallGetProcAddress(h, v)
-	if err2 != 0 {
+	h, err := syscallGetProcAddress(h, byteSlicePtr(s))
+	if err != 0 {
 		if xerr.ExtendedInfo {
 			return 0, xerr.Wrap(`cannot load DLL "`+n+`" function "`+s+`"`, err)
 		}

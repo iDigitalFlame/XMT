@@ -16,6 +16,7 @@
 #
 
 from zlib import crc32
+from shlex import split
 from io import StringIO
 from hashlib import sha512
 from json import dumps, loads
@@ -64,10 +65,17 @@ INPUT/OUTPUT ARGUMENTS:
   --json                        Output in JSON format. Omit for raw
                                   binary. (Or base64 when output to
                                   stdout.)
+  -I                            Accept stdin input as commands. Each
+  --stdin                         line from stdin will be treated as a
+                                  'append' line to the supplied config.
+                                  Input and Output are ignored and are
+                                  only set via the command line.
+                                  This option disables using stdin for
+                                  Config data.
 
 OPERATION ARGUMENTS:
   -p
-  --print                         List values contained in the file
+  --print                       List values contained in the file
                                   input. Fails if no input is found or
                                   invalid. Output format can be modified
                                   using -j/-p.
@@ -1079,19 +1087,19 @@ class Utils:
 
 
 class Config(bytearray):
+    __slots__ = ("_connector", "_transform")
+
     def __init__(self, b=None):
         self._connector = False
         self._transform = False
         if isinstance(b, str) and len(b) > 0:
             if b[0] == "[" and b[-1].strip() == "]":
-                self.parse(b)
-            else:
-                self.extend(b64decode(b, validate=True))
-        elif isinstance(b, (bytes, bytearray)) and len(b) > 0:
+                return self.parse(b)
+            return self.extend(b64decode(b, validate=True))
+        if isinstance(b, (bytes, bytearray)) and len(b) > 0:
             if b[0] == 91 and b.decode("UTF-8", "ignore").strip()[-1] == "]":
-                self.parse(b.decode("UTF-8"))
-            else:
-                self.extend(b)
+                return self.parse(b.decode("UTF-8"))
+            return self.extend(b)
 
     def json(self):
         i = 0
@@ -1622,7 +1630,7 @@ class Setting(bytearray):
         return self[0] >= Cfg.Const.B64T and self[0] <= Cfg.Const.B64S
 
 
-class Builder(ArgumentParser):
+class _Builder(ArgumentParser):
     def __init__(self):
         ArgumentParser.__init__(self, description="XMT c2.Config Tool")
         self.add_argument(
@@ -1634,12 +1642,15 @@ class Builder(ArgumentParser):
         )
         self.add_argument("-j", "--json", dest="json", action="store_true")
         self.add_argument("-p", "--print", dest="print", action="store_true")
-        self.add_argument("-f", "--in", type=str, dest="input", default=None)
-        self.add_argument("-o", "--out", type=str, dest="output", default=None)
-        self.add_argument("-T", "--host", type=str, dest="host", default=None)
-        self.add_argument("-S", "--sleep", type=str, dest="sleep", default=None)
-        self.add_argument("-J", "--jitter", type=int, dest="jitter", default=None)
-        self.add_argument("-W", "--weight", type=int, dest="weight", default=None)
+        self.add_argument("-I", "--stdin", dest="stdin", action="store_true")
+
+        self.add_argument("-f", "--in", type=str, dest="input")
+        self.add_argument("-o", "--out", type=str, dest="output")
+
+        self.add_argument("-T", "--host", type=str, dest="host")
+        self.add_argument("-S", "--sleep", type=str, dest="sleep")
+        self.add_argument("-J", "--jitter", type=int, dest="jitter")
+        self.add_argument("-W", "--weight", type=int, dest="weight")
         self.add_argument(
             "-X",
             "--selector",
@@ -1654,6 +1665,7 @@ class Builder(ArgumentParser):
                 "semi-round-robin",
             ],
         )
+
         c = self.add_mutually_exclusive_group(required=False)
         c.add_argument("--tcp", dest="tcp", action="store_true")
         c.add_argument("--tls", dest="tls", action="store_true")
@@ -1663,6 +1675,7 @@ class Builder(ArgumentParser):
         c.add_argument("--pipe", dest="pipe", action="store_true")
         c.add_argument("-K", "--tls-insecure", dest="tls_insecure", action="store_true")
         del c
+
         self.add_argument("--wc2-url", type=str, dest="wc2_url", default=None)
         self.add_argument("--wc2-host", type=str, dest="wc2_host", default=None)
         self.add_argument("--wc2-user", type=str, dest="wc2_agent", default=None)
@@ -1681,6 +1694,7 @@ class Builder(ArgumentParser):
         self.add_argument("--tls-ver", type=int, dest="tls_ver", default=None)
         self.add_argument("--tls-pem", type=str, dest="tls_pem", default=None)
         self.add_argument("--tls-key", type=str, dest="tls_key", default=None)
+
         self.add_argument("--hex", dest="hex", action="store_true")
         self.add_argument("--b64", dest="b64", action="store_true")
         self.add_argument("--zlib", dest="zlib", action="store_true")
@@ -1688,6 +1702,7 @@ class Builder(ArgumentParser):
         self.add_argument("--xor", nargs="?", type=str, dest="xor", default=None)
         self.add_argument("--cbk", nargs="?", type=str, dest="cbk", default=None)
         self.add_argument("--aes", nargs="?", type=str, dest="aes", default=None)
+
         self.add_argument("--aes-iv", nargs="?", type=str, dest="aes_iv", default=None)
         self.add_argument(
             "--b64t", nargs="?", type=int, dest="b64t", action="append", default=None
@@ -1702,7 +1717,7 @@ class Builder(ArgumentParser):
             default=None,
         )
 
-    def cli(self):
+    def run(self):
         a = self.parse_args()
         e = Utils.nes(a.action) and a.action[0] == "a"
         if e and Utils.nes(a.input) and not Utils.nes(a.output) and a.input != "-":
@@ -1713,34 +1728,46 @@ class Builder(ArgumentParser):
             c = Utils.read_file_input(a.input)
         else:
             c = Config()
-        if not Utils.nes(a.output) or (not a.print and not a.json):
-            self.build(c, a, e)
+        if a.stdin and a.input != "-":
+            if stdin.isatty():
+                raise ValueError("stdin: no input found")
+            if hasattr(stdin, "buffer"):
+                b = stdin.buffer.read().decode("UTF-8")
+            else:
+                b = stdin.read()
+            stdin.close()
+            for v in b.split("\n"):
+                x = split(v)
+                _Builder.build(c, super(__class__, self).parse_args(x), True, x)
+                del x
+        elif not Utils.nes(a.output) or (not a.print and not a.json):
+            _Builder.build(c, a, e, argv)
         if len(c) == 0:
             return
         Utils.write_file_output(c, a.output, a.print, a.json)
-        del e
+        del e, a, c
 
     @staticmethod
-    def _organize():
+    def _organize(args):
         a = False
         w = list()
         d = dict()
-        for i in range(0, len(argv)):
-            if len(argv[i]) < 3:
+        for i in range(0, len(args)):
+            if len(args[i]) < 3:
                 continue
-            if argv[i][0] != "-":
+            if args[i][0] != "-":
                 continue
-            if argv[i].lower() == "--aes":
+            if args[i].lower() == "--aes":
                 if a:
                     continue
                 a = True
-            if argv[i].lower() == "--aes-iv":
+            if args[i].lower() == "--aes-iv":
                 if a:
                     continue
                 v = "aes"
                 a = True
             else:
-                v = argv[i].lower()[2:]
+                v = args[i].lower()[2:]
             if v not in Cfg.Const.WRAPPERS:
                 continue
             if v in d:
@@ -1760,10 +1787,11 @@ class Builder(ArgumentParser):
         print(HELP_TEXT.format(binary=argv[0]), file=file)
         exit(2)
 
-    def build(self, config, args, add):
+    @staticmethod
+    def build(config, args, add, arv):
         if add and len(config) > 0:
             config.add(Cfg.seperator())
-        p, w = self._organize()
+        p, w = _Builder._organize(arv)
         if args.host:
             config.add(Cfg.host(args.host))
         if args.sleep:
@@ -1850,13 +1878,12 @@ class Builder(ArgumentParser):
             w[p["aes"]] = Cfg.wrap_aes()
         for i in w:
             config.add(i)
-        del w
+        del w, p
 
 
 if __name__ == "__main__":
-    b = Builder()
     try:
-        b.cli()
+        _Builder().run()
     except Exception as err:
         print(f"Error: {err}\n{format_exc(limit=3)}", file=stderr)
         exit(1)

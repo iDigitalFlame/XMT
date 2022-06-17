@@ -36,10 +36,10 @@ const (
 type cBit byte
 type cBytes []byte
 
-// Setting is an interface represents a C2 Profile setting in binary form.
+// Setting is an interface that represents a C2 Profile setting in binary form.
 //
-// This can be used inside to generate a C2 Profile from binary data or write
-// a Profile to a binary stream or from a JSON payload.
+// This can be used to generate a C2 Profile from binary data or write a Profile
+// to a binary stream or JSON payload (if enabled).
 type Setting interface {
 	id() cBit
 	args() []byte

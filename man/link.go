@@ -154,6 +154,43 @@ func formatTCPName(s string) string {
 	}
 	return local + strconv.FormatUint(uint64(v), 10)
 }
+
+// LinkerFromName will attempt to map the name provided to an appropriate Linker
+// interface.
+//
+// If no linker is found, the 'Pipe' Linker will be returned.
+func LinkerFromName(n string) Linker {
+	if len(n) == 0 {
+		return Pipe
+	}
+	switch {
+	case len(n) == 1 && (n[0] == 't' || n[0] == 'T'):
+		return TCP
+	case len(n) == 1 && (n[0] == 'p' || n[0] == 'P'):
+		return Pipe
+	case len(n) == 1 && (n[0] == 'e' || n[0] == 'E'):
+		return Event
+	case len(n) == 1 && (n[0] == 'm' || n[0] == 'M'):
+		return Mutex
+	case len(n) == 1 && (n[0] == 'n' || n[0] == 'N'):
+		return Mailslot
+	case len(n) == 1 && (n[0] == 's' || n[0] == 'S'):
+		return Semaphore
+	case len(n) == 3 && (n[0] == 't' || n[0] == 'T'):
+		return TCP
+	case len(n) == 4 && (n[0] == 'p' || n[0] == 'P'):
+		return Pipe
+	case len(n) == 5 && (n[0] == 'e' || n[0] == 'E'):
+		return Event
+	case len(n) == 5 && (n[0] == 'm' || n[0] == 'M'):
+		return Mutex
+	case len(n) == 8 && (n[0] == 'm' || n[0] == 'M'):
+		return Mailslot
+	case len(n) == 9 && (n[0] == 's' || n[0] == 'S'):
+		return Semaphore
+	}
+	return Pipe
+}
 func netCheckConn(c net.Conn) (bool, error) {
 	var (
 		b    [65]byte

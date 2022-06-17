@@ -149,6 +149,7 @@ func Expand(s string) string {
 		}
 	}
 	if l == -1 {
+		b.Reset()
 		builders.Put(b)
 		return s
 	}
@@ -166,6 +167,7 @@ func Expand(s string) string {
 		}
 	}
 	v = b.Output()
+	b.Reset()
 	builders.Put(b)
 	return v
 }

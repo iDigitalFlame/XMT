@@ -1,3 +1,5 @@
+//go:build windows
+
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //
 // This program is free software: you can redistribute it and/or modify

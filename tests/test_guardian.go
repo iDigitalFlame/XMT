@@ -27,7 +27,9 @@ import (
 
 func testGuardian() {
 	if len(os.Args) == 2 {
-		ok, err := man.Sentinel{Paths: []string{os.Args[0]}}.Wake(os.Args[1])
+		var s man.Sentinel
+		s.AddExecute(man.Self)
+		ok, err := s.Wake(man.Pipe, os.Args[1])
 		if err != nil {
 			fmt.Println("error", err)
 		}
@@ -36,7 +38,6 @@ func testGuardian() {
 		}
 
 		fmt.Println("pinged!")
-
 		return
 	}
 

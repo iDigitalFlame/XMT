@@ -18,15 +18,6 @@
 
 package task
 
-const (
-	pwsh      = "-comm"
-	execA     = "*.so"
-	execB     = "*.dll"
-	execC     = "*.exe"
-	userAgent = "User-Agent"
-	userValue = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36"
-)
-
 // Shell will create a Task that will instruct the client to run a shell
 // command. The command will be passed as an argument to the default shell
 // found on the device.

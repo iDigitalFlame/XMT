@@ -41,8 +41,7 @@ func (z *Zombie) Start() error {
 	if z.ctx == nil {
 		z.ctx = context.Background()
 	}
-	z.cancel = func() {}
-	z.ch = make(chan struct{})
+	z.ch, z.cancel = make(chan struct{}), func() {}
 	atomic.StoreUint32(&z.cookie, 0)
 	if err := z.x.start(z.ctx, &z.Process, true); err != nil {
 		return z.stopWith(exitStopped, err)

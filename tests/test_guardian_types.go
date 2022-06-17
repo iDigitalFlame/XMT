@@ -22,7 +22,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/man"
 )
 
@@ -37,14 +36,15 @@ func testGuardianTypes() {
 		fmt.Printf("g5 = %t\n", man.Check(man.Semaphore, "1guard4"))
 		fmt.Printf("g6 = %t\n", man.Check(man.Mailslot, "1guard5"))
 
-		man.Sentinel{
-			Linker: "mutex",
-			Filter: filter.F().SetInclude("derp.exe", "explorer.exe").SetElevated(true),
-			Paths:  []string{"cmd1.exe", "http://google.com", "cc.exe"},
-		}.File("a.txt")
+		var s man.Sentinel
+		s.SetInclude("derp.exe", "explorer.exe").SetElevated(true)
+		s.AddExecute("cmd1.exe")
+		s.AddDownload("http://google.com")
+		s.AddExecute("cc.exe")
+		s.SaveTo(nil, "a.txt")
 
-		s := man.F("a.txt")
-		fmt.Println(s, s.Filter.Include)
+		v, _ := man.File(nil, "a.txt")
+		fmt.Println(v, v.Include)
 		return
 	}
 

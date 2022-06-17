@@ -19,6 +19,8 @@ from sys import argv
 
 
 class ErrorValue(object):
+    __slots__ = ("pkg", "text", "ident")
+
     def __init__(self, text, pkg=None, ident=None):
         self.pkg = pkg
         self.text = text

@@ -20,4 +20,7 @@ package task
 
 import "github.com/iDigitalFlame/xmt/util/crypt"
 
-var execD = crypt.Get(7) // *.jpg
+var (
+	execB = crypt.Get(2) // *.dll
+	execD = crypt.Get(7) // *.jpg
+)

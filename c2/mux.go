@@ -32,6 +32,7 @@ import (
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/device/local"
+	"github.com/iDigitalFlame/xmt/man"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
@@ -527,7 +528,7 @@ func readCallable(x context.Context, m bool, r data.Reader) (cmd.Runnable, strin
 		// NOTE(dij): We HAVE to set the Context as the parent to avoid
 		//            io locking issues. *shrug* Luckily, the 'Release' function
 		//            does it job!
-		if e, v, err = task.WebResource(x, nil, false, q, u); err != nil {
+		if e, v, err = man.WebExec(x, nil, u, q); err != nil {
 			return nil, "", err
 		}
 	default:

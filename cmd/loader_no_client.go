@@ -1,4 +1,4 @@
-//go:build !implant
+//go:build !implant || loader
 
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //
@@ -17,6 +17,10 @@
 //
 
 package cmd
+
+// LoaderEnabled is a compile-time constant that is true if the "DLLToASM" function
+// will modify the provided bytes slice to ASM. Otherwise this will be false.
+const LoaderEnabled = true
 
 var loader32 = [...]byte{
 	0x81, 0xEC, 0x14, 0x01, 0x00, 0x00, 0x53, 0x55, 0x56, 0x57, 0x6A, 0x6B, 0x58, 0x6A, 0x65, 0x66, 0x89, 0x84, 0x24, 0xCC, 0x00, 0x00,

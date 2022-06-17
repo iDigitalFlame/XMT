@@ -67,6 +67,8 @@ def _merge_tags(one, two):
 
 
 class CryptMapper(object):
+    __slots__ = ("text", "_count")
+
     def __init__(self):
         self.text = dict()
         self._count = list()

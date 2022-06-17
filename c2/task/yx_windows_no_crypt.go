@@ -18,4 +18,7 @@
 
 package task
 
-const execD = "*.jpg"
+const (
+	execB = "*.dll"
+	execD = "*.jpg"
+)

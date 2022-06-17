@@ -1,4 +1,4 @@
-//go:build implant
+//go:build implant && !loader
 
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //
@@ -17,6 +17,10 @@
 //
 
 package cmd
+
+// LoaderEnabled is a compile-time constant that is true if the "DLLToASM" function
+// will modify the provided bytes slice to ASM. Otherwise this will be false.
+const LoaderEnabled = false
 
 // DLLToASM will patch the DLL raw bytes and convert it into shellcode
 // using thr SRDi launcher.

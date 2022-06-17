@@ -22,6 +22,7 @@ import (
 	"io"
 
 	"github.com/iDigitalFlame/xmt/data"
+	"github.com/iDigitalFlame/xmt/data/crypto/subtle"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -69,6 +70,19 @@ func (w *writer) Close() error {
 		return c.Close()
 	}
 	return nil
+}
+
+// UnwrapString is used to un-encode a string written in a XOR byte array "encrypted"
+// by the specified key.
+//
+// This function returns the string value of the result but also modifies the
+// input array, which can be used to re-use the resulting string.
+func UnwrapString(key, data []byte) string {
+	if len(key) == 0 || len(data) == 0 {
+		return ""
+	}
+	subtle.XorOp(data, key)
+	return string(data)
 }
 
 // NewAes attempts to create a new AES block Cipher from the provided key data.

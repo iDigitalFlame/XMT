@@ -49,7 +49,7 @@ if __name__ == "__main__":
     del key, data
 
     print(
-        "Paste this data into your Golang code, then call 'util.Decode(key, value)'\n",
+        "Paste this data into your Golang code, then call 'crypto.UnwrapString(key, value)'\n",
         file=stderr,
     )
     print("var value = []byte{", end="")
