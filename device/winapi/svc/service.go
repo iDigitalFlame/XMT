@@ -184,7 +184,7 @@ func (s *Service) Update(v Status) {
 //
 // Attempts to call this multiple times will return 'os.ErrInvalid'.
 func Run(name string, f Handler) error {
-	if service.f != nil {
+	if service != nil && service.f != nil {
 		return os.ErrInvalid
 	}
 	n, err := winapi.UTF16PtrFromString(name)

@@ -40,6 +40,7 @@ func Daemon(name string, f DaemonFunc) error {
 			e   = make(chan error)
 			err error
 		)
+		s.UpdateState(svc.Running, svc.AcceptStop|svc.AcceptShutdown)
 		go func() {
 			e <- f(x)
 			close(e)
@@ -48,7 +49,7 @@ func Daemon(name string, f DaemonFunc) error {
 		case err = <-e:
 		case <-x.Done():
 		}
-		if err != nil && err != ErrQuit {
+		if s.UpdateState(svc.StopPending); err != nil && err != ErrQuit {
 			return 1
 		}
 		return 0
@@ -74,7 +75,7 @@ func DaemonTicker(name string, t time.Duration, f DaemonFunc) error {
 			err error
 		)
 	loop:
-		for {
+		for s.UpdateState(svc.Running, svc.AcceptStop|svc.AcceptShutdown); ; {
 			select {
 			case <-v.C:
 				if err = f(x); err != nil {
@@ -85,7 +86,8 @@ func DaemonTicker(name string, t time.Duration, f DaemonFunc) error {
 				break loop
 			}
 		}
-		if v.Stop(); err != nil && err != ErrQuit {
+		v.Stop()
+		if s.UpdateState(svc.StopPending); err != nil && err != ErrQuit {
 			return 1
 		}
 		return 0
