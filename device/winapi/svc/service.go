@@ -89,13 +89,12 @@ const (
 	AcceptPreShutdown
 )
 
-var (
-	service  *Service
-	callBack struct {
-		sync.Once
-		f, m uintptr
-	}
-)
+var service Service
+
+var callBack struct {
+	sync.Once
+	f, m uintptr
+}
 
 // State describes the current service execution state (Stopped, Running, etc.)
 type State uint32
@@ -183,24 +182,21 @@ func (s *Service) Update(v Status) {
 // Any errors returned indicate that bootstrappping of the service failed.
 //
 // Attempts to call this multiple times will return 'os.ErrInvalid'.
+//
+// NOTE: This function acts differently depending on the buildtags added.
+//   The "svcdll" tag can be used to call this from 'ServiceMain' as a CGO dll,
+//   which requires no service wiring.
 func Run(name string, f Handler) error {
-	if service != nil && service.f != nil {
+	if service.f != nil {
 		return os.ErrInvalid
 	}
-	n, err := winapi.UTF16PtrFromString(name)
-	if err != nil {
-		return err
-	}
 	callBack.Do(func() {
-		service = &Service{e: make(chan Change)}
+		service.e = make(chan Change)
 		callBack.m = syscall.NewCallback(serviceMain)
 		callBack.f = syscall.NewCallback(serviceHandler)
 	})
 	service.n, service.f = name, f
-	t := []winapi.ServiceTableEntry{
-		{Name: n, Proc: callBack.m}, {Name: nil, Proc: 0},
-	}
-	return winapi.StartServiceCtrlDispatcher(&t[0])
+	return serviceWireThread(name)
 }
 
 // Requests returns a receive-only chan that will receive any updates sent from
@@ -217,7 +213,7 @@ func serviceHandler(c, e, d, _ uintptr) uintptr {
 	return 0
 }
 func serviceMain(argc uint32, argv **uint16) uintptr {
-	if service == nil || callBack.f == 0 || callBack.m == 0 {
+	if service.f == nil || callBack.f == 0 || callBack.m == 0 {
 		return 0xE0000239
 	}
 	var err error
@@ -231,15 +227,17 @@ func serviceMain(argc uint32, argv **uint16) uintptr {
 		}
 		return 0xE0000239
 	}
-	var (
-		e []*uint16
-		h = (*winapi.SliceHeader)(unsafe.Pointer(&e))
-	)
-	h.Data = unsafe.Pointer(argv)
-	h.Len, h.Cap = int(argc), int(argc)
-	a := make([]string, len(e))
-	for i, v := range e {
-		a[i] = winapi.UTF16PtrToString(v)
+	var a []string
+	if argc > 0 {
+		var (
+			e []*uint16
+			h = (*winapi.SliceHeader)(unsafe.Pointer(&e))
+		)
+		h.Data, h.Len, h.Cap = unsafe.Pointer(argv), int(argc), int(argc)
+		a = make([]string, len(e))
+		for i, v := range e {
+			a[i] = winapi.UTF16PtrToString(v)
+		}
 	}
 	if err := service.update(&Status{State: StartPending}, false, 0); err != nil {
 		if e, ok := err.(syscall.Errno); ok {
@@ -265,7 +263,7 @@ func serviceMain(argc uint32, argv **uint16) uintptr {
 				close(x)
 			}
 		}()
-		x <- service.f(b, service, a)
+		x <- service.f(b, &service, a)
 		close(x)
 	}()
 loop:
@@ -342,9 +340,9 @@ func (s *Service) DynamicStartReason() (Reason, error) {
 }
 func (s *Service) update(u *Status, r bool, e uint32) error {
 	if s.h == 0 {
-		return xerr.Sub("update without a service status handle", 0x14)
+		return xerr.Sub("update without a Service status handle", 0x14)
 	}
-	v := winapi.ServiceStatus{ServiceType: 16, CurrentState: uint32(u.State)}
+	v := winapi.ServiceStatus{ServiceType: serviceType, CurrentState: uint32(u.State)}
 	if u.Accepts&AcceptStop != 0 {
 		v.ControlsAccepted |= 1
 	}
@@ -379,7 +377,6 @@ func (s *Service) update(u *Status, r bool, e uint32) error {
 	} else {
 		v.Win32ExitCode, v.ServiceSpecificExitCode = e, 0
 	}
-	v.CheckPoint = u.CheckPoint
-	v.WaitHint = u.WaitHint
+	v.CheckPoint, v.WaitHint = u.CheckPoint, u.WaitHint
 	return winapi.SetServiceStatus(s.h, &v)
 }
