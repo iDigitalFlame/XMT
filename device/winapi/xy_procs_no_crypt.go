@@ -28,6 +28,7 @@ var (
 
 	funcGetDC                                               = dllUser32.proc("GetDC")
 	funcBitBlt                                              = dllGdi32.proc("BitBlt")
+	funcSetEvent                                            = dllKernel32.proc("SetEvent")
 	funcIsZoomed                                            = dllUser32.proc("IsZoomed")
 	funcIsIconic                                            = dllUser32.proc("IsIconic")
 	funcHeapFree                                            = dllKernel32.proc("HeapFree")
@@ -135,6 +136,7 @@ var (
 	funcConvertSIDToStringSID                               = dllAdvapi32.proc("ConvertSidToStringSidW")
 	funcAdjustTokenPrivileges                               = dllAdvapi32.proc("AdjustTokenPrivileges")
 	funcCreateCompatibleBitmap                              = dllGdi32.proc("CreateCompatibleBitmap")
+	funcWaitForMultipleObjects                              = dllKernel32.proc("WaitForMultipleObjects")
 	funcNtProtectVirtualMemory                              = dllNtdll.proc("NtProtectVirtualMemory")
 	funcCreateProcessWithToken                              = dllAdvapi32.proc("CreateProcessWithTokenW")
 	funcCreateProcessWithLogon                              = dllAdvapi32.proc("CreateProcessWithLogonW")

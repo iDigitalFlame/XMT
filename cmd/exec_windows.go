@@ -61,7 +61,7 @@ type executable struct {
 	user, domain, pass string
 	closers            []io.Closer
 	i                  winapi.ProcessInformation
-	token, parent      uintptr
+	token, parent, m   uintptr
 	sf, x, y, w, h     uint32
 	mode               uint16
 }
@@ -83,20 +83,32 @@ func checkVersion() bool {
 	versionOnce.Do(onceVersionCheck)
 	return versionOnce.v
 }
-func wait(h uintptr) error {
-	if r, err := winapi.WaitForSingleObject(h, -1); r != 0 {
-		return err
-	}
-	return nil
-}
 func (e *executable) close() {
+	if atomic.LoadUintptr(&e.i.Process) == 0 {
+		return
+	}
 	for i := range e.closers {
 		e.closers[i].Close()
 	}
 	e.parent, e.closers = 0, nil
+	if atomic.StoreUintptr(&e.i.Process, 0); e.m > 0 {
+		winapi.SetEvent(e.m)
+	}
 }
 func (c closer) Close() error {
 	return winapi.CloseHandle(uintptr(c))
+}
+func wait(h, m uintptr) error {
+	if m == 0 {
+		if r, err := winapi.WaitForSingleObject(h, -1); r != 0 {
+			return err
+		}
+		return nil
+	}
+	if r, err := winapi.WaitForMultipleObjects([]uintptr{h, m}, false, -1); r != 0 {
+		return err
+	}
+	return nil
 }
 func (c closeFunc) Close() error {
 	return c()
@@ -141,7 +153,10 @@ func (e *executable) Suspend() error {
 	return winapi.SuspendProcess(e.i.Process)
 }
 func (e *executable) isStarted() bool {
-	return e.i.ProcessID > 0 && e.i.Process > 0
+	return e.i.ProcessID > 0 // && e.i.Process > 0
+}
+func (e *executable) isRunning() bool {
+	return e.i.Process > 0
 }
 func (e *executable) Handle() uintptr {
 	return e.i.Process
@@ -264,27 +279,38 @@ func (e *executable) wait(x context.Context, p *Process) {
 		w   = make(chan error)
 		err error
 	)
-	go func() {
+	if e.m, err = winapi.CreateEvent(nil, false, false, ""); err != nil {
 		if bugtrack.Enabled {
-			defer bugtrack.Recover("cmd.executable.wait.func1()")
+			bugtrack.Track("cmd.executable.wait(): Creating Event failed, falling back to single wait: %s", err.Error())
 		}
-		w <- wait(e.i.Process)
+	}
+	go func() {
+		if atomic.LoadUintptr(&e.i.Process) > 0 {
+			if bugtrack.Enabled {
+				defer bugtrack.Recover("cmd.executable.wait.func1()")
+			}
+			w <- wait(e.i.Process, e.m)
+		}
 		close(w)
 	}()
 	select {
 	case err = <-w:
 	case <-x.Done():
 	}
-	if err != nil {
+	if winapi.CloseHandle(e.m); err != nil {
 		p.stopWith(exitStopped, err)
 		return
 	}
+	e.m = 0
 	if err2 := x.Err(); err2 != nil {
 		p.stopWith(exitStopped, err2)
 		return
 	}
-	err = winapi.GetExitCodeProcess(e.i.Process, &p.exit)
-	if atomic.StoreUint32(&p.cookie, 2); err != nil {
+	if atomic.SwapUint32(&p.cookie, 2) == 2 || atomic.LoadUintptr(&e.i.Process) == 0 {
+		p.stopWith(0, nil)
+		return
+	}
+	if err = winapi.GetExitCodeProcess(e.i.Process, &p.exit); err != nil {
 		p.stopWith(exitStopped, err)
 		return
 	}

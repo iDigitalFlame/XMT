@@ -81,6 +81,9 @@ func SuspendProcess(_ uint32) error {
 func (e *executable) isStarted() bool {
 	return e.e != nil && e.e.Process != nil
 }
+func (e *executable) isRunning() bool {
+	return e.isStarted() && e.e.ProcessState == nil
+}
 func (executable) SetToken(_ uintptr) {
 }
 func (e *executable) wait(p *Process) {

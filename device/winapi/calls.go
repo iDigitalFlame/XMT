@@ -61,6 +61,17 @@ func BlockInput(e bool) error {
 	return nil
 }
 
+// BlockInput Windows API Call
+//   Sets the specified event object to the signaled state.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-setevent
+func SetEvent(h uintptr) error {
+	if r, _, err := syscall.SyscallN(funcSetEvent.address(), h); r == 0 {
+		return unboxError(err)
+	}
+	return nil
+}
+
 // CloseHandle Windows API Call
 //   Closes an open object handle.
 //
@@ -927,6 +938,30 @@ func NtCreateThreadEx(h, address, args uintptr, suspended bool) (uintptr, error)
 		return 0, unboxError(err)
 	}
 	return t, nil
+}
+
+// WaitForMultipleObjects Windows API Call
+//   Waits until one or all of the specified objects are in the signaled state or
+//   the time-out interval elapses. To enter an alertable wait state, use the
+//   WaitForMultipleObjectsEx function.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitformultipleobjects
+func WaitForMultipleObjects(h []uintptr, all bool, timeout int32) (uint32, error) {
+	n, a := uint32(len(h)), 0
+	if n <= 0 || n > 64 {
+		return 0, syscall.EINVAL
+	}
+	if all {
+		a = 1
+	}
+	r, _, err := syscall.SyscallN(
+		funcWaitForMultipleObjects.address(), uintptr(n), uintptr(unsafe.Pointer(&h[0])), uintptr(a), uintptr(uint32(timeout)),
+	)
+	// 0xFFFFFFFF - WAIT_FAILED
+	if r == 0xFFFFFFFF {
+		return 0, unboxError(err)
+	}
+	return uint32(r), nil
 }
 
 // CreateMutex Windows API Call

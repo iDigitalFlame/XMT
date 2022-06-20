@@ -39,6 +39,7 @@ var (
 
 	funcGetDC                                               = dllUser32.proc(0xC9AB9064)
 	funcBitBlt                                              = dllGdi32.proc(0x4C7E7258)
+	funcSetEvent                                            = dllKernel32.proc(0xD99E4045)
 	funcIsZoomed                                            = dllUser32.proc(0xC087590F)
 	funcIsIconic                                            = dllUser32.proc(0x836DE3D2)
 	funcHeapFree                                            = dllKernel32.proc(0xA931332D)
@@ -146,6 +147,7 @@ var (
 	funcConvertSIDToStringSID                               = dllAdvapi32.proc(0x7AAB722D)
 	funcAdjustTokenPrivileges                               = dllAdvapi32.proc(0xC6B20D5F)
 	funcCreateCompatibleBitmap                              = dllGdi32.proc(0xC2BE1C3E)
+	funcWaitForMultipleObjects                              = dllKernel32.proc(0x440039C5)
 	funcNtProtectVirtualMemory                              = dllNtdll.proc(0xD86AFCB8)
 	funcCreateProcessWithToken                              = dllAdvapi32.proc(0xC20739FE)
 	funcCreateProcessWithLogon                              = dllAdvapi32.proc(0x62F9BC50)

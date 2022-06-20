@@ -100,7 +100,7 @@ func (p *Process) Stop() error {
 // and 'ErrAlreadyStarted' if attempting to start a Process that already has
 // been started previously.
 func (p *Process) Start() error {
-	if p.x.isStarted() || p.Running() || atomic.LoadUint32(&p.cookie) > 0 {
+	if p.Running() || atomic.LoadUint32(&p.cookie) > 0 {
 		return ErrAlreadyStarted
 	}
 	if len(p.Args) == 0 {
@@ -129,9 +129,12 @@ func (p *Process) Flags() uint32 {
 
 // Running returns true if the current Process is running, false otherwise.
 func (p *Process) Running() bool {
-	if !p.x.isStarted() {
+	if !p.x.isStarted() || !p.x.isRunning() {
 		return false
 	}
+	return p.running()
+}
+func (p *Process) running() bool {
 	select {
 	case <-p.ch:
 		return false
@@ -149,10 +152,10 @@ func (p *Process) Release() error {
 	if !p.x.isStarted() {
 		return ErrNotStarted
 	}
-	if atomic.SwapUint32(&p.cookie, 2) != 0 {
-		return nil
-	}
-	atomic.StoreUint32(&p.cookie, 2)
+	//if atomic.SwapUint32(&p.cookie, 2) != 0 {
+	//	return nil
+	//}
+	//atomic.StoreUint32(&p.cookie, 2)
 	p.x.close()
 	return nil
 }
@@ -383,7 +386,7 @@ func (p *Process) CombinedOutput() ([]byte, error) {
 	return b.Bytes(), err
 }
 func (p *Process) stopWith(c uint32, e error) error {
-	if !p.Running() {
+	if !p.running() {
 		return e
 	}
 	if atomic.LoadUint32(&p.cookie) != 1 {

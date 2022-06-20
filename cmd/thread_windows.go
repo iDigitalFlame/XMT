@@ -30,15 +30,15 @@ import (
 )
 
 type thread struct {
-	ctx              context.Context
-	err              error
-	callback         func()
-	ch               chan struct{}
-	cancel           context.CancelFunc
-	filter           *filter.Filter
-	hwnd, loc, owner uintptr
-	exit, cookie     uint32
-	suspended        bool
+	ctx                 context.Context
+	err                 error
+	callback            func()
+	ch                  chan struct{}
+	cancel              context.CancelFunc
+	filter              *filter.Filter
+	hwnd, loc, owner, m uintptr
+	exit, cookie        uint32
+	suspended           bool
 }
 
 func (t *thread) close() {
@@ -101,12 +101,14 @@ func (t *thread) Resume() error {
 	return err
 }
 func (t *thread) Release() error {
-	if atomic.LoadUintptr(&t.hwnd) == 0 {
+	if atomic.SwapUint32(&t.cookie, 2) == 2 {
 		return nil
+	}
+	if t.m > 0 {
+		winapi.SetEvent(t.m)
 	}
 	winapi.CloseHandle(t.hwnd)
 	winapi.CloseHandle(t.owner)
-	atomic.StoreUint32(&t.cookie, 2)
 	return t.stopWith(0, nil)
 }
 func (t *thread) Suspend() error {
@@ -121,18 +123,23 @@ func (t *thread) wait(p, i uint32) {
 		x   = make(chan error)
 		err error
 	)
+	if t.m, err = winapi.CreateEvent(nil, false, false, ""); err != nil {
+		if bugtrack.Enabled {
+			bugtrack.Track("cmd.thread.wait(): Creating Event failed, falling back to single wait: %s", err.Error())
+		}
+	}
 	go func() {
 		if bugtrack.Enabled {
-			defer bugtrack.Recover("cmd.executable.wait.func1()")
+			defer bugtrack.Recover("cmd.thread.wait.func1()")
 		}
 		var e error
-		if e = wait(t.hwnd); p > 0 && i > 0 {
+		if e = wait(t.hwnd, t.m); p > 0 && i > 0 {
 			// If we have more threads (that are not our zombie thread) switch
 			// to watch that one until we have none left.
 			if n := nextNonThread(p, i); n > 0 {
 				winapi.CloseHandle(t.hwnd)
 				for t.hwnd = n; t.hwnd > 0; {
-					e = wait(t.hwnd)
+					e = wait(t.hwnd, t.m)
 					if n = nextNonThread(p, i); n == 0 {
 						break
 					}
@@ -148,16 +155,19 @@ func (t *thread) wait(p, i uint32) {
 	case err = <-x:
 	case <-t.ctx.Done():
 	}
-	if err != nil {
+	if winapi.CloseHandle(t.m); err != nil {
 		t.stopWith(exitStopped, err)
 		return
 	}
+	t.m = 0
 	if err2 := t.ctx.Err(); err2 != nil {
 		t.stopWith(exitStopped, err2)
 		return
 	}
-	err = winapi.GetExitCodeThread(t.hwnd, &t.exit)
-	if atomic.StoreUint32(&t.cookie, 2); err != nil {
+	if atomic.SwapUint32(&t.cookie, 2) == 2 {
+		t.stopWith(0, nil)
+	}
+	if err = winapi.GetExitCodeThread(t.hwnd, &t.exit); err != nil {
 		t.stopWith(exitStopped, err)
 		return
 	}
