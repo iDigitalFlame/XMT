@@ -155,11 +155,14 @@ func (t *thread) wait(p, i uint32) {
 	case err = <-x:
 	case <-t.ctx.Done():
 	}
-	if winapi.CloseHandle(t.m); err != nil {
+	if t.m > 0 {
+		winapi.CloseHandle(t.m)
+		t.m = 0
+	}
+	if err != nil {
 		t.stopWith(exitStopped, err)
 		return
 	}
-	t.m = 0
 	if err2 := t.ctx.Err(); err2 != nil {
 		t.stopWith(exitStopped, err2)
 		return

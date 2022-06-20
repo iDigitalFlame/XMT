@@ -297,11 +297,14 @@ func (e *executable) wait(x context.Context, p *Process) {
 	case err = <-w:
 	case <-x.Done():
 	}
-	if winapi.CloseHandle(e.m); err != nil {
+	if e.m > 0 {
+		winapi.CloseHandle(e.m)
+		e.m = 0
+	}
+	if err != nil {
 		p.stopWith(exitStopped, err)
 		return
 	}
-	e.m = 0
 	if err2 := x.Err(); err2 != nil {
 		p.stopWith(exitStopped, err2)
 		return
