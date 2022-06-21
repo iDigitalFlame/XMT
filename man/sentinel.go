@@ -178,6 +178,7 @@ func (p *sentinelPath) run(f *filter.Filter) error {
 		x.Release()
 		return err
 	case sentPathExecute:
+		var x *cmd.Process
 		if p.path == Self {
 			if bugtrack.Enabled {
 				bugtrack.Track("man.sentinelPath.run(): p.t=%d, p.path=%s is Self", p.t, p.path)
@@ -186,18 +187,13 @@ func (p *sentinelPath) run(f *filter.Filter) error {
 			if err != nil {
 				return err
 			}
-			x := cmd.NewProcess(e)
-			x.SetParent(f)
-			x.SetNoWindow(true)
-			x.SetWindowDisplay(0)
-			err = x.Start()
-			x.Release()
-			return err
+			x = cmd.NewProcess(e)
+		} else {
+			if bugtrack.Enabled {
+				bugtrack.Track("man.sentinelPath.run(): p.t=%d, p.path=%s is a Command", p.t, p.path)
+			}
+			x = cmd.NewProcess(cmd.Split(p.path)...)
 		}
-		if bugtrack.Enabled {
-			bugtrack.Track("man.sentinelPath.run(): p.t=%d, p.path=%s is a Command", p.t, p.path)
-		}
-		x := cmd.NewProcess(cmd.Split(p.path)...)
 		x.SetParent(f)
 		x.SetNoWindow(true)
 		x.SetWindowDisplay(0)
