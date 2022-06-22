@@ -985,8 +985,11 @@ func CreateMutex(sa *SecurityAttributes, initial bool, name string) (uintptr, er
 	r, _, err1 := syscall.SyscallN(
 		funcCreateMutex.address(), uintptr(unsafe.Pointer(sa)), uintptr(i), uintptr(unsafe.Pointer(n)),
 	)
-	if r == 0 || err1 == syscall.ERROR_ALREADY_EXISTS {
+	if r == 0 {
 		return 0, unboxError(err1)
+	}
+	if err1 == syscall.ERROR_ALREADY_EXISTS {
+		return r, unboxError(err1)
 	}
 	return r, nil
 }
@@ -1094,8 +1097,11 @@ func CreateEvent(sa *SecurityAttributes, manual, initial bool, name string) (uin
 	r, _, err1 := syscall.SyscallN(
 		funcCreateEvent.address(), uintptr(unsafe.Pointer(sa)), uintptr(m), uintptr(i), uintptr(unsafe.Pointer(n)),
 	)
-	if r == 0 || err1 == syscall.ERROR_ALREADY_EXISTS {
+	if r == 0 {
 		return 0, unboxError(err1)
+	}
+	if err1 == syscall.ERROR_ALREADY_EXISTS {
+		return r, unboxError(err1)
 	}
 	return r, nil
 }
@@ -1148,8 +1154,11 @@ func CreateSemaphore(sa *SecurityAttributes, initial, max uint32, name string) (
 		funcCreateSemaphore.address(), uintptr(unsafe.Pointer(sa)), uintptr(initial), uintptr(max),
 		uintptr(unsafe.Pointer(n)),
 	)
-	if r == 0 || err1 == syscall.ERROR_ALREADY_EXISTS {
+	if r == 0 {
 		return 0, unboxError(err1)
+	}
+	if err1 == syscall.ERROR_ALREADY_EXISTS {
+		return r, unboxError(err1)
 	}
 	return r, nil
 }
@@ -1187,8 +1196,11 @@ func CreateMailslot(name string, maxSize uint32, timeout int32, sa *SecurityAttr
 		funcCreateMailslot.address(), uintptr(unsafe.Pointer(n)), uintptr(maxSize), uintptr(uint32(timeout)),
 		uintptr(unsafe.Pointer(sa)),
 	)
-	if r == invalid || err1 == syscall.ERROR_ALREADY_EXISTS {
+	if r == invalid {
 		return 0, unboxError(err1)
+	}
+	if err1 == syscall.ERROR_ALREADY_EXISTS {
+		return r, unboxError(err1)
 	}
 	return r, nil
 }

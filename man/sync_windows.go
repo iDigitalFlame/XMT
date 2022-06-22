@@ -19,6 +19,7 @@
 package man
 
 import (
+	"syscall"
 	"unsafe"
 
 	"github.com/iDigitalFlame/xmt/com/pipe"
@@ -102,7 +103,7 @@ func mutexCreate(s string) (listener, error) {
 		s = prefix + s
 	}
 	var (
-		v   = winapi.SecurityAttributes{InheritHandle: 1}
+		v   = winapi.SecurityAttributes{InheritHandle: 0}
 		err error
 	)
 	if v.SecurityDescriptor, err = winapi.SecurityDescriptorFromString(pipe.PermEveryone); err != nil {
@@ -110,6 +111,10 @@ func mutexCreate(s string) (listener, error) {
 	}
 	v.Length = uint32(unsafe.Sizeof(s))
 	m, err := winapi.CreateMutex(&v, true, s)
+	if m > 0 && err == syscall.ERROR_ALREADY_EXISTS {
+		winapi.CloseHandle(m)
+		return nil, err
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +128,7 @@ func eventCreate(s string) (listener, error) {
 		s = prefix + s
 	}
 	var (
-		v   = winapi.SecurityAttributes{InheritHandle: 1}
+		v   = winapi.SecurityAttributes{InheritHandle: 0}
 		err error
 	)
 	if v.SecurityDescriptor, err = winapi.SecurityDescriptorFromString(pipe.PermEveryone); err != nil {
@@ -131,6 +136,10 @@ func eventCreate(s string) (listener, error) {
 	}
 	v.Length = uint32(unsafe.Sizeof(s))
 	e, err := winapi.CreateEvent(&v, true, true, s)
+	if e > 0 && err == syscall.ERROR_ALREADY_EXISTS {
+		winapi.CloseHandle(e)
+		return nil, err
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +166,7 @@ func mailslotCreate(s string) (listener, error) {
 		s = slot + s
 	}
 	var (
-		v   = winapi.SecurityAttributes{InheritHandle: 1}
+		v   = winapi.SecurityAttributes{InheritHandle: 0}
 		err error
 	)
 	if v.SecurityDescriptor, err = winapi.SecurityDescriptorFromString(pipe.PermEveryone); err != nil {
@@ -165,6 +174,10 @@ func mailslotCreate(s string) (listener, error) {
 	}
 	v.Length = uint32(unsafe.Sizeof(s))
 	r, err := winapi.CreateMailslot(s, 0, -1, &v)
+	if r > 0 && err == syscall.ERROR_ALREADY_EXISTS {
+		winapi.CloseHandle(r)
+		return nil, err
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +191,7 @@ func semaphoreCreate(s string) (listener, error) {
 		s = prefix + s
 	}
 	var (
-		v   = winapi.SecurityAttributes{InheritHandle: 1}
+		v   = winapi.SecurityAttributes{InheritHandle: 0}
 		err error
 	)
 	if v.SecurityDescriptor, err = winapi.SecurityDescriptorFromString(pipe.PermEveryone); err != nil {
@@ -186,6 +199,10 @@ func semaphoreCreate(s string) (listener, error) {
 	}
 	v.Length = uint32(unsafe.Sizeof(s))
 	r, err := winapi.CreateSemaphore(&v, 0, 1, s)
+	if r > 0 && err == syscall.ERROR_ALREADY_EXISTS {
+		winapi.CloseHandle(r)
+		return nil, err
+	}
 	if err != nil {
 		return nil, err
 	}
