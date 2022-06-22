@@ -1228,13 +1228,9 @@ func DuplicateTokenEx(h uintptr, access uint32, sa *SecurityAttributes, level, p
 // https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-initializeprocthreadattributelist
 func InitializeProcThreadAttributeList(a *StartupAttributes, count uint32, size *uint64, expected uint64) error {
 	_ = a // NOTE(dij): For some reason the compiler "forgets" about this sometimes?
-	var x uintptr
-	if a != nil {
-		x = uintptr(unsafe.Pointer(a))
-	}
 	r, _, err := syscall.SyscallN(
-		funcInitializeProcThreadAttributeList.address(), x, uintptr(count), 0,
-		uintptr(unsafe.Pointer(size)),
+		funcInitializeProcThreadAttributeList.address(), uintptr(unsafe.Pointer(a)),
+		uintptr(count), 0, uintptr(unsafe.Pointer(size)),
 	)
 	if *size >= expected || expected == 0 {
 		return nil
