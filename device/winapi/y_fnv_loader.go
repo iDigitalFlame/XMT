@@ -19,10 +19,13 @@
 package winapi
 
 import (
+	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"unsafe"
 
+	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -147,6 +150,7 @@ func (d *lazyDLL) initFunctions(h uintptr) error {
 		f = h + uintptr(i.AddressOfFunctions)
 		s = h + uintptr(i.AddressOfNames)
 		o = h + uintptr(i.AddressOfNameOrdinals)
+		m = h + uintptr(n.Optional.Directory[0].VirtualAddress) + uintptr(n.Optional.Directory[0].Size)
 	)
 	for x, k, a := uint32(0), uint32(0), uintptr(0); x < i.NumberOfNames; x++ {
 		k = fnvHash(*(*[256]byte)(unsafe.Pointer(
@@ -161,9 +165,44 @@ func (d *lazyDLL) initFunctions(h uintptr) error {
 		if !ok {
 			continue
 		}
-		p.addr = a
+		if a < m && a > f {
+			var err error
+			if p.addr, err = loadForwardFunc((*[256]byte)(unsafe.Pointer(a))); err != nil {
+				return err
+			}
+		} else {
+			p.addr = a
+		}
 		delete(d.funcs, k)
 	}
 	d.funcs = nil
 	return nil
+}
+func loadForwardFunc(b *[256]byte) (uintptr, error) {
+	var n int
+	for n < 256 {
+		if (*b)[n] == 0 {
+			break
+		}
+		n++
+	}
+	var (
+		v = string((*b)[:n])
+		i = strings.LastIndexByte(v, '.')
+	)
+	if i == -1 {
+		return 0, syscall.EINVAL
+	}
+	d, f := v[0:i], v[i+1:]
+	if i < 5 || v[i-4] != '.' {
+		d = d + dllExt
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track("winapi.loadForwardFunc(): Loading forwarded function %q from %q.", f, d)
+	}
+	x, err := loadDLL(d)
+	if err != nil {
+		return 0, err
+	}
+	return findProc(x, f, d)
 }

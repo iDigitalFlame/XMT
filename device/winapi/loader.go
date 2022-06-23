@@ -42,6 +42,11 @@ func isBaseName(s string) bool {
 	}
 	return true
 }
+func byteSlicePtr(s string) *byte {
+	a := make([]byte, len(s)+1)
+	copy(a, s)
+	return &a[0]
+}
 func (p *lazyProc) address() uintptr {
 	if p.addr > 0 {
 		// NOTE(dij): Might be racy, but will catch most of the re-used calls
@@ -106,6 +111,16 @@ func loadLibraryEx(s string) (uintptr, error) {
 	}
 	return LoadLibraryEx(n, f)
 }
+func findProc(h uintptr, s, n string) (uintptr, error) {
+	h, err := syscallGetProcAddress(h, byteSlicePtr(s))
+	if err != 0 {
+		if xerr.ExtendedInfo {
+			return 0, xerr.Wrap(`cannot load DLL "`+n+`" function "`+s+`"`, err)
+		}
+		return 0, xerr.Wrap("cannot load DLL function", err)
+	}
+	return h, nil
+}
 
 //go:linkname syscallLoadLibrary syscall.loadlibrary
 func syscallLoadLibrary(n *uint16) (uintptr, syscall.Errno)
@@ -116,3 +131,6 @@ func getSystemDirectory(s *uint16, n uint32) (uint32, error) {
 	}
 	return uint32(r), nil
 }
+
+//go:linkname syscallGetProcAddress syscall.getprocaddress
+func syscallGetProcAddress(h uintptr, n *uint8) (uintptr, syscall.Errno)

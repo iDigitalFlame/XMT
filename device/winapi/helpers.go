@@ -877,7 +877,7 @@ func heapAlloc(h uintptr, s uint64, z bool) (uintptr, error) {
 	if z {
 		f |= 0x08
 	}
-	r, _, err := syscall.SyscallN(funcHeapAlloc.address(), h, uintptr(f), uintptr(s))
+	r, _, err := syscall.SyscallN(funcRtlAllocateHeap.address(), h, uintptr(f), uintptr(s))
 	if r == 0 {
 		return 0, unboxError(err)
 	}
@@ -897,7 +897,7 @@ func heapReAlloc(h, m uintptr, s uint64, z bool) (uintptr, error) {
 		// 0x8 - HEAP_ZERO_MEMORY
 		f |= 0x8
 	}
-	r, _, err := syscall.SyscallN(funcHeapReAlloc.address(), h, uintptr(f), m, uintptr(s))
+	r, _, err := syscall.SyscallN(funcRtlReAllocateHeap.address(), h, uintptr(f), m, uintptr(s))
 	if r == 0 {
 		return 0, unboxError(err)
 	}

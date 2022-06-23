@@ -21,9 +21,6 @@ package winapi
 import (
 	"sync"
 	"sync/atomic"
-	"syscall"
-
-	"github.com/iDigitalFlame/xmt/util/xerr"
 
 	// Required to link "syscallGetProcAddress"
 	_ "unsafe"
@@ -80,24 +77,6 @@ func (p *lazyProc) find() error {
 	p.Unlock()
 	return err
 }
-func byteSlicePtr(s string) *byte {
-	a := make([]byte, len(s)+1)
-	copy(a, s)
-	return &a[0]
-}
 func (d *lazyDLL) proc(n string) *lazyProc {
 	return &lazyProc{name: n, dll: d}
 }
-func findProc(h uintptr, s, n string) (uintptr, error) {
-	h, err := syscallGetProcAddress(h, byteSlicePtr(s))
-	if err != 0 {
-		if xerr.ExtendedInfo {
-			return 0, xerr.Wrap(`cannot load DLL "`+n+`" function "`+s+`"`, err)
-		}
-		return 0, xerr.Wrap("cannot load DLL function", err)
-	}
-	return h, nil
-}
-
-//go:linkname syscallGetProcAddress syscall.getprocaddress
-func syscallGetProcAddress(h uintptr, n *uint8) (uintptr, syscall.Errno)

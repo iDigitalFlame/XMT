@@ -21,7 +21,8 @@ package winapi
 import "github.com/iDigitalFlame/xmt/util/crypt"
 
 var (
-	debugPriv = crypt.Get(96) // SeDebugPrivilege
+	dllExt    = crypt.Get(98)[5:] // ntdll.dll
+	debugPriv = crypt.Get(96)     // SeDebugPrivilege
 
 	dllKernel32 = &lazyDLL{name: crypt.Get(97)}  // kernel32.dll
 	dllNtdll    = &lazyDLL{name: crypt.Get(98)}  // ntdll.dll

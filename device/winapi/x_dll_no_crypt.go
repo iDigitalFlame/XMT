@@ -18,7 +18,10 @@
 
 package winapi
 
-const debugPriv = "SeDebugPrivilege"
+const (
+	dllExt    = ".dll"
+	debugPriv = "SeDebugPrivilege"
+)
 
 var (
 	dllKernel32 = &lazyDLL{name: "kernel32.dll"}
