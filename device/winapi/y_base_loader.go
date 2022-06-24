@@ -21,9 +21,6 @@ package winapi
 import (
 	"sync"
 	"sync/atomic"
-
-	// Required to link "syscallGetProcAddress"
-	_ "unsafe"
 )
 
 type lazyDLL struct {
