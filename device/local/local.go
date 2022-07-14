@@ -40,7 +40,7 @@ var Device = (&local{&device.Machine{
 	ID:       UUID,
 	PID:      uint32(os.Getpid()),
 	PPID:     uint32(os.Getppid()),
-	System:   uint8(uint8(device.OS)<<4 | uint8(device.Arch)),
+	System:   systemType(),
 	Version:  Version,
 	Network:  make(device.Network, 0),
 	Elevated: isElevated(),

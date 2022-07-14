@@ -93,6 +93,7 @@ var (
 	funcRtlCopyMemory                                       = dllNtdll.proc(0xC5A43FC3)
 	funcGetWindowInfo                                       = dllUser32.proc(0x971B836B)
 	funcDbgBreakPoint                                       = dllNtdll.proc(0x6861210F)
+	funcIsWow64Process                                      = dllKernel32.proc(0xC7D72D9F)
 	funcRegDeleteKeyEx                                      = dllAdvapi32.proc(0xF888EF35)
 	funcGetMonitorInfo                                      = dllUser32.proc(0x9B68BE4A)
 	funcIsWellKnownSID                                      = dllAdvapi32.proc(0xF855936A)

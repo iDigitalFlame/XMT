@@ -26,7 +26,7 @@
 package util
 
 import (
-	// Import unsafe to use faster "cputicks" and "fastrand" functions
+	// Import unsafe to use faster "fastrand" function
 	_ "unsafe"
 )
 
@@ -38,9 +38,6 @@ import (
 // than the built-in, 'rand.Rand', which requires more memory and binary storage
 // space.
 var Rand = getRandom()
-
-//go:linkname cputicks runtime.cputicks
-func cputicks() int64
 
 // FastRand is a fast thread local random function. This should be used in place
 // instead of 'Rand.Uint32()'.

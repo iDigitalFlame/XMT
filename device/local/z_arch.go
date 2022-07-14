@@ -1,4 +1,4 @@
-//go:build stdrand
+//go:build !(windows && (386 || s390x || arm))
 
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //
@@ -16,21 +16,10 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-package util
+package local
 
-import (
-	"math/rand"
+import "github.com/iDigitalFlame/xmt/device"
 
-	// Import unsafe to use faster "cputicks" function
-	_ "unsafe"
-)
-
-type random struct {
-	*rand.Rand
-}
-
-//go:linkname cputicks runtime.cputicks
-func cputicks() int64
-func getRandom() *random {
-	return &random{Rand: rand.New(rand.NewSource(cputicks()))}
+func systemType() uint8 {
+	return uint8(uint8(device.OS)<<4 | uint8(device.Arch))
 }

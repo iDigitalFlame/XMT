@@ -221,12 +221,12 @@ func ScreenShot(x, y, width, height uint32, w io.Writer) error {
 	var b uintptr
 	if b, err = createCompatibleBitmap(m, width, height); err == nil {
 		h := bitmapInfoHeader{
-			Planes:      1,
-			BitCount:    32,
 			Width:       int32(width),
+			Planes:      1,
 			Height:      -int32(height),
-			Compression: 0,
+			BitCount:    32,
 			SizeImage:   0,
+			Compression: 0,
 		}
 		h.Size = uint32(unsafe.Sizeof(h))
 		var l, o uintptr
@@ -236,6 +236,7 @@ func ScreenShot(x, y, width, height uint32, w io.Writer) error {
 					if _, err = getDIBits(m, b, 0, height, (*uint8)(unsafe.Pointer(l)), (*bitmapInfo)(unsafe.Pointer(&h)), 0); err == nil {
 						var r *image.RGBA
 						if r, err = tryCreateImage(image.Rect(0, 0, int(width), int(height))); err == nil {
+							_ = r.Pix[len(r.Pix)-1]
 							for z, i, k := l, 0, uint32(0); k < height && i < len(r.Pix); k++ {
 								for j := uint32(0); j < width; j++ {
 									r.Pix[i], r.Pix[i+1], r.Pix[i+2], r.Pix[i+3] = *(*uint8)(unsafe.Pointer(z + 2)), *(*uint8)(unsafe.Pointer(z + 1)), *(*uint8)(unsafe.Pointer(z)), 0xFF
@@ -244,6 +245,9 @@ func ScreenShot(x, y, width, height uint32, w io.Writer) error {
 								}
 							}
 							err = png.Encode(w, r)
+							for i := range r.Pix {
+								r.Pix[i] = 0 // Should be a memclr.
+							}
 							r.Pix, r = nil, nil
 						}
 					}

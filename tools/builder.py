@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Copyright (C) 2021 - 2022 iDigitalFlame
+# Copyright (C) 2020 - 2022 iDigitalFlame
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,7 +17,6 @@
 
 from os import environ
 from random import choice
-from subprocess import run
 from tempfile import mkdtemp
 from sys import stderr, exit
 from shutil import which, rmtree
@@ -25,6 +24,7 @@ from traceback import format_exc
 from string import ascii_lowercase
 from argparse import ArgumentParser
 from os.path import isdir, isfile, join
+from subprocess import SubprocessError, run
 
 C_SRC = """#define WINVER 0x0501
 #define _WIN32_WINNT 0x0501
@@ -185,6 +185,7 @@ def _main():
         if isinstance(p.gcflags, str) and len(p.gcflags) > 0:
             x += ["-gcflags", p.gcflags]
         x += ["-o", f"{join(d, o)}.a", p.input]
+        print(x)
         run(x, env=e, text=True, check=True, capture_output=True)
         del x
 
@@ -213,7 +214,9 @@ def _main():
                     "-lwinmm",
                     "-lntdll",
                     "-lws2_32",
-                    "-Wl,-x,-s,-nostdlib",
+                    "-Wa,--strip-local-absolute",
+                    "-Wp,-femit-struct-debug-reduced,-O2",
+                    "-Wl,-x,-s,-nostdlib,--no-insert-timestamp",
                     f"{join(d, o)}.c",
                     f"{join(d, o)}.a",
                 ],
@@ -234,9 +237,12 @@ def _main():
                 "-lwinmm",
                 "-lntdll",
                 "-lws2_32",
-                "-Wl,-x,-s,-nostdlib",
+                "-Wa,--strip-local-absolute",
+                "-Wp,-femit-struct-debug-reduced,-O2",
+                "-Wl,-x,-s,-nostdlib,--no-insert-timestamp",
                 f"{join(d, o)}.c",
             ],
+            cwd=d,
             env=e,
             text=True,
             check=True,
@@ -254,10 +260,13 @@ def _main():
                 "-lwinmm",
                 "-lntdll",
                 "-lws2_32",
-                "-Wl,-x,-s,-nostdlib",
+                "-Wa,--strip-local-absolute",
+                "-Wp,-femit-struct-debug-reduced,-O2",
+                "-Wl,-x,-s,-nostdlib,--no-insert-timestamp",
                 f"{join(d, o)}.o",
                 f"{join(d, o)}.a",
             ],
+            cwd=d,
             env=e,
             text=True,
             check=True,
@@ -271,6 +280,8 @@ def _main():
 if __name__ == "__main__":
     try:
         _main()
+    except SubprocessError as err:
+        print(f"Err: {err.stderr} {err.stdout}\n{format_exc(limit=3)}", file=stderr)
     except Exception as err:
         print(f"Error: {err}\n{format_exc(limit=3)}", file=stderr)
         exit(1)

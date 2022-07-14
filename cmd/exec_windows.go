@@ -153,7 +153,10 @@ func (e *executable) Suspend() error {
 	return winapi.SuspendProcess(e.i.Process)
 }
 func (e *executable) isStarted() bool {
-	return e.i.ProcessID > 0 // && e.i.Process > 0
+	// BUG(dij): I think this causes some 'ErrAlreadyStarted' issues.
+	//           keep watch on this.
+	return atomic.LoadUint32(&e.i.ProcessID) > 0 || e.i.Process > 0
+	//return e.i.ProcessID > 0 // && e.i.Process > 0
 }
 func (e *executable) isRunning() bool {
 	return e.i.Process > 0

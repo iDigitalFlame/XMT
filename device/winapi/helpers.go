@@ -27,6 +27,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -123,6 +124,9 @@ func KillRuntime() {
 func killRuntime() {
 	q, err := getSelfModuleHandle()
 	if err != nil {
+		if bugtrack.Enabled {
+			bugtrack.Track("winapi.killRuntime(): getSelfModuleHandle failed err=%s", err)
+		}
 		return
 	}
 	var (
@@ -130,11 +134,20 @@ func killRuntime() {
 		a, e uintptr
 	)
 	if a, e, err = findBaseModuleRange(p, q); err != nil {
+		if bugtrack.Enabled {
+			bugtrack.Track("winapi.killRuntime(): findBaseModuleRange failed err=%s", err)
+		}
 		return
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track("winapi.killRuntime(): Module range p=%d, a=%d, e=%d", p, a, e)
 	}
 	// 0x4 - TH32CS_SNAPTHREAD
 	h, err := CreateToolhelp32Snapshot(0x4, 0)
 	if err != nil {
+		if bugtrack.Enabled {
+			bugtrack.Track("winapi.killRuntime(): CreateToolhelp32Snapshot failed err=%s", err)
+		}
 		return
 	}
 	var (
@@ -159,8 +172,11 @@ func killRuntime() {
 			break
 		}
 		if t.ThreadID == y {
-			if b, s = uintptr(s) >= a && uintptr(s) < e, 0; b {
+			if b = uintptr(s) >= a && uintptr(s) < e; b {
 				break
+			}
+			if bugtrack.Enabled {
+				bugtrack.Track("winapi.killRuntime(): Found our thread t.ThreadID=%d y=%d, j=%d, s=%d, b=%t", t.ThreadID, y, j, s, b)
 			}
 			j = s
 			continue
@@ -172,6 +188,9 @@ func killRuntime() {
 			m[s] = make([]uintptr, 0, 8)
 		}
 		m[s] = append(m[s], v)
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track("winapi.killRuntime(): Done enumeration b=%t, len(m)=%d, err=%s", b, len(m), err)
 	}
 	if CloseHandle(h); b || len(m) == 0 || (err != nil && err != ErrNoMoreFiles) {
 		for k, v := range m {
@@ -186,6 +205,9 @@ func killRuntime() {
 			// This is a binary, its safe to exit cleanly.
 			syscall.Exit(0)
 			return
+		}
+		if bugtrack.Enabled {
+			bugtrack.Track("winapi.killRuntime(): Failed to close base!")
 		}
 		u = nil
 		return
@@ -218,17 +240,28 @@ func killRuntime() {
 		x int
 	)
 	for k, v := range m {
+		if bugtrack.Enabled {
+			bugtrack.Track("winapi.killRuntime(): Sanity 1 k=%d, len(v)=%d, v=%v", k, len(v), v)
+		}
 		if len(v) > x {
 			x, z = len(v), k
 		}
 	}
-	if z != j {
-		// Sanity Check
-		// BUG(dij): Make sure this is correct
-		// TODO(dij): Make sure this is correct
-		// panic("Sanity check base on threads vs max failed!")
-		z = j
+	if bugtrack.Enabled {
+		bugtrack.Track("winapi.killRuntime(): Sanity stop z=%d, j=%d, x=%d", z, j, x)
 	}
+	// NOTE(dij): This is NOT a sanity check. This causes this function to
+	//            fail hard. I believe that the base address reported by Windows
+	//            does NOT respond to the DLL based address, but ONLY the EXE
+	//            address.
+	//
+	//            We're going to fallback to the default action, which seems to
+	//            work better.
+	//
+	// if z != j {
+	//     panic("Sanity check base on threads vs max failed!")
+	//     z = j
+	// }
 	c := m[z]
 	for k, v := range m {
 		if k == z {
@@ -252,6 +285,9 @@ func killRuntime() {
 		CloseHandle(c[i])
 	}
 	if c = nil; err != nil {
+		if bugtrack.Enabled {
+			bugtrack.Track("winapi.killRuntime(): Terminate error err=%s", err)
+		}
 		return
 	}
 	EmptyWorkingSet()
@@ -300,8 +336,6 @@ func ZeroTraceEvent() error {
 	return err
 }
 func (p *dumpParam) close() {
-	// BUG(dij): I think the heap isn't getting freed properly.
-	// Increases by 7 MB, might be fixed with using HeapCreate.
 	heapFree(p.b, p.h)
 	heapDestroy(p.b)
 	CloseHandle(p.b)

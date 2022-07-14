@@ -15,9 +15,6 @@ These are some things I need to work on.
 
 - Keyloging?
 - MultiProxy support?
-- Guardian/Sentinel Updates
-  - Ability to launch Assembly and Zombie processes
-  - Update to Sentinel file format
 - Shellcode for Linux?
 - Add in memory (Reflective) DLL injection (Sorta have it?)
 

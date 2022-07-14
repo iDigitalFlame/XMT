@@ -31,6 +31,9 @@ import (
 //
 // If you need finer control, use the 'XorBytes' function.
 func XorOp(value, key []byte) {
+	if len(key) == 0 || len(value) == 0 {
+		return
+	}
 	if len(key) == len(value) {
 		xorBytes(value, key, value)
 		return

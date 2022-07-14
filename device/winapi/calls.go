@@ -114,6 +114,22 @@ func GetVersion() (uint32, error) {
 }
 
 // ResumeProcess Windows API Call
+//   Determines whether the specified process is running under WOW64 or an
+//   Intel64 of x64 processor.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/wow64apiset/nf-wow64apiset-iswow64process
+func IsWow64Process() (bool, error) {
+	var (
+		o         bool
+		r, _, err = syscall.SyscallN(funcIsWow64Process.address(), CurrentProcess, uintptr(unsafe.Pointer(&o)))
+	)
+	if r == 0 {
+		return false, unboxError(err)
+	}
+	return o, nil
+}
+
+// ResumeProcess Windows API Call
 //   Resumes a process and all it's threads.
 //
 // http://www.pinvoke.net/default.aspx/ntdll/NtResumeProcess.html
