@@ -206,10 +206,9 @@ func killRuntime() {
 			syscall.Exit(0)
 			return
 		}
-		if bugtrack.Enabled {
+		if u = nil; bugtrack.Enabled {
 			bugtrack.Track("winapi.killRuntime(): Failed to close base!")
 		}
-		u = nil
 		return
 	}
 	if len(u) > 0 {

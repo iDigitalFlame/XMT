@@ -185,7 +185,6 @@ def _main():
         if isinstance(p.gcflags, str) and len(p.gcflags) > 0:
             x += ["-gcflags", p.gcflags]
         x += ["-o", f"{join(d, o)}.a", p.input]
-        print(x)
         run(x, env=e, text=True, check=True, capture_output=True)
         del x
 
