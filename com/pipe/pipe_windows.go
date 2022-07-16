@@ -53,10 +53,10 @@ type errno struct {
 type Listener struct {
 	_              [0]func()
 	overlap        *winapi.Overlapped
+	perms          *winapi.SecurityAttributes
 	addr           addr
 	active, handle uintptr
 	done           uint32
-	perms          *winapi.SecurityAttributes
 }
 
 // PipeConn is a struct that implements a Windows Pipe connection. This is similar
