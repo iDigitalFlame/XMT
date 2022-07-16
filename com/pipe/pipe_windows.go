@@ -56,6 +56,7 @@ type Listener struct {
 	addr           addr
 	active, handle uintptr
 	done           uint32
+	perms          *winapi.SecurityAttributes
 }
 
 // PipeConn is a struct that implements a Windows Pipe connection. This is similar
@@ -144,6 +145,10 @@ func (l *Listener) Addr() net.Addr {
 // will set the token of this Thread to the Pipe's connected client token.
 //
 // A call to 'device.RevertToSelf()' will reset the token.
+//
+// BUG(dij): Need to test this further. It "works" but I'm not 100% sure it it's
+//           due to the client lacking the "SeImpersonate" privilege or something
+//           else...
 func (c *PipeConn) Impersonate() error {
 	if c.handle == 0 {
 		return nil
@@ -234,7 +239,7 @@ func (l *Listener) AcceptPipe() (*PipeConn, error) {
 		err error
 	)
 	if l.handle == 0 {
-		if h, err = create(l.addr, nil, 50, 512, false); err != nil {
+		if h, err = create(l.addr, l.perms, 50, 512, false); err != nil {
 			return nil, &errno{e: err}
 		}
 	} else {
@@ -503,7 +508,7 @@ func ListenSecurityContext(x context.Context, path string, p *winapi.SecurityAtt
 		}
 		return nil, &errno{m: err.Error(), e: err}
 	}
-	n := &Listener{addr: a, handle: l}
+	n := &Listener{addr: a, handle: l, perms: p}
 	if x != context.Background() {
 		go func(z *Listener) {
 			<-x.Done()

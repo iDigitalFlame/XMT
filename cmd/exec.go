@@ -407,6 +407,9 @@ func (p *Process) stopWith(c uint32, e error) error {
 		}
 		return nil
 	}
+	if p.err == nil && e != nil {
+		p.err = e
+	}
 	return p.err
 }
 

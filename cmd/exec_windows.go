@@ -559,6 +559,8 @@ func (e *executable) startInfo() (*winapi.StartupInfoEx, *winapi.StartupInfo, er
 		if e.parent, err = e.filter.HandleFunc(0x4C0, nil); err != nil {
 			return nil, nil, err
 		}
+		// BUG(dij): Apparently sometimes this isn't closed? It seems to /only/
+		//           happen during spawn? Look into this later.
 		e.closers = append(e.closers, closer(e.parent))
 	}
 	var (
