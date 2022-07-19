@@ -827,7 +827,7 @@ func GetProcessFileName(h uintptr) (string, error) {
 		return "", err
 	}
 	v := UTF16ToString(u.Buffer[4:n])
-	for i := len(v) - 1; i > 0; i++ {
+	for i := len(v) - 1; i > 0; i-- {
 		if v[i] == '\\' {
 			return v[i+1:], nil
 		}

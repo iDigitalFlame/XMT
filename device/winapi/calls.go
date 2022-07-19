@@ -94,6 +94,18 @@ func GetCurrentProcessID() uint32 {
 }
 
 // GetVersion Windows API Call
+//   Writes all the attributes of the specified open registry key into the registry.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regflushkey
+func RegFlushKey(h uintptr) error {
+	r, _, err := syscall.SyscallN(funcRegFlushKey.address(), h)
+	if r > 0 {
+		return unboxError(err)
+	}
+	return nil
+}
+
+// GetVersion Windows API Call
 //   With the release of Windows 8.1, the behavior of the GetVersion API has
 //   changed in the value it will return for the operating system version.
 //   The value returned by the GetVersion function now depends on how the

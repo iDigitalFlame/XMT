@@ -44,7 +44,7 @@ var secProtect uint64 = 0x100100000000
 
 var versionOnce struct {
 	sync.Once
-	v bool
+	v, s bool
 }
 
 type closer uintptr
@@ -71,17 +71,22 @@ func onceVersionCheck() {
 	if v, err := winapi.GetVersion(); err == nil && v > 0 {
 		switch m := byte(v & 0xFF); {
 		case m > 6:
-			versionOnce.v = true
+			versionOnce.v, versionOnce.s = true, true
 		case m == 6:
-			versionOnce.v = byte((v&0xFFFF)>>8) >= 1
+			versionOnce.v = byte((v&0xFFFF)>>8) >= 0 // Must be at least Windows 6.0 (Vista/2008)
+			versionOnce.s = byte((v&0xFFFF)>>8) >= 2 // Must be at least Windows 6.2 (8/2012)
 		default:
-			versionOnce.v = false
+			versionOnce.v, versionOnce.s = false, false
 		}
 	}
 }
 func checkVersion() bool {
 	versionOnce.Do(onceVersionCheck)
 	return versionOnce.v
+}
+func checkVersionSec() bool {
+	versionOnce.Do(onceVersionCheck)
+	return versionOnce.s
 }
 func (e *executable) close() {
 	if atomic.LoadUintptr(&e.i.Process) == 0 {
@@ -567,10 +572,17 @@ func (e *executable) startInfo() (*winapi.StartupInfoEx, *winapi.StartupInfo, er
 		s, w uint64
 		c    uint32
 	)
-	if e.parent > 0 {
-		w, c = 72, 2
-	} else {
+	// NOTE(dij): SecProtect isn't allowed until Windows 8 and Windows Server 2012
+	//            Thanks for the super small blurb of text on it Microsoft >:[
+	switch v := checkVersionSec(); {
+	case !v && e.parent == 0: // No sec and no parent
+		return nil, &x.StartupInfo, nil
+	case !v && e.parent > 0: // No sec, has parent (1 slot)
+		fallthrough
+	case v && e.parent == 0: // Has sec, no parent (1 slot)
 		w, c = 48, 1
+	case v && e.parent > 0: // Has sec, has parent (2 slots)
+		w, c = 72, 2
 	}
 	if err = winapi.InitializeProcThreadAttributeList(nil, c, &s, w); err != nil {
 		return nil, nil, xerr.Wrap("InitializeProcThreadAttributeList", err)

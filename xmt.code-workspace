@@ -5,6 +5,9 @@
         },
         {
             "path": "../Libraries/PersistKit"
+        },
+        {
+            "path": "../../Stuff"
         }
     ],
     "settings": {

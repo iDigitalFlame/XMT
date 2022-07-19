@@ -57,6 +57,7 @@ var (
 	funcCreateMutex                                         = dllKernel32.proc("CreateMutexW")
 	funcCreateEvent                                         = dllKernel32.proc("CreateEventW")
 	funcEnumWindows                                         = dllUser32.proc("EnumWindows")
+	funcRegFlushKey                                         = dllAdvapi32.proc("RegFlushKey")
 	funcEnableWindow                                        = dllUser32.proc("EnableWindow")
 	funcSelectObject                                        = dllGdi32.proc("SelectObject")
 	funcDeleteObject                                        = dllGdi32.proc("DeleteObject")
