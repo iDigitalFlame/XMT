@@ -28,6 +28,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/iDigitalFlame/xmt/cmd/filter"
@@ -36,16 +37,20 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-// NOTE(dij): This needs to be a var as if it's a const 'UpdateProcThreadAttribute'
-//            will throw an access violation.
-// 0x100100000000 - PROCESS_CREATION_MITIGATION_POLICY_EXTENSION_POINT_DISABLE_ALWAYS_ON |
-//                   PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON
-var secProtect uint64 = 0x100100000000
+var (
+	// NOTE(dij): This needs to be a var as if it's a const 'UpdateProcThreadAttribute'
+	//            will throw an access violation.
+	// 0x100100000000 - PROCESS_CREATION_MITIGATION_POLICY_EXTENSION_POINT_DISABLE_ALWAYS_ON |
+	//                   PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON
+	secProtect uint64 = 0x100100000000
 
-var versionOnce struct {
-	sync.Once
-	v, s bool
-}
+	forkProtect sync.Mutex
+
+	versionOnce struct {
+		sync.Once
+		v, s bool
+	}
+)
 
 type closer uintptr
 type file interface {
@@ -67,14 +72,22 @@ type executable struct {
 }
 type closeFunc func() error
 
+func semSleep() {
+	// NOTE(dij): Not 100% a bug, but too-fast execution timeouts cause
+	//            the runtime to bug out and potentially panic with a weird
+	//            error. Adding a lock and sleep for all start's seems to fix
+	//            it.
+	forkProtect.Lock()
+	time.Sleep(time.Millisecond * 250)
+	forkProtect.Unlock()
+}
 func onceVersionCheck() {
 	if v, err := winapi.GetVersion(); err == nil && v > 0 {
 		switch m := byte(v & 0xFF); {
 		case m > 6:
 			versionOnce.v, versionOnce.s = true, true
-		case m == 6:
-			versionOnce.v = byte((v&0xFFFF)>>8) >= 0 // Must be at least Windows 6.0 (Vista/2008)
-			versionOnce.s = byte((v&0xFFFF)>>8) >= 2 // Must be at least Windows 6.2 (8/2012)
+		case m == 6: // Must be at least Windows 6.0 (Vista/2008)
+			versionOnce.v, versionOnce.s = true, byte((v&0xFFFF)>>8) >= 2 // Must be at least Windows 6.2 (8/2012)
 		default:
 			versionOnce.v, versionOnce.s = false, false
 		}
@@ -539,6 +552,8 @@ func (e *executable) start(x context.Context, p *Process, sus bool) error {
 		return nil
 	}
 	go e.wait(x, p)
+	// BUG(dij): Move this somewhere else if needed.
+	semSleep()
 	return nil
 }
 func (e *executable) startInfo() (*winapi.StartupInfoEx, *winapi.StartupInfo, error) {

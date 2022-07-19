@@ -68,6 +68,12 @@ func (k Key) Close() error {
 	return syscall.RegCloseKey(syscall.Handle(k))
 }
 
+// Flush calls 'winapi.RegFlushKey' on this key to sync the data with the
+// underlying filesystem.
+func (k Key) Flush() error {
+	return winapi.RegFlushKey(uintptr(k))
+}
+
 // ModTime returns the key's last write time.
 func (i *KeyInfo) ModTime() time.Time {
 	return time.Unix(0, i.lastWriteTime.Nanoseconds())
