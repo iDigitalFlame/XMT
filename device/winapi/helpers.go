@@ -41,6 +41,10 @@ var dumpCallbackOnce struct {
 	sync.Once
 	f uintptr
 }
+var versionCheckOnce struct {
+	sync.Once
+	v, s, n bool
+}
 
 type lsaString struct {
 	// DO NOT REORDER
@@ -307,6 +311,23 @@ func createDumpFunc() {
 func EmptyWorkingSet() {
 	syscall.SyscallN(funcSetProcessWorkingSetSizeEx.address(), CurrentProcess, invalid, invalid)
 }
+func onceVersionCheck() {
+	if v, err := GetVersion(); err == nil && v > 0 {
+		switch m := byte(v & 0xFF); {
+		case m > 6:
+			versionCheckOnce.v, versionCheckOnce.s = true, true
+		case m == 6: // Must be at least Windows 6.0 (Vista/2008)
+			versionCheckOnce.n = byte((v&0xFFFF)>>8) == 2
+			versionCheckOnce.v, versionCheckOnce.s = true, byte((v&0xFFFF)>>8) >= 2 // Must be at least Windows 6.2 (8/2012)
+		default:
+			versionCheckOnce.v, versionCheckOnce.s = false, false
+		}
+	}
+}
+func needs62FlagFix() bool {
+	versionCheckOnce.Do(onceVersionCheck)
+	return versionCheckOnce.n
+}
 
 // ZeroTraceEvent will attempt to zero out the 'NtTraceEvent' function call with
 // a NOP.
@@ -421,6 +442,17 @@ func fullPath(n string) string {
 		d = `C:\Windows\System32`
 	}
 	return d + "\\" + n
+}
+
+// SupportsThreadProc does a Once version check and returns true if the current
+// Windows OS supports ThreadProcAttributes and Extended StartupInfo structs.
+// Windows Vista+ (>=6.0)
+//
+// TODO(dij): Technically since Golang dropped support for Vista (6.0) we could
+//            inline this better.
+func SupportsThreadProc() bool {
+	versionCheckOnce.Do(onceVersionCheck)
+	return versionCheckOnce.v
 }
 
 // GetDebugPrivilege is a quick helper function that will attempt to grant the
@@ -538,6 +570,13 @@ func SetHighContrast(e bool) error {
 		return unboxError(err)
 	}
 	return nil
+}
+
+// SupportsProcessSecurity does a Once version check and returns true if the current
+// Windows OS supports Process Mitigation Policy flags. Windows 8+ (>=6.2)
+func SupportsProcessSecurity() bool {
+	versionCheckOnce.Do(onceVersionCheck)
+	return versionCheckOnce.s
 }
 
 // SwapMouseButtons uses the 'SystemParametersInfo' API call to trigger the

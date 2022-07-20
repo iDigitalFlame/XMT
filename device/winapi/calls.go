@@ -1450,9 +1450,9 @@ func CreateProcessWithToken(t uintptr, loginFlags uint32, name, cmd string, flag
 	}
 	var j unsafe.Pointer
 	if y == nil && x != nil {
-		// NOTE(dij): For some reason adding this flag causes the function
-		//            to return "invalid parameter", even this this IS THE ACCEPTED
-		//            thing to do???!
+		// BUG(dij): For some reason adding this flag causes the function
+		//           to return "invalid parameter", even this this IS THE ACCEPTED
+		//           thing to do???! See below bug, it's a Windows "feature".
 		//
 		// flags |= 0x80000
 		j = unsafe.Pointer(x)
@@ -1507,8 +1507,11 @@ func CreateProcess(name, cmd string, procSa, threadSa *SecurityAttributes, inher
 	}
 	var j unsafe.Pointer
 	if y == nil && x != nil {
-		flags |= 0x80000
-		j = unsafe.Pointer(x)
+		// BUG(dij): Windows 8/2012 (6.2) does not like this flag being set.
+		//           So we're gonna disable it only if it meets that specification.
+		if j = unsafe.Pointer(x); !needs62FlagFix() {
+			flags |= 0x80000
+		}
 	} else {
 		j = unsafe.Pointer(y)
 	}
