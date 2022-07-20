@@ -76,7 +76,11 @@ func (p *Process) Pid() uint32 {
 // This will start the process if not already started.
 func (p *Process) Wait() error {
 	if !p.x.isStarted() {
-		return p.Start()
+		if err := p.Start(); err != nil {
+			return err
+		}
+	} else if !p.Running() {
+		return p.err
 	}
 	<-p.ch
 	return p.err
