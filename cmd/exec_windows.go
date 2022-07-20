@@ -42,8 +42,11 @@ import (
 // 0x100100000000 - PROCESS_CREATION_MITIGATION_POLICY_EXTENSION_POINT_DISABLE_ALWAYS_ON |
 //                   PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON
 var secProtect uint64 = 0x100100000000
-
 var forkProtect sync.Mutex
+var versionOnce struct {
+	sync.Once
+	v, s bool
+}
 
 type closer uintptr
 type file interface {
@@ -73,6 +76,30 @@ func semSleep() {
 	forkProtect.Lock()
 	time.Sleep(time.Millisecond * 250)
 	forkProtect.Unlock()
+}
+func onceVersionCheck() {
+	if v, err := winapi.GetVersion(); err == nil && v > 0 {
+		switch m := byte(v & 0xFF); {
+		case m > 6:
+			versionOnce.v, versionOnce.s = true, true
+		case m == 6: // Must be at least Windows 6.0 (Vista/2008)
+			versionOnce.v, versionOnce.s = true, byte((v&0xFFFF)>>8) > 2 // Must be at least Windows 6.3 (8.1/2012 R2)
+			// NOTE(dij): If you're reading this. Microsoft lied on the documentation
+			//            for the flags. Windows 8/2012 (6.2) does NOT support the
+			//            policy flags and will error out if used. 8.1/2012 R2 (6.3)
+			//            does support the flags and works fine.
+		default:
+			versionOnce.v, versionOnce.s = false, false
+		}
+	}
+}
+func checkVersion() bool {
+	versionOnce.Do(onceVersionCheck)
+	return versionOnce.v
+}
+func checkVersionSec() bool {
+	versionOnce.Do(onceVersionCheck)
+	return versionOnce.s
 }
 func (e *executable) close() {
 	if atomic.LoadUintptr(&e.i.Process) == 0 {
@@ -542,7 +569,7 @@ func (e *executable) startInfo() (*winapi.StartupInfoEx, *winapi.StartupInfo, er
 			return nil, nil, xerr.Wrap("cannot convert title", err)
 		}
 	}
-	if x.StartupInfo.Cb = uint32(unsafe.Sizeof(x)); !winapi.SupportsThreadProc() {
+	if x.StartupInfo.Cb = uint32(unsafe.Sizeof(x)); !checkVersion() {
 		return nil, &x.StartupInfo, nil
 	}
 	if e.filter != nil && !e.filter.Empty() {
@@ -562,7 +589,7 @@ func (e *executable) startInfo() (*winapi.StartupInfoEx, *winapi.StartupInfo, er
 	)
 	// NOTE(dij): SecProtect isn't allowed until Windows 8 and Windows Server 2012
 	//            Thanks for the super small blurb of text on it Microsoft >:[
-	switch v := winapi.SupportsProcessSecurity(); {
+	switch v := checkVersionSec(); {
 	case !v && e.parent == 0: // No sec and no parent
 		return nil, &x.StartupInfo, nil
 	case !v && e.parent > 0: // No sec, has parent (1 slot)
