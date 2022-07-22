@@ -28,7 +28,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
-	"time"
 	"unsafe"
 
 	"github.com/iDigitalFlame/xmt/cmd/filter"
@@ -42,11 +41,12 @@ import (
 // 0x100100000000 - PROCESS_CREATION_MITIGATION_POLICY_EXTENSION_POINT_DISABLE_ALWAYS_ON |
 //                   PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON
 var secProtect uint64 = 0x100100000000
-var forkProtect sync.Mutex
 var versionOnce struct {
 	sync.Once
 	v, s bool
 }
+
+//var forkProtect sync.Mutex
 
 type closer uintptr
 type file interface {
@@ -68,15 +68,15 @@ type executable struct {
 }
 type closeFunc func() error
 
-func semSleep() {
+/*func semSleep() {
 	// NOTE(dij): Not 100% a bug, but too-fast execution timeouts cause
 	//            the runtime to bug out and potentially panic with a weird
 	//            error. Adding a lock and sleep for all start's seems to fix
 	//            it.
-	forkProtect.Lock()
-	time.Sleep(time.Millisecond * 250)
-	forkProtect.Unlock()
-}
+	// forkProtect.Lock()
+	// time.Sleep(time.Millisecond * 250)
+	// forkProtect.Unlock()
+}*/
 func onceVersionCheck() {
 	if v, err := winapi.GetVersion(); err == nil && v > 0 {
 		switch m := byte(v & 0xFF); {
@@ -553,7 +553,7 @@ func (e *executable) start(x context.Context, p *Process, sus bool) error {
 	}
 	go e.wait(x, p)
 	// BUG(dij): Move this somewhere else if needed.
-	semSleep()
+	// semSleep()
 	return nil
 }
 func (e *executable) startInfo() (*winapi.StartupInfoEx, *winapi.StartupInfo, error) {
