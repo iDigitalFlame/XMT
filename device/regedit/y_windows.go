@@ -64,30 +64,38 @@ func Dir(key string) ([]Entry, error) {
 		return nil, nil
 	}
 	var (
-		r = make(entryList, n+1)
+		r = make(entryList, n, n+1)
 		c int
 	)
 	for i := range s {
 		r[c].Name = s[i]
 		c++
 	}
-	r[c].Name = "(Default)"
-	r[c].Data, r[c].Type, _ = readFullValueData(k, "")
-	// NOTE(dij):         ^ Ignoring since not-set (Default) will return an
-	//                    error even though regedit displays it.
-	c++
+	var d bool
 	for i := range v {
-		r[c].Name = v[i]
+		if r[c].Name = v[i]; len(v[i]) == 0 {
+			d, r[c].Name = true, "(Default)"
+		}
 		r[c].Data, r[c].Type, err = readFullValueData(k, v[i])
 		if c++; err != nil {
 			break
 		}
+	}
+	if !d {
+		e := Entry{Name: "(Default)"}
+		if e.Data, e.Type, _ = readFullValueData(k, ""); e.Type == 0 {
+			e.Type = registry.TypeString
+		}
+		r = append(r, e)
 	}
 	k.Close()
 	sort.Sort(r)
 	return r, err
 }
 func (e entryList) Less(i, j int) bool {
+	if len(e[j].Name) == 9 && e[j].Name[0] == '(' && e[j].Name[1] == 'D' && e[j].Name[8] == ')' {
+		return false
+	}
 	if e[i].Type == 0 && e[j].Type > 0 {
 		return true
 	}
