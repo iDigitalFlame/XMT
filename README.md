@@ -13,10 +13,12 @@ The pkg.go.dev site has the framework documentation [here](https://pkg.go.dev/gi
 
 These are some things I need to work on.
 
-- Keyloging?
-- MultiProxy support?
-- Shellcode for Linux?
-- Add in memory (Reflective) DLL injection (Sorta have it?)
+- Keyloging
+- MultiProxy Support
+- Shellcode for Linux without CGO (potentially)
+- Add in memory (Reflective) DLL injection (Outside of SRDi)
+- ScreenShot support for MacOS/Linux without CGO?
+- More Windows thread creation techniques besides NtCreateThreadEx
 
 ## Bugs
 

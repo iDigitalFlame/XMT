@@ -552,7 +552,6 @@ func (e *executable) start(x context.Context, p *Process, sus bool) error {
 		return nil
 	}
 	go e.wait(x, p)
-	// BUG(dij): Move this somewhere else if needed.
 	// semSleep()
 	return nil
 }

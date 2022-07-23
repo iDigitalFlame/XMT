@@ -192,9 +192,9 @@ func parse(u string) (*url.URL, error) {
 // As a special case, if req.URL.Host is "localhost" (with or without
 // a port number), then a nil URL and nil error will be returned.
 //
-// BUG(dij): I don't have handeling of "<local>" (Windows specific) bypass
-//           rules in place. I would have to re-implement "httpproxy" code
-//           and might not be worth it.
+// NOTE(dij): I don't have handeling of "<local>" (Windows specific) bypass
+//            rules in place. I would have to re-implement "httpproxy" code
+//            and might not be worth it.
 func Proxy(r *http.Request) (*url.URL, error) {
 	proxySync.Do(func() {
 		if p := proxyInit(); p != nil {
