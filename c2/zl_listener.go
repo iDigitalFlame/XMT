@@ -114,7 +114,9 @@ func (l *Listener) listen() {
 	if l.cancel(); !l.state.WakeClosed() {
 		l.state.Set(stateWakeClose)
 	}
-	l.listener.Close()
+	if l.listener != nil {
+		l.listener.Close()
+	}
 	l.s.delListener <- l.name
 	l.state.Set(stateClosed)
 	close(l.ch)
