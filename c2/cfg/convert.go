@@ -296,7 +296,7 @@ loop:
 			}
 		case valTLSxCA:
 			if p {
-				return -1, xerr.Wrap("tls-ca", ErrInvalidSetting)
+				return -1, xerr.Wrap("tls-ca", ErrMultipleConnections)
 			}
 			if p = true; i+4 >= n {
 				return -1, xerr.Wrap("tls-ca", ErrInvalidSetting)
@@ -356,7 +356,7 @@ loop:
 			t = true
 		case valDNS:
 			if t {
-				return -1, xerr.Wrap("dns", ErrInvalidSetting)
+				return -1, xerr.Wrap("dns", ErrMultipleTransforms)
 			}
 			if t = true; i+1 >= n {
 				return -1, xerr.Wrap("dns", ErrInvalidSetting)
@@ -564,7 +564,7 @@ loop:
 			p.conn = com.NewTLS(com.DefaultTimeout, t)
 		case valTLSCert:
 			if p.conn != nil {
-				return nil, -1, -1, xerr.Wrap("tls-cert", ErrInvalidSetting)
+				return nil, -1, -1, xerr.Wrap("tls-cert", ErrMultipleConnections)
 			}
 			if i+6 >= n {
 				return nil, -1, -1, xerr.Wrap("tls-cert", ErrInvalidSetting)
@@ -584,7 +584,7 @@ loop:
 		case WrapHex:
 			w = append(w, wrapper.Hex)
 		case WrapZlib:
-			w = append(w, wrapper.Hex)
+			w = append(w, wrapper.Zlib)
 		case WrapGzip:
 			w = append(w, wrapper.Gzip)
 		case WrapBase64:
