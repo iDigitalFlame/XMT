@@ -1578,7 +1578,7 @@ class Config(bytearray):
             del z, A, B, C, D
             return
         if m == Cfg.Const.DNS:
-            if not isinstance(p, list) or len(p) == 0:
+            if not isinstance(p, list):  # or len(p) == 0: Omit to allow empty DNS
                 raise ValueError("dns: invalid JSON value")
             return self.add(Cfg.transform_dns(p))
         if m == Cfg.Const.B64S:
