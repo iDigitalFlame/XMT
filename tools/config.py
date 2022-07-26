@@ -1781,6 +1781,11 @@ class _Builder(ArgumentParser):
             d[v] = len(w) - 1
         e = [None] * len(w)
         del w, a
+        if "xor" in d and d["xor"] != len(e) - 1:
+            print(
+                "WARNING: XOR wrappers that are NOT used last can cause decoding issues!",
+                file=stderr,
+            )
         return d, e
 
     def parse_args(self):
