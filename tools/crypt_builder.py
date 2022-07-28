@@ -78,7 +78,7 @@ def can_use_tag(tags, values):
         return True
     if len(values) == 0:
         return True
-    r = False
+    r = True
     for t in tags:
         for v in values:
             if t.lower() == v.lower():

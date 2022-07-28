@@ -18,12 +18,16 @@
 
 package svc
 
+import "syscall"
+
 const serviceType = 0x20
 
 func serviceWireThread(_ string) error {
 	// NOTE(dij): If we are running as a shared DLL inside svchost.exe, there's
 	//            no need to init the dispatcher and wire to it. We're already
 	//            IN the wire thread (ie: we are the DLL 'ServiceMain' function).
-	serviceMain(0, nil)
+	if r := serviceMain(0, nil); r > 0 {
+		return syscall.Errno(r)
+	}
 	return nil
 }
