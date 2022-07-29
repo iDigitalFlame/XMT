@@ -79,7 +79,9 @@ func MemorySweepEx(x context.Context, d time.Duration) {
 	runtime.SetCPUProfileRate(0)
 	runtime.SetBlockProfileRate(0)
 	runtime.SetMutexProfileFraction(0)
-	runtime.GOMAXPROCS(runtime.NumCPU())
+	// NOTE(dij): Let's ignore this one for now.
+	//            We'll set it in our own env.
+	// runtime.GOMAXPROCS(runtime.NumCPU())
 	atomic.StoreUint32(&enabled, 1)
 	go sweep(x, d)
 }

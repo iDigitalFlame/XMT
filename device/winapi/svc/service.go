@@ -21,6 +21,7 @@ package svc
 import (
 	"context"
 	"os"
+	"runtime"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -196,7 +197,10 @@ func Run(name string, f Handler) error {
 		callBack.f = syscall.NewCallback(serviceHandler)
 	})
 	service.n, service.f = name, f
-	return serviceWireThread(name)
+	runtime.LockOSThread()
+	err := serviceWireThread(name)
+	runtime.UnlockOSThread()
+	return err
 }
 
 // Requests returns a receive-only chan that will receive any updates sent from
