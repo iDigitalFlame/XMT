@@ -45,7 +45,7 @@ const (
 	sentPathDownload uint8 = 3
 	sentPathZombie   uint8 = 4
 
-	timeout    = time.Second * 3
+	timeout    = time.Second * 5
 	timeoutWeb = time.Second * 15
 )
 
