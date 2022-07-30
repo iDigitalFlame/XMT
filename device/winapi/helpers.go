@@ -172,7 +172,7 @@ func killRuntime() {
 			break
 		}
 		if t.ThreadID == y {
-			if b = uintptr(s) >= a && uintptr(s) < e; b {
+			if b = s >= a && s < e; b {
 				break
 			}
 			if bugtrack.Enabled {
@@ -181,7 +181,7 @@ func killRuntime() {
 			j = s
 			continue
 		}
-		if uintptr(s) >= a && uintptr(s) < e {
+		if s >= a && s < e {
 			u = append(u, v)
 		}
 		if _, ok := m[s]; !ok {
@@ -223,6 +223,9 @@ func killRuntime() {
 			if g > 1 {
 				d++
 			}
+		}
+		if bugtrack.Enabled {
+			bugtrack.Track("winapi.killRuntime(): Zombie check len(u)=%d, d=%d", len(u), d)
 		}
 		if d == 1 {
 			// Out of all the base threads, only one exists and is suspended,
