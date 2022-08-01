@@ -23,6 +23,10 @@ These are some things I need to work on.
 ## Bugs
 
 Issues that I know are broken.
+
+- _device.GoExit() / winapi.KillRuntime()_: We can't determine which threads are ours (but we DO know they are Golang threads)
+   so we kill threads in the same process as us that might not be ours.
+
 If you're using this, feel free to submit issue tickets or pull requests. (I don't bite, mostly owo)
 
 ## Thanks and Credits
