@@ -18,14 +18,15 @@
 from json import loads
 from sys import argv, stderr, exit
 from socketserver import TCPServer
-from http.server import BaseHTTPRequestHandler
+from http.server import SimpleHTTPRequestHandler
 from os.path import expanduser, expandvars, isfile
 
 
 class Server(object):
-    __slots__ = ("_entries",)
+    __slots__ = ("_dir", "_entries")
 
-    def __init__(self, file):
+    def __init__(self, file, dir):
+        self._dir = dir
         with open(expanduser(expandvars(file))) as f:
             self._entries = loads(f.read())
         if not isinstance(self._entries, dict):
@@ -50,18 +51,20 @@ class Server(object):
             h.serve_forever()
 
     def _request(self, req, address, server):
-        return _WebRequest(self._entries, req, address, server)
+        return _WebRequest(self._entries, self._dir, req, address, server)
 
 
-class _WebRequest(BaseHTTPRequestHandler):
-    def __init__(self, entries, req, address, server):
+class _WebRequest(SimpleHTTPRequestHandler):
+    def __init__(self, entries, base, req, address, server):
         self._entries = entries
-        BaseHTTPRequestHandler.__init__(self, req, address, server)
+        SimpleHTTPRequestHandler.__init__(
+            self, request=req, client_address=address, server=server, directory=base
+        )
 
     def do_GET(self):
         e = self._entries.get(self.path.lower())
         if not isinstance(e, dict):
-            return self.send_error(404, "File not found")
+            return super(__class__, self).do_GET()
         try:
             with open(e["file"], "rb") as f:
                 b = f.read()
@@ -79,11 +82,11 @@ class _WebRequest(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    if len(argv) < 4:
-        print(f"{argv[0]} <config> <addr> <port>", file=stderr)
+    if len(argv) < 5:
+        print(f"{argv[0]} <config> <dir> <addr> <port>", file=stderr)
         exit(1)
     try:
-        Server(argv[1]).start(argv[2], int(argv[3]))
+        Server(argv[1], argv[2]).start(argv[3], int(argv[4]))
     except KeyboardInterrupt:
         print("Interrupted!", file=stderr)
         exit(1)
