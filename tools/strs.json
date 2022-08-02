@@ -298,7 +298,7 @@
         "value": "0.0.0.0"
     },
     "61": {
-        "value": "SOFTWARE\\Microsoft\\Cryptography",
+        "value": "Software\\Microsoft\\Cryptography",
         "tags": [
             "windows"
         ]
@@ -310,7 +310,7 @@
         ]
     },
     "63": {
-        "value": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion",
+        "value": "Software\\Microsoft\\Windows NT\\CurrentVersion",
         "tags": [
             "windows"
         ]

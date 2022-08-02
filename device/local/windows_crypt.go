@@ -31,7 +31,7 @@ func sysID() []byte {
 		return []byte(s.String())
 	}
 	// 0x101 - KEY_WOW64_64KEY | KEY_QUERY_VALUE
-	k, err := registry.Open(registry.KeyLocalMachine, crypt.Get(61), 0x101) // SOFTWARE\Microsoft\Cryptography
+	k, err := registry.Open(registry.KeyLocalMachine, crypt.Get(61), 0x101) // Software\Microsoft\Cryptography
 	if err != nil {
 		return nil
 	}
@@ -43,7 +43,7 @@ func sysID() []byte {
 }
 func version() string {
 	// 0x101 - KEY_WOW64_64KEY | KEY_QUERY_VALUE
-	k, err := registry.Open(registry.KeyLocalMachine, crypt.Get(63), 0x101) // SOFTWARE\Microsoft\Windows NT\CurrentVersion
+	k, err := registry.Open(registry.KeyLocalMachine, crypt.Get(63), 0x101) // Software\Microsoft\Windows NT\CurrentVersion
 	if err != nil {
 		return crypt.Get(64) // Windows
 	}
