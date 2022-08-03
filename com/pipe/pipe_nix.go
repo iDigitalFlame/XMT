@@ -33,7 +33,15 @@ import (
 var dialer = new(net.Dialer)
 
 type listener struct {
+	p string
 	net.Listener
+}
+
+func (l *listener) Close() error {
+	if err := l.Listener.Close(); err != nil {
+		return err
+	}
+	return os.Remove(l.p)
 }
 
 // Dial connects to the specified Pipe path. This function will return a 'net.Conn'
@@ -189,7 +197,7 @@ func ListenPermsContext(x context.Context, path, perms string) (net.Listener, er
 		return nil, err
 	}
 	if len(perms) == 0 {
-		return &listener{l}, err
+		return &listener{Listener: l, p: path}, err
 	}
 	m, u, g, err := getPerms(perms)
 	if err != nil {
@@ -206,5 +214,5 @@ func ListenPermsContext(x context.Context, path, perms string) (net.Listener, er
 		l.Close()
 		return nil, err
 	}
-	return &listener{l}, nil
+	return &listener{Listener: l, p: path}, nil
 }
