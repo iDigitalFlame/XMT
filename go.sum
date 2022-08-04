@@ -2,9 +2,5 @@ github.com/PurpleSec/escape v1.0.0 h1:25crJCsGmePlY6sTggm+qTg0xABcb7A0nUFgNas+N+
 github.com/PurpleSec/escape v1.0.0/go.mod h1:y7jqOGecytNh1ROko233Z91ER9NHNuepiLgZtkrDMME=
 github.com/PurpleSec/logx v1.6.0 h1:Izt49BihGlDDPjWYccIbFTVoKfjS53Uv6hDvp9rd4bE=
 github.com/PurpleSec/logx v1.6.0/go.mod h1:tkLK6CqkhkRSVejDMVgZa0jTq97aRikVNjAON9iUiK0=
-golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 h1:WIoqL4EROvwiPdUtaip4VcDdpZ4kha7wBWZrbVKCIZg=
-golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
-golang.org/x/sys v0.0.0-20220731174439-a90be440212d h1:Sv5ogFZatcgIMMtBSTTAgMYsicp25MXBubjXNDKwm80=
-golang.org/x/sys v0.0.0-20220731174439-a90be440212d/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220803195053-6e608f9ce704 h1:Y7NOhdqIOU8kYI7BxsgL38d0ot0raxvcW+EMQU2QrT4=
 golang.org/x/sys v0.0.0-20220803195053-6e608f9ce704/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=

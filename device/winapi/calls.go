@@ -61,7 +61,7 @@ func BlockInput(e bool) error {
 	return nil
 }
 
-// BlockInput Windows API Call
+// SetEvent Windows API Call
 //   Sets the specified event object to the signaled state.
 //
 // https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-setevent
@@ -93,7 +93,7 @@ func GetCurrentProcessID() uint32 {
 	return uint32(r)
 }
 
-// GetVersion Windows API Call
+// RegFlushKey Windows API Call
 //   Writes all the attributes of the specified open registry key into the registry.
 //
 // https://docs.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regflushkey
@@ -125,7 +125,7 @@ func GetVersion() (uint32, error) {
 	return uint32(r), nil
 }
 
-// ResumeProcess Windows API Call
+// IsWow64Process Windows API Call
 //   Determines whether the specified process is running under WOW64 or an
 //   Intel64 of x64 processor.
 //
