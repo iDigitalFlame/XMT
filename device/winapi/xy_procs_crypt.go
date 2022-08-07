@@ -102,6 +102,7 @@ var (
 	funcCreateMailslot                                      = dllKernel32.proc(0xB10785BB)
 	funcRegCreateKeyEx                                      = dllAdvapi32.proc(0xA656F848)
 	funcSetThreadToken                                      = dllAdvapi32.proc(0x4C3BD602)
+	funcGetThreadTimes                                      = dllKernel32.proc(0x8AE4439F)
 	funcRegDeleteValue                                      = dllAdvapi32.proc(0x717D1086)
 	funcCreateNamedPipe                                     = dllKernel32.proc(0xF05E3B8B)
 	funcDuplicateHandle                                     = dllKernel32.proc(0x3627A3C2)

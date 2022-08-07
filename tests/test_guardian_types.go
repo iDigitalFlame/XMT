@@ -41,7 +41,7 @@ func testGuardianTypes() {
 		s.AddExecute("cmd1.exe")
 		s.AddDownload("http://google.com")
 		s.AddExecute("cc.exe")
-		s.SaveTo(nil, "a.txt")
+		s.Save(nil, "a.txt")
 
 		v, _ := man.File(nil, "a.txt")
 		fmt.Println(v, v.Include)

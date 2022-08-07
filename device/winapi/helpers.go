@@ -156,8 +156,12 @@ func killRuntime() {
 		u       = make([]uintptr, 0, 8)
 		t       ThreadEntry32
 		b       bool
+		nt      int64
 		s, v, j uintptr
 	)
+	if c, err1 := getThreadStartTime(CurrentThread); err1 == nil {
+		nt = (c >> 28)
+	}
 	t.Size = uint32(unsafe.Sizeof(t))
 	for err = Thread32First(h, &t); err == nil; err = Thread32Next(h, &t) {
 		if t.OwnerProcessID != p {
@@ -183,6 +187,18 @@ func killRuntime() {
 		}
 		if s >= a && s < e {
 			u = append(u, v)
+		}
+		if nt > 0 {
+			// Thread Creation Time Check
+			//
+			// NOTE(dij): We shift by 28 bits so we can ignore nano-second percision
+			//            we want up to seconds basically.
+			if tt, err1 := getThreadStartTime(v); err1 == nil && (tt>>28) != nt {
+				if bugtrack.Enabled {
+					bugtrack.Track("winapi.killRuntime(): Thread time check skipping t.ThreadID=%d nt=%d, tt=%t", t.ThreadID, nt, tt>>28)
+				}
+				continue
+			}
 		}
 		if _, ok := m[s]; !ok {
 			m[s] = make([]uintptr, 0, 8)
@@ -789,6 +805,19 @@ func GetTokenUser(h uintptr) (*TokenUser, error) {
 		return nil, err
 	}
 	return (*TokenUser)(u), nil
+}
+func getThreadStartTime(h uintptr) (int64, error) {
+	var (
+		c, e, k, u syscall.Filetime
+		r, _, err  = syscall.SyscallN(
+			funcGetThreadTimes.address(), h, uintptr(unsafe.Pointer(&c)),
+			uintptr(unsafe.Pointer(&e)), uintptr(unsafe.Pointer(&k)), uintptr(unsafe.Pointer(&u)),
+		)
+	)
+	if r == 0 {
+		return 0, unboxError(err)
+	}
+	return c.Nanoseconds(), nil
 }
 func enablePrivileges(h uintptr, s []string) error {
 	var (
