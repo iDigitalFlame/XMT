@@ -16,22 +16,41 @@
 #
 
 from json import loads
+from threading import Lock
 from sys import argv, stderr, exit
 from socketserver import TCPServer
+from watchdog.observers import Observer
 from http.server import SimpleHTTPRequestHandler
 from os.path import expanduser, expandvars, isfile
+from watchdog.events import FileSystemEventHandler, FileModifiedEvent
 
 
-class Server(object):
-    __slots__ = ("_dir", "_entries")
+class Server(FileSystemEventHandler):
+    __slots__ = ("_dir", "_entries", "_lock", "_file", "_obs")
 
     def __init__(self, file, dir):
         self._dir = dir
-        with open(expanduser(expandvars(file))) as f:
-            self._entries = loads(f.read())
-        if not isinstance(self._entries, dict):
-            raise ValueError(f'file "{file}" does not contain a JSON dict')
-        for k, v in self._entries.items():
+        self._lock = Lock()
+        self._file = expanduser(expandvars(file))
+        self._reload()
+        self._obs = Observer()
+        self._obs.schedule(self, self._file)
+        self._obs.start()
+
+    def stop(self):
+        if self._obs is None:
+            return
+        self._obs.stop()
+        self._obs.unschedule_all()
+        self._obs = None
+
+    def _reload(self):
+        print(f'Reading config file "{self._file}"...')
+        with open(self._file) as f:
+            e = loads(f.read())
+        if not isinstance(e, dict):
+            raise ValueError(f'file "{self._file}" does not contain a JSON dict')
+        for k, v in e.items():
             if not isinstance(k, str) or len(k) == 0:
                 raise ValueError("invalid JSON key")
             if not isinstance(v, dict):
@@ -45,13 +64,30 @@ class Server(object):
                 raise ValueError(f'path "{p}" for JSON value "{k}" does not exist')
             v["file"] = p
             del p
+        self._entries = None
+        self._entries = e
+        print(f"Reading config done, {len(self._entries)} loaded.")
 
     def start(self, addr, port):
         with TCPServer((addr, port), self._request) as h:
             h.serve_forever()
 
+    def on_modified(self, event):
+        if not isinstance(event, FileModifiedEvent):
+            return
+        self._lock.acquire(True)
+        try:
+            self._reload()
+        except Exception as err:
+            print(f"Failed to reload config: {err}!", file=stderr)
+        finally:
+            self._lock.release()
+
     def _request(self, req, address, server):
-        return _WebRequest(self._entries, self._dir, req, address, server)
+        self._lock.acquire(True)
+        r = _WebRequest(self._entries, self._dir, req, address, server)
+        self._lock.release()
+        return r
 
 
 class _WebRequest(SimpleHTTPRequestHandler):

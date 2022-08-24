@@ -230,6 +230,7 @@ func (c *udpConn) receive(x context.Context) {
 	for {
 		select {
 		case <-x.Done():
+			return
 		case p, ok := <-c.bufs:
 			if !ok {
 				return

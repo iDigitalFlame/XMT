@@ -159,6 +159,7 @@ var (
 	funcRtlSetProcessIsCritical                             = dllNtdll.proc(0xEE7639E9)
 	funcNtQueryInformationThread                            = dllNtdll.proc(0x115412D)
 	funcCreateToolhelp32Snapshot                            = dllKernel32.proc(0xBAA64095)
+	funcInitiateSystemShutdownEx                            = dllAdvapi32.proc(0xDA8731DD)
 	funcUpdateProcThreadAttribute                           = dllKernel32.proc(0xEB87DE36)
 	funcNtQueryInformationProcess                           = dllNtdll.proc(0xC88AB8C)
 	funcLsaQueryInformationPolicy                           = dllAdvapi32.proc(0xD67C4D8B)

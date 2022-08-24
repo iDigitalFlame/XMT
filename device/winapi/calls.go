@@ -1208,6 +1208,46 @@ func GetTokenInformation(t uintptr, class uint32, info *byte, length uint32, ret
 	return nil
 }
 
+// InitiateSystemShutdownEx Windows API Call
+//   Initiates a shutdown and optional restart of the specified computer, and
+//   optionally records the reason for the shutdown.
+//
+// NOTE: The caller must have the "SeShutdownPrivilege" privilege enabled. This
+//       function does NOT automatically request it.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-initiatesystemshutdownexa
+func InitiateSystemShutdownEx(t, msg string, secs uint32, force, reboot bool, reason uint32) error {
+	var (
+		c, m *uint16
+		err  error
+	)
+	if len(t) > 0 {
+		if c, err = UTF16PtrFromString(t); err != nil {
+			return err
+		}
+	}
+	if len(msg) > 0 {
+		if m, err = UTF16PtrFromString(msg); err != nil {
+			return err
+		}
+	}
+	var f, x uint32
+	if force {
+		f = 1
+	}
+	if reboot {
+		x = 1
+	}
+	r, _, err1 := syscall.SyscallN(
+		funcInitiateSystemShutdownEx.address(), uintptr(unsafe.Pointer(c)), uintptr(unsafe.Pointer(m)),
+		uintptr(secs), uintptr(f), uintptr(x), uintptr(reason),
+	)
+	if r == 0 {
+		return unboxError(err1)
+	}
+	return nil
+}
+
 // CreateMailslot Windows API Call
 //    Creates a mailslot with the specified name and returns a handle that a
 //    mailslot server can use to perform operations on the mailslot. The mailslot

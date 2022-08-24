@@ -19,6 +19,7 @@ package limits
 import (
 	"os"
 	"os/signal"
+	"time"
 
 	// Importing runtime to "load in" the handler functions
 	_ "runtime"
@@ -87,6 +88,10 @@ func StopNotify(c chan<- os.Signal) {
 	}
 	if atomic.LoadUint32(&watchStarted) == 1 {
 		watchChan <- struct{}{}
+		// NOTE(dij): Add a small NOP here so we don't pull the value out the
+		//            channel that's made to signal the other thread. We technically
+		//            could call GoYeild(), but this might be easier.
+		time.Sleep(time.Millisecond * 500)
 		<-watchChan
 	}
 }

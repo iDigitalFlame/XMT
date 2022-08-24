@@ -1,4 +1,4 @@
-//go:build riscv64 || loong64
+//go:build js || plan9 || aix || illumos || solaris
 
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //
@@ -16,7 +16,15 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-package arch
+package task
 
-// Current is the local machine's platform architecture.
-const Current = Risc
+import (
+	"context"
+	"syscall"
+
+	"github.com/iDigitalFlame/xmt/data"
+)
+
+func taskShutdown(_ context.Context, _ data.Reader, _ data.Writer) error {
+	return syscall.EINVAL
+}

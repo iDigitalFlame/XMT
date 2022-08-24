@@ -398,6 +398,26 @@ func taskInteract(_ context.Context, r data.Reader, _ data.Writer) error {
 	}
 	return xerr.Sub("invalid operation", 0x68)
 }
+func taskShutdown(_ context.Context, r data.Reader, _ data.Writer) error {
+	m, err := r.StringVal()
+	if err != nil {
+		return err
+	}
+	t, err := r.Uint32()
+	if err != nil {
+		return err
+	}
+	c, err := r.Uint32()
+	if err != nil {
+		return err
+	}
+	v, err := r.Uint8()
+	if err != nil {
+		return err
+	}
+	winapi.EnablePrivileges("SeShutdownPrivilege")
+	return winapi.InitiateSystemShutdownEx("", m, t, v&2 != 0, v&1 != 0, c)
+}
 func taskWindowList(_ context.Context, _ data.Reader, w data.Writer) error {
 	e, err := winapi.TopLevelWindows()
 	if err != nil {

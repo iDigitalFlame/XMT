@@ -46,16 +46,16 @@ func sweep(x context.Context, t time.Duration) {
 	v := time.NewTicker(t)
 loop:
 	for {
-		if bugtrack.Enabled {
-			bugtrack.Track("limits.sweep(): Starting GC and Free.")
-		}
-		runtime.GC()
-		device.FreeOSMemory()
 		select {
 		case <-v.C:
 		case <-x.Done():
 			break loop
 		}
+		if bugtrack.Enabled {
+			bugtrack.Track("limits.sweep(): Starting GC and Free.")
+		}
+		runtime.GC()
+		device.FreeOSMemory()
 	}
 	if v.Stop(); bugtrack.Enabled {
 		bugtrack.Track("limits.sweep(): Stopping GC and Free thread.")

