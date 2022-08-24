@@ -185,6 +185,23 @@ func Ls(n *com.Packet) ([]fs.FileInfo, error) {
 	return e, nil
 }
 
+// Netcat will parse the RvResult Packet from a TvNetcat task.
+//
+// The return result is a Reader with the resulting output data from the read
+// request. If reading was not done, this will just return nil.
+//
+// This function returns an error if any reading errors occur, the Packet is not
+// in the expected format or the Packet is nil.
+func Netcat(n *com.Packet) (io.Reader, error) {
+	if n == nil || n.Flags&com.FlagError != 0 {
+		return nil, c2.ErrMalformedPacket
+	}
+	if n.Empty() {
+		return nil, nil
+	}
+	return n, nil
+}
+
 // Pull will parse the RvResult Packet from a TvPull task.
 //
 // The return result is the expended full file path on the host as a string, and

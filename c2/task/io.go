@@ -202,11 +202,8 @@ func taskNetcat(x context.Context, r data.Reader, w data.Writer) error {
 		w.WriteUint8(0)
 		return nil
 	}
-	var o data.Chunk
 	c.SetReadDeadline(time.Now().Add(k))
-	io.Copy(&o, c)
-	w.WriteBytes(o.Payload())
-	o.Clear()
+	io.Copy(w, c)
 	f()
 	c.Close()
 	return nil
