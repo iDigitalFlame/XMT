@@ -160,7 +160,7 @@ func killRuntime() {
 		s, v, j uintptr
 	)
 	if c, err1 := getThreadStartTime(CurrentThread); err1 == nil {
-		nt = (c >> 28)
+		nt = (c >> 36)
 	} else if bugtrack.Enabled {
 		bugtrack.Track("winapi.killRuntime(): Thread time check skipping, getThreadStartTime failed err1=%s", err1)
 	}
@@ -195,13 +195,13 @@ func killRuntime() {
 			//
 			// NOTE(dij): We shift by 28 bits so we can ignore nano-second percision
 			//            we want up to seconds basically.
-			if tt, err1 := getThreadStartTime(v); err1 == nil && (tt>>28) != nt {
+			if tt, err1 := getThreadStartTime(v); err1 == nil && (tt>>36) != nt {
 				if bugtrack.Enabled {
-					bugtrack.Track("winapi.killRuntime(): Thread time check skipping t.ThreadID=%d nt=%d, tt=%t", t.ThreadID, nt, tt>>28)
+					bugtrack.Track("winapi.killRuntime(): Thread time check skipping t.ThreadID=%d nt=%d, tt=%t", t.ThreadID, nt, tt>>36)
 				}
 				continue
 			} else if bugtrack.Enabled {
-				bugtrack.Track("winapi.killRuntime(): Thread time check non-match t.ThreadID=%d nt=%d, tt=%t", t.ThreadID, nt, tt>>28)
+				bugtrack.Track("winapi.killRuntime(): Thread time check non-match t.ThreadID=%d nt=%d, tt=%t", t.ThreadID, nt, tt>>36)
 			}
 		}
 		if _, ok := m[s]; !ok {
