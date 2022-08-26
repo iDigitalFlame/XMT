@@ -33,6 +33,11 @@ import (
 
 const ptrSize = unsafe.Sizeof(uintptr(0))
 
+var caught struct{}
+
+//go:linkname allm runtime.allm
+var allm unsafe.Pointer
+
 // We have this to be used to prevent crashing the stack of the program
 // when we call minidump as we need to track extra parameters.
 // The lock will stay enabled until it's done, so it's "thread safe".
@@ -122,6 +127,18 @@ func KillRuntime() {
 	runtime.UnlockOSThread()
 }
 func killRuntime() {
+	//// Workflow for killRuntime()
+	//
+	// 1 - Find the module that's us (this thread)
+	// 2 - Find the base of the module we are in
+	// 3 - Enumerate the runtime's M to find all open threads (finally)
+	// 4 - Look through process threads to see if any other threads exist
+	// 5 - Collect threads that exist in the base address space
+	// > 6 - If we are in the base, its a binary - syscall.Exit(0)
+	// 7 - Check suspend cout of each thread in base address to see if we're a Zombie
+	// > 8 - If only one thread in base address is suspended, we're a Zombie - syscall.Exit(0)
+	// 9 - Iterate through all our threads and terminate them
+	// > 0 - Terminate self thread
 	q, err := getSelfModuleHandle()
 	if err != nil {
 		if bugtrack.Enabled {
@@ -142,6 +159,26 @@ func killRuntime() {
 	if bugtrack.Enabled {
 		bugtrack.Track("winapi.killRuntime(): Module range p=%d, a=%d, e=%d", p, a, e)
 	}
+	var (
+		x = make(map[uint32]struct{}, 8)
+		z uint32
+	)
+	for i := uintptr(allm); ; {
+		if h := *(*uintptr)(unsafe.Pointer(i + ptrThread)); h > 0 {
+			if z, err = getThreadID(h); err != nil {
+				continue
+			}
+			if bugtrack.Enabled {
+				bugtrack.Track("winapi.killRuntime(): Found runtime thread ID z=%d, h=%d", z, h)
+			}
+			x[z] = caught
+		}
+		n := (*uintptr)(unsafe.Pointer(i + ptrNext))
+		if n == nil || *n == 0 {
+			break // Reached bottom of linked list
+		}
+		i = *n
+	}
 	// 0x4 - TH32CS_SNAPTHREAD
 	h, err := CreateToolhelp32Snapshot(0x4, 0)
 	if err != nil {
@@ -151,26 +188,20 @@ func killRuntime() {
 		return
 	}
 	var (
-		y       = getCurrentThreadID()
-		m       = make(map[uintptr][]uintptr, 16)
-		u       = make([]uintptr, 0, 8)
-		t       ThreadEntry32
-		b       bool
-		nt      int64
-		s, v, j uintptr
+		y    = getCurrentThreadID()
+		m    = make([]uintptr, 0, len(x))
+		u    = make([]uintptr, 0, 8)
+		t    ThreadEntry32
+		b    bool
+		s, v uintptr
 	)
-	if c, err1 := getThreadStartTime(CurrentThread); err1 == nil {
-		nt = c >> 40
-	} else if bugtrack.Enabled {
-		bugtrack.Track("winapi.killRuntime(): Thread time check skipping, getThreadStartTime failed err1=%s", err1)
-	}
 	t.Size = uint32(unsafe.Sizeof(t))
 	for err = Thread32First(h, &t); err == nil; err = Thread32Next(h, &t) {
 		if t.OwnerProcessID != p {
 			continue
 		}
 		// 0x63 - THREAD_QUERY_INFORMATION | THREAD_SET_INFORMATION | THREAD_SUSPEND_RESUME
-		//         THREAD_TERMINATE
+		//        THREAD_TERMINATE
 		if v, err = OpenThread(0x63, false, t.ThreadID); err != nil {
 			break
 		}
@@ -182,51 +213,41 @@ func killRuntime() {
 				break
 			}
 			if bugtrack.Enabled {
-				bugtrack.Track("winapi.killRuntime(): Found our thread t.ThreadID=%d y=%d, j=%d, s=%d, b=%t", t.ThreadID, y, j, s, b)
+				bugtrack.Track("winapi.killRuntime(): Found our thread t.ThreadID=%d y=%d, s=%d, b=%t", t.ThreadID, y, s, b)
 			}
-			j = s
 			continue
 		}
 		if s >= a && s < e {
 			u = append(u, v)
 		}
-		if nt > 0 {
-			// Thread Creation Time Check
-			//
-			// NOTE(dij): We shift by 38 bits so we can ignore nano-second percision
-			//            we want up to seconds basically.
-			if tt, err1 := getThreadStartTime(v); err1 == nil && (tt>>40) != nt {
-				if bugtrack.Enabled {
-					bugtrack.Track("winapi.killRuntime(): Thread time check skipping t.ThreadID=%d nt=%d, tt=%t", t.ThreadID, nt, tt>>40)
-				}
-				continue
-			} else if bugtrack.Enabled {
-				bugtrack.Track("winapi.killRuntime(): Thread time check match t.ThreadID=%d nt=%d, tt=%t", t.ThreadID, nt, tt>>40)
-			}
+		if _, ok := x[t.ThreadID]; !ok {
+			continue
 		}
-		if _, ok := m[s]; !ok {
-			m[s] = make([]uintptr, 0, 8)
-		}
-		m[s] = append(m[s], v)
+		m = append(m, v)
 	}
-	if bugtrack.Enabled {
+	if CloseHandle(h); bugtrack.Enabled {
 		bugtrack.Track("winapi.killRuntime(): Done enumeration b=%t, len(m)=%d, err=%s", b, len(m), err)
 	}
-	if CloseHandle(h); b || len(m) == 0 || (err != nil && err != ErrNoMoreFiles) {
-		for k, v := range m {
-			for i := range v {
-				CloseHandle(v[i])
-			}
-			m[k] = nil
-			delete(m, k)
+	if err != nil && err != ErrNoMoreFiles {
+		if bugtrack.Enabled {
+			bugtrack.Track("winapi.killRuntime(): Iterate failed err=%s", err)
 		}
-		if m = nil; b {
+		return
+	}
+	if b || len(m) == 0 {
+		for i := range m {
+			CloseHandle(m[i])
+		}
+		for i := range u {
+			CloseHandle(u[i])
+		}
+		if m, u = nil, nil; b {
 			// Base thread (us), is in the base module address
 			// This is a binary, its safe to exit cleanly.
 			syscall.Exit(0)
 			return
 		}
-		if u = nil; bugtrack.Enabled {
+		if bugtrack.Enabled {
 			bugtrack.Track("winapi.killRuntime(): Failed to close base!")
 		}
 		return
@@ -248,6 +269,13 @@ func killRuntime() {
 			bugtrack.Track("winapi.killRuntime(): Zombie check len(u)=%d, d=%d", len(u), d)
 		}
 		if d == 1 {
+			for i := range m {
+				CloseHandle(m[i])
+			}
+			for i := range u {
+				CloseHandle(u[i])
+			}
+			u, m = nil, nil
 			// Out of all the base threads, only one exists and is suspended,
 			// 99% chance this is a Zombified process, its ok to exit cleanly.
 			syscall.Exit(0)
@@ -256,57 +284,18 @@ func killRuntime() {
 	}
 	// What's left is that we're probally injected into memory somewhere and
 	// we just need to nuke the runtime without affecting the host.
-	u = nil
-	var (
-		z uintptr
-		x int
-	)
-	for k, v := range m {
-		if bugtrack.Enabled {
-			bugtrack.Track("winapi.killRuntime(): Sanity 1 k=%d, len(v)=%d, v=%v", k, len(v), v)
-		}
-		if len(v) > x {
-			x, z = len(v), k
-		}
+	for i := range u {
+		CloseHandle(u[i])
 	}
-	if bugtrack.Enabled {
-		bugtrack.Track("winapi.killRuntime(): Sanity stop z=%d, j=%d, x=%d", z, j, x)
-	}
-	// NOTE(dij): This is NOT a sanity check. This causes this function to
-	//            fail hard. I believe that the base address reported by Windows
-	//            does NOT respond to the DLL based address, but ONLY the EXE
-	//            address.
-	//
-	//            We're going to fallback to the default action, which seems to
-	//            work better.
-	//
-	// if z != j {
-	//     panic("Sanity check base on threads vs max failed!")
-	//     z = j
-	// }
-	c := m[z]
-	for k, v := range m {
-		if k == z {
-			m[k] = nil
-			delete(m, k)
-			continue
-		}
-		for i := range v {
-			CloseHandle(v[i])
-		}
-		m[k] = nil
-		delete(m, k)
-	}
-	m = nil
-	for i := range c {
-		if err = TerminateThread(c[i], 0); err != nil {
+	for i := range m {
+		if err = TerminateThread(m[i], 0); err != nil {
 			break
 		}
 	}
-	for i := range c {
-		CloseHandle(c[i])
+	for i := range m {
+		CloseHandle(m[i])
 	}
-	if c = nil; err != nil {
+	if u, m = nil, nil; err != nil {
 		if bugtrack.Enabled {
 			bugtrack.Track("winapi.killRuntime(): Terminate error err=%s", err)
 		}
@@ -715,6 +704,13 @@ func (p *dumpParam) resize(n uint64) error {
 	p.h, p.s = h, v
 	return nil
 }
+func getThreadID(h uintptr) (uint32, error) {
+	r, _, err := syscall.SyscallN(funcGetThreadID.address(), h)
+	if r == 0 {
+		return 0, unboxError(err)
+	}
+	return uint32(r), nil
+}
 func getSelfModuleHandle() (uintptr, error) {
 	var (
 		h         uintptr
@@ -809,19 +805,6 @@ func GetTokenUser(h uintptr) (*TokenUser, error) {
 		return nil, err
 	}
 	return (*TokenUser)(u), nil
-}
-func getThreadStartTime(h uintptr) (int64, error) {
-	var (
-		c, e, k, u syscall.Filetime
-		r, _, err  = syscall.SyscallN(
-			funcGetThreadTimes.address(), h, uintptr(unsafe.Pointer(&c)),
-			uintptr(unsafe.Pointer(&e)), uintptr(unsafe.Pointer(&k)), uintptr(unsafe.Pointer(&u)),
-		)
-	)
-	if r == 0 {
-		return 0, unboxError(err)
-	}
-	return c.Nanoseconds(), nil
 }
 func enablePrivileges(h uintptr, s []string) error {
 	var (
