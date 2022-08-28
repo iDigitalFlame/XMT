@@ -62,7 +62,7 @@ run_vet() {
     env GOARCH=$1 GOOS=$2 go vet ./cmd
     env GOARCH=$1 GOOS=$2 go vet ./com
     env GOARCH=$1 GOOS=$2 go vet ./data
-    env GOARCH=$1 GOOS=$2 go vet ./device 2>&1 | grep -vE 'github.com/iDigitalFlame/xmt/device$|device/y_nix.go:84:24: possible misuse of unsafe.Pointer$'
+    env GOARCH=$1 GOOS=$2 go vet ./device 2>&1 | grep -vE 'github.com/iDigitalFlame/xmt/device$|device/y_nix.go:100:24: possible misuse of unsafe.Pointer$'
     env GOARCH=$1 GOOS=$2 go vet ./man
     env GOARCH=$1 GOOS=$2 go vet ./util
 }
