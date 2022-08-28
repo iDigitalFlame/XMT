@@ -23,7 +23,7 @@ import "github.com/iDigitalFlame/xmt/com"
 // ZeroTrace will create a Tasklet that will instruct the client to attempt to
 // patch the function calls for logging events on Windows systems.
 //
-// This willreturn an error if it fails.
+// This will return an error if it fails.
 //
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
@@ -40,7 +40,7 @@ func ZeroTrace() *com.Packet {
 
 // CheckDLL is a similar function to ReloadDLL.
 // This function will return 'true' if the contents in memory match the
-// contents of the file on disk. Otherwise it returns false.
+// contents of the file on disk, otherwise it returns false.
 //
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
@@ -58,7 +58,7 @@ func CheckDLL(d string) *com.Packet {
 }
 
 // ReloadDLL is a function shamelessly stolen from the sliver project. This
-// function will read a DLL file from on-disk and rewrite over it's current
+// function will read a DLL file from on-disk and rewrite over its current
 // in-memory contents to erase any hooks placed on function calls.
 //
 // Re-mastered and refactored to be less memory hungry and easier to read :P

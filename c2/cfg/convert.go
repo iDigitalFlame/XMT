@@ -43,7 +43,7 @@ func (c Config) next(i int) int {
 		fallthrough
 	case SelectorLastValid, SelectorRoundRobin, SelectorRandom, SelectorSemiRandom, SelectorSemiRoundRobin:
 		fallthrough
-	case Seperator, ConnectTCP, ConnectTLS, ConnectUDP, ConnectICMP, ConnectPipe, ConnectTLSNoVerify, TransformB64:
+	case Separator, ConnectTCP, ConnectTLS, ConnectUDP, ConnectICMP, ConnectPipe, ConnectTLSNoVerify, TransformB64:
 		return i + 1
 	case valIP, valB64Shift, valJitter, valWeight, valTLSx:
 		return i + 2
@@ -140,7 +140,7 @@ func (c Config) Validate() error {
 		if n, err = c.validate(i); err != nil {
 			return err
 		}
-		if n-i == 1 && c[i] == byte(Seperator) {
+		if n-i == 1 && c[i] == byte(Separator) {
 			continue
 		}
 	}
@@ -178,7 +178,7 @@ func (c Config) Build() (c2.Profile, error) {
 		if v, n, s, err = c.build(i); err != nil {
 			return nil, err
 		}
-		if v == nil || (n-i == 1 && c[i] == byte(Seperator)) {
+		if v == nil || (n-i == 1 && c[i] == byte(Separator)) {
 			continue
 		}
 		if e = append(e, v); s >= 0 {
@@ -208,7 +208,7 @@ loop:
 			n = len(c)
 		}
 		switch _ = c[n-1]; cBit(c[i]) {
-		case Seperator:
+		case Separator:
 			break loop
 		case invalid:
 			return -1, ErrInvalidSetting
@@ -393,7 +393,7 @@ loop:
 			n = len(c)
 		}
 		switch _ = c[n-1]; cBit(c[i]) {
-		case Seperator:
+		case Separator:
 			break loop
 		case invalid:
 			return nil, -1, -1, ErrInvalidSetting

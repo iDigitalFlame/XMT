@@ -60,7 +60,7 @@ func (e *executable) Pid() uint32 {
 	return uint32(e.e.Process.Pid)
 }
 
-// ResumeProcess will attempt to resume the process via it's PID. This will
+// ResumeProcess will attempt to resume the process via its PID. This will
 // attempt to resume the process using an OS-dependent syscall.
 //
 // This will not affect already running processes.
@@ -71,7 +71,7 @@ func (executable) Handle() uintptr {
 	return 0
 }
 
-// SuspendProcess will attempt to suspend the process via it's PID. This will
+// SuspendProcess will attempt to suspend the process via its PID. This will
 // attempt to suspend the process using an OS-dependent syscall.
 //
 // This will not affect already suspended processes.

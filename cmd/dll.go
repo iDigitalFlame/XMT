@@ -106,7 +106,7 @@ func (d *DLL) ExitCode() (int32, error) {
 	return d.t.ExitCode()
 }
 
-// Handle returns the handle of the current running thread. The return is a uintptr
+// Handle returns the handle of the current running thread. The return is an uintptr
 // that can converted into a Handle.
 //
 // This function returns an error if the thread was not started. The handle is
@@ -115,33 +115,11 @@ func (d *DLL) Handle() (uintptr, error) {
 	return d.t.Handle()
 }
 
-// NewDLLBytes creates a new DLL instance that uses the supplied raw bytes as
-// the binary data to construct the DLL on disk to be executed.
-//
-// NOTE(dij): This function does a write to disk.
-// TODO(dij): In a future release, make this into a reflective loader.
-//             Use 'NewAssembly(DLLtoASM(b))' func to bypass this.
-func NewDLLBytes(b []byte) (*DLL, error) {
-	return NewDLLBytesContext(context.Background(), b)
-}
-
 // NewDLLContext creates a new DLL instance that uses the supplied string as
 // the DLL file path.
 //
-// This function accepts a context that can be used to control the cancelation
+// This function accepts a context that can be used to control the cancellation
 // of the thread.
 func NewDLLContext(x context.Context, p string) *DLL {
 	return &DLL{Path: p, t: thread{ctx: x}}
-}
-
-// NewDLLBytesContext creates a new DLL instance that uses the supplied raw bytes
-// as the binary data to construct the DLL on disk to be executed.
-//
-// NOTE(dij): This function does a write to disk.
-// TODO(dij): In a future release, make this into a reflective loader.
-//
-// This function accepts a context that can be used to control the cancelation
-// of the thread.
-func NewDLLBytesContext(x context.Context, b []byte) (*DLL, error) {
-	return nil, nil
 }

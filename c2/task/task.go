@@ -17,7 +17,7 @@
 // Package task is a simple collection of Task based functions that cane be
 // tasked to Sessions by the Server.
 //
-// This package is separate rom the c2 package to allow for seperation and
+// This package is separate from the c2 package to allow for separation and
 // containerization of Tasks.
 //
 // Basic internal Tasks are still help in the c2 package.
@@ -78,7 +78,7 @@ const (
 	TvNetcat      uint8 = 0xD9
 )
 
-// Mappings is an fixed size array that contains the Tasker mappings for each
+// Mappings is a fixed size array that contains the Tasker mappings for each
 // ID value.
 //
 // Values that are less than 22 are ignored. Adding a mapping to here will
@@ -123,7 +123,7 @@ type Tasklet interface {
 	Packet() (*com.Packet, error)
 }
 
-// Tasker is an function alias that will be tasked with executing a Job and
+// Tasker is a function alias that will be tasked with executing a Job and
 // will return an error or write the results to the supplied Writer.
 // Associated data can be read from the supplied Reader.
 //

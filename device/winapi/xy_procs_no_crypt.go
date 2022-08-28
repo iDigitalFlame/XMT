@@ -168,7 +168,7 @@ var (
 
 func doSearchSystem32() bool {
 	searchSystem32.Do(func() {
-		searchSystem32.v = (dllKernel32.proc("AddDllDirectory").find() == nil)
+		searchSystem32.v = dllKernel32.proc("AddDllDirectory").find() == nil
 	})
 	return searchSystem32.v
 }

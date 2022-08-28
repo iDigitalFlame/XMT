@@ -437,12 +437,12 @@ func (p *Proxy) clientSet(i uint32, c chan *com.Packet) {
 	v.state.Set(stateChannelProxy)
 	for v.chn = c; len(v.send) > 0; {
 		select {
-		case c <- (<-v.send):
+		case c <- <-v.send:
 		default:
 		}
 	}
 }
-func (p *Proxy) notify(h connHost, n *com.Packet) error {
+func (p *Proxy) notify(_ connHost, n *com.Packet) error {
 	if isPacketNoP(n) {
 		return nil
 	}

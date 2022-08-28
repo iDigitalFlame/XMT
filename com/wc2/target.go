@@ -130,7 +130,7 @@ func (t *Target) mutate(r *http.Request) {
 	}
 }
 
-// Header adds the stringer too the Target's header set.
+// Header adds the stringer to the Target's header set.
 //
 // This function will create the headers map if it's nil.
 func (t *Target) Header(k string, v Stringer) {

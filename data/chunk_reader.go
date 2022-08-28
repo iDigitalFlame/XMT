@@ -96,7 +96,7 @@ func (c *Chunk) Uint8() (uint8, error) {
 	if c.pos+1 > len(c.buf) {
 		return 0, io.EOF
 	}
-	v := uint8(c.buf[c.pos])
+	v := c.buf[c.pos]
 	c.pos++
 	return v, nil
 }

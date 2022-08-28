@@ -228,7 +228,7 @@ func (k Key) Value(s string, b []byte) (int, uint32, error) {
 		o *byte
 	)
 	if l > 0 {
-		o = (*byte)(unsafe.Pointer(&b[0]))
+		o = (*byte)(&b[0])
 	}
 	if err = syscall.RegQueryValueEx(syscall.Handle(k), n, nil, &t, o, &l); err != nil {
 		return int(l), t, err
@@ -252,7 +252,7 @@ func (k Key) getValue(s string, b []byte) ([]byte, uint32, error) {
 		t uint32
 	)
 	for {
-		err = syscall.RegQueryValueEx(syscall.Handle(k), p, nil, &t, (*byte)(unsafe.Pointer(&b[0])), &n)
+		err = syscall.RegQueryValueEx(syscall.Handle(k), p, nil, &t, (*byte)(&b[0]), &n)
 		if err == nil {
 			return b[:n], t, nil
 		}

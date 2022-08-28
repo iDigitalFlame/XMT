@@ -237,7 +237,7 @@ func taskProcess(x context.Context, r data.Reader, w data.Writer) error {
 	return nil
 }
 
-// ProcessUnmarshal will read this Processes's struct data from the supplied
+// ProcessUnmarshal will read this Process's struct data from the supplied
 // reader and returns a Process runnable struct along with the wait boolean.
 //
 // This function returns an error if building or reading fails.

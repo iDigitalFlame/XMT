@@ -97,7 +97,7 @@ func (w *writer) Write(b []byte) (int, error) {
 	return w.c.Write(w.w, b)
 }
 
-// NewReader creates a io.ReadCloser type from the specified Cipher and Reader.
+// NewReader creates an io.ReadCloser type from the specified Cipher and Reader.
 func NewReader(c Reader, r io.Reader) io.Reader {
 	if c == nil {
 		return r
@@ -105,7 +105,7 @@ func NewReader(c Reader, r io.Reader) io.Reader {
 	return &reader{c: c, r: r}
 }
 
-// NewWriter creates a io.WriteCloser type from the specified Cipher and Writer.
+// NewWriter creates an io.WriteCloser type from the specified Cipher and Writer.
 func NewWriter(c Writer, w io.Writer) io.WriteCloser {
 	if c == nil {
 		return data.WriteCloser(w)

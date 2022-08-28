@@ -83,7 +83,7 @@ OPERATION ARGUMENTS:
 BUILD ARGUMENTS:
  SYSTEM:
   --host            <hostname>  Hostname hint. (Not valid for Listeners).
-  --sleep           <secs|mod>  Sleep timeperiod. Defaults to seconds
+  --sleep           <secs|mod>  Sleep time period. Defaults to seconds
                                   for integers, but can take modifiers
                                   such as 's', 'h', 'm'. (ex: 2m or 3s).
   --jitter          <jitter %>  Jitter as a percentage [0-100]. Values
@@ -168,18 +168,18 @@ BUILD ARGUMENTS:
   --b64                         Use the Base64 encoding Wrapper.
   --xor             [key]       Encrypt with the XOR Wrapper using the provided
                                   key string. If omitted the key will be a
-                                  randomally generated 64 byte array.
+                                  randomly generated 64 byte array.
   --cbk             [key]       Encrypt with the XOR Wrapper using the provided
                                   key string. If omitted the key will be a
-                                  randomally seeded ABCD from a 64 byte array.
+                                  randomly seeded ABCD from a 64 byte array.
   --aes             [key]       Encrypt with the AES Wrapper using the provided
                                   key string. If omitted the key will be a
-                                  randomally generated 32 byte array. The AES IV
+                                  randomly generated 32 byte array. The AES IV
                                   may be supplied using the '--aes-iv' argument.
                                   If not specified a 16 byte IV will be generated.
   --aes-iv          [iv]        Encrypt with the AES Wrapper using the provided
                                   IV string. If omitted the IV will be a
-                                  randomally generated 16 byte array. The AES key
+                                  randomly generated 16 byte array. The AES key
                                   may be supplied using the '--aes-key' argument.
                                   If not specified a 32 byte key will be generated.
 
@@ -217,7 +217,7 @@ class Cfg:
         SLEEP = 0xA1
         JITTER = 0xA2
         WEIGHT = 0xA3
-        SEPERATOR = 0xFA
+        SEPARATOR = 0xFA
 
         LAST_VALID = 0xAA
         ROUND_ROBIN = 0xAB
@@ -256,7 +256,7 @@ class Cfg:
             SLEEP: "sleep",
             JITTER: "jitter",
             WEIGHT: "weight",
-            SEPERATOR: "|",
+            SEPARATOR: "|",
             LAST_VALID: "select-last",
             ROUND_ROBIN: "select-round-robin",
             RANDOM: "select-random",
@@ -290,7 +290,7 @@ class Cfg:
             "sleep": SLEEP,
             "jitter": JITTER,
             "weight": WEIGHT,
-            "|": SEPERATOR,
+            "|": SEPARATOR,
             "select-last": LAST_VALID,
             "select-round-robin": ROUND_ROBIN,
             "select-random": RANDOM,
@@ -411,8 +411,8 @@ class Cfg:
         return Cfg.Const.as_single(Cfg.Const.GZIP)
 
     @staticmethod
-    def seperator():
-        return Cfg.Const.as_single(Cfg.Const.SEPERATOR)
+    def separator():
+        return Cfg.Const.as_single(Cfg.Const.SEPARATOR)
 
     @staticmethod
     def connect_ip(p):
@@ -1115,7 +1115,7 @@ class Config(bytearray):
             n = self.next(i)
             if self[i] not in Cfg.Const.NAMES:
                 raise ValueError(f"json: invalid setting id {self[i]}")
-            if self[i] == Cfg.Const.SEPERATOR:
+            if self[i] == Cfg.Const.SEPARATOR:
                 i = n
                 if len(e) == 0:
                     i = n
@@ -1306,7 +1306,7 @@ class Config(bytearray):
             raise ValueError("add: cannot add a non-Settings object")
         if not s._is_valid():
             raise ValueError("add: invalid Settings object")
-        if s[0] == Cfg.Const.SEPERATOR:
+        if s[0] == Cfg.Const.SEPARATOR:
             self._connector = False
             self._transform = False
         if s._is_connector():
@@ -1429,7 +1429,7 @@ class Config(bytearray):
             for e in v[x]:
                 self._parse_inner(e)
             if x + 1 < len(v):
-                self.add(Cfg.seperator())
+                self.add(Cfg.separator())
         del v
 
     @staticmethod
@@ -1443,8 +1443,8 @@ class Config(bytearray):
         if "type" not in x or x["type"].lower() not in Cfg.Const.NAMES_TO_ID:
             raise ValueError("parse: invalid JSON value")
         m = Cfg.Const.NAMES_TO_ID[x["type"].lower()]
-        if m == Cfg.Const.SEPERATOR:
-            raise ValueError("parse: unexpected seperator")
+        if m == Cfg.Const.SEPARATOR:
+            raise ValueError("parse: unexpected separator")
         if Setting.is_single(m):
             return self.add(Cfg.Const.as_single(m))
         if "args" not in x:
@@ -1604,7 +1604,7 @@ class Setting(bytearray):
     def is_single(v):
         if v == 0:
             return False
-        if v == Cfg.Const.B64T or v == Cfg.Const.SEPERATOR:
+        if v == Cfg.Const.B64T or v == Cfg.Const.SEPARATOR:
             return True
         if v >= Cfg.Const.LAST_VALID and v <= Cfg.Const.SEMI_RANDOM:
             return True
@@ -1776,7 +1776,7 @@ class _Builder(ArgumentParser):
             if v not in Cfg.Const.WRAPPERS:
                 continue
             if v in d:
-                raise ValueError(f'duplicate argument "--{v}" found')
+                raise ValueError('duplicate argument "--{v}" found')
             w.append(v)
             d[v] = len(w) - 1
         e = [None] * len(w)
@@ -1800,7 +1800,7 @@ class _Builder(ArgumentParser):
     @staticmethod
     def build(config, args, add, arv):
         if add and len(config) > 0:
-            config.add(Cfg.seperator())
+            config.add(Cfg.separator())
         p, w = _Builder._organize(arv)
         if args.host:
             config.add(Cfg.host(args.host))

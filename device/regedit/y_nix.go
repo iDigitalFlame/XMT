@@ -47,7 +47,7 @@ func Delete(_, _ string) error {
 	return device.ErrNoWindows
 }
 
-// Dir returns an list of registry entries for the supplied key or an error if
+// Dir returns a list of registry entries for the supplied key or an error if
 // the path does not exist.
 //
 // The key path can either be a "reg" style path (ex: HKLM\System or
@@ -211,12 +211,12 @@ func Set(_, _ string, _ uint32, _ []byte) error {
 }
 
 // SetFromString will attempt to set the data of the value in the supplied key
-// path to the supplied value type indicated with the type flag and will interput
+// path to the supplied value type indicated with the type flag and will interpret
 // the supplied string using the type value to properly set the value data.
 //
 // - Dword or Qword values will attempt to parse the string as a base10 integer
 //   that may be negative.
-// - String and ExpandString values will be interupted as is.
+// - String and ExpandString values will be interrupted as is.
 // - Binary will attempt to decode the value using the StdEncoding base64
 //   decoder.
 // - StringLists will be split using the NEWLINE ("\n") character into an array

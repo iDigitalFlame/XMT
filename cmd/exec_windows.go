@@ -38,15 +38,19 @@ import (
 
 // NOTE(dij): This needs to be a var as if it's a const 'UpdateProcThreadAttribute'
 //            will throw an access violation.
+//
 // 0x100100000000 - PROCESS_CREATION_MITIGATION_POLICY_EXTENSION_POINT_DISABLE_ALWAYS_ON |
-//                   PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON
+//                  PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON
 var secProtect uint64 = 0x100100000000
+var envOnce struct {
+	sync.Once
+	r string
+	e []string
+}
 var versionOnce struct {
 	sync.Once
 	v, s bool
 }
-
-//var forkProtect sync.Mutex
 
 type closer uintptr
 type file interface {
@@ -68,15 +72,12 @@ type executable struct {
 }
 type closeFunc func() error
 
-/*func semSleep() {
-	// NOTE(dij): Not 100% a bug, but too-fast execution timeouts cause
-	//            the runtime to bug out and potentially panic with a weird
-	//            error. Adding a lock and sleep for all start's seems to fix
-	//            it.
-	// forkProtect.Lock()
-	// time.Sleep(time.Millisecond * 250)
-	// forkProtect.Unlock()
-}*/
+func envOnceFunc() {
+	envOnce.e = syscall.Environ()[4:] // Removes all '=' prefixed vars
+	if envOnce.r, _ = syscall.Getenv(sysRoot); len(envOnce.e) == 0 {
+		envOnce.r = sysRootVar
+	}
+}
 func onceVersionCheck() {
 	if v, err := winapi.GetVersion(); err == nil && v > 0 {
 		switch m := byte(v & 0xFF); {
@@ -135,7 +136,7 @@ func (e *executable) Pid() uint32 {
 	return e.i.ProcessID
 }
 
-// ResumeProcess will attempt to resume the process via it's PID. This will
+// ResumeProcess will attempt to resume the process via its PID. This will
 // attempt to resume the process using an OS-dependent syscall.
 //
 // This will not affect already running processes.
@@ -150,7 +151,7 @@ func ResumeProcess(p uint32) error {
 	return err
 }
 
-// SuspendProcess will attempt to suspend the process via it's PID. This will
+// SuspendProcess will attempt to suspend the process via its PID. This will
 // attempt to suspend the process using an OS-dependent syscall.
 //
 // This will not affect already suspended processes.
@@ -267,19 +268,15 @@ func (e *executable) kill(x uint32, p *Process) error {
 	return winapi.TerminateProcess(e.i.Process, x)
 }
 func createEnvBlock(env []string, split bool) []string {
-	// TODO(dij): Should we cache the call to 'syscall.Environ()'?
-	if len(env) == 0 && !split {
-		return syscall.Environ()[4:]
+	if envOnce.Do(envOnceFunc); len(env) == 0 && !split {
+		return envOnce.e
 	}
-	var (
-		e = syscall.Environ()
-		r = make([]string, len(env), len(env)+len(e))
-	)
+	r := make([]string, len(env), len(env)+len(envOnce.e))
 	if copy(r, env); !split {
 		// NOTE(dij): If split == true, do NOT add any env vars, but DO
 		//            check and add %SYSTEMROOT% if it doesn't exist in the
 		//            supplied block.
-		r = append(r, e...)
+		return append(r, envOnce.e...)
 	}
 	for i := range r {
 		if len(r) > 11 {
@@ -290,7 +287,7 @@ func createEnvBlock(env []string, split bool) []string {
 			}
 		}
 	}
-	return append(r, sysRoot+"="+os.Getenv(sysRoot))
+	return append(r, sysRoot+"="+envOnce.r)
 }
 func (e *executable) wait(x context.Context, p *Process) {
 	if bugtrack.Enabled {
@@ -498,8 +495,8 @@ func (e *executable) start(x context.Context, p *Process, sus bool) error {
 		//
 		//            Failing silently is fine.
 		//
-		// NOTE(dij): Added a 'IsUserLoginToken' token to check the Token origion
-		//            to see if it's a impersinated user token or a stolen elevated
+		// NOTE(dij): Added a 'IsUserLoginToken' token to check the Token origin
+		//            to see if it's an impersonated user token or a stolen elevated
 		//            process token, as impersonated user tokens do NOT like being
 		//            ran with 'CreateProcessWithToken'.
 		//

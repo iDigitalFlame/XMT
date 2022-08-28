@@ -22,7 +22,7 @@ import (
 )
 
 // Assembly is a struct that can be used to contain and run shellcode on Windows devices.
-// This struct has many of the functionallies of the standard 'cmd.Program' function.
+// This struct has many of the functionalities of the standard 'cmd.Program' function.
 //
 // The 'SetParent*' function will attempt to set the target that runs the shellcode.
 // If none are specified, the shellcode will be injected into the current process.
@@ -103,7 +103,7 @@ func (a *Assembly) ExitCode() (int32, error) {
 	return a.t.ExitCode()
 }
 
-// Handle returns the handle of the current running thread. The return is a uintptr
+// Handle returns the handle of the current running thread. The return is an uintptr
 // that can converted into a Handle.
 //
 // This function returns an error if the thread was not started. The handle is
@@ -113,7 +113,7 @@ func (a *Assembly) Handle() (uintptr, error) {
 }
 
 // Location returns the in-memory Location of the current Assembly thread, if running.
-// The return is a uintptr that can converted into a Handle.
+// The return is an uintptr that can converted into a Handle.
 //
 // This function returns an error if the Assembly thread was not started. The
 // handle is not expected to be valid after the thread exits or is terminated.
@@ -124,7 +124,7 @@ func (a *Assembly) Location() (uintptr, error) {
 // NewAsmContext creates a new Code thread instance that uses the supplied byte
 // array as the Data buffer.
 //
-// This function accepts a context that can be used to control the cancelation
+// This function accepts a context that can be used to control the cancellation
 // of the thread.
 func NewAsmContext(x context.Context, b []byte) *Assembly {
 	return &Assembly{Data: b, t: thread{ctx: x}}

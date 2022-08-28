@@ -39,13 +39,13 @@ func New(logx.Log) *Log {
 // enabled via the 'client' build tag.
 func (Log) Set(_ logx.Log) {}
 
-// Info writes a informational message to the logger.
+// Info writes an informational message to the logger.
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.
 func (Log) Info(_ string, _ ...any) {}
 
-// Error writes a error message to the logger.
+// Error writes an error message to the logger.
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.

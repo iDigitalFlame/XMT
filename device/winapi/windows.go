@@ -251,7 +251,7 @@ func keyCode(k byte) (uint16, bool) {
 	return 0xBF, true
 }
 
-// TopLevelWindows returns a list of the current (non-dialog) Windows as an
+// TopLevelWindows returns a list of the current (non-dialog) Windows as a
 // slice with their Name, Handle, Size and Position.
 //
 // The handles may be used for multiple functions and are valid until the window
@@ -277,7 +277,7 @@ func TopLevelWindows() ([]Window, error) {
 //   priority to the thread that created the foreground window than it does to
 //   other threads.
 //
-// This function is supplimeted with the "SetFocus" function, as this will allow
+// This function is supplemented with the "SetFocus" function, as this will allow
 // for requesting THEN setting the foreground window without user interaction.
 //
 // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setforegroundwindow
@@ -384,7 +384,7 @@ func enumWindowsCallback(h, _ uintptr) uintptr {
 // The provided Sw* constants can be used to specify a show type.
 //
 // The resulting boolean is if the window was previously shown, or false if
-// it was hidden. (This value is alaways false if 'AllWindows'/0 is passed
+// it was hidden. (This value is always false if 'AllWindows'/0 is passed
 // as the handle.)
 //
 // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-showwindow
@@ -446,7 +446,7 @@ func (i Window) MarshalStream(w data.Writer) error {
 //   all input.
 //
 // The resulting boolean is if the window was previously enabled, or false if
-// it was disabled. (This value is alaways false if 'AllWindows'/0 is passed
+// it was disabled. (This value is always false if 'AllWindows'/0 is passed
 // as the handle.)
 //
 // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-enablewindow
@@ -547,7 +547,7 @@ func SetWindowPos(h uintptr, x, y, width, height int32) error {
 //   clicked.
 //
 // If the handle 'h' is '-1', "CurrentProcess" or "^uintptr(0)", this will attempt
-// to target the Desktop window, which will fallback to '0' if it fails.
+// to target the Desktop window, which will fall back to '0' if it fails.
 //
 // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-messageboxw
 func MessageBox(h uintptr, text, title string, f uint32) (uint32, error) {

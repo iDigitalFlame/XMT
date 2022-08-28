@@ -68,7 +68,7 @@ type backer interface {
 	WriteUint32Pos(int, uint32) error
 }
 
-// Callable is an internal interface used to specify a wide range of Runnabale
+// Callable is an internal interface used to specify a wide range of Runnable
 // types that can be Marshaled into a Packet.
 //
 // Currently the DLL, Zombie, Assembly and Process instances are supported.

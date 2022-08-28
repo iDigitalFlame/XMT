@@ -115,7 +115,7 @@ type lsaAccountDomainInfo struct {
 // running and take action on what type of host we're in to best end the
 // runtime without crashing.
 //
-// This function can be used on binaries, shared libaries or Zombified processes.
+// This function can be used on binaries, shared libraries or Zombified processes.
 //
 // DO NOT EXPECT ANYTHING (INCLUDING DEFERS) TO HAPPEN AFTER THIS FUNCTION.
 func KillRuntime() {
@@ -134,7 +134,7 @@ func killRuntime() {
 	// 3 - Enumerate the runtime's M to find all open threads (finally)
 	// 4 - Look through process threads to see if any other threads exist
 	// 5 - Collect threads that exist in the base address space
-	// > 6 - If we are in the base, its a binary - syscall.Exit(0)
+	// > 6 - If we are in the base, it's a binary - syscall.Exit(0)
 	// 7 - Check suspend cout of each thread in base address to see if we're a Zombie
 	// > 8 - If only one thread in base address is suspended, we're a Zombie - syscall.Exit(0)
 	// 9 - Iterate through all our threads and terminate them
@@ -243,7 +243,7 @@ func killRuntime() {
 		}
 		if m, u = nil, nil; b {
 			// Base thread (us), is in the base module address
-			// This is a binary, its safe to exit cleanly.
+			// This is a binary, it's safe to exit cleanly.
 			syscall.Exit(0)
 			return
 		}
@@ -277,12 +277,12 @@ func killRuntime() {
 			}
 			u, m = nil, nil
 			// Out of all the base threads, only one exists and is suspended,
-			// 99% chance this is a Zombified process, its ok to exit cleanly.
+			// 99% chance this is a Zombified process, it's ok to exit cleanly.
 			syscall.Exit(0)
 			return
 		}
 	}
-	// What's left is that we're probally injected into memory somewhere and
+	// What's left is that we're probally injected into memory somewhere, and
 	// we just need to nuke the runtime without affecting the host.
 	for i := range u {
 		CloseHandle(u[i])
@@ -362,7 +362,7 @@ func (p *dumpParam) close() {
 // Ensure a call to 'GetDebugPrivilege' is made first before starting.
 //
 // Thanks for the find by @zha0gongz1 in their article:
-//  https://golangexample.com/without-closing-windows-defender-to-make-defender-useless-by-removing-its-token-privileges-and-lowering-the-token-integrity/
+//   https://golangexample.com/without-closing-windows-defender-to-make-defender-useless-by-removing-its-token-privileges-and-lowering-the-token-integrity/
 func Untrust(p uint32) error {
 	// 0x400 - PROCESS_QUERY_INFORMATION
 	h, err := OpenProcess(0x400, false, p)
@@ -580,7 +580,7 @@ func IsTokenElevated(h uintptr) bool {
 	return err == nil && n == uint32(unsafe.Sizeof(e)) && e != 0
 }
 
-// IsUserLoginToken will return true if the origion of the Token was a LoginUser
+// IsUserLoginToken will return true if the origin of the Token was a LoginUser
 // API call and NOT a duplicated token via Impersonation.
 func IsUserLoginToken(t uintptr) bool {
 	if t == 0 {
@@ -662,7 +662,8 @@ func EnablePrivileges(s ...string) error {
 //
 // This function is only usable on Windows with a Server Pipe handle.
 //
-// Pipe insights: https://papers.vx-underground.org/papers/Windows/System%20Components%20and%20Abuse/Offensive%20Windows%20IPC%20Internals%201%20Named%20Pipes.pdf
+// Pipe insights:
+//   https://papers.vx-underground.org/papers/Windows/System%20Components%20and%20Abuse/Offensive%20Windows%20IPC%20Internals%201%20Named%20Pipes.pdf
 func ImpersonatePipeToken(h uintptr) error {
 	// NOTE(dij): For best results, we FIRST impersonate the token, THEN
 	//            we try to set the token to each user thread with a duplicated
@@ -736,7 +737,7 @@ func (p *dumpParam) write(w io.Writer) error {
 }
 
 // UserFromToken will attempt to get the User SID from the supplied Token and
-// return the associated User Name and Doamin string from the SID.
+// return the associated Username and Domain string from the SID.
 func UserFromToken(h uintptr) (string, error) {
 	u, err := GetTokenUser(h)
 	if err != nil {
@@ -759,7 +760,7 @@ func mod32First(h uintptr, m *modEntry32) error {
 	return nil
 }
 func copyMemory(d uintptr, s uintptr, x uint32) {
-	syscall.SyscallN(funcRtlCopyMemory.address(), uintptr(d), uintptr(s), uintptr(x))
+	syscall.SyscallN(funcRtlCopyMemory.address(), d, s, uintptr(x))
 }
 
 // ForEachThread is a helper function that allows a function to be executed with
@@ -830,7 +831,7 @@ func enablePrivileges(h uintptr, s []string) error {
 	return nil
 }
 
-// GetProcessFileName will attempt to retrive the basename of the process
+// GetProcessFileName will attempt to retrieve the basename of the process
 // related to the open Process handle supplied.
 func GetProcessFileName(h uintptr) (string, error) {
 	var (
@@ -839,7 +840,7 @@ func GetProcessFileName(h uintptr) (string, error) {
 	)
 	r, _, err := syscall.SyscallN(
 		funcNtQueryInformationProcess.address(), h, 0x1B, uintptr(unsafe.Pointer(&u)),
-		uintptr(unsafe.Sizeof(u)+260), uintptr(unsafe.Pointer(&n)),
+		unsafe.Sizeof(u)+260, uintptr(unsafe.Pointer(&n)),
 	)
 	// 0x1B - ProcessImageFileName
 	if r > 0 {
@@ -893,7 +894,7 @@ func StringListToUTF16Block(s []string) (*uint16, error) {
 	b := make([]byte, t)
 	for _, v := range s {
 		l = len(v)
-		copy(b[i:i+l], []byte(v))
+		copy(b[i:i+l], v)
 		b[i+l] = 0
 		i = i + l + 1
 	}
@@ -1020,10 +1021,6 @@ func findBaseModuleRange(p uint32, b uintptr) (uintptr, uintptr, error) {
 //
 // Updated version that will take and use the supplied Writer instead of the file
 // handle is zero.
-//  NOTE(dij): Fixes a bug where dumps to a os.Pipe interface would not be
-//             written correctly!?
-//             Base-rework and re-write seeing how others have done. Optimized
-//             to be faster and less error-prone than the Sliver implimtation. :P
 func MiniDumpWriteDump(h uintptr, pid uint32, o uintptr, f uint32, w io.Writer) error {
 	if o > 0 {
 		r, _, err := syscall.SyscallN(funcMiniDumpWriteDump.address(), h, uintptr(pid), o, uintptr(f), 0, 0, 0)

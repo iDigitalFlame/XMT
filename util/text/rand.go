@@ -23,7 +23,6 @@
 // The other exported types allow for generation of mutable expressions that can
 // be used to generate matching regular expression values. These work well with
 // any package that works with stringers, such as the "wc2" package.
-//
 package text
 
 import (
@@ -45,7 +44,7 @@ const (
 var Rand = &random{s: util.Rand}
 
 var (
-	// All represents the string instruction set that contains all alpha-numeric
+	// All represents the string instruction set that contains all alphanumeric
 	// characters.
 	All set = [2]byte{0, 62}
 	// Upper represents the string instruction set that contains only uppercase

@@ -24,7 +24,7 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-// Pid retruns the process ID of the owning process (the process running
+// Pid returns the process ID of the owning process (the process running
 // the thread.)
 //
 // This may return zero if the thread has not yet been started.

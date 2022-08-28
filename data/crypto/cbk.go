@@ -60,7 +60,7 @@ type source interface {
 }
 
 // NewCBK returns a new CBK Cipher with the D value specified. The other A, B and
-// C values are randomally generated at runtime.
+// C values are randomly generated at runtime.
 func NewCBK(d int) *CBK {
 	c, _ := NewCBKEx(d, size, nil)
 	return c
@@ -90,11 +90,11 @@ func (e *CBK) Shuffle(b []byte) {
 	for i := byte(0); i < byte(len(b)); i++ {
 		switch {
 		case i%e.A == 0:
-			b[i] += (e.A - i)
+			b[i] += e.A - i
 		case e.C%i == 0:
-			b[i] += (e.B - e.D)
+			b[i] += e.B - e.D
 		case i == e.D:
-			b[i] -= (e.A + i)
+			b[i] -= e.A + i
 		default:
 			if i%2 == 0 {
 				b[i] += e.B / 3
@@ -114,11 +114,11 @@ func (e *CBK) Deshuffle(b []byte) {
 	for i := byte(0); i < byte(len(b)); i++ {
 		switch {
 		case i%e.A == 0:
-			b[i] -= (e.A - i)
+			b[i] -= e.A - i
 		case e.C%i == 0:
-			b[i] -= (e.B - e.D)
+			b[i] -= e.B - e.D
 		case i == e.D:
-			b[i] += (e.A + i)
+			b[i] += e.A + i
 		default:
 			if i%2 == 0 {
 				b[i] -= e.B / 3
@@ -164,7 +164,7 @@ func (e *CBK) scramble(b []byte, d bool) {
 		o    = chains.Get().(*[size + 1]byte)
 		x    = e.adjust(uint16(e.A*e.B) + uint16(e.D))
 		y    = e.adjust(uint16((e.C-e.D)*e.A) + x + e.adjust(uint16(e.index)))
-		z    = e.adjust(uint16(byte(x*y) + e.B - byte(e.D*e.index)))
+		z    = e.adjust(uint16(byte(x*y) + e.B - e.D*e.index))
 		i    int8
 		g, h byte
 	)
@@ -172,19 +172,19 @@ func (e *CBK) scramble(b []byte, d bool) {
 		i = 5
 	}
 	for (i < 6 && !d) || (i >= 0 && d) {
-		g = (byte(z*y) + e.blockIndex(true, uint16(uint16(e.D*e.A)+uint16(i)+x), uint16(uint16(e.D)+uint16(e.index)))) % 8
-		h = (byte(y) - e.blockIndex(false, uint16(y+uint16(e.D)+uint16(e.index*uint8(i+1))), uint16(uint16(e.D)+x+uint16(byte(uint16(i)*z)*e.A)))) % 8
+		g = (byte(z*y) + e.blockIndex(true, uint16(e.D*e.A)+uint16(i)+x, uint16(e.D)+uint16(e.index))) % 8
+		h = (byte(y) - e.blockIndex(false, y+uint16(e.D)+uint16(e.index*uint8(i+1)), uint16(e.D)+x+uint16(byte(uint16(i)*z)*e.A))) % 8
 		if g != h {
 			if !d {
-				b[h], b[g] = byte((b[g]&0xF)<<4|(b[h]&0xF)), byte((b[g]>>4)<<4|((b[h]>>4)&0xF))
-				b[h+1], b[g+1] = byte((b[g+1]&0xF)<<4|(b[h+1]&0xF)), byte((b[g+1]>>4)<<4|((b[h+1]>>4)&0xF))
+				b[h], b[g] = (b[g]&0xF)<<4|(b[h]&0xF), (b[g]>>4)<<4|((b[h]>>4)&0xF)
+				b[h+1], b[g+1] = (b[g+1]&0xF)<<4|(b[h+1]&0xF), (b[g+1]>>4)<<4|((b[h+1]>>4)&0xF)
 			}
 			copy((*o)[0:2], b[g*2:(g*2)+2])
 			copy(b[g*2:], b[h*2:(h*2)+2])
 			copy(b[h*2:], (*o)[0:2])
 			if d {
-				b[h], b[g] = byte((b[g]&0xF)<<4|(b[h]&0xF)), byte((b[g]>>4)<<4|((b[h]>>4)&0xF))
-				b[h+1], b[g+1] = byte((b[g+1]&0xF)<<4|(b[h+1]&0xF)), byte((b[g+1]>>4)<<4|((b[h+1]>>4)&0xF))
+				b[h], b[g] = (b[g]&0xF)<<4|(b[h]&0xF), (b[g]>>4)<<4|((b[h]>>4)&0xF)
+				b[h+1], b[g+1] = (b[g+1]&0xF)<<4|(b[h+1]&0xF), (b[g+1]>>4)<<4|((b[h+1]>>4)&0xF)
 			}
 		}
 		if d {
@@ -208,10 +208,10 @@ func (e *CBK) cipherTable(b *[size + 1]byte) {
 		case i > 6 && i <= 11:
 			(*b)[i] = byte(uint16(e.C) - uint16(e.B) + uint16((e.index+1)*i) + e.adjust(uint16(e.C)))
 		case i > 11:
-			(*b)[i] = byte(e.adjust(uint16(e.B+e.C)) + uint16(e.D) - uint16(len((*b))-1) - uint16(e.D) + uint16(e.A-e.C))
+			(*b)[i] = byte(e.adjust(uint16(e.B+e.C)) + uint16(e.D) - uint16(len(*b)-1) - uint16(e.D) + uint16(e.A-e.C))
 		}
 	}
-	(*b)[len(*b)-1] = byte(e.adjust(uint16(e.B+e.C)) + uint16(e.index) - uint16(len((*b))-1) - uint16(e.D) + uint16(e.A-e.C))
+	(*b)[len(*b)-1] = byte(e.adjust(uint16(e.B+e.C)) + uint16(e.index) - uint16(len(*b)-1) - uint16(e.D) + uint16(e.A-e.C))
 }
 func (e *CBK) readInput(r io.Reader) (int, error) {
 	n, err := io.ReadFull(r, e.buf)
@@ -275,7 +275,7 @@ func (e *CBK) blockIndex(a bool, t, i uint16) byte {
 	case v == 1 && !a:
 		return byte(((((4*i)/3 + (t * 2)) / 3) + 8) / 3)
 	case v == 2 && !a:
-		return byte(((((9 + i + uint16(e.A*e.D)) / 4) + (t / 2) + (2*i + 1 + uint16(e.D))) / (((i + 3) / (5 + t)) + 6)))
+		return byte((((9 + i + uint16(e.A*e.D)) / 4) + (t / 2) + (2*i + 1 + uint16(e.D))) / (((i + 3) / (5 + t)) + 6))
 	case v == 3 && !a:
 		return byte(((((4+(t-5)/2)/6)+3)*2)*((5+i)/3) + 4)
 	case v == 4 && !a:
@@ -329,7 +329,7 @@ func NewCBKSource(a, b, c, d, sz byte) (*CBK, error) {
 	default:
 		return nil, xerr.Sub("block size must be a power of two between 16 and 128", 0x28)
 	}
-	return &CBK{A: byte(a), B: byte(b), C: byte(c), D: byte(d), buf: make([]byte, sz+1), total: -1}, nil
+	return &CBK{A: a, B: b, C: c, D: d, buf: make([]byte, sz+1), total: -1}, nil
 }
 func clear(b *[size + 1]byte, z *[size + 1][256]byte) {
 	for i := range *b {
@@ -341,7 +341,7 @@ func clear(b *[size + 1]byte, z *[size + 1][256]byte) {
 }
 
 // NewCBKEx returns a new CBK Cipher with the D value, BlockSize and Entropy source
-// specified. The other A, B and C values are randomally generated at runtime.
+// specified. The other A, B and C values are randomly generated at runtime.
 func NewCBKEx(d int, sz int, src source) (*CBK, error) {
 	switch sz {
 	case 0:

@@ -26,7 +26,6 @@
 // stream with optional encryption capabilities. Sentinels can launch
 // applications in may different ways, including downloading, injecting or
 // directly executing.
-//
 package man
 
 import (
@@ -50,7 +49,7 @@ func (g *Guardian) Wait() {
 	<-g.ch
 }
 
-// Close will close the Guardian and stoppings the listener.
+// Close will close the Guardian and stops the listener.
 //
 // Any errors during listener close will be returned.
 //
@@ -74,7 +73,7 @@ func (g *Guardian) Done() <-chan struct{} {
 
 // MustGuard returns a Guardian instance that watches on the name provided.
 //
-// This function must complete and will panic if an error occurs. Otherwise a
+// This function must complete and will panic if an error occurs, otherwise a
 // Guardian instance is returned.
 //
 // This function defaults to the 'Pipe' Linker if a nil Linker is specified.
@@ -98,7 +97,7 @@ func Guard(l Linker, n string) (*Guardian, error) {
 
 // MustGuardContext returns a Guardian instance that watches on the name provided.
 //
-// This function must complete and will panic if an error occurs. Otherwise a
+// This function must complete and will panic if an error occurs, otherwise a
 // Guardian instance is returned.
 //
 // This function also takes a context.Context to be used for resource control.

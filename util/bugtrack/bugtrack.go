@@ -55,13 +55,14 @@ func init() {
 	log.Info("Bugtrack log init complete, log file can be found at %q.", f)
 }
 
-// Recover is a "guard" function to be used to gracefully shutdown a program
+// Recover is a "guard" function to be used to gracefully shut down a program
 // when a panic is detected.
 //
 // Can be en enabled by using:
-//    if bugtrack.Enabled {
-//        defer bugtrack.Recover("thread-name")
-//    }
+//
+//   if bugtrack.Enabled {
+//       defer bugtrack.Recover("thread-name")
+//   }
 //
 // The specified name will be entered into the bugtrack log and a stack trace
 // will be generated before gracefully returning execution to the program.

@@ -48,7 +48,7 @@ type ipPacketConn struct {
 // NewIP creates a new simple IP based connector with the supplied timeout and
 // protocol number.
 func NewIP(t time.Duration, p byte) Connector {
-	return &ipConnector{proto: p, Dialer: net.Dialer{Timeout: t, KeepAlive: t, DualStack: true}}
+	return &ipConnector{proto: p, Dialer: net.Dialer{Timeout: t, KeepAlive: t}}
 }
 func (i *ipStream) Read(b []byte) (int, error) {
 	n, err := i.udpStream.Read(b)

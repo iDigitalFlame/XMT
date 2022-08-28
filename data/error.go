@@ -13,6 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
+
 package data
 
 import (
@@ -25,12 +26,11 @@ const (
 	// ErrTooLarge is raised if memory cannot be allocated to store data in a Chunk.
 	ErrTooLarge = dataError(3)
 	// ErrInvalidType is an error that occurs when the Bytes, ReadBytes, StringVal
-	// or ReadString functions could not
-	// propertly determine the underlying type of array from the Reader.
+	// or ReadString functions could not properly determine the underlying type
+	// of array from the Reader.
 	ErrInvalidType = dataError(1)
 	// ErrInvalidIndex is raised if a specified Grow or index function is supplied
-	// with an negative or out of
-	// bounds number or when a Seek index is not valid.
+	// with a negative or out of bounds number or when a Seek index is not valid.
 	ErrInvalidIndex = dataError(2)
 )
 

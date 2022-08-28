@@ -133,10 +133,10 @@ type Status struct {
 	ExitCode   uint32
 }
 
-// Service is an struct that is passed to the Handler function and can be used
+// Service is a struct that is passed to the Handler function and can be used
 // to receive and send updates to the service control manager.
 //
-// NOTE(dij): The function 'DynamicStartReason' is only avaliable on Windows >7
+// NOTE(dij): The function 'DynamicStartReason' is only available on Windows >7
 // and will return an error if it does not exist.
 type Service struct {
 	f     Handler
@@ -257,7 +257,7 @@ func serviceMain(argc uint32, argv **uint16) uintptr {
 		x    = make(chan uint32)
 		f    uint32
 	)
-	// NOTE(dij): Making the 'in' channel buffered so the sends to it don't
+	// NOTE(dij): Making the 'in' channel buffered so the sends to it doesn't
 	//            block.
 	service.in, service.out = make(chan Change, 1), make(chan Status)
 	go func() {
@@ -334,7 +334,7 @@ func (s *Service) UpdateState(v State, a ...Accepted) {
 }
 
 // DynamicStartReason will return the DynamicStartReason type. This function is
-// only avaliable after Windows 7 and will return an error if it is not supported.
+// only available after Windows 7 and will return an error if it is not supported.
 func (s *Service) DynamicStartReason() (Reason, error) {
 	r, err := winapi.QueryServiceDynamicInformation(s.h, 1)
 	if err != nil {

@@ -19,7 +19,7 @@
 package cmd
 
 // LoaderEnabled is a compile-time constant that is true if the "DLLToASM" function
-// will modify the provided bytes slice to ASM. Otherwise this will be false.
+// will modify the provided bytes slice to ASM, otherwise this will be false.
 const LoaderEnabled = true
 
 var loader32 = [...]byte{
@@ -334,7 +334,8 @@ func rot(v, r, m uint32) uint32 {
 }
 
 // DLLToASM will patch the DLL raw bytes and convert it into shellcode using
-// thE SRDi launcher.
+// the SRDi launcher.
+//
 //   SRDi GitHub: https://github.com/monoxgas/sRDI
 //
 // The first string param is the function name which can be empty if not needed.

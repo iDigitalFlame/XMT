@@ -21,5 +21,5 @@ package local
 import "github.com/iDigitalFlame/xmt/device"
 
 func systemType() uint8 {
-	return uint8(uint8(device.OS)<<4 | uint8(device.Arch))
+	return uint8(device.OS)<<4 | uint8(device.Arch)
 }

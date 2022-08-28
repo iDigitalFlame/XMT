@@ -42,7 +42,7 @@ func NewTCP(t time.Duration) Connector {
 	if t < 0 {
 		t = DefaultTimeout
 	}
-	return &tcpConnector{Dialer: net.Dialer{Timeout: t, KeepAlive: t, DualStack: true}}
+	return &tcpConnector{Dialer: net.Dialer{Timeout: t, KeepAlive: t}}
 }
 func (t tcpListener) Accept() (net.Conn, error) {
 	if d, ok := t.Listener.(deadliner); ok {
@@ -61,7 +61,7 @@ func NewTLS(t time.Duration, c *tls.Config) Connector {
 	if t < 0 {
 		t = DefaultTimeout
 	}
-	return &tcpConnector{tls: c, Dialer: net.Dialer{Timeout: t, KeepAlive: t, DualStack: true}}
+	return &tcpConnector{tls: c, Dialer: net.Dialer{Timeout: t, KeepAlive: t}}
 }
 func (t tcpClient) Connect(x context.Context, s string) (net.Conn, error) {
 	return t.c.Connect(x, s)

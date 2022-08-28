@@ -72,7 +72,7 @@ func (j *Job) Wait() {
 // queue. Any threads waiting on this Job will return once this function completes.
 //
 // This does NOT prevent the client Session from running it, but will close
-// out all receiving channels and any received data will marked as an un-tracked
+// out all receiving channels and any received data will be marked as an un-tracked
 // Job.
 //
 // This is the only method that results in a Status of Canceled.
@@ -83,7 +83,7 @@ func (j *Job) Cancel() {
 	if j.Status >= StatusCompleted {
 		// Something happened and didn't close done.
 		if j.done != nil {
-			// NOTE(dij): I don't think this will panic, but I need too test to
+			// NOTE(dij): I don't think this will panic, but I need to test to
 			//            be 100% sure.
 			close(j.done)
 		}
@@ -102,7 +102,7 @@ func (j *Job) Cancel() {
 		close(j.done)
 		j.Status, j.done = StatusCanceled, nil
 		j.s.lock.Unlock()
-		// NOTE(dij): I know this does a lot of work while the Mutex is spinning
+		// NOTE(dij): I know this does a lot of work while the Mutex is spinning,
 		//            but it stays in sync.
 		return
 	}

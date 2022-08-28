@@ -36,7 +36,7 @@ func (e entryList) Swap(i, j int) {
 	e[i], e[j] = e[j], e[i]
 }
 
-// Dir returns an list of registry entries for the supplied key or an error if
+// Dir returns a list of registry entries for the supplied key or an error if
 // the path does not exist.
 //
 // The key path can either be a "reg" style path (ex: HKLM\System or

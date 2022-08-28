@@ -37,14 +37,14 @@ const (
 	SelectorLastValid = cBit(0xAA)
 	// SelectorRoundRobin is a selection option that will simply select the NEXT
 	// Group on every connection attempt. This option is affected by the Group
-	// weights set on each addition and will perfer higher numbered options in
+	// weights set on each addition and will prefer higher numbered options in
 	// order.
 	//
 	// Takes effect only if there are multiple Groups in this Config.
 	// This value is GLOBAL and can be present in any Group!
 	SelectorRoundRobin = cBit(0xAB)
 	// SelectorRandom is a selection option that will ignore all weights and order
-	// and will select an entry from the list randomally.
+	// and will select an entry from the list randomly.
 	//
 	// Takes effect only if there are multiple Groups in this Config.
 	// This value is GLOBAL and can be present in any Group!
@@ -52,14 +52,14 @@ const (
 	// SelectorSemiRoundRobin is a selection option that will potentially select
 	// the NEXT Group dependent on a random (25%) chance on every connection
 	// attempt. This option is affected by the Group weights set on each addition
-	// and will perfer higher numbered options in order. Otherwise, the last
+	// and will prefer higher numbered options in order. Otherwise, the last
 	// group used is kept.
 	//
 	// Takes effect only if there are multiple Groups in this Config.
 	// This value is GLOBAL and can be present in any Group!
 	SelectorSemiRoundRobin = cBit(0xAD)
 	// SelectorSemiRandom is a selection option that will ignore all weights and
-	// order and will select an entry from the list randomally dependent on a
+	// order and will select an entry from the list randomly dependent on a
 	// random (25%) chance on every connection attempt. Otherwise, the last
 	// group used is kept.
 	//
@@ -108,7 +108,7 @@ func (g *Group) Len() int {
 }
 
 // Jitter returns a value that represents a percentage [0-100] that will be taken
-// into account by a Session in order to skew it's connection timeframe.
+// into account by a Session in order to skew its connection timeframe.
 //
 // The value zero (0) is used to signify that Jitter is disabled. Other values
 // greater than one hundred (100) are ignored, as well as values below zero.
@@ -141,17 +141,17 @@ func (g *Group) Less(i, j int) bool {
 }
 
 // Switch is function that will indicate to the caller if the 'Next' function
-// needs to be called. Calling this function has the potential to advanced the
-// Profile group, if avaliable.
+// needs to be called. Calling this function has the potential to advance the
+// Profile group, if available.
 //
 // The supplied boolean must be true if the last call to 'Connect' ot 'Listen'
-// resulted in an error or if a forced switch if warrented.
+// resulted in an error or if a forced switch if warranted.
 // This indicates to the Profile is "dirty" and a switchover must be done.
 //
 // It is recommended to call the 'Next' function after if the result of this
 // function is true.
 //
-// Static Profile vairants may always return 'false' to prevent allocations.
+// Static Profile variants may always return 'false' to prevent allocations.
 func (g *Group) Switch(e bool) bool {
 	if (g.cur != nil && !e && g.sel == 0) || len(g.entries) == 0 {
 		return false
@@ -213,7 +213,7 @@ func (p *profile) Sleep() time.Duration {
 	return p.sleep
 }
 
-// MarshalBinary allows the source of this Group to be retrived to be reused
+// MarshalBinary allows the source of this Group to be retrieved to be reused
 // again.
 //
 // This function returns an error if the source is not available.

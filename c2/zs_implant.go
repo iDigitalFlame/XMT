@@ -40,7 +40,7 @@ type Job struct{}
 // Session is a struct that represents a connection between the client and the
 // Listener.
 //
-// This struct does some automatic handeling and acts as the communication
+// This struct does some automatic handling and acts as the communication
 // channel between the client and server.
 type Session struct {
 	lock   sync.RWMutex
@@ -73,7 +73,7 @@ type Session struct {
 }
 
 // IsClient returns true when this Session is not associated to a Listener on
-// this end, which signifies that this session is Client initiated or we are
+// this end, which signifies that this session is Client initiated, or we are
 // on a client device.
 func (*Session) IsClient() bool {
 	return true

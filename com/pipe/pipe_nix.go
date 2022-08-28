@@ -49,7 +49,7 @@ func (l *listener) Close() error {
 //
 // Pipe names are in the form of "/<path>".
 //
-// This function blocksindefinitely. Use the DialTimeout or DialContext to specify
+// This function blocks indefinitely. Use the DialTimeout or DialContext to specify
 // a control method.
 func Dial(path string) (net.Conn, error) {
 	return dialer.Dial(com.NameUnix, path)
@@ -143,7 +143,7 @@ func getPerms(s string) (os.FileMode, int, int, error) {
 // Pipe names are in the form of "/<path>".
 //
 // This function allows for specifying a Linux permissions string used to set the
-// permissions of the listeneing Pipe.
+// permissions of the listening Pipe.
 func ListenPerms(path, perms string) (net.Listener, error) {
 	return ListenPermsContext(context.Background(), path, perms)
 }
@@ -153,7 +153,7 @@ func ListenPerms(path, perms string) (net.Listener, error) {
 //
 // Pipe names are in the form of "/<path>".
 //
-// This function blocks for the specified amount of time and will return 'Errtimeout'
+// This function blocks for the specified amount of time and will return 'ErrTimeout'
 // if the timeout is reached.
 func DialTimeout(path string, t time.Duration) (net.Conn, error) {
 	return net.DialTimeout(com.NameUnix, path, t)
@@ -164,7 +164,7 @@ func DialTimeout(path string, t time.Duration) (net.Conn, error) {
 //
 // Pipe names are in the form of "/<path>".
 //
-// This function blocks until the supplied context is cancled and will return the
+// This function blocks until the supplied context is canceled and will return the
 // context's Err() if the cancel occurs before the connection.
 func DialContext(x context.Context, path string) (net.Conn, error) {
 	return dialer.DialContext(x, com.NameUnix, path)
@@ -188,7 +188,7 @@ func ListenContext(x context.Context, path string) (net.Listener, error) {
 // Pipe names are in the form of "/".
 //
 // This function allows for specifying a Linux permissions string used to set the
-// permissions of the listeneing Pipe.
+// permissions of the listening Pipe.
 //
 // The provided Context can be used to cancel the Listener.
 func ListenPermsContext(x context.Context, path, perms string) (net.Listener, error) {

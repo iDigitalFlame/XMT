@@ -40,21 +40,21 @@ var (
 type String string
 
 // Matcher is an alias of a string that can contain specific variable
-// instructsions to be replaced when calling the 'String' function. This alias
+// instructions to be replaced when calling the 'String' function. This alias
 // provides the 'Match' function, which returns a Regexp struct that will match
 // any value generated.
 //
-// Matcher Verb Guide
+// # Matcher Verb Guide
 //
 // <N> indicates a non-negative number value that is REQUIRED.
 // [N] indicated a non-negative number value that is OPTIONAL.
 //     - If omitted, a random positive 8 to 32bit value will be used.
 //
-// If the number is followed by a 'f', this will FORCE the count and will use it
+// If the number is followed bfy a 'f', this will FORCE the count and will use it
 // directly instead of a range to N. Otherwise, a [1, N] (inclusive) value will
 // be generated to be used instead.
 //
-// In both cases, the '<', '[', ']', and '>' are only used to cannotate usage,
+// In both cases, the '<', '[', ']', and '>' are only used to indicate usage,
 // and not actually used in the string value.
 //
 //  | Verb   | Description                                         | RegEx            |

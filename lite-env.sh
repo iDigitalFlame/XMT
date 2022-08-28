@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-echo "Making a Golang GOROOT clone to nuke stupid depdencies.."
+echo "Making a Golang GOROOT clone to nuke stupid dependencies.."
 
 GOROOT_LITE="/tmp/go-root-lite"
 

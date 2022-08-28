@@ -40,7 +40,7 @@ var (
 	// Any will attempt to locate a parent process that may be elevated
 	// based on the current process permissions.
 	//
-	// This one will fallback to non-elevated if all checks fail.
+	// This one will fall back to non-elevated if all checks fail.
 	Any = (&Filter{Fallback: true}).SetElevated(true)
 	// Random is a Filter that can be used by default to select ANY random
 	// process on the target device to be used as the parent process without
@@ -49,7 +49,7 @@ var (
 )
 
 // Filter is a struct that can be used to set the Parent process for many types
-// of 'Runnable' compatable interfaces.
+// of 'Runnable' compatible interfaces.
 //
 // Each option can be set directly or chained using the function calls which all
 // return the struct for chain usage.
@@ -59,19 +59,19 @@ type Filter struct {
 	// Exclude and Include determine the processes that can be included or omitted
 	// during process listing. 'Exclude' always takes precedence over 'Include'.
 	//
-	// Ether one being nil or empty means no processes are included/excluded.
+	// Either one being nil or empty means no processes are included/excluded.
 	// All matches are case-insensitive.
 	Exclude []string
 	Include []string
 	// PID will attempt to select the PID to be used for the parent.
 	// If set to zero, it will be ignored. Values less than 5 are not valid!
 	PID uint32
-	// Fallback specifies if the opts routine should try again with less constaints
+	// Fallback specifies if the opts routine should try again with less constraints
 	// than the previous attempt. All attempts will still respect the 'Exclude'
 	// and 'Ignore' directives.
 	Fallback bool
 	// Session can be set to 'True' or 'False' to attempt to target processes that
-	// are either in or not in a DWM session environment (ie: in a user deskop
+	// are either in or not in a DWM session environment (ie: in a user desktop
 	// [True] or a service context [False]). This value is ignored if set to 'Empty'.
 	Session boolean
 	// Elevated can be set 'True' or 'False' to attempt to target processes that
@@ -242,10 +242,10 @@ func (f *Filter) unmarshalStream(r data.Reader) error {
 	if err := r.ReadBool(&f.Fallback); err != nil {
 		return err
 	}
-	if err := r.ReadUint8((*uint8)((&f.Session))); err != nil {
+	if err := r.ReadUint8((*uint8)(&f.Session)); err != nil {
 		return err
 	}
-	if err := r.ReadUint8((*uint8)((&f.Elevated))); err != nil {
+	if err := r.ReadUint8((*uint8)(&f.Elevated)); err != nil {
 		return err
 	}
 	if err := data.ReadStringList(r, &f.Exclude); err != nil {

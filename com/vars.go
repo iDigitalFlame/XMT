@@ -25,7 +25,7 @@ import (
 
 // DefaultTimeout is the default timeout used for the default connectors.
 // The default is 15 seconds.
-const DefaultTimeout = time.Second * 15 //30
+const DefaultTimeout = time.Second * 15 // 30
 
 // ListenConfig is the default listener config that is used to generate the
 // Listeners. This can be used to specify the listen 'KeepAlive' timeout.

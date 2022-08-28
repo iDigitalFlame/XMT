@@ -49,25 +49,25 @@ const (
 	// Mutex is a Linker type that can be used with a Guardian.
 	// This Linker uses Windows Mutexes to determine Guardian status.
 	//
-	// This Linker type is only avaliable on Windows devices.
+	// This Linker type is only available on Windows devices.
 	// non-Windows devices will always return a 'device.ErrNoWindows' error.
 	Mutex = objSync(0)
 	// Event is a Linker type that can be used with a Guardian.
 	// This Linker uses Windows Events to determine Guardian status.
 	//
-	// This Linker type is only avaliable on Windows devices.
+	// This Linker type is only available on Windows devices.
 	// non-Windows devices will always return a 'device.ErrNoWindows' error.
 	Event = objSync(1)
 	// Semaphore is a Linker type that can be used with a Guardian.
 	// This Linker uses Windows Semaphores to determine Guardian status.
 	//
-	// This Linker type is only avaliable on Windows devices.
+	// This Linker type is only available on Windows devices.
 	// non-Windows devices will always return a 'device.ErrNoWindows' error.
 	Semaphore = objSync(2)
 	// Mailslot is a Linker type that can be used with a Guardian.
-	// This Linker uses Windows MailslotS to determine Guardian status.
+	// This Linker uses Windows Mailslots to determine Guardian status.
 	//
-	// This Linker type is only avaliable on Windows devices.
+	// This Linker type is only available on Windows devices.
 	// non-Windows devices will always return a 'device.ErrNoWindows' error.
 	Mailslot = objSync(3)
 )

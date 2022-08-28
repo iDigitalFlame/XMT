@@ -49,7 +49,7 @@ func Capture(_ io.Writer) error {
 // ActiveDisplays returns the count of current active displays enabled on the
 // device.
 //
-// This function returns an error if any error occurs when retriving the display
+// This function returns an error if any error occurs when retrieving the display
 // count.
 //
 // TODO(dij): Currently works only on Windows devices.
@@ -68,7 +68,7 @@ func DisplayBounds(_ uint32) (image.Rectangle, error) {
 }
 
 // CaptureRange attempts to take a PNG-encoded screenshot of the current
-// deminsions specified into the supplied io.Writer.
+// dimensions specified into the supplied io.Writer.
 //
 // This function will return an error getting the screen color info fails or
 // encoding the image fails.

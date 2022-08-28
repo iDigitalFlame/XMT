@@ -35,13 +35,13 @@ const (
 	Linux OSType = 0x1
 	// Unix represents the Unix/BSD family of Operating Systems
 	Unix OSType = 0x2
-	// Mac represents the MacOS family of Operating Systems
+	// Mac represents the macOS family of Operating Systems
 	Mac OSType = 0x3
 	// IOS represents the iOS family of Operating Systems
-	// Technically is Mac, but deserves it's own type for any special actions.
+	// Technically is Mac, but deserves its own type for any special actions.
 	IOS OSType = 0x4
 	// Android represents the Android family of Operating Systems
-	// Technically is Linux, but deserves it's own type for any special actions.
+	// Technically is Linux, but deserves its own type for any special actions.
 	Android OSType = 0x5
 	// Plan9 represents the Plan9 family of Operating Systems
 	Plan9 OSType = 0x6

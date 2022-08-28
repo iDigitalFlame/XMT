@@ -478,7 +478,7 @@ func readCallable(x context.Context, m bool, r data.Reader) (cmd.Runnable, strin
 		return nil, "", err
 	}
 	// NOTE(dij): We're using the Background context here as we don't want
-	//            cancelation for this process as we're creating it to
+	//            cancellation for this process as we're creating it to
 	//            succeed us (or be independent).
 	switch t {
 	case task.TvDLL:
@@ -548,7 +548,7 @@ func readCallable(x context.Context, m bool, r data.Reader) (cmd.Runnable, strin
 		if _, ok := e.(*cmd.Process); !ok {
 			// Refusing to run Migrate that is NOT A SEPARATE process WITHOUT A
 			// non-empty/nil Filter.
-			// This will cause the migrate to go through and then crash.
+			// This will cause migrate to go through and then crash.
 			return nil, "", filter.ErrNoProcessFound
 		}
 	}

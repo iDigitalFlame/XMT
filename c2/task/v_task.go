@@ -76,7 +76,7 @@ func Refresh() *com.Packet {
 }
 
 // RevToSelf returns a Rev2Self Packet. This can be used to instruct Windows
-// based devices to drop any previous elevated Tokens they may posess and return
+// based devices to drop any previous elevated Tokens they may possess and return
 // to their "normal" Token.
 //
 // This task result does not return any data, only errors if it fails.
@@ -140,7 +140,7 @@ func Ls(d string) *com.Packet {
 }
 
 // IsDebugged returns a check debugger status Packet. This can be used to instruct
-// the client to return a boolean value determing if it is currently attached or
+// the client to return a boolean value determine if it is currently attached or
 // being run by a debugger.
 //
 // C2 Details:
@@ -174,14 +174,14 @@ func ProcessList() *com.Packet {
 }
 
 // Jitter returns a set Session jitter Packet. This can be used to instruct the
-// client to update it's jitter value to the specified 0-100 percentage.
+// client to update its jitter value to the specified 0-100 percentage.
 //
 // Anything greater than 100 will be capped to 100 and anything less than zero
 // (except -1) will be set to zero. Values of -1 are ignored. This setting will
 // NOT override the Sleep setting.
 //
 // IT IS RECOMMENDED TO USE THE 'Session.Jitter' CALL INSTEAD TO PREVENT DE-SYNC
-// ISSSUES BETWEEN SERVER AND CLIENT. HERE ONLY FOR USAGE IN SCRIPTS.
+// ISSUES BETWEEN SERVER AND CLIENT. HERE ONLY FOR USAGE IN SCRIPTS.
 //
 // C2 Details:
 //  ID: MvTime
@@ -197,10 +197,10 @@ func Jitter(j int) *com.Packet {
 }
 
 // Cwd returns a change directory Packet. This can be used to instruct the
-// client to change from it's current working directory to the directory
+// client to change from its current working directory to the directory
 // specified.
 //
-// Empty or invalid directory entires will return an error.
+// Empty or invalid directory entries will return an error.
 //
 // The source path may contain environment variables that will be resolved
 // during runtime.
@@ -258,10 +258,10 @@ func Touch(s string) *com.Packet {
 }
 
 // Profile returns an update profile Packet. This can be used to instruct the
-// client to set it's profile to the raw Profile bytes supplied.
+// client to set its profile to the raw Profile bytes supplied.
 //
 // IT IS RECOMMENDED TO USE THE 'Session.SetProfile' CALL INSTEAD TO PREVENT DE-SYNC
-// ISSSUES BETWEEN SERVER AND CLIENT. HERE ONLY FOR USAGE IN SCRIPTS.
+// ISSUES BETWEEN SERVER AND CLIENT. HERE ONLY FOR USAGE IN SCRIPTS.
 //
 // C2 Details:
 //  ID: MvProfile
@@ -319,7 +319,7 @@ func Download(src string) *com.Packet {
 }
 
 // ProcessName returns a process name change Packet. This can be used to instruct
-// the client to change from it's current in-memory name to the specified string.
+// the client to change from its current in-memory name to the specified string.
 //
 // C2 Details:
 //  ID: TvRename
@@ -425,13 +425,13 @@ func Pull(url, path string) *com.Packet {
 }
 
 // Sleep returns a set Session sleep Packet. This can be used to instruct the
-// client to update it's sleep value to the specified duration.
+// client to update its sleep value to the specified duration.
 //
 // Anything less than or equal to zero is ignored! This setting will NOT override
 // the Jitter setting.
 //
 // IT IS RECOMMENDED TO USE THE 'Session.Sleep' CALL INSTEAD TO PREVENT DE-SYNC
-// ISSSUES BETWEEN SERVER AND CLIENT. HERE ONLY FOR USAGE IN SCRIPTS.
+// ISSUES BETWEEN SERVER AND CLIENT. HERE ONLY FOR USAGE IN SCRIPTS.
 //
 // C2 Details:
 //  ID: MvTime
@@ -470,7 +470,7 @@ func ProxyRemove(name string) *com.Packet {
 
 // UnTrust returns an Untrust Packet. This will instruct the client to use the
 // provided Filter to attempt to "Untrust" the targeted process by removing all
-// of it's permissions and setting it's integrity level to "Untrusted".
+// of its permissions and setting its integrity level to "Untrusted".
 //
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
@@ -495,7 +495,7 @@ func UnTrust(f *filter.Filter) *com.Packet {
 	return n
 }
 
-// Elevate returns an evelate Packet. This will instruct the client to use the
+// Elevate returns an elevate Packet. This will instruct the client to use the
 // provided Filter to attempt to get a Token handle to an elevated process. If
 // the Filter is nil, then the client will attempt at any elevated process.
 //
@@ -522,7 +522,7 @@ func Elevate(f *filter.Filter) *com.Packet {
 	return n
 }
 
-// Upload returns a upload Packet. This will instruct the client to write the
+// Upload returns an upload Packet. This will instruct the client to write the
 // provided byte array to the filepath provided. The client will return the
 // number of bytes written and the resulting expanded file path.
 //
@@ -598,7 +598,7 @@ func Delete(s string, recurse bool) *com.Packet {
 }
 
 // Duration returns a set Session sleep and/or jitter Packet. This can be used
-// to instruct the client to update it's sleep and jitters value to the specified
+// to instruct the client to update its sleep and jitters value to the specified
 // duration and 0-100 percentage values if they are not unset. (-1 for Jitter,
 // anything <=0 for Sleep).
 //
@@ -608,7 +608,7 @@ func Delete(s string, recurse bool) *com.Packet {
 // than zero (except -1) will be set to zero. Values of -1 are ignored.
 //
 // IT IS RECOMMENDED TO USE THE 'Session.Duration' CALL INSTEAD TO PREVENT DE-SYNC
-// ISSSUES BETWEEN SERVER AND CLIENT. HERE ONLY FOR USAGE IN SCRIPTS.
+// ISSUES BETWEEN SERVER AND CLIENT. HERE ONLY FOR USAGE IN SCRIPTS.
 //
 // C2 Details:
 //  ID: MvTime
@@ -703,7 +703,7 @@ func LoginUser(user, domain, pass string) *com.Packet {
 	return n
 }
 
-// UploadFile returns a upload  Packet. This will instruct the client to write
+// UploadFile returns an upload Packet. This will instruct the client to write
 // the provided (server local) file content to the filepath provided. The client
 // will return the number of bytes written and the resulting expanded file path.
 //
@@ -733,7 +733,7 @@ func UploadFile(dst, src string) (*com.Packet, error) {
 	return n, err
 }
 
-// ProxyReplace returns an replace Proxy Packet. This can be used to instruct
+// ProxyReplace returns a replace Proxy Packet. This can be used to instruct
 // the client to attempt to call the 'Replace' function on the specified Proxy
 // with the name, bind address and Profile bytes as the arguments.
 //
@@ -759,7 +759,7 @@ func ProxyReplace(name, addr string, p []byte) *com.Packet {
 	return n
 }
 
-// UploadReader returns a upload Packet. This will instruct the client to write
+// UploadReader returns an upload Packet. This will instruct the client to write
 // the provided reader content to the filepath provided. The client will return
 // the number of bytes written and the resulting file path.
 //
@@ -816,7 +816,7 @@ func PullExecute(url string, w bool, f *filter.Filter) *com.Packet {
 	return PullExecuteAgent(url, "", w, f)
 }
 
-// Restart returns a shutdown Packet. This will instruct the client to initate
+// Restart returns a shutdown Packet. This will instruct the client to initiate
 // a restart/reboot operation. A reboot message, reason, force and timeout can
 // be specified. Timeouts are specified in seconds.
 //
@@ -846,7 +846,7 @@ func Restart(msg string, sec uint32, force bool, reason uint32) *com.Packet {
 	return n
 }
 
-// Shutdown returns a shutdown Packet. This will instruct the client to initate
+// Shutdown returns a shutdown Packet. This will instruct the client to initiate
 // a shutdown/poweroff operation. A shutdown message, reason, force and timeout
 // can be specified. Timeouts are specified in seconds.
 //
@@ -920,7 +920,7 @@ func PullExecuteAgent(url, agent string, w bool, f *filter.Filter) *com.Packet {
 }
 
 // Netcat returns a network connection Packet. This will instruct the client to
-// initate a network call to the specified host:port with the provided protocol.
+// initiate a network call to the specified host:port with the provided protocol.
 // Reading the results and timeouts can be specified, along with the payload to
 // be sent.
 //

@@ -84,7 +84,7 @@ func (l *Listener) listen() {
 			if errors.Is(err, net.ErrClosed) {
 				// NOTE(dij): Catch the socket being replaced, this should
 				//            only happen when replacement occurs, if we ARE
-				//            closing or the ctx was cancled, continue and
+				//            closing or the ctx was canceled, continue and
 				//            that /should/ be hit at the top of the loop.
 				continue
 			}
@@ -195,7 +195,7 @@ func (l *Listener) clientGet(i uint32) (connHost, bool) {
 // Replace allows for rebinding this Listener to another address or using
 // another Profile without closing the Listener.
 //
-// If the provided Profile is nil, the Listener will not change it's profile.
+// If the provided Profile is nil, the Listener will not change its profile.
 //
 // The listening socket will be closed and the Listener will be paused and
 // cannot accept any more connections before being reopened.
@@ -240,7 +240,7 @@ func (l *Listener) clientSet(i uint32, c chan *com.Packet) {
 	v.state.Set(stateChannelProxy)
 	for v.chn = c; len(v.send) > 0; {
 		select {
-		case c <- (<-v.send):
+		case c <- <-v.send:
 		default:
 		}
 	}

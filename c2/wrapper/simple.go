@@ -29,7 +29,7 @@ const (
 	// Hex is the Hex encoding Wrapper. This wraps the binary data as hex values.
 	Hex = simple(0x1)
 	// Base64 is the Base64 Wrapper. This wraps the binary data as a Base64 byte string. This may be
-	// combined with the Base64 transfrom.
+	// combined with the Base64 transform.
 	Base64 = simple(0x2)
 )
 

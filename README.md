@@ -1,6 +1,6 @@
 # XMT: eXtensible Malware Toolkit
 
-XMT is a full featured C2 framework written in Golang that allows for control,
+XMT is a full-featured C2 framework written in Golang that allows for control,
 data exfiltration and some other cool functions. Can be used to make full C2
 clients/servers with little out-of-the-box changes.
 
@@ -17,7 +17,7 @@ These are some things I need to work on.
 - MultiProxy Support
 - Shellcode for Linux without CGO (potentially)
 - Add in memory (Reflective) DLL injection (Outside of SRDi)
-- ScreenShot support for MacOS/Linux without CGO?
+- ScreenShot support for macOS/Linux without CGO?
 - More Windows thread creation techniques besides NtCreateThreadEx
 
 ## Bugs

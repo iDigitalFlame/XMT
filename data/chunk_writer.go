@@ -58,10 +58,10 @@ func (c *Chunk) WriteInt64(n int64) error {
 
 // WriteUint8 writes the supplied value to the Chunk payload buffer.
 func (c *Chunk) WriteUint8(n uint8) error {
-	if c.Limit > 0 && !c.Avaliable(1) {
+	if c.Limit > 0 && !c.Available(1) {
 		return ErrLimit
 	}
-	v, err := c.Write([]byte{byte(n)})
+	v, err := c.Write([]byte{n})
 	if err == nil && v != 1 {
 		return io.ErrShortWrite
 	}
@@ -70,7 +70,7 @@ func (c *Chunk) WriteUint8(n uint8) error {
 
 // WriteBytes writes the supplied value to the Chunk payload buffer.
 func (c *Chunk) WriteBytes(b []byte) error {
-	if c.Limit > 0 && !c.Avaliable(1) {
+	if c.Limit > 0 && !c.Available(1) {
 		return ErrLimit
 	}
 	switch l := uint64(len(b)); {
@@ -81,7 +81,7 @@ func (c *Chunk) WriteBytes(b []byte) error {
 		}
 		return err
 	case l < LimitSmall:
-		if c.Limit > 0 && !c.Avaliable(2+int(l)) {
+		if c.Limit > 0 && !c.Available(2+int(l)) {
 			return ErrLimit
 		}
 		if v, err := c.Write([]byte{1, byte(l)}); err != nil {
@@ -90,7 +90,7 @@ func (c *Chunk) WriteBytes(b []byte) error {
 			return io.ErrShortWrite
 		}
 	case l < LimitMedium:
-		if c.Limit > 0 && !c.Avaliable(3+int(l)) {
+		if c.Limit > 0 && !c.Available(3+int(l)) {
 			return ErrLimit
 		}
 		if v, err := c.Write([]byte{3, byte(l >> 8), byte(l)}); err != nil {
@@ -99,7 +99,7 @@ func (c *Chunk) WriteBytes(b []byte) error {
 			return io.ErrShortWrite
 		}
 	case l < LimitLarge:
-		if c.Limit > 0 && !c.Avaliable(5+int(l)) {
+		if c.Limit > 0 && !c.Available(5+int(l)) {
 			return ErrLimit
 		}
 		if v, err := c.Write([]byte{5, byte(l >> 24), byte(l >> 16), byte(l >> 8), byte(l)}); err != nil {
@@ -108,7 +108,7 @@ func (c *Chunk) WriteBytes(b []byte) error {
 			return io.ErrShortWrite
 		}
 	default:
-		if c.Limit > 0 && !c.Avaliable(9+int(l)) {
+		if c.Limit > 0 && !c.Available(9+int(l)) {
 			return ErrLimit
 		}
 		if v, err := c.Write([]byte{
@@ -126,7 +126,7 @@ func (c *Chunk) WriteBytes(b []byte) error {
 
 // WriteUint16 writes the supplied value to the Chunk payload buffer.
 func (c *Chunk) WriteUint16(n uint16) error {
-	if c.Limit > 0 && !c.Avaliable(2) {
+	if c.Limit > 0 && !c.Available(2) {
 		return ErrLimit
 	}
 	v, err := c.Write([]byte{byte(n >> 8), byte(n)})
@@ -138,7 +138,7 @@ func (c *Chunk) WriteUint16(n uint16) error {
 
 // WriteUint32 writes the supplied value to the Chunk payload buffer.
 func (c *Chunk) WriteUint32(n uint32) error {
-	if c.Limit > 0 && !c.Avaliable(4) {
+	if c.Limit > 0 && !c.Available(4) {
 		return ErrLimit
 	}
 	v, err := c.Write([]byte{byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n)})
@@ -150,7 +150,7 @@ func (c *Chunk) WriteUint32(n uint32) error {
 
 // WriteUint64 writes the supplied value to the Chunk payload buffer.
 func (c *Chunk) WriteUint64(n uint64) error {
-	if c.Limit > 0 && !c.Avaliable(8) {
+	if c.Limit > 0 && !c.Available(8) {
 		return ErrLimit
 	}
 	v, err := c.Write([]byte{
@@ -170,7 +170,7 @@ func (c *Chunk) WriteString(s string) error {
 
 // WriteFloat32 writes the supplied value to the Chunk payload buffer.
 func (c *Chunk) WriteFloat32(f float32) error {
-	if c.Limit > 0 && !c.Avaliable(4) {
+	if c.Limit > 0 && !c.Available(4) {
 		return ErrLimit
 	}
 	return c.WriteUint32(float32ToInt(f))
@@ -178,7 +178,7 @@ func (c *Chunk) WriteFloat32(f float32) error {
 
 // WriteFloat64 writes the supplied value to the Chunk payload buffer.
 func (c *Chunk) WriteFloat64(f float64) error {
-	if c.Limit > 0 && !c.Avaliable(8) {
+	if c.Limit > 0 && !c.Available(8) {
 		return ErrLimit
 	}
 	return c.WriteUint64(float64ToInt(f))

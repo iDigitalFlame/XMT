@@ -72,9 +72,9 @@ func getID() device.ID {
 	//             - Windows now uses the system SID instead
 	//               - Falls back to machine GUID if that fails
 	//             - Fixes for AIX and BSD UUID grab
-	//             - Fixed an iOS/MacOS ID pickup bug
+	//             - Fixed an iOS/macOS ID pickup bug
 	//
-	//            This code below changes how ID's are generated
+	//            This code below changes how IDs are generated
 	//            An extra bit is taken away from the random address space
 	//            (8 => 7), thus short IDs from the same machine will ALWAYS
 	//            have the same two first bits for easy identification.

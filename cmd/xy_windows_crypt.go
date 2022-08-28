@@ -20,4 +20,7 @@ package cmd
 
 import "github.com/iDigitalFlame/xmt/util/crypt"
 
-var sysRoot = crypt.Get(15) // SYSTEMROOT
+var (
+	sysRoot    = crypt.Get(15)       // SYSTEMROOT
+	sysRootVar = crypt.Get(105)[:10] // C:\Windows\System32
+)

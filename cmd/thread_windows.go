@@ -214,7 +214,7 @@ func (t *thread) Handle() (uintptr, error) {
 	if t.hwnd == 0 {
 		return 0, ErrNotStarted
 	}
-	return uintptr(t.hwnd), nil
+	return t.hwnd, nil
 }
 func (t *thread) ExitCode() (int32, error) {
 	if t.hwnd > 0 && t.Running() {
@@ -226,7 +226,7 @@ func (t *thread) Location() (uintptr, error) {
 	if t.hwnd == 0 || t.loc == 0 {
 		return 0, ErrNotStarted
 	}
-	return uintptr(t.loc), nil
+	return t.loc, nil
 }
 func (t *thread) stopWith(c uint32, e error) error {
 	if !t.Running() {

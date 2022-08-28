@@ -77,7 +77,7 @@ func (p *Packet) Size() int {
 }
 
 // Add attempts to combine the data and properties the supplied Packet with the
-// existsing Packet. This function will return an error if the ID's have a
+// existing Packet. This function will return an error if the ID's have a
 // mismatch or there was an error during the write operation.
 func (p *Packet) Add(n *Packet) error {
 	if n == nil || n.Empty() {
@@ -101,7 +101,7 @@ func (p *Packet) Belongs(n *Packet) bool {
 }
 
 // Marshal will attempt to write this Packet's data and headers to the specified
-// Writer. This function will return any errors that have occur during writing.
+// Writer. This function will return any errors that have occurred during writing.
 func (p *Packet) Marshal(w io.Writer) error {
 	if err := p.writeHeader(w); err != nil {
 		return xerr.Wrap("marshal header", err)
@@ -160,7 +160,7 @@ func (p *Packet) readBody(r io.Reader) error {
 }
 
 // Unmarshal will attempt to read Packet data and headers from the specified Reader.
-// This function will return any errors that have occur during reading.
+// This function will return any errors that have occurred during reading.
 func (p *Packet) Unmarshal(r io.Reader) error {
 	if err := p.readHeader(r); err != nil {
 		return xerr.Wrap("unmarshal header", err)

@@ -64,7 +64,7 @@ const (
 	valTLSCert = cBit(0xB5)
 )
 
-// ConnectIP will provide a IP connection setting to the generated Profile with
+// ConnectIP will provide an IP connection setting to the generated Profile with
 // the specified protocol number.
 //
 // If multiple connections are contained in the current Config Group, a

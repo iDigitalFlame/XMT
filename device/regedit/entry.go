@@ -28,7 +28,7 @@ import (
 //
 // This may represent a Key or a Value. Values will also include their data in
 // the 'Data' byte array and can be translated using any of the 'To*' functions
-// to get the data repsented in it's proper type cast.
+// to get the data represented in its proper type cast.
 type Entry struct {
 	Name string
 	Data []byte

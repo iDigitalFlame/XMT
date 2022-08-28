@@ -44,7 +44,7 @@ var ErrNoTask = xerr.Sub("no Job created for client Session", 0x58)
 // Session is a struct that represents a connection between the client and the
 // Listener.
 //
-// This struct does some automatic handeling and acts as the communication
+// This struct does some automatic handling and acts as the communication
 // channel between the client and server.
 type Session struct {
 	lock   sync.RWMutex
@@ -96,7 +96,7 @@ func (s *Session) Jobs() []*Job {
 }
 
 // IsClient returns true when this Session is not associated to a Listener on
-// this end, which signifies that this session is Client initiated or we are
+// this end, which signifies that this session is Client initiated, or we are
 // on a client device.
 func (s *Session) IsClient() bool {
 	return s.parent == nil && s.s == nil

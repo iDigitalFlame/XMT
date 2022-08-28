@@ -68,7 +68,7 @@ func (w *writer) WriteInt64(n int64) error {
 	return w.WriteUint64(uint64(n))
 }
 func (w *writer) WriteUint8(n uint8) error {
-	v, err := w.w.Write([]byte{byte(n)})
+	v, err := w.w.Write([]byte{n})
 	if err == nil && v != 1 {
 		return io.ErrShortWrite
 	}

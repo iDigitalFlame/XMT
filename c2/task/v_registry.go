@@ -67,7 +67,7 @@ func RegMakeKey(key string) *com.Packet {
 }
 
 // RegGet returns a get key/value Packet. This can be used to instruct the client
-// to return a entry details for the specified registry path.
+// to return an entry details for the specified registry path.
 //
 // C2 Details:
 //  ID: TvRegistry

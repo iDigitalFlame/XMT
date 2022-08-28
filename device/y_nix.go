@@ -50,9 +50,9 @@ func proxyInit() *config {
 // kill all Golang based OS-Threads based on their starting address (which
 // should be the same when starting from CGo).
 //
-// This function can be used on binaries, shared libaries or Zombified processes.
+// This function can be used on binaries, shared libraries or Zombified processes.
 //
-// Only works on Windows devices and is a a wrapper for 'syscall.Exit(0)' for
+// Only works on Windows devices and is a wrapper for 'syscall.Exit(0)' for
 // *nix devices.
 //
 // DO NOT EXPECT ANYTHING (INCLUDING DEFERS) TO HAPPEN AFTER THIS FUNCTION.
@@ -88,7 +88,7 @@ func dualEnv(o, t string) string {
 	return ""
 }
 
-// SetProcessName will attempt to overrite the process name on *nix systems
+// SetProcessName will attempt to override the process name on *nix systems
 // by overwriting the argv block.
 //
 // Returns 'ErrNoNix' on Windows devices.
@@ -118,7 +118,7 @@ func SetProcessName(s string) error {
 //
 // Use this function with "false" to disable the critical flag.
 //
-// NOTE: THIS MUST BE DISABED ON PROCESS EXIT OTHERWISE THE HOST WILL BSOD!!!
+// NOTE: THIS MUST BE DISABLED ON PROCESS EXIT OTHERWISE THE HOST WILL BSOD!!!
 //
 // Any errors when setting or obtaining privileges will be returned.
 //
@@ -139,7 +139,7 @@ func Impersonate(_ *filter.Filter) error {
 	return ErrNoWindows
 }
 
-// ImpersonateUser attempts to login with the supplied credentials and impersonate
+// ImpersonateUser attempts to log in with the supplied credentials and impersonate
 // the logged in account.
 //
 // This will set the permissions of all threads in use by the runtime. Once work

@@ -36,7 +36,7 @@ import (
 )
 
 const (
-	// RvResult is the generic value for indiciating a result value. Packets
+	// RvResult is the generic value for indicating a result value. Packets
 	// that have this as their ID value will be forwarded to the authoritative
 	// Mux and will be discarded if it does not match an active Job ID.
 	RvResult uint8 = 0x14
@@ -49,7 +49,7 @@ const (
 )
 
 // ID entries that start with 'Sv*' will be handed directly by the underlying
-// Session instead of being forwared to the authoritative Mux.
+// Session instead of being forwarded to the authoritative Mux.
 //
 // These Packet ID values are used for network congestion and flow control and
 // should not be used in standard Packet entries.
@@ -149,7 +149,7 @@ func readSlice(r io.Reader, d *[8]byte) ([]byte, error) {
 		[]byte, uint64(d[7])|uint64(d[6])<<8|uint64(d[5])<<16|uint64(d[4])<<24|
 			uint64(d[3])<<32|uint64(d[2])<<40|uint64(d[1])<<48|uint64(d[0])<<56,
 	)
-	return b, readFull(r, int(len(b)), b)
+	return b, readFull(r, len(b), b)
 }
 func (p *proxyData) UnmarshalStream(r data.Reader) error {
 	if err := r.ReadString(&p.b); err != nil {
@@ -546,7 +546,7 @@ func nextPacket(a notifier, q <-chan *com.Packet, n *com.Packet, i device.ID, t 
 		return nil, nil
 	}
 	// NOTE(dij): Fast path (if we have a strict limit OR we don't have
-	//            anything in queue but we got a packet). So just send that
+	//            anything in queue, but we got a packet). So just send that
 	//            shit/wrap if needed.
 	if limits.Packets <= 1 || (n != nil && len(q) == 0) {
 		if n == nil {
@@ -589,7 +589,7 @@ func nextPacket(a notifier, q <-chan *com.Packet, n *com.Packet, i device.ID, t 
 		} else {
 			s += n.Size()
 		}
-		// Set multi device flag if theres a packet in queue that doesn't match us.
+		// Set multi device flag if there's a packet in queue that doesn't match us.
 		if a.accept(n.Job); !verifyPacket(n, i) && !m {
 			o.Flags |= com.FlagMultiDevice
 			m = true

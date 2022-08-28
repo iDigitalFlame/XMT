@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/PurpleSec/escape"
+
 	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
@@ -38,7 +39,7 @@ type mapper map[string]json.RawMessage
 
 func (c cBit) String() string {
 	switch c {
-	case Seperator:
+	case Separator:
 		return "|"
 	case valHost:
 		return "host"
@@ -185,11 +186,11 @@ func (c Config) String() string {
 		if i = c.next(i); i < 0 || i >= len(c) {
 			break
 		}
-		if x == Seperator {
+		if x == Separator {
 			x = cBit(c[i])
 			continue
 		}
-		if x = cBit(c[i]); i >= 0 && i < len(c) && x != Seperator {
+		if x = cBit(c[i]); i >= 0 && i < len(c) && x != Separator {
 			b.WriteByte(',')
 		}
 	}
@@ -205,7 +206,7 @@ func JSON(s ...Setting) ([]byte, error) {
 }
 
 // MarshalJSON will attempt to convert the raw binary data in this Config
-// instance into a JSON formart.
+// instance into a JSON format.
 //
 // The only error that may occur is 'ErrInvalidSetting' if an invalid
 // setting or data value is encountered during conversion.
@@ -216,7 +217,7 @@ func (c Config) MarshalJSON() ([]byte, error) {
 	)
 	b.WriteByte('[')
 	for i, n, z := 0, 0, false; n >= 0 && n < len(c); i = n {
-		if i == 0 || x == Seperator {
+		if i == 0 || x == Separator {
 			b.WriteByte('[')
 		}
 		if x = cBit(c[i]); x == invalid {
@@ -225,7 +226,7 @@ func (c Config) MarshalJSON() ([]byte, error) {
 		if n = c.next(i); n == i || n > len(c) || n == -1 || n < i {
 			n = len(c)
 		}
-		if x == Seperator {
+		if x == Separator {
 			if n == len(c) {
 				break
 			}
@@ -694,7 +695,7 @@ func (c *Config) UnmarshalJSON(b []byte) error {
 			}
 		}
 		if k+1 < len(h) {
-			r = append(r, Seperator)
+			r = append(r, Separator)
 		}
 	}
 	*c = Bytes(r...)

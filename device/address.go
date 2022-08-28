@@ -24,9 +24,6 @@ import (
 )
 
 // Address represents an encoded IPv4 or IPv6 address.
-// NOTE(dij): Might get replaced in Go1.18 with netip.Address
-//            Probally not, I can't seem to find a way to handle the data and
-//            transfer it.
 //
 // The address struct was built on the great work from the great inet.af/netaddr
 // package thanks and great work y'all!

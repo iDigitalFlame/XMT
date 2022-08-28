@@ -156,10 +156,10 @@ func (p *Process) Release() error {
 	if !p.x.isStarted() {
 		return ErrNotStarted
 	}
-	//if atomic.SwapUint32(&p.cookie, 2) != 0 {
-	//	return nil
-	//}
-	//atomic.StoreUint32(&p.cookie, 2)
+	// if atomic.SwapUint32(&p.cookie, 2) != 0 {
+	// 	return nil
+	// }
+	// atomic.StoreUint32(&p.cookie, 2)
 	p.x.close()
 	return nil
 }
@@ -204,13 +204,13 @@ func (p *Process) SetUID(u int32) {
 // SetGID will set the process GID at runtime. This function takes the numerical
 // GID value. Use '-1' to disable this setting. The GID value is validated at runtime.
 //
-//This function has no effect on Windows devices.
+// This function has no effect on Windows devices.
 func (p *Process) SetGID(g int32) {
 	p.x.SetGID(g, p)
 }
 
 // SetFlags will set the startup Flag values used for Windows programs. This
-// function overrites many of the 'Set*' functions.
+// function overrides many of the 'Set*' functions.
 func (p *Process) SetFlags(f uint32) {
 	p.flags = f
 }
@@ -293,7 +293,7 @@ func (p *Process) SetWindowDisplay(m int) {
 	p.x.SetWindowDisplay(m)
 }
 
-// SetWindowTitle will set the title of the new spawned window to the the
+// SetWindowTitle will set the title of the new spawned window to the
 // specified string. This function has no effect on commands that do not
 // generate windows. Setting the value to an empty string will unset this
 // setting.
@@ -315,7 +315,7 @@ func (p *Process) Output() ([]byte, error) {
 	return b.Bytes(), err
 }
 
-// Handle returns the handle of the current running Process. The return is a
+// Handle returns the handle of the current running Process. The return is an
 // uintptr that can converted into a Handle.
 //
 // This function returns an error if the Process was not started. The handle
@@ -366,7 +366,7 @@ func (p *Process) SetParent(f *filter.Filter) {
 	p.x.SetParent(f, p)
 }
 
-// SetWindowPosition will set the window postion of the newly spawned process.
+// SetWindowPosition will set the window position of the newly spawned process.
 // This function has no effect on commands that do not generate windows.
 //
 // This function has no effect if the device is not running Windows.
@@ -417,7 +417,7 @@ func (p *Process) stopWith(c uint32, e error) error {
 	return p.err
 }
 
-// StdinPipe returns a pipe that will be connected to the Processes's standard
+// StdinPipe returns a pipe that will be connected to the Process's standard
 // input when the Process starts. The pipe will be closed automatically after
 // the Processes starts. A caller need only call Close to force the pipe to
 // close sooner.
@@ -431,10 +431,10 @@ func (p *Process) StdinPipe() (io.WriteCloser, error) {
 	return p.x.StdinPipe(p)
 }
 
-// StdoutPipe returns a pipe that will be connected to the Processes's
+// StdoutPipe returns a pipe that will be connected to the Process's
 // standard output when the Processes starts.
 //
-// The pipe will be closed after the Processe exits, so most callers need not
+// The pipe will be closed after the Process exits, so most callers need not
 // close the pipe themselves. It is thus incorrect to call Wait before all
 // reads from the pipe have completed. For the same reason, it is incorrect
 // to use Run when using StderrPipe.
@@ -450,10 +450,10 @@ func (p *Process) StdoutPipe() (io.ReadCloser, error) {
 	return p.x.StdoutPipe(p)
 }
 
-// StderrPipe returns a pipe that will be connected to the Processes's
+// StderrPipe returns a pipe that will be connected to the Process's
 // standard error when the Processes starts.
 //
-// The pipe will be closed after the Processe exits, so most callers need
+// The pipe will be closed after the Process exits, so most callers need
 // not close the pipe themselves. It is thus incorrect to call Wait before all
 // reads from the pipe have completed. For the same reason, it is incorrect
 // to use Run when using StderrPipe.
@@ -472,7 +472,7 @@ func (p *Process) StderrPipe() (io.ReadCloser, error) {
 // NewProcessContext creates a new process instance that uses the supplied
 // string vardict as the command line arguments.
 //
-// This function accepts a context that can be used to control the cancelation
+// This function accepts a context that can be used to control the cancellation
 // of this process.
 func NewProcessContext(x context.Context, s ...string) *Process {
 	return &Process{Args: s, ctx: x}

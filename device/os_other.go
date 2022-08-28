@@ -47,7 +47,7 @@ func IsDebugged() bool {
 
 // Mounts attempts to get the mount points on the local device.
 //
-// On Windows devices, this is the drive letters avaliable, otherwise on nix*
+// On Windows devices, this is the drive letters available, otherwise on nix*
 // systems, this will be the mount points on the system.
 //
 // The return result (if no errors occurred) will be a string list of all the

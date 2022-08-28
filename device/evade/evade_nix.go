@@ -34,7 +34,7 @@ func ZeroTraceEvent() error {
 }
 
 // ReloadDLL is a function shamelessly stolen from the sliver project. This
-// function will read a DLL file from on-disk and rewrite over it's current
+// function will read a DLL file from on-disk and rewrite over its current
 // in-memory contents to erase any hooks placed on function calls.
 //
 // Re-mastered and refactored to be less memory hungry and easier to read :P
@@ -49,7 +49,7 @@ func ReloadDLL(_ string) error {
 
 // CheckDLL is a similar function to ReloadDLL.
 // This function will return 'true' and 'nil' if the contents in memory match the
-// contents of the file on disk. Otherwise it returns false.
+// contents of the file on disk, otherwise it returns false.
 //
 // Always returns 'ErrNoWindows' on non-Windows devices.
 func CheckDLL(_ string) (bool, error) {

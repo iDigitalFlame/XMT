@@ -26,7 +26,7 @@ import (
 )
 
 // Engine is an interface that allows for extending XMT with non-compiled code
-// for easy deployability and flexibility.
+// for easy deploy-ability and flexibility.
 //
 // Each Script interface contains a single function that will take a Context,
 // an environment block and the script code string.
@@ -44,7 +44,7 @@ type Engine interface {
 // into the XMT client tasking runtime.
 //
 // Script engines can increase the footprint of the compiled binary, so engines
-// must be registed manually.
+// must be registered manually.
 //
 // See the 'cmd/script' package for scripting engines.
 //

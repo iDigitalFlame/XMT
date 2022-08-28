@@ -31,7 +31,7 @@ const (
 // Reader is a basic interface that supports all types of read functions of the
 // core Golang builtin types.
 //
-// Pointer functions are avaliable to allow for easier usage and fluid operation.
+// Pointer functions are available to allow for easier usage and fluid operation.
 type Reader interface {
 	Close() error
 	Read([]byte) (int, error)

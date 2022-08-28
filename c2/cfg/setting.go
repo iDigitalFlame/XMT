@@ -19,11 +19,11 @@ package cfg
 import "time"
 
 const (
-	// Seperator is an entry that can be used to create Groups in Config instances.
+	// Separator is an entry that can be used to create Groups in Config instances.
 	//
 	// It is recommended to use the 'AddGroup' functions instead, but this can
 	// be used to create more advanced Groupings.
-	Seperator = cBit(0xFA)
+	Separator = cBit(0xFA)
 
 	invalid = cBit(0)
 

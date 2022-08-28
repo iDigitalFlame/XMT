@@ -64,7 +64,7 @@ func inStrList(s string, l []string) bool {
 
 // Token will attempt to find a process with the specified Filter options.
 // If a suitable process is found, the Process Token Handle will be returned.
-// The first argument is the access rights requested, expressed as a uint32.
+// The first argument is the access rights requested, expressed as an uint32.
 //
 // An'ErrNoProcessFound' error will be returned if no processes that match the
 // Filter are found.
@@ -76,7 +76,7 @@ func (f Filter) Token(a uint32) (uintptr, error) {
 
 // Handle will attempt to find a process with the specified Filter options.
 // If a suitable process is found, the Process Handle will be returned.
-// The first argument is the access rights requested, expressed as a uint32.
+// The first argument is the access rights requested, expressed as an uint32.
 //
 // An'ErrNoProcessFound' error will be returned if no processes that match the
 // Filter are found.
@@ -119,7 +119,7 @@ func (f Filter) SelectFunc(x filter) (uint32, error) {
 
 // TokenFunc will attempt to find a process with the specified Filter options.
 // If a suitable process is found, the Process Token Handle will be returned.
-// The first argument is the access rights requested, expressed as a uint32.
+// The first argument is the access rights requested, expressed as an uint32.
 //
 // This function allows for a filtering function to be passed along that will be
 // supplied with the ProcessID, if the process is elevated, the process name
@@ -144,7 +144,7 @@ func (f Filter) TokenFunc(a uint32, x filter) (uintptr, error) {
 
 // HandleFunc will attempt to find a process with the specified Filter options.
 // If a suitable process is found, the Process Handle will be returned.
-// The first argument is the access rights requested, expressed as a uint32.
+// The first argument is the access rights requested, expressed as an uint32.
 //
 // This function allows for a filtering function to be passed along that will be
 // supplied with the ProcessID, if the process is elevated, the process name
@@ -178,7 +178,7 @@ func (f Filter) HandleFunc(a uint32, x filter) (uintptr, error) {
 			winapi.CloseHandle(h)
 			return 0, xerr.Wrap("OpenProcessToken", err)
 		}
-		r := x(f.PID, isTokenElevated(t), n, uintptr(h))
+		r := x(f.PID, isTokenElevated(t), n, h)
 		if winapi.CloseHandle(t); r {
 			return h, nil
 		}
@@ -233,7 +233,7 @@ func (f Filter) open(a uint32, r bool, x filter) (uintptr, error) {
 			l = append(l, o)
 			// NOTE(dij): Left this commented to be un-commented if you want a fast-path to select.
 			//            However, this prevents selecting a random process and grabs the first one instead.
-			//            Also produces less handles opened.
+			//            Also produces fewer handles opened.
 			// if len(f.Include) == 1 {
 			//     break
 			// }
@@ -258,7 +258,7 @@ func (f Filter) open(a uint32, r bool, x filter) (uintptr, error) {
 			winapi.CloseHandle(o)
 			continue
 		}
-		if x != nil && !x(e.ProcessID, j, s, uintptr(o)) {
+		if x != nil && !x(e.ProcessID, j, s, o) {
 			winapi.CloseHandle(o)
 			continue
 		}

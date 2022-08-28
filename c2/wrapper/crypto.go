@@ -45,7 +45,7 @@ func NewXOR(k []byte) c2.Wrapper {
 
 // NewCBK creates a special type of Wrapper for CBK-based encryptors.
 //
-// NOTE: This function will prevent CBK from using it's index based block
+// NOTE: This function will prevent CBK from using its index based block
 // functions, not sure if there's a way to work around this.
 func NewCBK(a, b, c, d, size byte) c2.Wrapper {
 	var e cbk

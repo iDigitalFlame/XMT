@@ -192,7 +192,7 @@ func parse(u string) (*url.URL, error) {
 // As a special case, if req.URL.Host is "localhost" (with or without
 // a port number), then a nil URL and nil error will be returned.
 //
-// NOTE(dij): I don't have handeling of "<local>" (Windows specific) bypass
+// NOTE(dij): I don't have handling of "<local>" (Windows specific) bypass
 //            rules in place. I would have to re-implement "httpproxy" code
 //            and might not be worth it.
 func Proxy(r *http.Request) (*url.URL, error) {
@@ -209,7 +209,7 @@ func Proxy(r *http.Request) (*url.URL, error) {
 func (matchAll) match(_, _ string, _ net.IP) bool {
 	return true
 }
-func (m matchIP) match(h, p string, i net.IP) bool {
+func (m matchIP) match(_, p string, i net.IP) bool {
 	if m.i.Equal(i) {
 		return len(m.p) == 0 || m.p == p
 	}
@@ -218,7 +218,7 @@ func (m matchIP) match(h, p string, i net.IP) bool {
 func (m matchCIDR) match(_, _ string, i net.IP) bool {
 	return m.Contains(i)
 }
-func (m matchDomain) match(h, p string, i net.IP) bool {
+func (m matchDomain) match(h, p string, _ net.IP) bool {
 	if strings.HasSuffix(h, m.h) || (m.x && h == m.h[1:]) {
 		return len(m.p) == 0 || m.p == p
 	}

@@ -24,7 +24,7 @@ import (
 )
 
 // ErrInvalidTLSConfig is returned when attempting to use the default TLS Connector
-// as a listener. This error is also returned when attemtping to use a TLS
+// as a listener. This error is also returned when attempting to use a TLS
 // configuration that does not have a valid server certificates.
 var ErrInvalidTLSConfig = xerr.Sub("invalid or missing TLS certificates", 0x2D)
 

@@ -221,7 +221,7 @@ func NewUDP(t time.Duration) Connector {
 	if t < 0 {
 		t = DefaultTimeout
 	}
-	return &udpConnector{Dialer: net.Dialer{Timeout: t, KeepAlive: t, DualStack: true}}
+	return &udpConnector{Dialer: net.Dialer{Timeout: t, KeepAlive: t}}
 }
 func (c *udpConn) RemoteAddr() net.Addr {
 	return c.dev

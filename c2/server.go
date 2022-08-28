@@ -25,6 +25,7 @@ import (
 	"sync/atomic"
 
 	"github.com/PurpleSec/logx"
+
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/device"
@@ -247,7 +248,7 @@ func (s *Server) Remove(i device.ID, shutdown bool) {
 // If the supplied Log is nil, the 'logx.NOP' log will be used.
 //
 // This function will use the supplied Context as the base context for
-// cancelation.
+// cancellation.
 func NewServerContext(x context.Context, l logx.Log) *Server {
 	s := &Server{
 		ch:          make(chan struct{}),
@@ -274,7 +275,7 @@ func (s *Server) Listen(name, addr string, p Profile) (*Listener, error) {
 // struct to control and receive callback functions is added to assist in managing
 // connections to this Listener.
 //
-// This function version allows for overriting the Context passed to the Session.
+// This function version allows for overriding the Context passed to the Session.
 func (s *Server) ListenContext(x context.Context, name, addr string, p Profile) (*Listener, error) {
 	if p == nil {
 		return nil, ErrInvalidProfile

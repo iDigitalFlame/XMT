@@ -61,7 +61,7 @@ type dnsPacket struct {
 type DNSTransform []string
 
 func createDefaults() {
-	dnsBuiltins.e = getDefultDomains()
+	dnsBuiltins.e = getDefaultDomains()
 }
 func (p *dnsPacket) Reset() {
 	p.n = 0

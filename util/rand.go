@@ -34,7 +34,7 @@ import (
 // seed.
 //
 // This struct is overridden by the tag "stdrand". By default, it will use the
-// "unsafe" fastrand() implentation which is faster, but contains less entropy
+// "unsafe" fastrand() implementation which is faster, but contains less entropy
 // than the built-in, 'rand.Rand', which requires more memory and binary storage
 // space.
 var Rand = getRandom()

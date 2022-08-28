@@ -28,7 +28,7 @@ type unixConnector tcpConnector
 // NewUNIX creates a new simple UNIX socket based connector with the supplied
 // timeout.
 func NewUNIX(t time.Duration) Connector {
-	return unixConnector(tcpConnector{Dialer: net.Dialer{Timeout: t, KeepAlive: t, DualStack: true}})
+	return unixConnector(tcpConnector{Dialer: net.Dialer{Timeout: t, KeepAlive: t}})
 }
 
 // NewSecureUNIX creates a new simple TLS wrapped UNIX socket based connector
@@ -37,7 +37,7 @@ func NewSecureUNIX(t time.Duration, c *tls.Config) Connector {
 	if t < 0 {
 		t = DefaultTimeout
 	}
-	return unixConnector(tcpConnector{tls: c, Dialer: net.Dialer{Timeout: t, KeepAlive: t, DualStack: true}})
+	return unixConnector(tcpConnector{tls: c, Dialer: net.Dialer{Timeout: t, KeepAlive: t}})
 }
 func (u unixConnector) Connect(x context.Context, s string) (net.Conn, error) {
 	return newStreamConn(x, NameUnix, s, tcpConnector(u))

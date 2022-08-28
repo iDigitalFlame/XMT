@@ -44,7 +44,7 @@ var (
 	//
 	// In order to use this properly, import the "cfg" package using a blank
 	// import (if not already in use) as it will set this value on load.
-	ProfileParser func([]byte) (Profile, error) = func(b []byte) (Profile, error) {
+	ProfileParser = func(b []byte) (Profile, error) {
 		return nil, xerr.Sub("no Profile parser loaded", 0x44)
 	}
 
@@ -160,17 +160,17 @@ func (s Static) Jitter() int8 {
 }
 
 // Switch is function that will indicate to the caller if the 'Next' function
-// needs to be called. Calling this function has the potential to advanced the
-// Profile group, if avaliable.
+// needs to be called. Calling this function has the potential to advance the
+// Profile group, if available.
 //
 // The supplied boolean must be true if the last call to 'Connect' ot 'Listen'
-// resulted in an error or if a forced switch if warrented.
+// resulted in an error or if a forced switch if warranted.
 // This indicates to the Profile is "dirty" and a switchover must be done.
 //
 // It is recommended to call the 'Next' function after if the result of this
 // function is true.
 //
-// Static Profile vairants may always return 'false' to prevent allocations.
+// Static Profile variants may always return 'false' to prevent allocations.
 func (Static) Switch(_ bool) bool {
 	return false
 }

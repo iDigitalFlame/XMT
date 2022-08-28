@@ -34,13 +34,13 @@ var (
 	// The error returned will be a wrapped version of this error.
 	ErrInvalidSetting = xerr.Sub("setting is invalid", 0x5D)
 	// ErrMultipleTransforms is an error returned by the 'Profile' function if
-	// more that one Transform Setting is attempted to be applied in the Config
+	// more than one Transform Setting is attempted to be applied in the Config
 	// Group.
 	//
 	// Unlike Wrappers, Transforms cannot be stacked.
 	ErrMultipleTransforms = xerr.Sub("cannot add multiple transforms", 0x5E)
 	// ErrMultipleConnections is an error returned by the 'Profile' function if more
-	// that one Connection Hint Setting is attempted to be applied in the Config
+	// than one Connection Hint Setting is attempted to be applied in the Config
 	// Group.
 	ErrMultipleConnections = xerr.Sub("cannot add multiple connections", 0x5F)
 )
@@ -65,7 +65,7 @@ func (c Config) Groups() int {
 	}
 	var n int
 	for i := 0; i >= 0 && i < len(c); i = c.next(i) {
-		if cBit(c[i]) == Seperator && i > 0 {
+		if cBit(c[i]) == Separator && i > 0 {
 			n++
 		}
 	}
@@ -75,7 +75,7 @@ func (c Config) Groups() int {
 // Bytes returns the byte version of this Config. This is the same as casting
 // the Config instance as '[]byte(c)'.
 func (c Config) Bytes() []byte {
-	return []byte(c)
+	return c
 }
 
 // Pack will combine the supplied settings into a Config instance.
@@ -112,7 +112,7 @@ func (c *Config) Add(s ...Setting) {
 }
 
 // Group will attempt to extract the Config Group out of this Config based on
-// it's position. Attempts to modify this Config slice will NOT modify the
+// its position. Attempts to modify this Config slice will NOT modify the
 // resulting parent Config. Modifying the parent Config after extracting a Group
 // may invalidate this Group.
 //
@@ -129,7 +129,7 @@ func (c Config) Group(p int) Config {
 	}
 	var l, s int
 	for e := 0; e >= 0 && e < len(c); e = c.next(e) {
-		if x := cBit(c[e]); x == Seperator {
+		if x := cBit(c[e]); x == Separator {
 			if e == 0 {
 				continue
 			}
@@ -175,14 +175,14 @@ func File(s string) (c2.Profile, error) {
 }
 
 // AddGroup will append the supplied Settings to this Config. This will append
-// the raw data Setting data to this Config with a seperator, indicating a new
+// the raw data Setting data to this Config with a separator, indicating a new
 // Profile.
 func (c *Config) AddGroup(s ...Setting) {
 	if len(s) == 0 {
 		return
 	}
 	if len(*c) > 0 {
-		*c = append(*c, byte(Seperator))
+		*c = append(*c, byte(Separator))
 	}
 	*c = append(*c, Bytes(s...)...)
 }

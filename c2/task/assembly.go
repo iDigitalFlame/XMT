@@ -29,7 +29,7 @@ import (
 // Assembly is a Tasklet that is similar to the 'cmd.Assembly' struct.
 //
 // This struct is used to Task a Client with running shellcode on devices. It
-// has many of the functionallies matching the 'cmd.Assembly' struct.
+// has many of the functionalities matching the 'cmd.Assembly' struct.
 //
 // This can be directly used in the Session 'Tasklet' function instead of
 // directly creating a Task.
@@ -158,7 +158,7 @@ func taskAssembly(x context.Context, r data.Reader, w data.Writer) error {
 }
 
 // AssemblyUnmarshal will read this Assembly's struct data from the supplied
-// reader and returns a Assembly runnable struct along with the wait boolean.
+// reader and returns an Assembly runnable struct along with the wait boolean.
 //
 // This function returns an error if building or reading fails.
 func AssemblyUnmarshal(x context.Context, r data.Reader) (*cmd.Assembly, bool, error) {

@@ -341,7 +341,7 @@ func (c *conn) process(l *cout.Log, h connServer, a string, n *com.Packet, o boo
 	if o {
 		if c.host.chanStop() || n.Flags&com.FlagChannelEnd != 0 {
 			if c.host.stateUnset(stateChannel); cout.Enabled {
-				l.Debug("[%s:%s] %s: Beaking Channel on next send..", h.prefix(), c.host.name(), a)
+				l.Debug("[%s:%s] %s: Breaking Channel on next send..", h.prefix(), c.host.name(), a)
 			}
 		}
 		return nil
@@ -367,7 +367,7 @@ func (c *conn) process(l *cout.Log, h connServer, a string, n *com.Packet, o boo
 			}
 			if err := writeUnpack(c.next, c.add[i], true, true); err != nil {
 				if c.add[i].Clear(); cout.Enabled {
-					l.Warning("[%s:%s] %s: Ignoring an inalid Multi Packet: %s!", h.prefix(), c.host.name(), a, err)
+					l.Warning("[%s:%s] %s: Ignoring an invalid Multi Packet: %s!", h.prefix(), c.host.name(), a, err)
 				}
 				c.next.Clear()
 				return err
@@ -484,7 +484,7 @@ func (c *conn) processMultiple(l *cout.Log, h connServer, a string, n *com.Packe
 			// KeyCrypt: Don't call next until the end of the loop, as there may
 			//           be packets encrypted with the old key still in queue.
 			z := c.host.next(false)
-			// KeyCrypt: Encrypt next Packet. If this happens to be a rekey,
+			// KeyCrypt: Encrypt next Packet. If this happens to be a re-key,
 			//           it will pass before and affect all after with the new key
 			//           This seems really buggy, but since it happens ONLY on the
 			//           Server/Proxy end, it should be ok. BUG(dij): for marking
@@ -573,7 +573,7 @@ func (c *conn) resolve(l *cout.Log, s connHost, h connServer, a string, t []uint
 			c.add = append(c.add, n)
 			// KeyCrypt: "next" was called, check for a Key Swap.
 			//           This is a tag, which is server side only, so I doubt
-			//           a swap will happen here. BUG(dij): Tag incase also ^_^.
+			//           a swap will happen here. BUG(dij): Tag in case also ^_^.
 			v.keyCheck()
 		}
 	}

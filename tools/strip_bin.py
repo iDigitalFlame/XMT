@@ -18,7 +18,7 @@
 #  Strips named symbols and obvious strings from Golang binaries.
 #  MUST have compiled with "-trimpath -ldflags='-w -s'" for this to work 100%.
 #
-# This file might be superseeded via the "strip_binary" function in ThunderStorm's
+# This file might be superseded via the "strip_binary" function in ThunderStorm's
 # "strip_binary" function. (I might backport it here).
 #
 

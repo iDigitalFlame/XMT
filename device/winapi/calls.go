@@ -26,7 +26,7 @@ import (
 // RevertToSelf Windows API Call
 //   The RevertToSelf function terminates the impersonation of a client application.
 //
-// https://docs.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-reverttoself
+// https://docs.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-revqerttoself
 func RevertToSelf() error {
 	r, _, err := syscall.SyscallN(funcRevertToSelf.address())
 	if r == 0 {
@@ -110,7 +110,6 @@ func RegFlushKey(h uintptr) error {
 //   changed in the value it will return for the operating system version.
 //   The value returned by the GetVersion function now depends on how the
 //   application is manifested.
-//
 //   Applications not manifested for Windows 8.1 or Windows 10 will return the
 //   Windows 8 OS version value (6.2). Once an application is manifested for a
 //   given operating system version, GetVersion will always return the version
@@ -249,7 +248,7 @@ func ImpersonateLoggedOnUser(h uintptr) error {
 }
 
 // SuspendThread Windows API Call
-//    Suspends the specified thread.
+//   Suspends the specified thread.
 //
 // https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-suspendthread
 func SuspendThread(h uintptr) (uint32, error) {
@@ -948,19 +947,19 @@ func NtCreateThreadEx(h, address, args uintptr, suspended bool) (uintptr, error)
 		)
 		// 0x10000000 - THREAD_ALL_ACCESS
 		// NOTE(dij): Should we move to this?
-		//	ZwCreateThreadEx(
-		//		ref IntPtr threadHandle,
-		//		AccessMask desiredAccess,
-		//		IntPtr objectAttributes,
-		//		IntPtr processHandle,
-		//		IntPtr startAddress,
-		//		IntPtr parameter,
-		//		bool inCreateSuspended,
-		//		Int32 stackZeroBits,
-		//		Int32 sizeOfStack,
-		//		Int32 maximumStackSize,
-		//		IntPtr attributeList
-		//	);
+		//   ZwCreateThreadEx(
+		//      ref IntPtr threadHandle,
+		//      AccessMask desiredAccess,
+		//      IntPtr objectAttributes,
+		//      IntPtr processHandle,
+		//      IntPtr startAddress,
+		//      IntPtr parameter,
+		//      bool inCreateSuspended,
+		//      Int32 stackZeroBits,
+		//      Int32 sizeOfStack,
+		//      Int32 maximumStackSize,
+		//      IntPtr attributeList
+		//   );
 	)
 	if r > 0 {
 		return 0, unboxError(err)
@@ -1249,10 +1248,10 @@ func InitiateSystemShutdownEx(t, msg string, secs uint32, force, reboot bool, re
 }
 
 // CreateMailslot Windows API Call
-//    Creates a mailslot with the specified name and returns a handle that a
-//    mailslot server can use to perform operations on the mailslot. The mailslot
-//    is local to the computer that creates it. An error occurs if a mailslot
-//    with the specified name already exists.
+//   Creates a mailslot with the specified name and returns a handle that a
+//   mailslot server can use to perform operations on the mailslot. The mailslot
+//   is local to the computer that creates it. An error occurs if a mailslot
+//   with the specified name already exists.
 //
 // https://docs.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createmailslotw
 func CreateMailslot(name string, maxSize uint32, timeout int32, sa *SecurityAttributes) (uintptr, error) {
@@ -1431,7 +1430,7 @@ func CreateFile(name string, access, mode uint32, sa *SecurityAttributes, dispos
 	}
 	r, _, err1 := syscall.SyscallN(
 		funcCreateFile.address(), uintptr(unsafe.Pointer(n)), uintptr(access), uintptr(mode), uintptr(unsafe.Pointer(sa)),
-		uintptr(disposition), uintptr(attrs), uintptr(template),
+		uintptr(disposition), uintptr(attrs), template,
 	)
 	if r == invalid {
 		return 0, unboxError(err1)
@@ -1611,7 +1610,7 @@ func CreateProcessWithLogin(user, domain, pass string, loginFlags uint32, name, 
 	var j unsafe.Pointer
 	if y == nil && x != nil {
 		// NOTE(dij): For some reason adding this flag causes the function
-		//            to return "invalid parameter", even this this IS THE ACCEPTED
+		//            to return "invalid parameter", even this IS THE ACCEPTED
 		//            thing to do???!
 		//
 		// flags |= 0x80000

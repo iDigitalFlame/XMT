@@ -37,6 +37,16 @@ const retry = 100 * time.Millisecond
 var ErrClosed = &errno{m: io.ErrClosedPipe.Error()}
 
 type addr string
+
+// Conn is a struct that implements a Windows Pipe connection. This is similar
+// to the 'net.Conn' interface except it adds the 'Impersonate' function, which
+// is only from the 'AcceptPipe' function.
+type Conn struct {
+	_           [0]func()
+	read, write time.Time
+	addr        addr
+	handle      uintptr
+}
 type wait struct {
 	_   [0]func()
 	err error
@@ -59,18 +69,22 @@ type Listener struct {
 	done           uint32
 }
 
-// PipeConn is a struct that implements a Windows Pipe connection. This is similar
-// to the 'net.Conn' interface except it adds the 'Impersonate' function, which
-// is only from the 'AcceptPipe' function.
-type PipeConn struct {
-	_           [0]func()
-	read, write time.Time
-	addr        addr
-	handle      uintptr
+// Fd returns the file descriptor handle for this PipeCon.
+func (c *Conn) Fd() uintptr {
+	return c.handle
 }
-
 func (addr) Network() string {
 	return com.NamePipe
+}
+
+// Close releases the associated Pipe's resources. The connection is no longer
+// considered valid after a call to this function.
+func (c *Conn) Close() error {
+	winapi.CancelIoEx(c.handle, nil)
+	winapi.DisconnectNamedPipe(c.handle)
+	err := winapi.CloseHandle(c.handle)
+	c.handle = 0
+	return err
 }
 func (a addr) String() string {
 	return string(a)
@@ -89,21 +103,6 @@ func (e errno) Unwrap() error {
 }
 func (e errno) Temporary() bool {
 	return e.t
-}
-
-// Fd returns the file descriptor handle for this PipeCon.
-func (c *PipeConn) Fd() uintptr {
-	return c.handle
-}
-
-// Close releases the associated Pipe's resources. The connection is no longer
-// considered valid after a call to this function.
-func (c *PipeConn) Close() error {
-	winapi.CancelIoEx(c.handle, nil)
-	winapi.DisconnectNamedPipe(c.handle)
-	err := winapi.CloseHandle(c.handle)
-	c.handle = 0
-	return err
 }
 
 // Close closes the listener. Any blocked Accept operations will be unblocked
@@ -146,10 +145,10 @@ func (l *Listener) Addr() net.Addr {
 //
 // A call to 'device.RevertToSelf()' will reset the token.
 //
-// BUG(dij): Need to test this further. It "works" but I'm not 100% sure it it's
+// BUG(dij): Need to test this further. It "works" but I'm not 100% sure if it's
 //           due to the client lacking the "SeImpersonate" privilege or something
 //           else...
-func (c *PipeConn) Impersonate() error {
+func (c *Conn) Impersonate() error {
 	if c.handle == 0 {
 		return nil
 	}
@@ -157,12 +156,12 @@ func (c *PipeConn) Impersonate() error {
 }
 
 // LocalAddr returns the Pipe's local endpoint address.
-func (c *PipeConn) LocalAddr() net.Addr {
+func (c *Conn) LocalAddr() net.Addr {
 	return c.addr
 }
 
 // RemoteAddr returns the Pipe's remote endpoint address.
-func (c *PipeConn) RemoteAddr() net.Addr {
+func (c *Conn) RemoteAddr() net.Addr {
 	return c.addr
 }
 
@@ -175,6 +174,35 @@ func (c *PipeConn) RemoteAddr() net.Addr {
 // a control method.
 func Dial(path string) (net.Conn, error) {
 	return DialContext(context.Background(), path)
+}
+
+// Read implements the 'net.Conn' interface.
+func (c *Conn) Read(b []byte) (int, error) {
+	if c.handle == 0 {
+		return 0, ErrClosed
+	}
+	var (
+		a   uint32
+		o   = new(winapi.Overlapped)
+		err error
+	)
+	if o.Event, err = winapi.CreateEvent(nil, true, true, ""); err != nil {
+		return 0, &errno{m: "could not create event", e: err}
+	}
+	return c.finish(winapi.ReadFile(c.handle, b, &a, o), int(a), c.read, o)
+}
+
+// Write implements the 'net.Conn' interface.
+func (c *Conn) Write(b []byte) (int, error) {
+	var (
+		a   uint32
+		o   = new(winapi.Overlapped)
+		err error
+	)
+	if o.Event, err = winapi.CreateEvent(nil, true, true, ""); err != nil {
+		return 0, &errno{m: "could not create event", e: err}
+	}
+	return c.finish(winapi.WriteFile(c.handle, b, &a, o), int(a), c.write, o)
 }
 
 // Listen returns a 'net.Listener' that will listen for new connections on the
@@ -191,46 +219,17 @@ func (l *Listener) Accept() (net.Conn, error) {
 	return l.AcceptPipe()
 }
 
-// Read implements the 'net.Conn' interface.
-func (c *PipeConn) Read(b []byte) (int, error) {
-	if c.handle == 0 {
-		return 0, ErrClosed
-	}
-	var (
-		a   uint32
-		o   = new(winapi.Overlapped)
-		err error
-	)
-	if o.Event, err = winapi.CreateEvent(nil, true, true, ""); err != nil {
-		return 0, &errno{m: "could not create event", e: err}
-	}
-	return c.finish(winapi.ReadFile(c.handle, b, &a, o), int(a), c.read, o)
-}
-
-// Write implements the 'net.Conn' interface.
-func (c *PipeConn) Write(b []byte) (int, error) {
-	var (
-		a   uint32
-		o   = new(winapi.Overlapped)
-		err error
-	)
-	if o.Event, err = winapi.CreateEvent(nil, true, true, ""); err != nil {
-		return 0, &errno{m: "could not create event", e: err}
-	}
-	return c.finish(winapi.WriteFile(c.handle, b, &a, o), int(a), c.write, o)
-}
-
 // SetDeadline implements the 'net.Conn' interface.
-func (c *PipeConn) SetDeadline(t time.Time) error {
+func (c *Conn) SetDeadline(t time.Time) error {
 	c.read, c.write = t, t
 	return nil
 }
 
 // AcceptPipe waits for and returns the next connection to the listener.
 //
-// This function returns the real type of 'PipeConn' that can be used with the
+// This function returns the real type of 'Conn' that can be used with the
 // 'Impersonate' function.
-func (l *Listener) AcceptPipe() (*PipeConn, error) {
+func (l *Listener) AcceptPipe() (*Conn, error) {
 	if atomic.LoadUint32(&l.done) == 1 {
 		return nil, ErrClosed
 	}
@@ -266,21 +265,21 @@ func (l *Listener) AcceptPipe() (*PipeConn, error) {
 		winapi.CloseHandle(h)
 		return nil, &errno{m: "could not connect", e: err}
 	}
-	return &PipeConn{addr: l.addr, handle: h}, nil
+	return &Conn{addr: l.addr, handle: h}, nil
 }
 
 // SetReadDeadline implements the 'net.Conn' interface.
-func (c *PipeConn) SetReadDeadline(t time.Time) error {
+func (c *Conn) SetReadDeadline(t time.Time) error {
 	c.read = t
 	return nil
 }
 
 // SetWriteDeadline implements the 'net.Conn' interface.
-func (c *PipeConn) SetWriteDeadline(t time.Time) error {
+func (c *Conn) SetWriteDeadline(t time.Time) error {
 	c.write = t
 	return nil
 }
-func connect(path string, t uint32) (*PipeConn, error) {
+func connect(path string, t uint32) (*Conn, error) {
 	if len(path) == 0 || len(path) > 255 {
 		return nil, &errno{m: "invalid path length"}
 	}
@@ -295,7 +294,7 @@ func connect(path string, t uint32) (*PipeConn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &PipeConn{addr: addr(path), handle: h}, nil
+	return &Conn{addr: addr(path), handle: h}, nil
 }
 
 // ListenPerms returns a Listener that will listen for new connections on the
@@ -305,7 +304,7 @@ func connect(path string, t uint32) (*PipeConn, error) {
 // Pipe names are in the form of "\\<computer>\pipe\<path>".
 //
 // This function allows for specifying a SDDL string used to set the permissions
-// of the listeneing Pipe.
+// of the listening Pipe.
 func ListenPerms(path, perms string) (*Listener, error) {
 	return ListenPermsContext(context.Background(), path, perms)
 }
@@ -325,7 +324,7 @@ func complete(h uintptr, o *winapi.Overlapped) (uint32, error) {
 //
 // Pipe names are in the form of "\\<computer>\pipe\<path>".
 //
-// This function blocks for the specified amount of time and will return 'Errtimeout'
+// This function blocks for the specified amount of time and will return 'ErrTimeout'
 // if the timeout is reached.
 func DialTimeout(path string, t time.Duration) (net.Conn, error) {
 	for n, d := time.Now(), time.Now().Add(t); n.Before(d); n = time.Now() {
@@ -357,7 +356,7 @@ func DialTimeout(path string, t time.Duration) (net.Conn, error) {
 //
 // Pipe names are in the form of "\\<computer>\pipe\<path>".
 //
-// This function blocks until the supplied context is cancled and will return the
+// This function blocks until the supplied context is canceled and will return the
 // context's Err() if the cancel occurs before the connection.
 func DialContext(x context.Context, path string) (net.Conn, error) {
 	for {
@@ -409,7 +408,7 @@ func waitComplete(w chan<- wait, h uintptr, o *winapi.Overlapped, s *uint32) {
 // Pipe names are in the form of "\\<computer>\pipe\<path>".
 //
 // This function allows for specifying a SecurityAttributes object used to set
-// the permissions of the listeneing Pipe.
+// the permissions of the listening Pipe.
 func ListenSecurity(path string, p *winapi.SecurityAttributes) (*Listener, error) {
 	return ListenSecurityContext(context.Background(), path, p)
 }
@@ -421,7 +420,7 @@ func ListenSecurity(path string, p *winapi.SecurityAttributes) (*Listener, error
 // Pipe names are in the form of "\\<computer>\pipe\<path>".
 //
 // This function allows for specifying a SDDL string used to set the permissions
-// of the listeneing Pipe.
+// of the listening Pipe.
 //
 // The provided Context can be used to cancel the Listener.
 func ListenPermsContext(x context.Context, path, perms string) (*Listener, error) {
@@ -437,7 +436,7 @@ func ListenPermsContext(x context.Context, path, perms string) (*Listener, error
 	}
 	return ListenSecurityContext(x, path, &s)
 }
-func (c *PipeConn) finish(e error, a int, t time.Time, o *winapi.Overlapped) (int, error) {
+func (c *Conn) finish(e error, a int, t time.Time, o *winapi.Overlapped) (int, error) {
 	if e == winapi.ErrBrokenPipe {
 		winapi.CloseHandle(o.Event)
 		return a, io.EOF
@@ -494,7 +493,7 @@ func create(path addr, p *winapi.SecurityAttributes, t, l uint32, f bool) (uintp
 // Pipe names are in the form of "\\<computer>\pipe\<path>".
 //
 // This function allows for specifying a SecurityAttributes object used to set
-// the permissions of the listeneing Pipe.
+// the permissions of the listening Pipe.
 //
 // The provided Context can be used to cancel the Listener.
 func ListenSecurityContext(x context.Context, path string, p *winapi.SecurityAttributes) (*Listener, error) {

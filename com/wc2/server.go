@@ -71,7 +71,7 @@ func (s *Server) TargetAsRule() {
 	s.Rule(s.Target.Rule())
 }
 
-// Rule adds the specified rules to the Web instance to assist in determing real
+// Rule adds the specified rules to the Web instance to assist in determine real
 // and C2 traffic.
 func (s *Server) Rule(r ...Rule) {
 	if len(r) == 0 {
@@ -158,7 +158,7 @@ func NewTLS(t time.Duration, c *tls.Config) *Server {
 	w := &Server{
 		ch:      make(chan complete, 1),
 		tls:     c,
-		dialer:  &net.Dialer{Timeout: t, KeepAlive: t, DualStack: true},
+		dialer:  &net.Dialer{Timeout: t, KeepAlive: t},
 		handler: new(http.ServeMux),
 	}
 	w.Client = &http.Client{

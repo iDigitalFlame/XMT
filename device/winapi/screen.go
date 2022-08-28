@@ -106,7 +106,7 @@ func releaseDC(w, h uintptr) error {
 // ActiveDisplays returns the count of current active displays enabled on the
 // device.
 //
-// This function returns an error if any error occurs when retriving the display
+// This function returns an error if any error occurs when retrieving the display
 // count.
 func ActiveDisplays() (uint32, error) {
 	screenFunctions.Do(initCallbacks)
@@ -195,7 +195,7 @@ func getMonitorInfo(h uintptr, m *monitorInfoEx) error {
 	return nil
 }
 
-// ScreenShot attempts to take a PNG-encoded screenshot of the current deminsions
+// ScreenShot attempts to take a PNG-encoded screenshot of the current dimensions
 // specified into the supplied io.Writer.
 //
 // This function will return an error if any of the API calls or encoding the

@@ -57,7 +57,7 @@ func taskRegistry(_ context.Context, _ data.Reader, _ data.Writer) error {
 func taskInteract(_ context.Context, _ data.Reader, _ data.Writer) error {
 	return device.ErrNoWindows
 }
-func taskWindowList(_ context.Context, _ data.Reader, w data.Writer) error {
+func taskWindowList(_ context.Context, _ data.Reader, _ data.Writer) error {
 	return device.ErrNoWindows
 }
 

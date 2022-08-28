@@ -24,9 +24,8 @@ import (
 )
 
 var (
-	// ErrNotStarted is an error returned by multiple functions functions when
-	// attempting to access a Runnable function that requires the Runnable to be
-	// started first.
+	// ErrNotStarted is an error returned by multiple functions when attempting
+	// to access a Runnable function that requires the Runnable to be started first.
 	ErrNotStarted = xerr.Sub("process has not started", 0x3A)
 	// ErrEmptyCommand is an error returned when attempting to start a Runnable
 	// that has empty arguments.
@@ -91,7 +90,7 @@ func Split(v string) []string {
 	return r
 }
 
-// Error fulfills the error interface and retruns a formatted string that
+// Error fulfills the error interface and returns a formatted string that
 // specifies the Process Exit Code.
 func (e ExitError) Error() string {
 	return "exit " + strconv.Itoa(int(e.Exit))

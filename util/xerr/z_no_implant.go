@@ -19,7 +19,7 @@
 package xerr
 
 // ExtendedInfo is a compile time constant to help signal if complex string
-// values should be concatinated inline.
+// values should be concatenated inline.
 //
 // This helps prevent debugging when the "-tags implant" option is enabled.
 const ExtendedInfo = true

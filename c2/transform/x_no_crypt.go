@@ -18,7 +18,7 @@
 
 package transform
 
-func getDefultDomains() []string {
+func getDefaultDomains() []string {
 	return []string{
 		"amazon.com",
 		"amazonaws.com",

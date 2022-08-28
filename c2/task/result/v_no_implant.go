@@ -151,7 +151,7 @@ func IsDebugged(n *com.Packet) (bool, error) {
 // Ls will parse the RvResult Packet from a MvList task.
 //
 // The return result is a slice of FileInfo interfaces that will return the
-// data of the directory targed.
+// data of the directory targeted.
 //
 // This function returns an error if any reading errors occur, the Packet is not
 // in the expected format or the Packet is nil or empty.
@@ -240,7 +240,7 @@ func WindowList(n *com.Packet) ([]Window, error) {
 // ScreenShot will parse the RvResult Packet from a TvScreenShot task.
 //
 // The return result is a Reader with the resulting screenshot data encoded as
-// a png image inside. (This can be directly written to disk as a png file).
+// a PNG image inside. (This can be directly written to disk as a PNG file).
 //
 // This function returns an error if any reading errors occur, the Packet is not
 // in the expected format or the Packet is nil or empty.
@@ -365,7 +365,7 @@ func (w *Window) UnmarshalStream(r data.Reader) error {
 
 // DLL will parse the RvResult Packet from a TvDLL task.
 //
-// The return result is a handle to the memory location of the DLL (as a
+// The return result is a handle to the memory location of the DLL (as an
 // uintptr), the resulting PID of the DLL "host" and the exit code of the
 // primary thread (if wait was specified, otherwise this is zero).
 //
@@ -479,7 +479,7 @@ func Registry(n *com.Packet) ([]regedit.Entry, bool, error) {
 // Assembly will parse the RvResult Packet from a TvAssembly task.
 //
 // The return result is a handle to the memory location of the Assembly code (as
-// a uintptr), the resulting PID of the Assembly "host" and the exit code of the
+// an uintptr), the resulting PID of the Assembly "host" and the exit code of the
 // primary thread (if wait was specified, otherwise this is zero).
 //
 // This function returns an error if any reading errors occur, the Packet is not

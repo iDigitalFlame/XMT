@@ -39,7 +39,7 @@ const (
 	// kept alive and the client will not poll the server.
 	//
 	// This flag will be present on the top level multi-packet if included in a
-	// single packet inside. This flag will take affect on each hop that it goes
+	// single packet inside. This flag will take effect on each hop that it goes
 	// through.
 	//
 	// Incompatible with 'FlagOneshot'. Can only be used once per single connection.
@@ -63,7 +63,7 @@ const (
 )
 
 // Flag is a bitwise integer that represents important
-// information about the packet that its assigned to.
+// information about the packet that it's assigned to.
 //
 // Mapping
 //
@@ -111,7 +111,7 @@ func (f *Flag) SetLen(n uint16) {
 
 // SetGroup sets the group ID of the fragment group this packet is part of.
 func (f *Flag) SetGroup(n uint16) {
-	*f = Flag((*f>>32)<<32) | Flag(n)<<16 | Flag(uint16(*f)) | FlagFrag
+	*f = ((*f >> 32) << 32) | Flag(n)<<16 | Flag(uint16(*f)) | FlagFrag
 }
 
 // SetPosition sets the position this packet is located in the fragment group.

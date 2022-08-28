@@ -43,7 +43,7 @@ type Script struct {
 	f uint8
 }
 
-// Clear will reset the Script and empty it's contents.
+// Clear will reset the Script and empty its contents.
 //
 // This does not remove the error and output settings.
 func (s *Script) Clear() {
@@ -55,7 +55,7 @@ func (s *Script) Size() int {
 	return s.d.Size()
 }
 
-// Empty returns true if this Scripts's backing buffer is empty.
+// Empty returns true if this Script's backing buffer is empty.
 func (s *Script) Empty() bool {
 	return s.d.Empty()
 }
@@ -118,7 +118,7 @@ func (s *Script) Replace(b []byte) {
 // StopOnError controls the 'stop on error' setting for this Script.
 //
 // If set to True, the Script will STOP processing if one of the Tasks returns
-// an error during runtime. Otherwise False (the default), will report the error
+// an error during runtime, otherwise False (the default), will report the error
 // in the chain and will keep going.
 func (s *Script) StopOnError(e bool) {
 	if e {
@@ -143,7 +143,7 @@ func (s *Script) Truncate(n int) error {
 }
 
 // Add will add the supplied Task (in Packet form), to the Script. If this Script
-// was not initalized, it will be initalized with the default options first.
+// was not initialized, it will be initialized with the default options first.
 //
 // This function will return an error if the Packet supplied is invalid for
 // Script usage.
@@ -166,7 +166,7 @@ func (s *Script) Add(n *com.Packet) error {
 // NewScript returns a new Script instance with the Settings for 'stop on error'
 // and 'return output' set to the values specified.
 //
-// Non intalized Scripts can be used instead of calling this function directly.
+// Non initialized Scripts can be used instead of calling this function directly.
 func NewScript(errors, output bool) *Script {
 	s := new(Script)
 	if errors {
@@ -179,7 +179,7 @@ func NewScript(errors, output bool) *Script {
 }
 
 // AddTasklet will add the supplied Tasklet result, to the Script. If this Script
-// was not initalized, it will be initalized with the default options first.
+// was not initialized, it will be initialized with the default options first.
 //
 // This function will return an error if the Packet supplied is invalid for
 // Script usage or the Tasklet action returned an error or is invalid.
@@ -232,7 +232,7 @@ func (s *Script) Packet() (*com.Packet, error) {
 }
 
 // Append will add the supplied Tasks (in Packet form), to the Script. If this
-// Script was not initalized, it will be initalized with the default options first.
+// Script was not initialized, it will be initialized with the default options first.
 //
 // This function is like 'Add' but takes a vardict of multiple Packets to be added
 // in as single call.

@@ -50,7 +50,7 @@ var (
 	// This error also indicates that a call to 'Send' would block.
 	ErrFullBuffer = xerr.Sub("send buffer is full", 0x4C)
 	// ErrInvalidPacketCount is returned when attempting to read a packet marked
-	// as multi or frag an the total count returned is zero.
+	// as multi or frag and the total count returned is zero.
 	ErrInvalidPacketCount = xerr.Sub("frag/multi total is zero on a frag/multi packet", 0x4D)
 )
 
@@ -71,8 +71,8 @@ func (s *Session) wait() {
 			if util.FastRandN(2) == 1 {
 				d = d * -1
 			}
-			if w += (time.Duration(d) * time.Millisecond); w < 0 {
-				w = time.Duration(w * -1)
+			if w += time.Duration(d) * time.Millisecond; w < 0 {
+				w = w * -1
 			}
 			if w == 0 {
 				w = s.sleep
@@ -162,7 +162,7 @@ func (s *Session) listen() {
 			var h string
 			h, s.w, s.t = s.p.Next()
 			s.host.Set(h)
-			// NOTE(dij): Actually, let's decrement it, as a random or round
+			// NOTE(dij): Actually, let's decrement it, as a random or round-
 			//            robin profile would leave us here forever!
 			s.errors--
 		}
@@ -452,7 +452,7 @@ func (s *Session) channelWrite(x net.Conn) {
 		if s.state.ChannelCanStop() {
 			n.Flags |= com.FlagChannelEnd
 		}
-		// KeyCrypt: Encrpt new Packet here to be sent.
+		// KeyCrypt: Encrypt new Packet here to be sent.
 		if n.Crypt(&s.key); cout.Enabled {
 			s.log.Debug("[%s:C->S:W] %s: Sending Packet %q.", s.ID, s.host, n)
 		}
@@ -496,7 +496,7 @@ func (s *Session) session(c net.Conn) bool {
 	}
 	// KeyCrypt: Do NOT encrypt hello Packets.
 	if n.ID != SvHello {
-		// KeyCrypt: Encrpt new Packet here to be sent.
+		// KeyCrypt: Encrypt new Packet here to be sent.
 		n.Crypt(&s.key)
 	}
 	if cout.Enabled {
@@ -628,7 +628,7 @@ func (s *Session) Write(p *com.Packet) error {
 	return s.write(false, p)
 }
 
-// Packets will create and setup the Packet receiver channel. This function will
+// Packets will create and set up the Packet receiver channel. This function will
 // then return the read-only Packet channel for use.
 //
 // This function is safe to use multiple times as it will return the same chan
@@ -666,7 +666,7 @@ func (s *Session) write(w bool, n *com.Packet) error {
 		}
 		return nil
 	}
-	m := (n.Size() / limits.Frag)
+	m := n.Size() / limits.Frag
 	if (m+1)*limits.Frag < n.Size() {
 		m++
 	}
@@ -726,7 +726,7 @@ func (s *Session) Spawn(n string, r runnable) (uint32, error) {
 // the Migration process.
 //
 // The provided JobID will be used to indicate to the server that the associated
-// Migration Task was completed, as the new client will sent a 'RvMigrate' with
+// Migration Task was completed, as the new client will send a 'RvMigrate' with
 // the associated JobID once Migration has completed successfully.
 //
 // The return values for this function are the new PID used and any errors that
@@ -827,7 +827,7 @@ func (s *Session) SpawnProfile(n string, b []byte, t time.Duration, e runnable) 
 // the Migration process.
 //
 // The provided JobID will be used to indicate to the server that the associated
-// Migration Task was completed, as the new client will sent a 'RvMigrate' with
+// Migration Task was completed, as the new client will send a 'RvMigrate' with
 // the associated JobID once Migration has completed successfully.
 //
 // The return values for this function are the new PID used and any errors that

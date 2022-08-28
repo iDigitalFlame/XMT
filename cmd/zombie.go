@@ -18,11 +18,11 @@ package cmd
 
 import "context"
 
-// Zombie is a struct that represents a Assembly backed process.
-// This is simalar to 'execute-assembly' and will launch a suspended process to be
+// Zombie is a struct that represents an Assembly backed process.
+// This is similar to 'execute-assembly' and will launch a suspended process to be
 // injected into.
 //
-// The 'Path' or 'Data' arguments can be used to specificy a DLL path or shellcode
+// The 'Path' or 'Data' arguments can be used to specify a DLL path or shellcode
 // to be ran by the zombie. The 'Data' argument takes precedence over 'Path'.
 // At least one of them must be supplied or an 'ErrEmptyCommand' error will be
 // returned on any calls to 'Start'.
@@ -109,7 +109,7 @@ func (z *Zombie) ExitCode() (int32, error) {
 	return z.t.ExitCode()
 }
 
-// Handle returns the handle of the current running Zombie. The return is a
+// Handle returns the handle of the current running Zombie. The return is an
 // uintptr that can converted into a Handle.
 //
 // This function returns an error if the Zombie was not started. The handle
@@ -121,7 +121,7 @@ func (z *Zombie) Handle() (uintptr, error) {
 }
 
 // Location returns the in-memory Location of the current Zombie thread, if running.
-// The return is a uintptr that can converted into a Handle.
+// The return is an uintptr that can converted into a Handle.
 //
 // This function returns an error if the Zombie thread was not started. The
 // handle is not expected to be valid after the thread exits or is terminated.
@@ -129,18 +129,18 @@ func (z *Zombie) Location() (uintptr, error) {
 	return z.t.Location()
 }
 
-// NewZombie creates a Zombie struct that can be use to spawn a sacrificial
+// NewZombie creates a Zombie struct that can be used to spawn a sacrificial
 // process specified in the args vardict that will execute the shellcode in the
 // byte array.
 func NewZombie(b []byte, s ...string) *Zombie {
 	return NewZombieContext(context.Background(), b, s...)
 }
 
-// NewZombieContext creates a Zombie struct that can be use to spawn a sacrificial
+// NewZombieContext creates a Zombie struct that can be used to spawn a sacrificial
 // process specified in the args vardict that will execute the shellcode in the
 // byte array.
 //
-// This function allows for specification of a Context for cancelation.
+// This function allows for specification of a Context for cancellation.
 func NewZombieContext(x context.Context, b []byte, s ...string) *Zombie {
 	return &Zombie{Data: b, Process: Process{Args: s, ctx: x}, t: thread{ctx: x}}
 }

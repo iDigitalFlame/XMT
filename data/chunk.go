@@ -53,7 +53,7 @@ type Chunk struct {
 	Limit int
 }
 
-// Key is a alias for a encryption key that can be used to protect Chunks
+// Key is an alias for an encryption key that can be used to protect Chunks
 // when non-empty.
 type Key [KeySize]byte
 
@@ -88,11 +88,11 @@ func (Chunk) Close() error {
 	return nil
 }
 
-// Space returns the amount of bytes avaliable in this Chunk when a Limit is
+// Space returns the amount of bytes available in this Chunk when a Limit is
 // set.
 //
 // This function will return -1 if there is no limit set and returns 0 (zero)
-// when a limit is set, but no byte space is avaliable.
+// when a limit is set, but no byte space is available.
 func (c *Chunk) Space() int {
 	if c.Limit <= 0 {
 		return -1
@@ -160,9 +160,9 @@ func (c *Chunk) Grow(n int) error {
 	return nil
 }
 
-// Avaliable returns if a limit will block the writing of n bytes. This function
-// can be used to check if there is space to write before commiting a write.
-func (c *Chunk) Avaliable(n int) bool {
+// Available returns if a limit will block the writing of n bytes. This function
+// can be used to check if there is space to write before committing a write.
+func (c *Chunk) Available(n int) bool {
 	return c.Limit <= 0 || c.Limit-len(c.buf) > n
 }
 
@@ -342,7 +342,7 @@ func (c *Chunk) WriteTo(w io.Writer) (int64, error) {
 // function will return the new offset if successful and will return an error
 // if the offset and/or whence are invalid.
 //
-// NOTE: This only affects read operatios.
+// NOTE: This only affects read operations.
 func (c *Chunk) Seek(o int64, w int) (int64, error) {
 	switch w {
 	case io.SeekStart:

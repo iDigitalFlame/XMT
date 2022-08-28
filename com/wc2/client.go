@@ -51,7 +51,7 @@ var (
 	// any set proxy settings contained in the execution environment.
 	DefaultTransport = &http.Transport{
 		Proxy:                 device.Proxy,
-		DialContext:           (&net.Dialer{Timeout: com.DefaultTimeout, KeepAlive: com.DefaultTimeout, DualStack: true}).DialContext,
+		DialContext:           (&net.Dialer{Timeout: com.DefaultTimeout, KeepAlive: com.DefaultTimeout}).DialContext,
 		MaxIdleConns:          64,
 		IdleConnTimeout:       com.DefaultTimeout,
 		ForceAttemptHTTP2:     false,
@@ -62,9 +62,9 @@ var (
 		// creates a BuffIO writer/reader pair with 4096 unused bytes. Why?!
 		ReadBufferSize:  1,
 		WriteBufferSize: 1,
-		// This setting allows us to overrite 'errCallerOwnsConn' in transport.go
+		// This setting allows us to override 'errCallerOwnsConn' in transport.go
 		// which allows for the 'writeLoopClosed' chan to be closed.
-		// Setting this to true, overrites the 'err' value and prevents keeping
+		// Setting this to true, overrides the 'err' value and prevents keeping
 		// the 'persistConn` struct sticking around on the heap.
 		// Otherwise ^THIS CAUSES A _SLOW_ MEMORY LEAK!!!
 		//
@@ -146,7 +146,7 @@ func rawParse(r string) (*url.URL, error) {
 // NewClient returns a new WC2 client instance with the supplied timeout and
 // Target options.
 //
-// If the durartion is less than one or equals 'com.DefaultTimeout' than this
+// If the duration is less than one or equals 'com.DefaultTimeout' than this
 // function will use the cached 'DefaultTransport' variable instead.
 func NewClient(d time.Duration, t *Target) *Client {
 	j, _ := cookiejar.New(nil)
@@ -159,7 +159,7 @@ func NewClient(d time.Duration, t *Target) *Client {
 			Jar: j,
 			Transport: &http.Transport{
 				Proxy:                 device.Proxy,
-				DialContext:           (&net.Dialer{Timeout: d, KeepAlive: d, DualStack: true}).DialContext,
+				DialContext:           (&net.Dialer{Timeout: d, KeepAlive: d}).DialContext,
 				MaxIdleConns:          64,
 				IdleConnTimeout:       d,
 				ForceAttemptHTTP2:     false,

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/PurpleSec/logx"
+
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/com/pipe"
@@ -39,7 +40,7 @@ import (
 )
 
 var (
-	// ErrNoHost is a error returned by the Connect and Listen functions when
+	// ErrNoHost is an error returned by the Connect and Listen functions when
 	// the provided Profile does not provide a host string.
 	ErrNoHost = xerr.Sub("empty or nil Host", 0x3F)
 	// ErrNoConn is an error returned by the Load* functions when an attempt to
@@ -409,7 +410,7 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 		}
 	}
 	if bugtrack.Enabled {
-		bugtrack.Track("c2.LoadContext(): Done, Resuming operatons!")
+		bugtrack.Track("c2.LoadContext(): Done, Resuming operations!")
 	}
 	s.wait()
 	go s.listen()

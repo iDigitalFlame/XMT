@@ -36,7 +36,7 @@ func (f Filter) Select() (uint32, error) {
 
 // Token will attempt to find a process with the specified Filter options.
 // If a suitable process is found, the Process Token Handle will be returned.
-// The first argument is the access rights requested, expressed as a uint32.
+// The first argument is the access rights requested, expressed as an uint32.
 //
 // An'ErrNoProcessFound' error will be returned if no processes that match the
 // Filter are found.
@@ -48,7 +48,7 @@ func (Filter) Token(_ uint32) (uintptr, error) {
 
 // Handle will attempt to find a process with the specified Filter options.
 // If a suitable process is found, the Process Handle will be returned.
-// The first argument is the access rights requested, expressed as a uint32.
+// The first argument is the access rights requested, expressed as an uint32.
 //
 // An'ErrNoProcessFound' error will be returned if no processes that match the
 // Filter are found.
@@ -79,7 +79,7 @@ func (f Filter) SelectFunc(_ filter) (uint32, error) {
 
 // TokenFunc will attempt to find a process with the specified Filter options.
 // If a suitable process is found, the Process Token Handle will be returned.
-// The first argument is the access rights requested, expressed as a uint32.
+// The first argument is the access rights requested, expressed as an uint32.
 //
 // This function allows for a filtering function to be passed along that will be
 // supplied with the ProcessID, if the process is elevated, the process name
@@ -90,7 +90,7 @@ func (f Filter) SelectFunc(_ filter) (uint32, error) {
 // Filter are found.
 //
 // This function returns 'ErrNoWindows' on non-Windows devices.
-func (Filter) TokenFunc(a uint32, x filter) (uintptr, error) {
+func (Filter) TokenFunc(_ uint32, _ filter) (uintptr, error) {
 	return 0, xerr.Sub("only supported on Windows devices", 0x20)
 }
 

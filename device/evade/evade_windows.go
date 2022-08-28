@@ -52,7 +52,7 @@ func ZeroTraceEvent() error {
 }
 
 // ReloadDLL is a function shamelessly stolen from the sliver project. This
-// function will read a DLL file from on-disk and rewrite over it's current
+// function will read a DLL file from on-disk and rewrite over its current
 // in-memory contents to erase any hooks placed on function calls.
 //
 // Re-mastered and refactored to be less memory hungry and easier to read :P
@@ -132,7 +132,7 @@ func isBaseName(n string) bool {
 
 // CheckDLL is a similar function to ReloadDLL.
 // This function will return 'true' and 'nil' if the contents in memory match the
-// contents of the file on disk. Otherwise it returns false.
+// contents of the file on disk, otherwise it returns false.
 //
 // Always returns 'ErrNoWindows' on non-Windows devices.
 func CheckDLL(d string) (bool, error) {
@@ -166,7 +166,7 @@ func CheckDLL(d string) (bool, error) {
 	if x, err = winapi.LoadDLL(d); err != nil {
 		return false, err
 	}
-	for a, i := 0, uintptr(x)+uintptr(s.VirtualAddress); a < len(v); a++ {
+	for a, i := 0, x+uintptr(s.VirtualAddress); a < len(v); a++ {
 		if (*(*[1]byte)(unsafe.Pointer(i + uintptr(a))))[0] != v[a] {
 			if bugtrack.Enabled {
 				bugtrack.Track("evade.CheckDLL(): Hook for d=%s detected at %X!", d, i+uintptr(a))

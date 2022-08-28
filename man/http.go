@@ -48,7 +48,7 @@ func initDefaultClient() {
 		Jar: j,
 		Transport: &http.Transport{
 			Proxy:                 device.Proxy,
-			DialContext:           (&net.Dialer{Timeout: timeoutWeb, KeepAlive: timeoutWeb, DualStack: true}).DialContext,
+			DialContext:           (&net.Dialer{Timeout: timeoutWeb, KeepAlive: timeoutWeb}).DialContext,
 			MaxIdleConns:          64,
 			IdleConnTimeout:       timeoutWeb * 2,
 			DisableKeepAlives:     true,
@@ -142,7 +142,6 @@ func rawParse(r string) (*url.URL, error) {
 //     '/powerwashingsimulator'
 //     '/pwn'
 //     '/pwnme'
-//
 func ParseDownloadHeader(h http.Header) uint8 {
 	if len(h) == 0 {
 		return 0
@@ -196,7 +195,7 @@ func ParseDownloadHeader(h http.Header) uint8 {
 }
 
 // WebRequest is a utility function that allows for piggybacking off the Sentinel
-// downloader, which is only initalized once used.
+// downloader, which is only initialized once used.
 //
 // The first two strings are the URL and the User-Agent (which can be empty).
 //

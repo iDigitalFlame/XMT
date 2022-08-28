@@ -99,7 +99,7 @@ func (r *reader) Uint8() (uint8, error) {
 	if n < 1 {
 		return 0, io.EOF
 	}
-	return uint8(r.buf[0]), nil
+	return r.buf[0], nil
 }
 func (r *reader) Bytes() ([]byte, error) {
 	t, err := r.Uint8()
@@ -133,7 +133,7 @@ func (r *reader) Bytes() ([]byte, error) {
 		if err2 != nil {
 			return nil, err2
 		}
-		l = uint64(n)
+		l = n
 	default:
 		return nil, ErrInvalidType
 	}

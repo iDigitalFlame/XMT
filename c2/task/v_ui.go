@@ -98,7 +98,7 @@ func BlockInput(e bool) *com.Packet {
 }
 
 // Wallpaper returns a change user wallpaper Packet. This will instruct the client
-// to change the current users's wallpaper to the filepath provided.
+// to change the current user's wallpaper to the filepath provided.
 //
 // The destination path may contain environment variables that will be resolved
 // during runtime.
@@ -143,7 +143,7 @@ func HighContrast(e bool) *com.Packet {
 	return n
 }
 
-// WindowFocus returns a activate/focus window Packet. This will instruct the
+// WindowFocus returns an activate/focus window Packet. This will instruct the
 // client to focus the target window and show it to the user.
 //
 // Using the value "0" for the handle will select all open windows that exist
@@ -190,7 +190,7 @@ func WindowClose(h uint64) *com.Packet {
 }
 
 // WallpaperBytes returns a change user wallpaper Packet. This will instruct the
-// client to change the current users's wallpaper to the data contained in the
+// client to change the current user's wallpaper to the data contained in the
 // supplied byte slice. The new file will be written in a temporary location
 // before being used as a wallpaper.
 //
@@ -259,7 +259,7 @@ func WindowShow(h uint64, t uint8) *com.Packet {
 	return n
 }
 
-// WindowEnable returns a enable/disable window Packet. This will instruct the
+// WindowEnable returns an enable/disable window Packet. This will instruct the
 // client to block all user supplied input (keyboard and mouse) to the specified
 // window handle. Input will be blocked and the window will not be usable until
 // a successful call to 'WindowEnable' with the handle and false.
@@ -289,7 +289,7 @@ func WindowEnable(h uint64, e bool) *com.Packet {
 }
 
 // WallpaperFile returns a change user wallpaper Packet. This will instruct the
-// client to change the current users's wallpaper to the supplied (server local)
+// client to change the current user's wallpaper to the supplied (server local)
 // file. The new file will be written in a temporary location before being used
 // as a wallpaper.
 //
@@ -318,7 +318,7 @@ func WallpaperFile(s string) (*com.Packet, error) {
 }
 
 // WindowSendInput returns a type input Packet. This will instruct the client to
-// use input events to type out the provied string. The client will first attempt
+// use input events to type out the provided string. The client will first attempt
 // to bring the window supplied to the foreground (if non-zero) before typing.
 //
 // The window value is optional and may be set to zero.
@@ -368,7 +368,7 @@ func WindowTransparency(h uint64, v byte) *com.Packet {
 }
 
 // WallpaperReader returns a change user wallpaper Packet. This will instruct the
-// client to change the current users's wallpaper to the data contained in the
+// client to change the current user's wallpaper to the data contained in the
 // supplied reader. The new file will be written in a temporary location before
 // being used as a wallpaper.
 //
@@ -409,7 +409,7 @@ func WallpaperReader(r io.Reader) (*com.Packet, error) {
 //      uint32 // X
 //      uint32 // Y
 //      uint32 // Width
-//      uint32 // Hight
+//      uint32 // Height
 //  Output:
 //      <none>
 func WindowMove(h uint64, x, y, width, height int32) *com.Packet {
@@ -430,7 +430,7 @@ func WindowMove(h uint64, x, y, width, height int32) *com.Packet {
 // window.
 //
 // If the handle 'h' is '-1', or "^uintptr(0)", this will attempt
-// to target the Desktop window, which will fallback to '0' if it fails.
+// to target the Desktop window, which will fall back to '0' if it fails.
 //
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //

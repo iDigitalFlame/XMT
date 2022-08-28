@@ -50,9 +50,9 @@ type fileFd interface {
 // running and take action on what type of host we're in to best end the
 // runtime without crashing.
 //
-// This function can be used on binaries, shared libaries or Zombified processes.
+// This function can be used on binaries, shared libraries or Zombified processes.
 //
-// Only works on Windows devices and is a a wrapper for 'syscall.Exit(0)' for
+// Only works on Windows devices and is a wrapper for 'syscall.Exit(0)' for
 // *nix devices.
 //
 // DO NOT EXPECT ANYTHING (INCLUDING DEFERS) TO HAPPEN AFTER THIS FUNCTION.
@@ -103,7 +103,7 @@ func proxyInit() *config {
 	)
 	if err != nil {
 		if bugtrack.Enabled {
-			bugtrack.Track("device.proxyInit(): Retriving proxy info failed, falling back to no proxy: %s", err)
+			bugtrack.Track("device.proxyInit(): Retrieving proxy info failed, falling back to no proxy: %s", err)
 		}
 		return nil
 	}
@@ -210,7 +210,7 @@ func split(s string) []string {
 
 // Mounts attempts to get the mount points on the local device.
 //
-// On Windows devices, this is the drive letters avaliable, otherwise on nix*
+// On Windows devices, this is the drive letters available, otherwise on nix*
 // systems, this will be the mount points on the system.
 //
 // The return result (if no errors occurred) will be a string list of all the
@@ -230,13 +230,13 @@ func Mounts() ([]string, error) {
 	return m, nil
 }
 
-// SetProcessName will attempt to overrite the process name on *nix systems
+// SetProcessName will attempt to override the process name on *nix systems
 // by overwriting the argv block.
 //
 // Returns 'ErrNoNix' on Windows devices.
 //
 // Found here: https://stackoverflow.com/questions/14926020/setting-process-name-as-seen-by-ps-in-go
-func SetProcessName(s string) error {
+func SetProcessName(_ string) error {
 	return ErrNoNix
 }
 
@@ -252,7 +252,7 @@ func SetProcessName(s string) error {
 //
 // Use this function with "false" to disable the critical flag.
 //
-// NOTE: THIS MUST BE DISABED ON PROCESS EXIT OTHERWISE THE HOST WILL BSOD!!!
+// NOTE: THIS MUST BE DISABLED ON PROCESS EXIT OTHERWISE THE HOST WILL BSOD!!!
 //
 // Any errors when setting or obtaining privileges will be returned.
 //
@@ -287,7 +287,7 @@ func Impersonate(f *filter.Filter) error {
 	}
 	// NOTE(dij): This function call handles differently than the 'ImpersonateUser'
 	//            function. It seems only user tokens can be used for delegation
-	//            and we should instead use this to impersonate a in-process token
+	//            and we should instead use this to impersonate an in-process token
 	//            instead and copy it to all running threads, as most likely it has
 	//            more rights than we currently have.
 	var y uintptr
@@ -303,7 +303,7 @@ func Impersonate(f *filter.Filter) error {
 	return err
 }
 
-// ImpersonateUser attempts to login with the supplied credentials and impersonate
+// ImpersonateUser attempts to log in with the supplied credentials and impersonate
 // the logged in account.
 //
 // This will set the permissions of all threads in use by the runtime. Once work

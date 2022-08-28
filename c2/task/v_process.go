@@ -25,7 +25,7 @@ import (
 )
 
 // Run will create a Tasklet that will instruct the client to run a command.
-// This command will parsed using the 'cmd.Split' function.
+// This command will be parsed using the 'cmd.Split' function.
 //
 // The Filter attribute will attempt to set the target that runs the Process.
 // If none are specified, the Process will be ran under the client process.

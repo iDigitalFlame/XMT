@@ -36,7 +36,7 @@ func uname() string {
 		if u.Release[i] == 0 {
 			break
 		}
-		v[i] = byte(u.Release[i])
+		v[i] = u.Release[i]
 	}
 	return string(v[:i])
 }

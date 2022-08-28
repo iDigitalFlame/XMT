@@ -40,5 +40,5 @@ func MemorySweep(_ context.Context) {}
 // The context is recommended to prevent any leaking Goroutines from being left
 // behind.
 //
-// Allows for specification of the timespace between sweeps.
+// Allows for specification of the time span between sweeps.
 func MemorySweepEx(_ context.Context, _ time.Duration) {}

@@ -231,7 +231,7 @@ func (p *sentinelPath) run(f *filter.Filter) error {
 // AddZombie adds a command execution type to this Sentinel. This will NOT validate
 // the command and filepath beforehand.
 //
-// The supplied vardic of strings are the spoofed commands to be ran as. The
+// The supplied vardic of strings are the spoofed commands to be ran under. The
 // first argument of each fake command MUST be a real binary, but the arguments
 // can be whatever. AT LEAST ONE MUST BE SUPPLIED FOR THIS TO BE CONSIDERED VALID.
 //
@@ -311,8 +311,8 @@ func (s *Sentinel) UnmarshalStream(r data.Reader) error {
 // path. This function will take any environment variables into account before
 // writing.
 //
-// If the supplied cipher is not nil, it will be used to encrypt the data durring
-// writing. Otherwise the data will be un-encrypted.
+// If the supplied cipher is not nil, it will be used to encrypt the data during
+// writing, otherwise the data will be un-encrypted.
 //
 // Any errors that occur during writing will be returned.
 func (s *Sentinel) Save(c cipher.Block, p string) error {
@@ -329,8 +329,8 @@ func (s *Sentinel) Save(c cipher.Block, p string) error {
 // Load will attempt to read the Sentinel struct from the supplied file path.
 // This function will take any environment variables into account before reading.
 //
-// If the supplied cipher is not nil, it will be used to decrypt the data durring
-// reader. Otherwise the data will read un-encrypted.
+// If the supplied cipher is not nil, it will be used to decrypt the data during
+// reader, otherwise the data will read un-encrypted.
 //
 // Any errors that occur during reading will be returned.
 func (s *Sentinel) Load(c cipher.Block, p string) error {
@@ -363,7 +363,7 @@ func (p sentinelPath) MarshalStream(w data.Writer) error {
 // launched Guardian comes up and responds correctly (within the appropriate time
 // constraints).
 //
-// This function will return true and nil if a Guardian was launched. Otherwise
+// This function will return true and nil if a Guardian was launched, otherwise
 // the boolean will be false and the error will explain the cause.
 //
 // Errors caused by Sentinel paths will NOT stop the search and the most likely
@@ -414,10 +414,10 @@ func (s *Sentinel) Find(l Linker, n string) (bool, error) {
 }
 
 // Wake will attempt to locate a Gurdian with the supplied Linker and name. If
-// no Guardian is found, the 'Find' function will be triggered and will staring
+// no Guardian is found, the 'Find' function will be triggered and will start
 // the launching routine.
 //
-// This function will return true and nil if a Guardian was launched. Otherwise
+// This function will return true and nil if a Guardian was launched, otherwise
 // the boolean will be false and the error will explain the cause. If the error
 // is nil, this means that a Guardian was detected.
 //
@@ -432,8 +432,8 @@ func (s *Sentinel) Wake(l Linker, n string) (bool, error) {
 }
 
 // Read will attempt to read the Sentinel data from the supplied Reader. If the
-// supplied cipher is not nil, it will be used to decrypt the data durring reader.
-// Otherwise the data will read un-encrypted.
+// supplied cipher is not nil, it will be used to decrypt the data during reader,
+// otherwise the data will read un-encrypted.
 func (s *Sentinel) Read(c cipher.Block, r io.Reader) error {
 	if c == nil {
 		return s.read(r)
@@ -470,8 +470,8 @@ func (p *sentinelPath) UnmarshalStream(r data.Reader) error {
 }
 
 // Write will attempt to write the Sentinel data to the supplied Writer. If the
-// supplied cipher is not nil, it will be used to encrypt the data durring writing.
-// Otherwise the data will be un-encrypted.
+// supplied cipher is not nil, it will be used to encrypt the data during writing,
+// otherwise the data will be un-encrypted.
 func (s *Sentinel) Write(c cipher.Block, w io.Writer) error {
 	if c == nil {
 		return s.write(w)
@@ -508,10 +508,10 @@ func (s *Sentinel) Write(c cipher.Block, w io.Writer) error {
 // Sentinels will be loaded in a random order then the 'Find' function of each
 // one will be ran.
 //
-// If the supplied cipher is not nil, it will be used to decrypt the data durring
-// reader. Otherwise the data will read un-encrypted.
+// If the supplied cipher is not nil, it will be used to decrypt the data during
+// reader, otherwise the data will read un-encrypted.
 //
-// This function will return true and nil if a Guardian was launched. Otherwise
+// This function will return true and nil if a Guardian was launched, otherwise
 // the boolean will be false and the error will explain the cause. If the error
 // is nil, this means that a Guardian was detected.
 func WakeMultiFile(l Linker, name string, c cipher.Block, paths []string) (bool, error) {
@@ -525,7 +525,7 @@ func WakeMultiFile(l Linker, name string, c cipher.Block, paths []string) (bool,
 	if Check(l, name) {
 		return false, nil
 	}
-	// NOTE(dij): Instead of running concurrently, do these randomally, but only
+	// NOTE(dij): Instead of running concurrently, do these randomly, but only
 	//            pick len() many times. Obviously, we might not cover 100% but
 	//            *shrug*.
 	//
@@ -558,13 +558,13 @@ func WakeMultiFile(l Linker, name string, c cipher.Block, paths []string) (bool,
 // WakeFile will attempt to load a Sentinel from the supplied string path if a
 // Guardian cannot be detected with the supplied Linker and name.
 //
-// If no Guardian was found the Sentinel will be loadedand  the 'Find' function
+// If no Guardian was found the Sentinel will be loaded and the 'Find' function
 // one will be ran.
 //
-// If the supplied cipher is not nil, it will be used to decrypt the data durring
-// reader. Otherwise the data will read un-encrypted.
+// If the supplied cipher is not nil, it will be used to decrypt the data during
+// reader, otherwise the data will read un-encrypted.
 //
-// This function will return true and nil if a Guardian was launched. Otherwise
+// This function will return true and nil if a Guardian was launched, otherwise
 // the boolean will be false and the error will explain the cause. If the error
 // is nil, this means that a Guardian was detected.
 func WakeFile(l Linker, name string, c cipher.Block, path string) (*Sentinel, bool, error) {
