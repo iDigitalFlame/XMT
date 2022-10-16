@@ -20,7 +20,9 @@ import (
 	"os"
 	"sync"
 	"syscall"
+	"time"
 
+	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device/arch"
 	"github.com/iDigitalFlame/xmt/util"
 )
@@ -47,7 +49,7 @@ const (
 	Plan9 OSType = 0x6
 	// Unsupported represents a device type that does not have direct support
 	// any may not work properly.
-	Unsupported OSType = 0x7
+	Unsupported OSType = 0xF
 )
 
 var builders = sync.Pool{
@@ -58,6 +60,17 @@ var builders = sync.Pool{
 
 // OSType is a numerical representation of the device Operating System type.
 type OSType uint8
+
+// Login is a struct that represents a current user Session on the device.
+type Login struct {
+	User      string
+	Host      string
+	Login     time.Time
+	LastInput time.Time
+	ID        uint32
+	From      Address
+	Status    uint8
+}
 
 func init() {
 	t := os.TempDir()
@@ -170,4 +183,53 @@ func Expand(s string) string {
 	b.Reset()
 	builders.Put(b)
 	return v
+}
+
+// MarshalStream writes the data of this c to the supplied Writer.
+func (l Login) MarshalStream(w data.Writer) error {
+	if err := w.WriteUint32(l.ID); err != nil {
+		return err
+	}
+	if err := w.WriteUint8(l.Status); err != nil {
+		return err
+	}
+	if err := w.WriteInt64(l.Login.Unix()); err != nil {
+		return err
+	}
+	if err := w.WriteInt64(l.LastInput.Unix()); err != nil {
+		return err
+	}
+	if err := l.From.MarshalStream(w); err != nil {
+		return err
+	}
+	if err := w.WriteString(l.User); err != nil {
+		return err
+	}
+	return w.WriteString(l.Host)
+}
+
+// UnmarshalStream reads the data of this Login from the supplied Reader.
+func (l *Login) UnmarshalStream(r data.Reader) error {
+	if err := r.ReadUint32(&l.ID); err != nil {
+		return err
+	}
+	if err := r.ReadUint8(&l.Status); err != nil {
+		return err
+	}
+	v, err := r.Int64()
+	if err != nil {
+		return err
+	}
+	i, err := r.Int64()
+	if err != nil {
+		return err
+	}
+	l.Login, l.LastInput = time.Unix(v, 0), time.Unix(i, 0)
+	if err = l.From.UnmarshalStream(r); err != nil {
+		return err
+	}
+	if err = r.ReadString(&l.User); err != nil {
+		return err
+	}
+	return r.ReadString(&l.Host)
 }

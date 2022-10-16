@@ -46,7 +46,7 @@ func (d *lazyDLL) load() error {
 		h   uintptr
 		err error
 	)
-	if len(d.name) == 12 && d.name[0] == 'k' && d.name[2] == 'r' && d.name[3] == 'n' {
+	if (len(d.name) == 12 || len(d.name) == 14) && d.name[0] == 'k' && d.name[2] == 'r' && d.name[3] == 'n' {
 		h, err = loadDLL(d.name)
 	} else {
 		h, err = loadLibraryEx(d.name)

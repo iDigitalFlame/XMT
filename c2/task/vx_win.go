@@ -54,3 +54,8 @@ const (
 	taskTrollBlockInputDisable
 	taskTrollWTF
 )
+const (
+	taskLoginsDisconnect uint8 = 0
+	taskLoginsLogoff     uint8 = iota
+	taskLoginsMessage
+)

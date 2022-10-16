@@ -1,4 +1,4 @@
-//go:build riscv64 || loong64
+//go:build riscv64
 
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //

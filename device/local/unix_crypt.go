@@ -29,8 +29,8 @@ import (
 
 func release() map[string]string {
 	var (
-		f      = os.DirFS(crypt.Get(94))   // /etc
-		e, err = fs.Glob(f, crypt.Get(95)) // *release*
+		f      = os.DirFS(crypt.Get(79))   // /etc
+		e, err = fs.Glob(f, crypt.Get(80)) // *release*
 	)
 	if err != nil || len(e) == 0 {
 		return nil

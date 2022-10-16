@@ -20,13 +20,14 @@ package filter
 
 import (
 	"strings"
-	"unsafe"
 
 	"github.com/iDigitalFlame/xmt/device/winapi"
 	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
+
+var emptyProc winapi.ProcessEntry
 
 func isTokenElevated(h uintptr) bool {
 	if !winapi.IsTokenElevated(h) {
@@ -46,7 +47,7 @@ func isTokenElevated(h uintptr) bool {
 // Select will attempt to find a process with the specified Filter options.
 // If a suitable process is found, the Process ID will be returned.
 //
-// An'ErrNoProcessFound' error will be returned if no processes that match the
+// An 'ErrNoProcessFound' error will be returned if no processes that match the
 // Filter are found.
 //
 // This function returns 'ErrNoWindows' on non-Windows devices if a PID is not set.
@@ -66,12 +67,25 @@ func inStrList(s string, l []string) bool {
 // If a suitable process is found, the Process Token Handle will be returned.
 // The first argument is the access rights requested, expressed as an uint32.
 //
-// An'ErrNoProcessFound' error will be returned if no processes that match the
+// An 'ErrNoProcessFound' error will be returned if no processes that match the
 // Filter are found.
 //
 // This function returns 'ErrNoWindows' on non-Windows devices.
 func (f Filter) Token(a uint32) (uintptr, error) {
 	return f.TokenFunc(a, nil)
+}
+
+// Thread will attempt to find a process with the specified Filter options.
+// If a suitable process is found, a handle to the first Thread in the Process
+// will be returned. The first argument is the access rights requested, expressed
+// as an uint32.
+//
+// An 'ErrNoProcessFound' error will be returned if no processes that match the
+// Filter are found.
+//
+// This function returns 'ErrNoWindows' on non-Windows devices.
+func (f Filter) Thread(a uint32) (uintptr, error) {
+	return f.ThreadFunc(a, nil)
 }
 
 // Handle will attempt to find a process with the specified Filter options.
@@ -94,7 +108,7 @@ func (f Filter) Handle(a uint32) (uintptr, error) {
 // and process handle. The function supplied should return true if the process
 // passes the filter. The function argument may be nil.
 //
-// An'ErrNoProcessFound' error will be returned if no processes that match the
+// An 'ErrNoProcessFound' error will be returned if no processes that match the
 // Filter are found.
 //
 // This function returns 'ErrNoWindows' on non-Windows devices if a PID is not set.
@@ -105,16 +119,12 @@ func (f Filter) SelectFunc(x filter) (uint32, error) {
 		// NOTE(dij): No need to check info (we have no extra filter)
 		return f.PID, nil
 	}
-	// 0x400 - PROCESS_QUERY_INFORMATION
-	h, err := f.HandleFunc(0x400, x)
+	// 0x400 - PROCESS_QUERY_LIMITED_INFORMATION
+	h, err := f.open(0x1000, false, x)
 	if err != nil {
 		return 0, err
 	}
-	p, err := winapi.GetProcessID(h)
-	if winapi.CloseHandle(h); err != nil {
-		return 0, err
-	}
-	return p, nil
+	return h.PID, nil
 }
 
 // TokenFunc will attempt to find a process with the specified Filter options.
@@ -126,7 +136,7 @@ func (f Filter) SelectFunc(x filter) (uint32, error) {
 // and process handle. The function supplied should return true if the process
 // passes the filter. The function argument may be nil.
 //
-// An'ErrNoProcessFound' error will be returned if no processes that match the
+// An 'ErrNoProcessFound' error will be returned if no processes that match the
 // Filter are found.
 //
 // This function returns 'ErrNoWindows' on non-Windows devices.
@@ -151,14 +161,14 @@ func (f Filter) TokenFunc(a uint32, x filter) (uintptr, error) {
 // and process handle. The function supplied should return true if the process
 // passes the filter. The function argument may be nil.
 //
-// An'ErrNoProcessFound' error will be returned if no processes that match the
+// An 'ErrNoProcessFound' error will be returned if no processes that match the
 // Filter are found.
 //
 // This function returns 'ErrNoWindows' on non-Windows devices.
 func (f Filter) HandleFunc(a uint32, x filter) (uintptr, error) {
 	// If we have a specific PID in mind that's valid.
 	if f.PID > 4 {
-		h, err := winapi.OpenProcess(a, true, f.PID)
+		h, err := winapi.OpenProcess(a, false, f.PID)
 		if h == 0 || err != nil {
 			return 0, xerr.Wrap("OpenProcess", err)
 		}
@@ -173,7 +183,7 @@ func (f Filter) HandleFunc(a uint32, x filter) (uintptr, error) {
 		}
 		var t uintptr
 		// (old 0x8 - TOKEN_QUERY)
-		// 0x20008 - TOKEN_READ
+		// 0x20008 - TOKEN_READ | TOKEN_QUERY
 		if err = winapi.OpenProcessToken(h, 0x20008, &t); err != nil {
 			winapi.CloseHandle(h)
 			return 0, xerr.Wrap("OpenProcessToken", err)
@@ -185,112 +195,125 @@ func (f Filter) HandleFunc(a uint32, x filter) (uintptr, error) {
 		winapi.CloseHandle(h)
 		return 0, ErrNoProcessFound
 	}
-	return f.open(a, false, x)
-}
-func (f Filter) open(a uint32, r bool, x filter) (uintptr, error) {
-	h, err := winapi.CreateToolhelp32Snapshot(2, 0)
+	h, err := f.open(a, false, x)
 	if err != nil {
-		return 0, xerr.Wrap("CreateToolhelp32Snapshot", err)
+		return 0, err
 	}
+	return h.Handle(a)
+}
+
+// ThreadFunc will attempt to find a process with the specified Filter options.
+// If a suitable process is found, a handle to the first Thread in the Process
+// will be returned. The first argument is the access rights requested, expressed
+// as an uint32.
+//
+// This function allows for a filtering function to be passed along that will be
+// supplied with the ProcessID, if the process is elevated, the process name
+// and process handle. The function supplied should return true if the process
+// passes the filter. The function argument may be nil.
+//
+// An'ErrNoProcessFound' error will be returned if no processes that match the
+// Filter are found.
+//
+// This function returns 'ErrNoWindows' on non-Windows devices.
+func (f Filter) ThreadFunc(a uint32, x filter) (uintptr, error) {
+	i, err := f.SelectFunc(x)
+	if err != nil {
+		return 0, err
+	}
+	var v uintptr
+	err = winapi.EnumThreads(i, func(e winapi.ThreadEntry) error {
+		if v, err = e.Handle(a); err == nil {
+			return winapi.ErrNoMoreFiles
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return v, nil
+}
+func (f Filter) open(a uint32, r bool, x filter) (winapi.ProcessEntry, error) {
 	var (
-		e    winapi.ProcessEntry32
-		l    []uintptr
-		s    string
-		o, t uintptr
-		d, z uint32
-		j    bool
-		p    = winapi.GetCurrentProcessID()
+		z = make([]winapi.ProcessEntry, 0, 64)
+		p = winapi.GetCurrentProcessID()
+		s = f.Session > Empty
+		v = f.Elevated > Empty || x != nil
 	)
-	e.Size = uint32(unsafe.Sizeof(e))
-	if err = winapi.GetDebugPrivilege(); err != nil {
+	if err := winapi.GetDebugPrivilege(); err != nil {
 		if bugtrack.Enabled {
 			bugtrack.Track("filter.Filter.open(): GetDebugPrivilege failed with err=%s", err)
 		}
 	}
-	for err = winapi.Process32First(h, &e); err == nil; err = winapi.Process32Next(h, &e) {
-		if e.ProcessID == p || e.ProcessID < 5 {
-			continue
+	err := winapi.EnumProcesses(func(e winapi.ProcessEntry) error {
+		if e.PID == p || e.PID < 5 || len(e.Name) == 0 || (f.PID > 0 && f.PID != e.PID) {
+			return nil
 		}
-		if s = winapi.UTF16ToString(e.ExeFile[:]); len(s) == 0 {
-			continue
+		if (len(f.Exclude) > 0 && inStrList(e.Name, f.Exclude)) || (len(f.Include) > 0 && !inStrList(e.Name, f.Include)) {
+			return nil
 		}
-		if len(f.Exclude) > 0 && inStrList(s, f.Exclude) {
-			continue
-		}
-		if len(f.Include) > 0 && !inStrList(s, f.Include) {
-			continue
-		}
-		if o, err = winapi.OpenProcess(a, true, e.ProcessID); err != nil || o == 0 {
-			if bugtrack.Enabled {
-				bugtrack.Track("filter.Filter.open(): OpenProcess e.ProcessID=%d, failed err=%s.", e.ProcessID, err)
+		if (x == nil && !s && !v) || r {
+			h, err := e.Handle(a)
+			if err != nil {
+				return nil
 			}
-			continue
-		}
-		if x == nil && ((f.Elevated == Empty && f.Session == Empty) || r) {
-			if bugtrack.Enabled {
-				bugtrack.Track("filter.Filter.open(): Added process s=%q, e.ProcessID=%d, o=%X for eval.", s, e.ProcessID, o)
+			if winapi.CloseHandle(h); bugtrack.Enabled {
+				bugtrack.Track("filter.Filter.open(): Added process e.Name=%q, e.PID=%d for eval.", e.Name, e.PID)
 			}
-			l = append(l, o)
-			// NOTE(dij): Left this commented to be un-commented if you want a fast-path to select.
-			//            However, this prevents selecting a random process and grabs the first one instead.
-			//            Also produces fewer handles opened.
+			z = append(z, e)
+			// NOTE(dij): Left this commented to be un-commented if you want a
+			//            fast-path to select. However, this prevents selecting
+			//            a random process and grabs the first one instead, but
+			//            also produces fewer handles opened. YMMV
+			//
 			// if len(f.Include) == 1 {
-			//     break
+			//     return false
 			// }
-			continue
+			//
+			return nil
 		}
-		// NOTE(dij): Watch this to be sure, I'm getting Access Denied on some
-		//            that should /have/ passed.
-		//
-		// (old 0x8 - TOKEN_QUERY)
-		// 0x20008 - TOKEN_READ
-		if err = winapi.OpenProcessToken(o, 0x20008, &t); err != nil {
-			winapi.CloseHandle(o)
-			continue
+		h, k, i, err := e.InfoEx(a, v, s, x != nil)
+		if err != nil {
+			return nil
 		}
-		if j, d = isTokenElevated(t), 0; f.Session != Empty {
-			// 0xC - TokenSessionId
-			if err = winapi.GetTokenInformation(t, 0xC, (*byte)(unsafe.Pointer(&d)), 4, &z); err != nil || z != 4 {
-				d = 0
+		if v && ((k && f.Elevated == False) || (!k && f.Elevated == True)) {
+			return nil
+		}
+		if s && ((i > 0 && f.Session == False) || (i == 0 && f.Session == True)) {
+			return nil
+		}
+		if x != nil {
+			q := x(e.PID, k, e.Name, h)
+			if winapi.CloseHandle(h); !q {
+				return nil
 			}
 		}
-		if winapi.CloseHandle(t); (f.Elevated == True && !j) || (f.Elevated == False && j) || (f.Session == True && d == 0) || (f.Session == False && d > 0) {
-			winapi.CloseHandle(o)
-			continue
+		if z = append(z, e); bugtrack.Enabled {
+			bugtrack.Track("filter.Filter.open(): Added process e.Name=%q, e.PID=%d for eval.", e.Name, e.PID)
 		}
-		if x != nil && !x(e.ProcessID, j, s, o) {
-			winapi.CloseHandle(o)
-			continue
-		}
-		if bugtrack.Enabled {
-			bugtrack.Track("filter.Filter.open(): Added process s=%q, e.ProcessID=%d, j=%t, d=%d, o=%X for eval.", s, e.ProcessID, j, d, o)
-		}
-		l = append(l, o)
+		return nil
+	})
+	if err != nil {
+		return emptyProc, err
 	}
-	if winapi.CloseHandle(h); len(l) == 1 {
-		if bugtrack.Enabled {
-			bugtrack.Track("filter.Filter.open(): Choosing handle %X.", l[0])
-		}
-		return l[0], nil
-	}
-	if len(l) > 1 {
-		o = l[int(util.FastRandN(len(l)))]
-		for i := range l {
-			if l[i] == o {
-				continue
+	switch len(z) {
+	case 0:
+		if !r && x == nil && f.Fallback {
+			if bugtrack.Enabled {
+				bugtrack.Track("filter.Filter.open(): First run failed, starting fallback!")
 			}
-			winapi.CloseHandle(l[i])
+			return f.open(a, true, x)
 		}
+		return emptyProc, ErrNoProcessFound
+	case 1:
 		if bugtrack.Enabled {
-			bugtrack.Track("filter.Filter.open(): Choosing handle %X.", o)
+			bugtrack.Track("filter.Filter.open(): Choosing process e.Name=%q, e.PID=%d.", z[0].Name, z[0].PID)
 		}
-		return o, nil
+		return z[0], nil
 	}
-	if !r && x == nil && f.Fallback {
-		if bugtrack.Enabled {
-			bugtrack.Track("filter.Filter.open(): First run failed, starting fallback!")
-		}
-		return f.open(a, true, x)
+	n := z[int(util.FastRandN(len(z)))]
+	if bugtrack.Enabled {
+		bugtrack.Track("filter.Filter.open(): Choosing process e.Name=%q, e.PID=%d.", n.Name, n.PID)
 	}
-	return 0, ErrNoProcessFound
+	return n, nil
 }

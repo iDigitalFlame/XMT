@@ -261,7 +261,6 @@ func ScreenShot(x, y, width, height uint32, w io.Writer) error {
 	deleteDC(d)
 	releaseDC(v, m)
 	heapDestroy(p)
-	CloseHandle(p)
 	runtime.GC()
 	debug.FreeOSMemory()
 	return err

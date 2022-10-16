@@ -45,6 +45,16 @@ func IsDebugged() bool {
 	return false
 }
 
+// Logins returns an array that contains information about current logged
+// in users.
+//
+// This call is OS-independent but many contain invalid session types.
+//
+// Always returns an EINVAL on WSAM/JS.
+func Logins() ([]Login, error) {
+	return nil, syscall.EINVAL
+}
+
 // Mounts attempts to get the mount points on the local device.
 //
 // On Windows devices, this is the drive letters available, otherwise on nix*
@@ -54,6 +64,20 @@ func IsDebugged() bool {
 // mount points (or Windows drive letters).
 func Mounts() ([]string, error) {
 	return nil, syscall.EINVAL
+}
+
+// SetProcessName will attempt to override the process name on *nix systems
+// by overwriting the argv block. On Windows, this just overrides the command
+// line arguments.
+//
+// Linux support only allows for suppling a command line shorter the current
+// command line.
+//
+// Linux found here: https://stackoverflow.com/questions/14926020/setting-process-name-as-seen-by-ps-in-go
+//
+// Always returns an EINVAL on WSAM/JS.
+func SetProcessName(_ string) error {
+	return syscall.EINVAL
 }
 
 // DumpProcess will attempt to copy the memory of the targeted Filter to the

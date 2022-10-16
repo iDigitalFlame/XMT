@@ -62,7 +62,7 @@ run_vet() {
     env GOARCH=$1 GOOS=$2 go vet ./cmd
     env GOARCH=$1 GOOS=$2 go vet ./com
     env GOARCH=$1 GOOS=$2 go vet ./data
-    env GOARCH=$1 GOOS=$2 go vet ./device 2>&1 | grep -vE 'github.com/iDigitalFlame/xmt/device$|device/y_nix.go:100:24: possible misuse of unsafe.Pointer$'
+    env GOARCH=$1 GOOS=$2 go vet ./device 2>&1 | grep -vE 'github.com/iDigitalFlame/xmt/device$|device/y_nix_util.go:63:24: possible misuse of unsafe.Pointer$|github.com/iDigitalFlame/xmt/cmd$|cmd/thread_windows.go:300:17: possible misuse of unsafe.Pointer$'
     env GOARCH=$1 GOOS=$2 go vet ./man
     env GOARCH=$1 GOOS=$2 go vet ./util
 }
@@ -76,7 +76,8 @@ run_staticcheck() {
     env GOARCH=$1 GOOS=$2 staticcheck -checks all -f text ./... | grep -vE '^tests/|^unit_tests/' | grep -v '(ST1000)'
     for tags in ${build_tags[@]}; do
         printf "\x1b[1m\x1b[34m[+] Static Check GOARCH=$1 GOOS=$2 with tags \"${tags}\"..\x1b[0m\n"
-        env GOARCH=$1 GOOS=$2 staticcheck -checks all -f text -tags $tags ./... | grep -vE '^tests/|^unit_tests/' | grep -vE '(ST1000)|(ST1003)'
+        env GOARCH=$1 GOOS=$2 staticcheck -checks all -f text -tags $tags ./... | grep -vE '^tests/|^unit_tests/' | grep -vE '(ST1000)'
+        # | grep -vE '(ST1000)|(ST1003)'
     done
 }
 run_staticcheck_all() {

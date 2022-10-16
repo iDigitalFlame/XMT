@@ -1,5 +1,3 @@
-//go:build windows && crypt
-
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,22 +14,18 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-package evade
+package device
 
-import (
-	"github.com/iDigitalFlame/xmt/device/winapi"
-	"github.com/iDigitalFlame/xmt/util/crypt"
+const (
+	// EvadeWinPatchTrace is an evasion flag that instructs the client to patch
+	// ETW tracing functions.
+	EvadeWinPatchTrace uint8 = 1 << iota
+	// EvadeWinPatchAmsi is an evasion flag that instructs the client to patch
+	// Amsi detection functions.
+	EvadeWinPatchAmsi
+	// EvadeWinHideThreads is an evasion flag that instructs the client to hide
+	// all of it's current threads from debuggers.
+	EvadeWinHideThreads
+	// EvadeAll does exactly what it says, enables ALL Evasion functions.
+	EvadeAll uint8 = 0xFF
 )
-
-var sect = crypt.Get(104) // .text
-
-func fullPath(n string) string {
-	if !isBaseName(n) {
-		return n
-	}
-	d, err := winapi.GetSystemDirectory()
-	if err != nil {
-		d = crypt.Get(105) // C:\Windows\System32
-	}
-	return d + "\\" + n
-}

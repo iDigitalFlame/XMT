@@ -37,6 +37,12 @@ func (a Architecture) String() string {
 		return "ARM64"
 	case PowerPC:
 		return "PowerPC"
+	case Loong64:
+		return "Loong64"
+	case X86OnX64:
+		return "32bit [64bit]"
+	case ARMOnARM64:
+		return "ARM [ARM64]"
 	}
 	return "Unknown"
 }

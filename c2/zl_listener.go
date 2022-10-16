@@ -453,7 +453,9 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 		return s, i, nil, nil
 	}
 	z := s.next(true)
-	z.Crypt(&s.key)
-	s.keyCheck()
+	if z != nil {
+		z.Crypt(&s.key)
+		s.keyCheck()
+	}
 	return s, i, z, nil
 }

@@ -1,4 +1,4 @@
-//go:build !windows && implant
+//go:build !implant
 
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //
@@ -15,8 +15,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
-package pipe
 
-func (listener) String() string {
-	return ""
+package man
+
+func (o objSync) String() string {
+	switch o {
+	case Mutex:
+		return "mutex"
+	case Event:
+		return "event"
+	case Mailslot:
+		return "mailslot"
+	case Semaphore:
+		return "semaphore"
+	}
+	return "mutex"
 }

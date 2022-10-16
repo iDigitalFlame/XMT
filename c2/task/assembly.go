@@ -22,7 +22,6 @@ import (
 
 	"github.com/iDigitalFlame/xmt/cmd"
 	"github.com/iDigitalFlame/xmt/cmd/filter"
-	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
 )
 
@@ -65,56 +64,6 @@ type Assembly struct {
 	Data    []byte
 	Timeout time.Duration
 	Wait    bool
-}
-
-// Packet will take the configured Assembly options and will return a Packet
-// and any errors that may occur during building.
-//
-// This allows the Assembly struct to fulfil the 'Tasklet' interface.
-//
-// C2 Details:
-//  ID: TvAssembly
-//
-//  Input:
-//      Assembly struct {
-//          bool            // Wait
-//          int64           // Timeout
-//          bool            // Filter Status
-//          Filter struct { // Filter
-//              uint32      // PID
-//              bool        // Fallback
-//              uint8       // Session
-//              uint8       // Elevated
-//              []string    // Exclude
-//              []string    // Include
-//          }
-//          []byte          // Assembly Data
-//      }
-//  Output:
-//      uint64              // Handle
-//      uint32              // PID
-//      int32               // Exit Code
-func (a Assembly) Packet() (*com.Packet, error) {
-	n := &com.Packet{ID: TvAssembly}
-	a.MarshalStream(n)
-	return n, nil
-}
-
-// MarshalStream writes the data for this Code thread to the supplied Writer.
-func (a Assembly) MarshalStream(w data.Writer) error {
-	if err := w.WriteBool(a.Wait); err != nil {
-		return err
-	}
-	if err := w.WriteInt64(int64(a.Timeout)); err != nil {
-		return err
-	}
-	if err := a.Filter.MarshalStream(w); err != nil {
-		return err
-	}
-	if err := w.WriteBytes(a.Data); err != nil {
-		return err
-	}
-	return nil
 }
 
 // UnmarshalStream reads the data for this Code thread from the supplied Reader.

@@ -19,6 +19,7 @@
 package winapi
 
 import (
+	"errors"
 	"io"
 	"runtime"
 	"runtime/debug"
@@ -47,6 +48,28 @@ var dumpCallbackOnce struct {
 	f uintptr
 }
 
+type curDir struct {
+	DosPath lsaString
+	Handle  uintptr
+}
+type modInfo struct {
+	Base  uintptr
+	Size  uint32
+	Entry uintptr
+}
+type clientID struct {
+	Process uintptr
+	Thread  uintptr
+}
+type objAttrs struct {
+	// DO NOT REORDER
+	Length                   uint32
+	RootDirectory            uintptr
+	ObjectName               *lsaString
+	Attributes               uint32
+	SecurityDescriptor       *SecurityDescriptor
+	SecurityQualityOfService *SecurityQualityOfService
+}
 type lsaString struct {
 	// DO NOT REORDER
 	Length        uint16
@@ -66,15 +89,27 @@ type privileges struct {
 	PrivilegeCount uint32
 	Privileges     [5]LUIDAndAttributes
 }
-type modEntry32 struct {
+type processPeb struct {
 	// DO NOT REORDER
-	Size       uint32
-	_, _, _, _ uint32
-	BaseAddr   uintptr
-	BaseSize   uint32
-	_          uintptr
-	_          [256]uint16
-	_          [260]uint16
+	_                      [2]byte
+	BeingDebugged          byte
+	_                      [1]byte
+	_                      [2]uintptr
+	Ldr                    uintptr
+	ProcessParameters      *processParams
+	_                      [3]uintptr
+	AtlThunkSListPtr       uintptr
+	_                      uintptr
+	_                      uint32
+	_                      uintptr
+	_                      uint32
+	AtlThunkSListPtr32     uint32
+	_                      [45]uintptr
+	_                      [96]byte
+	PostProcessInitRoutine uintptr
+	_                      [128]byte
+	_                      [1]uintptr
+	SessionID              uint32
 }
 type highContrast struct {
 	// DO NOT REORDER
@@ -94,12 +129,43 @@ type lsaAttributes struct {
 	Attributes uint32
 	_, _       unsafe.Pointer
 }
+type processParams struct {
+	// DO NOT REORDER
+	_                [16]byte
+	_                uintptr
+	_                uint32
+	StandardInput    uintptr
+	StandardOutput   uintptr
+	StandardError    uintptr
+	CurrentDirectory curDir
+	DllPath          lsaString
+	ImagePathName    lsaString
+	CommandLine      lsaString
+	Environment      uintptr
+}
+type threadBasicInfo struct {
+	// DO NOT REORDER
+	ExitStatus     uint32
+	TebBaseAddress uintptr
+	ClientID       clientID
+	_              uint64
+	_              uint32
+}
 type ntUnicodeString struct {
 	// DO NOT REORDER
 	Length        uint16
 	MaximumLength uint16
 	_, _          uint16
 	Buffer        [260]uint16
+}
+type processBasicInfo struct {
+	// DO NOT REORDER
+	ExitStatus                   uint32
+	PebBaseAddress               uintptr
+	_                            *uintptr
+	_                            uint32
+	UniqueProcessID              uintptr
+	InheritedFromUniqueProcessID uintptr
 }
 type lsaAccountDomainInfo struct {
 	// DO NOT REORDER
@@ -139,39 +205,34 @@ func killRuntime() {
 	// > 8 - If only one thread in base address is suspended, we're a Zombie - syscall.Exit(0)
 	// 9 - Iterate through all our threads and terminate them
 	// > 0 - Terminate self thread
-	q, err := getSelfModuleHandle()
-	if err != nil {
+	//
+	var q uintptr
+	// 0x2 - GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT
+	if r, _, err := syscall.SyscallN(funcGetModuleHandleEx.address(), 0x2, 0, uintptr(unsafe.Pointer(&q))); r == 0 {
 		if bugtrack.Enabled {
-			bugtrack.Track("winapi.killRuntime(): getSelfModuleHandle failed err=%s", err)
+			bugtrack.Track("winapi.killRuntime(): GetModuleHandleEx failed err=%s", err)
 		}
 		return
 	}
-	var (
-		p    = GetCurrentProcessID()
-		a, e uintptr
-	)
-	if a, e, err = findBaseModuleRange(p, q); err != nil {
+	var k modInfo
+	if r, _, err := syscall.SyscallN(funcK32GetModuleInformation.address(), CurrentProcess, q, uintptr(unsafe.Pointer(&k)), unsafe.Sizeof(k)); r == 0 {
 		if bugtrack.Enabled {
-			bugtrack.Track("winapi.killRuntime(): findBaseModuleRange failed err=%s", err)
+			bugtrack.Track("winapi.killRuntime(): K32GetModuleInformation failed err=%s", err)
 		}
 		return
 	}
+	a, e := k.Base, k.Base+uintptr(k.Size)
 	if bugtrack.Enabled {
-		bugtrack.Track("winapi.killRuntime(): Module range p=%d, a=%d, e=%d", p, a, e)
+		bugtrack.Track("winapi.killRuntime(): Module range a=%d, e=%d", a, e)
 	}
-	var (
-		x = make(map[uint32]struct{}, 8)
-		z uint32
-	)
+	x := make(map[uint32]struct{}, 8)
 	for i := uintptr(allm); ; {
 		if h := *(*uintptr)(unsafe.Pointer(i + ptrThread)); h > 0 {
-			if z, err = getThreadID(h); err != nil {
-				continue
+			if z, err := getThreadID(h); err == nil {
+				if x[z] = caught; bugtrack.Enabled {
+					bugtrack.Track("winapi.killRuntime(): Found runtime thread ID z=%d, h=%d", z, h)
+				}
 			}
-			if bugtrack.Enabled {
-				bugtrack.Track("winapi.killRuntime(): Found runtime thread ID z=%d, h=%d", z, h)
-			}
-			x[z] = caught
 		}
 		n := (*uintptr)(unsafe.Pointer(i + ptrNext))
 		if n == nil || *n == 0 {
@@ -179,67 +240,56 @@ func killRuntime() {
 		}
 		i = *n
 	}
-	// 0x4 - TH32CS_SNAPTHREAD
-	h, err := CreateToolhelp32Snapshot(0x4, 0)
-	if err != nil {
-		if bugtrack.Enabled {
-			bugtrack.Track("winapi.killRuntime(): CreateToolhelp32Snapshot failed err=%s", err)
-		}
-		return
-	}
 	var (
-		y    = getCurrentThreadID()
-		m    = make([]uintptr, 0, len(x))
-		u    = make([]uintptr, 0, 8)
-		t    ThreadEntry32
-		b    bool
-		s, v uintptr
+		y = getCurrentThreadID()
+		m = make([]uintptr, 0, len(x))
+		u = make([]bool, 0, 8)
+		b bool
 	)
-	t.Size = uint32(unsafe.Sizeof(t))
-	for err = Thread32First(h, &t); err == nil; err = Thread32Next(h, &t) {
-		if t.OwnerProcessID != p {
-			continue
-		}
+	err := EnumThreads(GetCurrentProcessID(), func(t ThreadEntry) error {
 		// 0x63 - THREAD_QUERY_INFORMATION | THREAD_SET_INFORMATION | THREAD_SUSPEND_RESUME
 		//        THREAD_TERMINATE
-		if v, err = OpenThread(0x63, false, t.ThreadID); err != nil {
-			break
+		h, err1 := t.Handle(0x63)
+		if err1 != nil {
+			return err1
 		}
-		if s, err = getThreadStartAddress(v); err != nil {
-			break
+		s, err1 := getThreadStartAddress(h)
+		if err1 != nil {
+			return err1
 		}
-		if t.ThreadID == y {
+		if t.TID == y {
 			if b = s >= a && s < e; b {
-				break
+				return ErrNoMoreFiles
 			}
 			if bugtrack.Enabled {
-				bugtrack.Track("winapi.killRuntime(): Found our thread t.ThreadID=%d y=%d, s=%d, b=%t", t.ThreadID, y, s, b)
+				bugtrack.Track("winapi.killRuntime(): Found our thread t.TID=%d y=%d, s=%d, b=%t", t.TID, y, s, b)
 			}
-			continue
+			return nil
 		}
-		if s >= a && s < e {
-			u = append(u, v)
+		k, err1 := t.suspended(h)
+		if err1 != nil {
+			return err1
 		}
-		if _, ok := x[t.ThreadID]; !ok {
-			continue
+		if s > a && s < e {
+			// Should we just only add true values??
+			u = append(u, k)
 		}
-		m = append(m, v)
-	}
-	if CloseHandle(h); bugtrack.Enabled {
-		bugtrack.Track("winapi.killRuntime(): Done enumeration b=%t, len(m)=%d, err=%s", b, len(m), err)
-	}
-	if err != nil && err != ErrNoMoreFiles {
+		if _, ok := x[t.TID]; !ok {
+			CloseHandle(h)
+			return nil
+		}
+		m = append(m, h)
+		return nil
+	})
+	if err != nil {
 		if bugtrack.Enabled {
-			bugtrack.Track("winapi.killRuntime(): Iterate failed err=%s", err)
+			bugtrack.Track("winapi.killRuntime(): EnumThreads failed err=%s", err)
 		}
 		return
 	}
 	if b || len(m) == 0 {
 		for i := range m {
 			CloseHandle(m[i])
-		}
-		for i := range u {
-			CloseHandle(u[i])
 		}
 		if m, u = nil, nil; b {
 			// Base thread (us), is in the base module address
@@ -248,20 +298,14 @@ func killRuntime() {
 			return
 		}
 		if bugtrack.Enabled {
-			bugtrack.Track("winapi.killRuntime(): Failed to close base!")
+			bugtrack.Track("winapi.killRuntime(): Failed to find base threads!")
 		}
 		return
 	}
 	if len(u) > 0 {
 		var d int
-		for n, g := 0, uint32(0); n < len(u) && d <= 1; n++ {
-			if _, err = SuspendThread(u[n]); err != nil {
-				break
-			}
-			if g, err = ResumeThread(u[n]); err != nil {
-				break
-			}
-			if g > 1 {
+		for n := 0; n < len(u) && d <= 1; n++ {
+			if u[n] {
 				d++
 			}
 		}
@@ -272,9 +316,6 @@ func killRuntime() {
 			for i := range m {
 				CloseHandle(m[i])
 			}
-			for i := range u {
-				CloseHandle(u[i])
-			}
 			u, m = nil, nil
 			// Out of all the base threads, only one exists and is suspended,
 			// 99% chance this is a Zombified process, it's ok to exit cleanly.
@@ -284,9 +325,6 @@ func killRuntime() {
 	}
 	// What's left is that we're probally injected into memory somewhere, and
 	// we just need to nuke the runtime without affecting the host.
-	for i := range u {
-		CloseHandle(u[i])
-	}
 	for i := range m {
 		if err = TerminateThread(m[i], 0); err != nil {
 			break
@@ -304,6 +342,22 @@ func killRuntime() {
 	EmptyWorkingSet()
 	TerminateThread(CurrentThread, 0) // Buck Stops here.
 }
+
+// Getppid returns the Parent Process ID of this Process by reading the PEB.
+// If this fails, this returns zero.
+func Getppid() uint32 {
+	var (
+		p       processBasicInfo
+		r, _, _ = syscall.SyscallN(
+			funcNtQueryInformationProcess.address(), CurrentProcess, 0, uintptr(unsafe.Pointer(&p)),
+			unsafe.Sizeof(p), 0,
+		)
+	)
+	if r > 0 {
+		return 0
+	}
+	return uint32(p.InheritedFromUniqueProcessID)
+}
 func createDumpFunc() {
 	dumpCallbackOnce.f = syscall.NewCallback(dumpCallbackFunc)
 }
@@ -320,36 +374,44 @@ func EmptyWorkingSet() {
 	syscall.SyscallN(funcSetProcessWorkingSetSizeEx.address(), CurrentProcess, invalid, invalid)
 }
 
-// ZeroTraceEvent will attempt to zero out the 'NtTraceEvent' function call with
-// a NOP.
+// IsDebugged attempts to check multiple system calls in order to determine
+// REAL debugging status.
 //
-// This function also zero's out 'DbgBreakPoint'.
+// This function checks in this order:
+// - NtQuerySystemInformation/SystemKernelDebuggerInformation
+// - IsDebuggerPresent
+// - CheckRemoteDebuggerPresent
 //
-// This will return an error if it fails.
-func ZeroTraceEvent() error {
+// Errors make the function return false only if they are the last call.
+func IsDebugged() bool {
 	var (
-		b      = funcNtTraceEvent.address() + 3
-		o, err = NtProtectVirtualMemory(CurrentProcess, b, 1, 0x40)
-		// 0x40 - PAGE_EXECUTE_READWRITE
+		d uint16
+		x uint32
 	)
+	// 0x23 - SystemKernelDebuggerInformation
+	syscall.SyscallN(funcNtQuerySystemInformation.address(), 0x23, uintptr(unsafe.Pointer(&d)), 2, uintptr(unsafe.Pointer(&x)))
+	if x == 2 && ((d&0xFF) > 1 || (d>>8) == 0) {
+		return true
+	}
+	if IsDebuggerPresent() {
+		return true
+	}
+	if p, err := getProcessPeb(); err == nil && p.BeingDebugged > 0 {
+		return true
+	}
+	// 0x400 - PROCESS_QUERY_INFORMATION
+	h, err := OpenProcess(0x400, false, GetCurrentProcessID())
 	if err != nil {
-		return err
+		return false
 	}
-	(*(*[1]byte)(unsafe.Pointer(b)))[0] = 0xC3 // RET
-	if _, err = NtProtectVirtualMemory(CurrentProcess, b, 1, o); err != nil {
-		return err
-	}
-	if o, err = NtProtectVirtualMemory(CurrentProcess, funcDbgBreakPoint.address(), 1, 0x40); err != nil {
-		return err
-	}
-	(*(*[1]byte)(unsafe.Pointer(funcDbgBreakPoint.address())))[0] = 0x90 // NOP
-	_, err = NtProtectVirtualMemory(CurrentProcess, funcDbgBreakPoint.address(), 1, o)
-	return err
+	var v bool
+	err = CheckRemoteDebuggerPresent(h, &v)
+	CloseHandle(h)
+	return err == nil && v
 }
 func (p *dumpParam) close() {
 	heapFree(p.b, p.h)
 	heapDestroy(p.b)
-	CloseHandle(p.b)
 	p.Unlock()
 }
 
@@ -424,15 +486,16 @@ func Untrust(p uint32) error {
 	}
 	return unboxError(err1)
 }
-func fullPath(n string) string {
-	if !isBaseName(n) {
-		return n
-	}
-	d, err := GetSystemDirectory()
-	if err != nil {
-		d = `C:\Windows\System32`
-	}
-	return d + "\\" + n
+
+// SystemDirectory Windows API Call
+//   Retrieves the path of the system directory. The system directory contains
+//   system files such as dynamic-link libraries and drivers.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-getsystemdirectoryw
+//
+// Technically a link to the runtime "GetSystemDirectory" cached API call.
+func SystemDirectory() string {
+	return systemDirectoryPrefix
 }
 
 // GetDebugPrivilege is a quick helper function that will attempt to grant the
@@ -456,6 +519,12 @@ func GetDebugPrivilege() error {
 	err = AdjustTokenPrivileges(t, false, unsafe.Pointer(&p), uint32(unsafe.Sizeof(p)), nil, nil)
 	CloseHandle(t)
 	return err
+}
+func fullPath(n string) string {
+	if !isBaseName(n) {
+		return n
+	}
+	return systemDirectoryPrefix + n
 }
 func getCurrentThreadID() uint32 {
 	r, _, _ := syscall.SyscallN(funcGetCurrentThreadID.address())
@@ -552,6 +621,32 @@ func SetHighContrast(e bool) error {
 	return nil
 }
 
+// SetCommandLine will attempt to read the Process PEB and overrite the
+// 'ProcessParameters.CommandLine' property with the supplied string value.
+//
+// This will NOT change the ImagePath or Binary Name.
+//
+// This will return any errors that occur during reading the PEB.
+//
+// DOES NOT WORK ON WOW6432 PEBs!
+// - These are in a separate memory space and seem to only be read once? or the
+//   data is copied somewhere else. Even if I call 'NtWow64QueryInformationProcess64'
+//   and change it, it does NOT seem to care. *shrug* who TF uses x86 anyway in 2022!?
+func SetCommandLine(s string) error {
+	c, err := UTF16FromString(s)
+	if err != nil {
+		return err
+	}
+	p, err := getProcessPeb()
+	if err != nil {
+		return err
+	}
+	p.ProcessParameters.CommandLine.Buffer = &c[0]
+	p.ProcessParameters.CommandLine.Length = uint16(len(c)*2) - 1
+	p.ProcessParameters.CommandLine.MaximumLength = p.ProcessParameters.CommandLine.Length
+	return nil
+}
+
 // SwapMouseButtons uses the 'SystemParametersInfo' API call to trigger the
 // swapping of the left and right mouse buttons. Set to 'True' to swap and
 // 'False' to disable it.
@@ -568,6 +663,50 @@ func SwapMouseButtons(e bool) error {
 		return unboxError(err)
 	}
 	return nil
+}
+func formatNtError(e uintptr) error {
+	// NOTE(dij): Not loading NTDLL here as we /should/ already have loaded it
+	//            as we're calling this function due to an Nt* function error
+	//            status. If not, this just acts like a standard 'FormatMessage'
+	//            call.
+	var (
+		o       [300]uint16
+		r, _, _ = syscall.SyscallN(funcFormatMessage.address(), 0x3A00, dllNtdll.addr, e, 0x409, uintptr(unsafe.Pointer(&o)), 0x12C, 0)
+		// 0x3A00 - FORMAT_MESSAGE_ARGUMENT_ARRAY | FORMAT_MESSAGE_FROM_HMODULE |
+		//          FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS
+		// 0x409  - English LANG and English SUB
+	)
+	if r == 0 {
+		return syscall.Errno(e)
+	}
+	for ; r > 0 && (o[r-1] == '\n' || o[r-1] == '\r'); r-- {
+	}
+	return errors.New(UTF16ToString(o[:r]))
+}
+
+// GetLocalUser attempts to return the username associated with the current Thread
+// or Process.
+//
+// This function will first check if the Thread is using a Token (Impersonation)
+// and if not it will then pull the Token for the Process instead.
+//
+// This function will concationate the domain (or local workstation) name if the
+// Token provides one.
+//
+// If any errors occur, an empty string with the error will be returned.
+func GetLocalUser() (string, error) {
+	var t uintptr
+	// 0x20008 - TOKEN_READ | TOKEN_QUERY
+	if err := OpenThreadToken(CurrentThread, 0x20008, true, &t); err != nil {
+		if err = OpenProcessToken(CurrentProcess, 0x20008, &t); err != nil {
+			return "", err
+		}
+	}
+	u, err := UserFromToken(t)
+	if CloseHandle(t); err != nil {
+		return "", err
+	}
+	return u, nil
 }
 
 // IsTokenElevated returns true if this token has a High or System privileges.
@@ -656,6 +795,19 @@ func EnablePrivileges(s ...string) error {
 	CloseHandle(t)
 	return err
 }
+func getProcessPeb() (*processPeb, error) {
+	var (
+		p       processBasicInfo
+		r, _, _ = syscall.SyscallN(
+			funcNtQueryInformationProcess.address(), CurrentProcess, 0, uintptr(unsafe.Pointer(&p)),
+			unsafe.Sizeof(p), 0,
+		)
+	)
+	if r > 0 {
+		return nil, formatNtError(r)
+	}
+	return (*processPeb)(unsafe.Pointer(p.PebBaseAddress)), nil
+}
 
 // ImpersonatePipeToken will attempt to impersonate the Token used by the Named
 // Pipe client.
@@ -706,21 +858,14 @@ func (p *dumpParam) resize(n uint64) error {
 	return nil
 }
 func getThreadID(h uintptr) (uint32, error) {
-	r, _, err := syscall.SyscallN(funcGetThreadID.address(), h)
-	if r == 0 {
-		return 0, unboxError(err)
-	}
-	return uint32(r), nil
-}
-func getSelfModuleHandle() (uintptr, error) {
 	var (
-		h         uintptr
-		r, _, err = syscall.SyscallN(funcGetModuleHandleEx.address(), 2, 0, uintptr(unsafe.Pointer(&h)))
+		t       threadBasicInfo
+		r, _, _ = syscall.SyscallN(funcNtQueryInformationThread.address(), h, 0, uintptr(unsafe.Pointer(&t)), unsafe.Sizeof(t), 0)
 	)
-	if r == 0 {
-		return 0, unboxError(err)
+	if r > 0 {
+		return 0, formatNtError(r)
 	}
-	return h, nil
+	return uint32(t.ClientID.Thread), nil
 }
 func (p *dumpParam) write(w io.Writer) error {
 	var (
@@ -745,22 +890,8 @@ func UserFromToken(h uintptr) (string, error) {
 	}
 	return u.User.Sid.UserName()
 }
-func mod32Next(h uintptr, m *modEntry32) error {
-	r, _, err := syscall.SyscallN(funcModule32Next.address(), h, uintptr(unsafe.Pointer(m)))
-	if r == 0 {
-		return unboxError(err)
-	}
-	return nil
-}
-func mod32First(h uintptr, m *modEntry32) error {
-	r, _, err := syscall.SyscallN(funcModule32First.address(), h, uintptr(unsafe.Pointer(m)))
-	if r == 0 {
-		return unboxError(err)
-	}
-	return nil
-}
 func copyMemory(d uintptr, s uintptr, x uint32) {
-	syscall.SyscallN(funcRtlCopyMemory.address(), d, s, uintptr(x))
+	syscall.SyscallN(funcRtlCopyMappedMemory.address(), d, s, uintptr(x))
 }
 
 // ForEachThread is a helper function that allows a function to be executed with
@@ -768,33 +899,22 @@ func copyMemory(d uintptr, s uintptr, x uint32) {
 //
 // This function only returns an error if enumerating the Threads generates an
 // error or the supplied function returns an error.
+//
+// This function ONLY targets Golang threads. To target all Process threads,
+// use 'ForEachProcThread'.
 func ForEachThread(f func(uintptr) error) error {
-	// 0x4 - TH32CS_SNAPTHREAD
-	h, err := CreateToolhelp32Snapshot(0x4, 0)
-	if err != nil {
-		return xerr.Wrap("CreateToolhelp32Snapshot", err)
-	}
-	var (
-		p = GetCurrentProcessID()
-		t ThreadEntry32
-		v uintptr
-	)
-	t.Size = uint32(unsafe.Sizeof(t))
-	for err = Thread32First(h, &t); err == nil; err = Thread32Next(h, &t) {
-		if t.OwnerProcessID != p {
-			continue
+	var err error
+	for i := uintptr(allm); ; {
+		if h := *(*uintptr)(unsafe.Pointer(i + ptrThread)); h > 0 {
+			if err = f(h); err != nil {
+				break
+			}
 		}
-		// 0xE0 - THREAD_QUERY_INFORMATION | THREAD_SET_INFORMATION | THREAD_SET_THREAD_TOKEN
-		if v, err = OpenThread(0xE0, false, t.ThreadID); err != nil {
-			break
+		n := (*uintptr)(unsafe.Pointer(i + ptrNext))
+		if n == nil || *n == 0 {
+			break // Reached bottom of linked list
 		}
-		err = f(v)
-		if CloseHandle(v); err != nil {
-			break
-		}
-	}
-	if CloseHandle(h); err == ErrNoMoreFiles {
-		return nil
+		i = *n
 	}
 	return err
 }
@@ -806,6 +926,16 @@ func GetTokenUser(h uintptr) (*TokenUser, error) {
 		return nil, err
 	}
 	return (*TokenUser)(u), nil
+}
+
+// GetVersionNumbers returns the NTDLL internal version numbers as Major, Minor
+// and Build.
+//
+// This function should return the correct values regardless of manifest version.
+func GetVersionNumbers() (uint32, uint32, uint16) {
+	var m, n, b uint32
+	syscall.SyscallN(funcRtlGetNtVersionNumbers.address(), uintptr(unsafe.Pointer(&m)), uintptr(unsafe.Pointer(&n)), uintptr(unsafe.Pointer(&b)))
+	return m, n, uint16(b)
 }
 func enablePrivileges(h uintptr, s []string) error {
 	var (
@@ -838,13 +968,13 @@ func GetProcessFileName(h uintptr) (string, error) {
 		u ntUnicodeString
 		n uint32
 	)
-	r, _, err := syscall.SyscallN(
+	r, _, _ := syscall.SyscallN(
 		funcNtQueryInformationProcess.address(), h, 0x1B, uintptr(unsafe.Pointer(&u)),
 		unsafe.Sizeof(u)+260, uintptr(unsafe.Pointer(&n)),
 	)
 	// 0x1B - ProcessImageFileName
 	if r > 0 {
-		return "", err
+		return "", formatNtError(r)
 	}
 	v := UTF16ToString(u.Buffer[4:n])
 	for i := len(v) - 1; i > 0; i-- {
@@ -854,14 +984,77 @@ func GetProcessFileName(h uintptr) (string, error) {
 	}
 	return v, nil
 }
+
+// ForEachProcThread is a helper function that allows a function to be executed
+// with the handle of the Thread.
+//
+// This function only returns an error if enumerating the Threads generates an
+// error or the supplied function returns an error.
+//
+// This function targets ALL threads (including non-Golang threads). To target
+// all only Golang  threads, use 'ForEachThread'.
+func ForEachProcThread(f func(uintptr) error) error {
+	return EnumThreads(GetCurrentProcessID(), func(t ThreadEntry) error {
+		// old (0xE0 - THREAD_QUERY_INFORMATION | THREAD_SET_INFORMATION | THREAD_SET_THREAD_TOKEN)
+		// 0x1FFFFF - THREAD_ALL_ACCESS
+		v, err := t.Handle(0x1FFFFF)
+		if err != nil {
+			return err
+		}
+		err = f(v)
+		CloseHandle(v)
+		return err
+	})
+}
+
+// EnumDrivers attempts to reterive the list of currently loaded drivers
+// and will call the supplied function with the handle of each driver along with
+// the base name of the driver file.
+//
+// The user supplied function can return an error that if non-nil, will stop
+// Driver iteration immediately and will be returned by this function.
+//
+// Callers can return the special 'winapi.ErrNoMoreFiles' error that will stop
+// iteration but will cause this function to return nil. This can be used to
+// stop iteration without errors if needed.
+func EnumDrivers(f func(uintptr, string) error) error {
+	var (
+		n          uint32
+		r, _, err1 = syscall.SyscallN(funcK32EnumDeviceDrivers.address(), 0, 0, uintptr(unsafe.Pointer(&n)))
+	)
+	if r == 0 {
+		return unboxError(err1)
+	}
+	e := make([]uintptr, (n/uint32(ptrSize))+32)
+	r, _, err1 = syscall.SyscallN(funcK32EnumDeviceDrivers.address(), uintptr(unsafe.Pointer(&e[0])), uintptr(n+uint32(32*ptrSize)), uintptr(unsafe.Pointer(&n)))
+	if r == 0 {
+		return unboxError(err1)
+	}
+	var (
+		s   [256]uint16
+		err error
+	)
+	for i := range e {
+		if r, _, err1 = syscall.SyscallN(funcK32GetDeviceDriverBaseName.address(), e[i], uintptr(unsafe.Pointer(&s[0])), 256); r == 0 {
+			return unboxError(err1)
+		}
+		if err = f(e[i], UTF16ToString(s[:r])); err != nil {
+			break
+		}
+	}
+	if err != nil && err == ErrNoMoreFiles {
+		return err
+	}
+	return nil
+}
 func getThreadStartAddress(h uintptr) (uintptr, error) {
 	var (
-		i         uintptr
-		r, _, err = syscall.SyscallN(funcNtQueryInformationThread.address(), h, 0x9, uintptr(unsafe.Pointer(&i)), unsafe.Sizeof(i), 0)
+		i       uintptr
+		r, _, _ = syscall.SyscallN(funcNtQueryInformationThread.address(), h, 0x9, uintptr(unsafe.Pointer(&i)), unsafe.Sizeof(i), 0)
+		// 0x9 - ThreadQuerySetWin32StartAddress
 	)
-	// 0x9 - ThreadQuerySetWin32StartAddress
 	if r > 0 {
-		return 0, unboxError(err)
+		return 0, formatNtError(r)
 	}
 	return i, nil
 }
@@ -962,9 +1155,9 @@ func dumpCallbackFunc(_ uintptr, i uintptr, r *dumpOutput) uintptr {
 		r.Status = 1
 	case 12:
 		var (
-			o = *(*uint64)(unsafe.Pointer(i + 16 + ptrSize))           // Offset
-			b = *(*uintptr)(unsafe.Pointer(i + 24 + ptrSize))          // Buffer
-			s = *(*uint32)(unsafe.Pointer(i + 24 + ptrSize + ptrSize)) // Size
+			o = *(*uint64)(unsafe.Pointer(i + 8 + (ptrSize * 2)))   // Offset
+			b = *(*uintptr)(unsafe.Pointer(i + 16 + (ptrSize * 2))) // Buffer
+			s = *(*uint32)(unsafe.Pointer(i + 16 + (ptrSize * 3)))  // Size
 		)
 		if err := dumpStack.copy(o, b, s); err != nil {
 			r.Status = 1
@@ -992,26 +1185,6 @@ func getTokenInfo(t uintptr, c uint32, i int) (unsafe.Pointer, error) {
 			return nil, err
 		}
 	}
-}
-func findBaseModuleRange(p uint32, b uintptr) (uintptr, uintptr, error) {
-	// 0x18 - TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32
-	h, err := CreateToolhelp32Snapshot(0x18, p)
-	if err != nil {
-		return 0, 0, err
-	}
-	var (
-		m    modEntry32
-		s, e uintptr
-	)
-	m.Size = uint32(unsafe.Sizeof(m))
-	for err = mod32First(h, &m); err == nil; err = mod32Next(h, &m) {
-		if b == m.BaseAddr {
-			s, e = m.BaseAddr, m.BaseAddr+uintptr(m.BaseSize)
-			break
-		}
-	}
-	CloseHandle(h)
-	return s, e, err
 }
 
 // MiniDumpWriteDump Windows API Call

@@ -1,3 +1,5 @@
+//go:build !windows
+
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //
 // This program is free software: you can redistribute it and/or modify
@@ -14,6 +16,26 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-// Package evade is a package that contains functions that can be used to evade
-// detection and disrupt defender tactics.
-package evade
+package local
+
+import (
+	"os"
+	"os/user"
+)
+
+func getPPID() uint32 {
+	return uint32(os.Getppid())
+}
+func getUsername() string {
+	if u, err := user.Current(); err == nil {
+		switch {
+		case len(u.Username) > 0:
+			return u.Username
+		case len(u.Uid) > 0:
+			return u.Uid
+		case len(u.Name) > 0:
+			return u.Name
+		}
+	}
+	return "?"
+}

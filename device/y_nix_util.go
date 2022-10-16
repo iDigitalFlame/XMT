@@ -22,8 +22,79 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"time"
+	"unsafe"
 )
 
+const userSize = unsafe.Sizeof(userEntry{})
+
+type userEntry struct {
+	Type      uint16
+	PID       uint32
+	Line      [32]byte
+	ID        [4]byte
+	User      [32]byte
+	Host      [256]byte
+	_         uint32
+	Session   uint32
+	TimeSec   uint32
+	TimeMicro uint32
+	Address   [16]byte
+	_         [20]byte
+}
+type stringHeader struct {
+	Data uintptr
+	Len  int
+}
+
+// SetProcessName will attempt to override the process name on *nix systems
+// by overwriting the argv block. On Windows, this just overrides the command
+// line arguments.
+//
+// Linux support only allows for suppling a command line shorter the current
+// command line.
+//
+// Linux found here: https://stackoverflow.com/questions/14926020/setting-process-name-as-seen-by-ps-in-go
+//
+// Always returns an EINVAL on WSAM/JS.
+func SetProcessName(s string) error {
+	var (
+		v = (*stringHeader)(unsafe.Pointer(&os.Args[0]))
+		d = (*[1 << 30]byte)(unsafe.Pointer(v.Data))[:v.Len]
+		n = copy(d, s)
+	)
+	if n < len(d) {
+		d[n] = 0
+	}
+	return nil
+}
+func bytesToString(b []byte) string {
+	i := 0
+	for ; i < len(b); i++ {
+		if b[i] == 0 {
+			break
+		}
+	}
+	return string(b[:i])
+}
+func readWhoEntries(b []byte) []Login {
+	o := make([]Login, 0, len(b)/int(userSize))
+	for i := 0; i < cap(o); i++ {
+		p := *(*userEntry)(unsafe.Pointer(&b[int(userSize)*i]))
+		if p.Type != 7 {
+			continue
+		}
+		v := Login{
+			ID:    p.PID,
+			User:  bytesToString(p.User[:]),
+			Host:  bytesToString(p.Line[:]),
+			Login: time.Unix(int64(p.TimeSec), int64(p.TimeMicro)),
+		}
+		v.From.SetBytes(p.Address)
+		o = append(o, v)
+	}
+	return o
+}
 func parseLine(e string, f *os.File, w io.Writer) error {
 	var d, s int
 	for ; d < len(e) && e[d] != '-'; d++ {

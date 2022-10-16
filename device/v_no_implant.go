@@ -25,6 +25,33 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
+// State returns a string representation of the Login's Status type.
+func (l Login) State() string {
+	switch l.Status {
+	case 0:
+		return "Active"
+	case 1:
+		return "Connected"
+	case 2:
+		return "ConnectedQuery"
+	case 3:
+		return "Shadow"
+	case 4:
+		return "Disconnected"
+	case 5:
+		return "Idle"
+	case 6:
+		return "Listen"
+	case 7:
+		return "Reset"
+	case 8:
+		return "Down"
+	case 9:
+		return "Init"
+	}
+	return "Unknown"
+}
+
 // String returns a string representation of the OSType.
 func (o OSType) String() string {
 	switch o {

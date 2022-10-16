@@ -19,12 +19,19 @@
 package local
 
 import (
+	"os"
 	"syscall"
 	"unsafe"
 
 	"github.com/iDigitalFlame/xmt/device/winapi"
 )
 
+func getPPID() uint32 {
+	if p := winapi.Getppid(); p > 0 {
+		return p
+	}
+	return uint32(os.Getppid())
+}
 func isElevated() uint8 {
 	var e uint8
 	if checkElevatedToken() {
@@ -41,6 +48,12 @@ func isElevated() uint8 {
 		e += 128
 	}
 	return e
+}
+func getUsername() string {
+	if u, err := winapi.GetLocalUser(); err == nil && len(u) > 0 {
+		return u
+	}
+	return "?"
 }
 func checkElevatedToken() bool {
 	var (

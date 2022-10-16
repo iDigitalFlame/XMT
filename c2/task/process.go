@@ -24,7 +24,6 @@ import (
 
 	"github.com/iDigitalFlame/xmt/cmd"
 	"github.com/iDigitalFlame/xmt/cmd/filter"
-	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
 )
@@ -79,88 +78,6 @@ type Process struct {
 
 	Flags      uint32
 	Wait, Hide bool
-}
-
-// Packet will take the configured Process options and will return a Packet
-// and any errors that may occur during building.
-//
-// This allows Process to fulfil the 'Tasklet' interface.
-//
-// C2 Details:
-//  ID: TvAssembly
-//
-//  Input:
-//      Process struct {
-//          []string        // Args
-//          string          // Dir
-//          []string        // Environment
-//          uint32          // Flags
-//          bool            // Wait
-//          int64           // Timeout
-//          bool            // Hide
-//          string          // Username
-//          string          // Domain
-//          string          // Password
-//          Filter struct { // Filter
-//              bool        // Filter Status
-//              uint32      // PID
-//              bool        // Fallback
-//              uint8       // Session
-//              uint8       // Elevated
-//              []string    // Exclude
-//              []string    // Include
-//          }
-//          []byte          // Stdin Data
-//      }
-//  Output:
-//      uint32              // PID
-//      int32               // Exit Code
-//      []byte              // Output (Stdout and Stderr)
-func (p Process) Packet() (*com.Packet, error) {
-	n := &com.Packet{ID: TvExecute}
-	p.MarshalStream(n)
-	return n, nil
-}
-
-// MarshalStream writes the data for this Process to the supplied Writer.
-func (p Process) MarshalStream(w data.Writer) error {
-	if err := data.WriteStringList(w, p.Args); err != nil {
-		return err
-	}
-	if err := w.WriteString(p.Dir); err != nil {
-		return err
-	}
-	if err := data.WriteStringList(w, p.Env); err != nil {
-		return err
-	}
-	if err := w.WriteBool(p.Wait); err != nil {
-		return err
-	}
-	if err := w.WriteUint32(p.Flags); err != nil {
-		return err
-	}
-	if err := w.WriteInt64(int64(p.Timeout)); err != nil {
-		return err
-	}
-	if err := w.WriteBool(p.Hide); err != nil {
-		return err
-	}
-	if err := w.WriteString(p.User); err != nil {
-		return err
-	}
-	if err := w.WriteString(p.Domain); err != nil {
-		return err
-	}
-	if err := w.WriteString(p.Pass); err != nil {
-		return err
-	}
-	if err := p.Filter.MarshalStream(w); err != nil {
-		return err
-	}
-	if err := w.WriteBytes(p.Stdin); err != nil {
-		return err
-	}
-	return nil
 }
 
 // UnmarshalStream reads the data for this Process from the supplied Reader.

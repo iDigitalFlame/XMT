@@ -229,9 +229,6 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 		}
 	case <-y.Done():
 	case <-x.Done():
-		f()
-		v.Close()
-		return nil, ErrNoConn
 	}
 	v.Close()
 	if f(); c == nil {

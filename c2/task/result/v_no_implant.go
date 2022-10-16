@@ -27,6 +27,7 @@ import (
 	"github.com/iDigitalFlame/xmt/cmd"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
+	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/device/regedit"
 )
 
@@ -105,7 +106,7 @@ func Spawn(n *com.Packet) (uint32, error) {
 	return n.Uint32()
 }
 
-// CheckDLL will parse the RvResult Packet from a TvCheckDLL task.
+// CheckDLL will parse the RvResult Packet from a TvCheck task.
 //
 // The return result is true if the DLL provided is NOT hooked. A return value
 // of false indicates that the DLL memory space differs from the on-disk value,
@@ -363,6 +364,30 @@ func (w *Window) UnmarshalStream(r data.Reader) error {
 	return nil
 }
 
+// UserLogins will parse the RvResult Packet from a TvLogins task.
+//
+// The return result is a slice of 'device.Login' structs that will indicate
+// the current active Sessions (Logins) on the target device.
+//
+// This function returns an error if any reading errors occur, the Packet is not
+// in the expected format or the Packet is nil or empty.
+func UserLogins(n *com.Packet) ([]device.Login, error) {
+	if n == nil || n.Empty() || n.Flags&com.FlagError != 0 {
+		return nil, c2.ErrMalformedPacket
+	}
+	c, err := n.Uint16()
+	if err != nil {
+		return nil, err
+	}
+	e := make([]device.Login, c)
+	for i := range e {
+		if err = e[i].UnmarshalStream(n); err != nil {
+			return nil, err
+		}
+	}
+	return e, nil
+}
+
 // DLL will parse the RvResult Packet from a TvDLL task.
 //
 // The return result is a handle to the memory location of the DLL (as an
@@ -554,6 +579,17 @@ func Process(n *com.Packet) (uint32, int32, io.Reader, error) {
 // in the expected format or the Packet is nil or empty.
 func PullExec(n *com.Packet) (uint32, int32, io.Reader, error) {
 	return Process(n)
+}
+
+// UserProcessList will parse the RvResult Packet from a TvLoginsProc task.
+//
+// The return result is a slice of 'cmd.ProcessInfo' structs that will indicate
+// the current processes running on the target device.
+//
+// This function returns an error if any reading errors occur, the Packet is not
+// in the expected format or the Packet is nil or empty.
+func UserProcessList(n *com.Packet) ([]cmd.ProcessInfo, error) {
+	return ProcessList(n)
 }
 
 // Download will parse the RvResult Packet from a TvDownload task.

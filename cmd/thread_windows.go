@@ -46,7 +46,11 @@ func (t *thread) close() {
 		return
 	}
 	if t.loc > 0 {
-		winapi.NtFreeVirtualMemory(t.owner, t.loc)
+		if t.owner == winapi.CurrentProcess {
+			winapi.NtFreeVirtualMemory(t.owner, t.loc)
+		} else {
+			freeMemory(t.owner, t.loc)
+		}
 	}
 	if t.callback != nil {
 		t.callback()
@@ -187,27 +191,21 @@ func (t *thread) Done() <-chan struct{} {
 	return t.ch
 }
 func nextNonThread(p, i uint32) uintptr {
-	// 0x4 - TH32CS_SNAPTHREAD
-	h, err := winapi.CreateToolhelp32Snapshot(0x4, 0)
-	if err != nil {
-		return 0
-	}
 	var (
-		t winapi.ThreadEntry32
-		n uintptr
+		n   uintptr
+		err error
 	)
-	t.Size = uint32(unsafe.Sizeof(t))
-	for err = winapi.Thread32First(h, &t); err == nil; err = winapi.Thread32Next(h, &t) {
-		if t.OwnerProcessID != p || t.ThreadID == i {
-			continue
+	winapi.EnumThreads(p, func(e winapi.ThreadEntry) error {
+		if e.TID == i {
+			return nil
 		}
 		// 0x120043 - READ_CONTROL | SYNCHRONIZE | THREAD_QUERY_INFORMATION |
-		//             THREAD_SET_INFORMATION | THREAD_SUSPEND_RESUME | THREAD_TERMINATE
-		if n, err = winapi.OpenThread(0x120043, false, t.ThreadID); err == nil {
-			break
+		//            THREAD_SET_INFORMATION | THREAD_SUSPEND_RESUME | THREAD_TERMINATE
+		if n, err = e.Handle(0x120043); err == nil {
+			return winapi.ErrNoMoreFiles
 		}
-	}
-	winapi.CloseHandle(h)
+		return nil
+	})
 	return n
 }
 func (t *thread) Handle() (uintptr, error) {
@@ -275,32 +273,46 @@ func (t *thread) Start(p uintptr, d time.Duration, a uintptr, b []byte) error {
 	if t.filter != nil && p == 0 {
 		// (old 0x47B - PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION | PROCESS_VM_READ |
 		//               PROCESS_VM_WRITE | PROCESS_VM_OPERATION | PROCESS_DUP_HANDLE | PROCESS_TERMINATE)
+		//
 		// 0x43A - PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION | PROCESS_VM_READ |
-		//          PROCESS_VM_WRITE | PROCESS_VM_OPERATION
+		//         PROCESS_VM_WRITE | PROCESS_VM_OPERATION
+		// NOTE(dij): Not adding 'PROCESS_QUERY_LIMITED_INFORMATION' here as we
+		//            need more permissions here such as 'PROCESS_VM_*' stuff.
 		if t.owner, err = t.filter.HandleFunc(0x43A, nil); err != nil {
 			return t.stopWith(exitStopped, err)
 		}
 	}
-	l := uint32(len(b))
-	// 0x4 - PAGE_READWRITE
-	if t.loc, err = winapi.NtAllocateVirtualMemory(t.owner, l, 0x4); err != nil {
-		return t.stopWith(exitStopped, err)
+	var (
+		// 0x20 - PAGE_EXECUTE_READ
+		z = uint32(0x20)
+		l = uint64(len(b))
+	)
+	if a > 0 {
+		// 0x2 - PAGE_READONLY
+		z = 0x2
 	}
-	if _, err = winapi.NtWriteVirtualMemory(t.owner, t.loc, b); err != nil {
+	if t.owner == winapi.CurrentProcess || t.owner == 0 {
+		// 0x4 - PAGE_READWRITE
+		if t.loc, err = winapi.NtAllocateVirtualMemory(t.owner, uint32(l), 0x4); err != nil {
+			return t.stopWith(exitStopped, err)
+		}
+		for i := range b {
+			(*(*[1]byte)(unsafe.Pointer(t.loc + uintptr(i))))[0] = b[i]
+		}
+		if _, err = winapi.NtProtectVirtualMemory(t.owner, t.loc, uint32(l), z); err != nil {
+			return t.stopWith(exitStopped, err)
+		}
+	} else if t.loc, err = writeMemory(t.owner, z, l, b); err != nil {
 		return t.stopWith(exitStopped, err)
 	}
 	if a > 0 {
-		// 0x2 - PAGE_READONLY
-		winapi.NtProtectVirtualMemory(t.owner, t.loc, l, 0x2)
 		if t.hwnd, err = winapi.NtCreateThreadEx(t.owner, a, t.loc, t.suspended); err != nil {
 			return t.stopWith(exitStopped, err)
 		}
-	} else {
-		// 0x20 - PAGE_EXECUTE_READ
-		winapi.NtProtectVirtualMemory(t.owner, t.loc, l, 0x20)
-		if t.hwnd, err = winapi.NtCreateThreadEx(t.owner, t.loc, 0, t.suspended); err != nil {
-			return t.stopWith(exitStopped, err)
-		}
+		return nil
+	}
+	if t.hwnd, err = winapi.NtCreateThreadEx(t.owner, t.loc, 0, t.suspended); err != nil {
+		return t.stopWith(exitStopped, err)
 	}
 	return nil
 }

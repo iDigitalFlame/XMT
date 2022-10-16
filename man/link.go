@@ -78,7 +78,7 @@ type objSync uint8
 // Linker us an interface that specifies an object that can be used to check
 // for a Guardian instance.
 type Linker interface {
-	String() string
+	//String() string
 	check(s string) (bool, error)
 	create(s string) (listener, error)
 }
@@ -163,19 +163,24 @@ func LinkerFromName(n string) Linker {
 	if len(n) == 0 {
 		return Pipe
 	}
-	switch {
-	case len(n) == 1 && (n[0] == 't' || n[0] == 'T'):
-		return TCP
-	case len(n) == 1 && (n[0] == 'p' || n[0] == 'P'):
+	if len(n) == 1 {
+		switch n[0] {
+		case 't', 'T':
+			return TCP
+		case 'p', 'P':
+			return Pipe
+		case 'e', 'E':
+			return Event
+		case 'm', 'M':
+			return Mutex
+		case 'n', 'N':
+			return Mailslot
+		case 's', 'S':
+			return Semaphore
+		}
 		return Pipe
-	case len(n) == 1 && (n[0] == 'e' || n[0] == 'E'):
-		return Event
-	case len(n) == 1 && (n[0] == 'm' || n[0] == 'M'):
-		return Mutex
-	case len(n) == 1 && (n[0] == 'n' || n[0] == 'N'):
-		return Mailslot
-	case len(n) == 1 && (n[0] == 's' || n[0] == 'S'):
-		return Semaphore
+	}
+	switch {
 	case len(n) == 3 && (n[0] == 't' || n[0] == 'T'):
 		return TCP
 	case len(n) == 4 && (n[0] == 'p' || n[0] == 'P'):

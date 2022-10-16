@@ -28,19 +28,19 @@ import (
 // PermEveryone is the Linux permission string used in sockets to allow anyone to write and read
 // to the listening socket. This can be used for socket communication between privilege boundaries.
 // This can be applied to the ListenPerm function.
-var PermEveryone = crypt.Get(36) // 0766
+var PermEveryone = crypt.Get(24) // 0766
 
 // Format will ensure the path for this Pipe socket fits the proper OS based pathname. Valid path names will be
 // returned without any changes.
 func Format(s string) string {
 	if !filepath.IsAbs(s) {
 		var (
-			p      = crypt.Get(37) + s // /var/run/
+			p      = crypt.Get(25) + s // /var/run/
 			f, err = os.OpenFile(p, 0x242, 0o400)
 			// 0x242 - CREATE | TRUNCATE | RDWR
 		)
 		if err != nil {
-			return crypt.Get(38) + s // /tmp/
+			return crypt.Get(26) + s // /tmp/
 		}
 		f.Close()
 		os.Remove(p)

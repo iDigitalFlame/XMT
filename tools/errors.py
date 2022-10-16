@@ -50,7 +50,7 @@ ERRORS[0x19] = ErrorValue("base is not a valid DOS header", "device/winapi")
 ERRORS[0x1A] = ErrorValue("offset base is not a valid NT header", "device/winapi")
 ERRORS[0x1B] = ErrorValue("header does not represent a DLL", "device/winapi")
 ERRORS[0x1C] = ErrorValue("header has an invalid first entry point", "device/winapi")
-ERRORS[0x1D] = ErrorValue("cannot find '.text' section", "device/evade")
+ERRORS[0x1D] = ErrorValue("cannot find data section", "device/winapi")
 ERRORS[0x1E] = ErrorValue("invalid address value", "device")
 ERRORS[0x1F] = ErrorValue("quit", "device", "ErrQuit")
 ERRORS[0x20] = ErrorValue("only supported on Windows devices", "device", "ErrNoWindows")
@@ -148,6 +148,9 @@ ERRORS[0x6C] = ErrorValue("empty key name", "c2/task")
 ERRORS[0x6D] = ErrorValue("empty value name", "c2/task")
 ERRORS[0x6E] = ErrorValue("arguments cannot be nil or empty", "c2/wrapper")
 ERRORS[0xFE] = ErrorValue("invalid Task mapping", "c2")
+
+ERRORS[0x6F] = ErrorValue("cannot find function", "device/winapi")
+ERRORS[0x6F] = ErrorValue("function is a forward", "device/winapi")
 
 
 def find_error(v):

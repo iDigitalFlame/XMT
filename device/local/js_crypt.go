@@ -24,7 +24,7 @@ func sysID() []byte {
 	return nil
 }
 func version() string {
-	return crypt.Get(91) // JavaScript
+	return crypt.Get(76) // JavaScript
 }
 func isElevated() uint8 {
 	return 0

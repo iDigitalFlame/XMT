@@ -32,19 +32,19 @@ import (
 
 var (
 	// Shell is the default machine specific command shell.
-	Shell = crypt.Get(43) // /bin/sh
+	Shell = crypt.Get(32) // /bin/sh
 	// ShellArgs is the default machine specific command shell arguments to run
 	// commands.
-	ShellArgs = crypt.Get(44) // -c
+	ShellArgs = crypt.Get(33) // -c
 	// PowerShell is the path to the PowerShell binary, which is based on the
 	// underlying OS type.
-	PowerShell = crypt.Get(45) // pwsh
-	home       = crypt.Get(46) // $HOME
+	PowerShell = crypt.Get(34) // pwsh
+	home       = crypt.Get(35) // $HOME
 )
 
 // IsDebugged returns true if the current process is attached by a debugger.
 func IsDebugged() bool {
-	b, err := os.ReadFile(crypt.Get(47)) // /proc/self/status
+	b, err := os.ReadFile(crypt.Get(36)) // /proc/self/status
 	if err != nil {
 		return false
 	}
@@ -56,6 +56,20 @@ func IsDebugged() bool {
 	return false
 }
 
+// Logins returns an array that contains information about current logged
+// in users.
+//
+// This call is OS-independent but many contain invalid session types.
+//
+// Always returns an EINVAL on WSAM/JS.
+func Logins() ([]Login, error) {
+	b, err := os.ReadFile(crypt.Get(37)) // /var/run/utmp
+	if err != nil {
+		return nil, err
+	}
+	return readWhoEntries(b), nil
+}
+
 // Mounts attempts to get the mount points on the local device.
 //
 // On Windows devices, this is the drive letters available, otherwise on nix*
@@ -65,10 +79,10 @@ func IsDebugged() bool {
 // mount points (or Windows drive letters).
 func Mounts() ([]string, error) {
 	// 0 - READONLY
-	f, err := os.OpenFile(crypt.Get(48), 0, 0) // /proc/self/mounts
+	f, err := os.OpenFile(crypt.Get(38), 0, 0) // /proc/self/mounts
 	if err != nil {
 		// 0 - READONLY
-		if f, err = os.OpenFile(crypt.Get(49), 0, 0); err != nil { // /etc/mtab
+		if f, err = os.OpenFile(crypt.Get(39), 0, 0); err != nil { // /etc/mtab
 			return nil, xerr.Wrap("cannot find mounts", err)
 		}
 	}
@@ -110,13 +124,13 @@ func DumpProcess(f *filter.Filter, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	v := crypt.Get(16) + strconv.FormatUint(uint64(p), 10) // /proc/
-	b, err := os.ReadFile(v + crypt.Get(50))               // /maps
+	v := crypt.Get(12) + strconv.FormatUint(uint64(p), 10) // /proc/
+	b, err := os.ReadFile(v + crypt.Get(40))               // /maps
 	if err != nil {
 		return err
 	}
 	// 0 - READONLY
-	d, err := os.OpenFile(v+crypt.Get(51), 0, 0) // /mem
+	d, err := os.OpenFile(v+crypt.Get(41), 0, 0) // /mem
 	if err != nil {
 		return err
 	}

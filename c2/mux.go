@@ -218,7 +218,7 @@ func muxHandleSend(s *Session, n, w *com.Packet, e error) {
 		s.log.Debug("[%s/MuX] Task with Job %d completed!", s.ID, n.Job)
 	}
 	// NOTE(dij): For now, we're gonna let these block.
-	//            I'll tack and see if they should throw errors instead.
+	//            I'll track and see if they should throw errors instead.
 	s.write(true, w)
 }
 func muxHandleInternal(s *Session, n *com.Packet, w data.Writer) error {

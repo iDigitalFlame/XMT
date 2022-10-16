@@ -21,7 +21,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"os"
-	"os/user"
 
 	"github.com/iDigitalFlame/xmt/device"
 )
@@ -39,7 +38,8 @@ var (
 var Device = (&local{&device.Machine{
 	ID:       UUID,
 	PID:      uint32(os.Getpid()),
-	PPID:     uint32(os.Getppid()),
+	PPID:     getPPID(),
+	User:     getUsername(),
 	System:   systemType(),
 	Version:  Version,
 	Network:  make(device.Network, 0),
@@ -87,9 +87,6 @@ func getID() device.ID {
 	return i
 }
 func (l *local) init() *local {
-	if u, err := user.Current(); err == nil {
-		l.User = u.Username
-	}
 	l.Hostname, _ = os.Hostname()
 	l.Network.Refresh()
 	l.fixHostname()
@@ -107,11 +104,8 @@ func (l *local) fixHostname() {
 	}
 }
 func (l *local) Refresh() error {
-	u, err := user.Current()
-	if err != nil {
-		return err
-	}
-	l.User = u.Username
+	l.User = getUsername()
+	var err error
 	if l.Hostname, err = os.Hostname(); err != nil {
 		return err
 	}
@@ -119,7 +113,7 @@ func (l *local) Refresh() error {
 		return err
 	}
 	l.PID = uint32(os.Getpid())
-	l.PPID = uint32(os.Getppid())
+	l.PPID = getPPID()
 	l.Elevated = isElevated()
 	l.fixHostname()
 	return nil

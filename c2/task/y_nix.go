@@ -32,7 +32,7 @@ func taskTroll(_ context.Context, _ data.Reader, _ data.Writer) error {
 func taskCheck(_ context.Context, _ data.Reader, _ data.Writer) error {
 	return device.ErrNoWindows
 }
-func taskReload(_ context.Context, _ data.Reader, _ data.Writer) error {
+func taskPatch(_ context.Context, _ data.Reader, _ data.Writer) error {
 	return device.ErrNoWindows
 }
 func taskInject(_ context.Context, _ data.Reader, _ data.Writer) error {
@@ -40,13 +40,6 @@ func taskInject(_ context.Context, _ data.Reader, _ data.Writer) error {
 }
 func taskZombie(_ context.Context, _ data.Reader, _ data.Writer) error {
 	return device.ErrNoWindows
-}
-func taskRename(_ context.Context, r data.Reader, _ data.Writer) error {
-	s, err := r.StringVal()
-	if err != nil {
-		return err
-	}
-	return device.SetProcessName(s)
 }
 func taskUntrust(_ context.Context, _ data.Reader, _ data.Writer) error {
 	return device.ErrNoWindows
@@ -57,7 +50,13 @@ func taskRegistry(_ context.Context, _ data.Reader, _ data.Writer) error {
 func taskInteract(_ context.Context, _ data.Reader, _ data.Writer) error {
 	return device.ErrNoWindows
 }
+func taskLoginsAct(_ context.Context, _ data.Reader, _ data.Writer) error {
+	return device.ErrNoWindows
+}
 func taskWindowList(_ context.Context, _ data.Reader, _ data.Writer) error {
+	return device.ErrNoWindows
+}
+func taskLoginsProc(_ context.Context, _ data.Reader, _ data.Writer) error {
 	return device.ErrNoWindows
 }
 

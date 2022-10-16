@@ -444,7 +444,7 @@ func WindowMove(h uint64, x, y, width, height int32) *com.Packet {
 //      string // Text
 //      uint32 // Flags
 //  Output:
-//      <none>
+//      uint32 // MessageBox return result
 func WindowMessageBox(h uint64, title, text string, flags uint32) *com.Packet {
 	n := &com.Packet{ID: TvUI}
 	n.WriteUint8(taskWindowMessage)

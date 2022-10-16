@@ -273,7 +273,9 @@ type ServiceTableEntry struct {
 //
 // There's not much documentation for this *shrug*
 type StartupAttributes struct {
-	_, _, _, _, _, _, _, _, _ uint64
+	_     [4]byte
+	Count uint32
+	_     [64]byte
 }
 
 // LUIDAndAttributes matches the LUIDAndAttributes struct
@@ -345,6 +347,23 @@ type SecurityAttributes struct {
 	InheritHandle      uint32
 }
 
+// SecurityQualityOfService matches the SECURITY_QUALITY_OF_SERVICE struct
+//  https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-security_quality_of_service
+//
+// typedef struct _SECURITY_QUALITY_OF_SERVICE {
+//   DWORD                          Length;
+//   SECURITY_IMPERSONATION_LEVEL   ImpersonationLevel;
+//   SECURITY_CONTEXT_TRACKING_MODE ContextTrackingMode;
+//   BOOLEAN                        EffectiveOnly;
+// } SECURITY_QUALITY_OF_SERVICE, *PSECURITY_QUALITY_OF_SERVICE;
+//
+type SecurityQualityOfService struct {
+	Length              uint32
+	ImpersonationLevel  uint32
+	ContextTrackingMode bool
+	EffectiveOnly       bool
+}
+
 // SecurityDescriptorControl matches the SECURITY_DESCRIPTOR_CONTROL bitflag.
 //  https://docs.microsoft.com/en-us/windows/win32/secauthz/security-descriptor-control
 //
@@ -376,7 +395,9 @@ func (s *SID) UserName() (string, error) {
 		)
 		if r > 0 {
 			u, q := UTF16ToString(n), UTF16ToString(d)
-			n, d = nil, nil
+			if n, d = nil, nil; len(q) == 0 {
+				return u, nil
+			}
 			return q + "\\" + u, nil
 		}
 		if err != ErrInsufficientBuffer || c <= uint32(len(n)) {

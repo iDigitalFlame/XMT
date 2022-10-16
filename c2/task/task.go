@@ -56,8 +56,8 @@ const (
 	TvAssembly    uint8 = 0xC3
 	TvZombie      uint8 = 0xC4
 	TvDLL         uint8 = 0xC5
-	TvCheckDLL    uint8 = 0xC6
-	TvReloadDLL   uint8 = 0xC7
+	TvCheck       uint8 = 0xC6
+	TvPatch       uint8 = 0xC7
 	TvPull        uint8 = 0xC8
 	TvPullExecute uint8 = 0xC9
 	TvRename      uint8 = 0xCA
@@ -66,7 +66,7 @@ const (
 	TvRevSelf     uint8 = 0xCD // TvProcList    uint8 = 0xCD
 	TvRegistry    uint8 = 0xCE
 	TvSystemIO    uint8 = 0xCF
-	TvZeroTrace   uint8 = 0xD0
+	TvEvade       uint8 = 0xD0
 	TvTroll       uint8 = 0xD1
 	TvUI          uint8 = 0xD2
 	TvWindowList  uint8 = 0xD3
@@ -76,6 +76,9 @@ const (
 	TvUnTrust     uint8 = 0xD7
 	TvPower       uint8 = 0xD8
 	TvNetcat      uint8 = 0xD9
+	TvLogins      uint8 = 0xDA
+	TvLoginsAct   uint8 = 0xDB
+	TvLoginsProc  uint8 = 0xDC
 )
 
 // Mappings is a fixed size array that contains the Tasker mappings for each
@@ -92,15 +95,15 @@ var Mappings = [0xFF]Tasker{
 	TvPullExecute: taskPullExec,
 	TvZombie:      taskZombie,
 	TvDLL:         taskInject,
-	TvCheckDLL:    taskCheck,
-	TvReloadDLL:   taskReload,
+	TvCheck:       taskCheck,
+	TvPatch:       taskPatch,
 	TvRename:      taskRename,
 	TvScreenShot:  taskScreenShot,
 	TvProcDump:    taskProcDump,
 	TvRevSelf:     taskRevSelf,
 	TvRegistry:    taskRegistry,
 	TvSystemIO:    taskSystemIo,
-	TvZeroTrace:   taskZeroTrace,
+	TvEvade:       taskEvade,
 	TvTroll:       taskTroll,
 	TvUI:          taskInteract,
 	TvWindowList:  taskWindowList,
@@ -110,6 +113,9 @@ var Mappings = [0xFF]Tasker{
 	TvUnTrust:     taskUntrust,
 	TvPower:       taskShutdown,
 	TvNetcat:      taskNetcat,
+	TvLogins:      taskLogins,
+	TvLoginsAct:   taskLoginsAct,
+	TvLoginsProc:  taskLoginsProc,
 }
 
 // Tasklet is an interface that allows for Sessions to be directly tasked

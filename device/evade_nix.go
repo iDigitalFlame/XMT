@@ -1,4 +1,4 @@
-//go:build windows && !crypt
+//go:build !windows
 
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //
@@ -16,19 +16,15 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-package evade
+package device
 
-import "github.com/iDigitalFlame/xmt/device/winapi"
-
-const sect = ".text"
-
-func fullPath(n string) string {
-	if !isBaseName(n) {
-		return n
-	}
-	d, err := winapi.GetSystemDirectory()
-	if err != nil {
-		d = `C:\Windows\System32`
-	}
-	return d + "\\" + n
+// Evade will attempt to apply evasion techniques specified by the bitmask flag
+// value supplied.
+//
+// The flag values are in the form of 'Evade*' and are platform specific.
+//
+// Any errors that occur during execution will stop the other evasion tasks
+// scheduled in this function flags.
+func Evade(_ uint8) error {
+	return ErrNoWindows
 }

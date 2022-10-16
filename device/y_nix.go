@@ -22,7 +22,6 @@ import (
 	"os"
 	"runtime/debug"
 	"syscall"
-	"unsafe"
 
 	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/util/xerr"
@@ -31,20 +30,6 @@ import (
 // ErrNoWindows is an error that is returned when a non-Windows device attempts
 // a Windows specific function.
 var ErrNoWindows = xerr.Sub("only supported on Windows devices", 0x20)
-
-type stringHeader struct {
-	Data uintptr
-	Len  int
-}
-
-func proxyInit() *config {
-	return &config{
-		HTTPProxy:  dualEnv("HTTP_PROXY", "http_proxy"),
-		HTTPSProxy: dualEnv("HTTPS_PROXY", "https_proxy"),
-		NoProxy:    dualEnv("NO_PROXY", "no_proxy"),
-		CGI:        os.Getenv("REQUEST_METHOD") != "",
-	}
-}
 
 // GoExit attempts to walk through the process threads and will forcefully
 // kill all Golang based OS-Threads based on their starting address (which
@@ -70,6 +55,14 @@ func GoExit() {
 func FreeOSMemory() {
 	debug.FreeOSMemory()
 }
+func proxyInit() *config {
+	return &config{
+		HTTPProxy:  dualEnv("HTTP_PROXY", "http_proxy"),
+		HTTPSProxy: dualEnv("HTTPS_PROXY", "https_proxy"),
+		NoProxy:    dualEnv("NO_PROXY", "no_proxy"),
+		CGI:        os.Getenv("REQUEST_METHOD") != "",
+	}
+}
 
 // RevertToSelf function terminates the impersonation of a client application.
 // Returns an error if no impersonation is being done.
@@ -86,24 +79,6 @@ func dualEnv(o, t string) string {
 		return v
 	}
 	return ""
-}
-
-// SetProcessName will attempt to override the process name on *nix systems
-// by overwriting the argv block.
-//
-// Returns 'ErrNoNix' on Windows devices.
-//
-// Found here: https://stackoverflow.com/questions/14926020/setting-process-name-as-seen-by-ps-in-go
-func SetProcessName(s string) error {
-	var (
-		v = (*stringHeader)(unsafe.Pointer(&os.Args[0]))
-		d = (*[1 << 30]byte)(unsafe.Pointer(v.Data))[:v.Len]
-		n = copy(d, s)
-	)
-	if n < len(d) {
-		d[n] = 0
-	}
-	return nil
 }
 
 // SetCritical will set the critical flag on the current process. This function
@@ -139,7 +114,7 @@ func Impersonate(_ *filter.Filter) error {
 	return ErrNoWindows
 }
 
-// ImpersonateUser attempts to log in with the supplied credentials and impersonate
+// ImpersonateUserNetwork attempts to log in with the supplied credentials and impersonate
 // the logged in account.
 //
 // This will set the permissions of all threads in use by the runtime. Once work
@@ -150,6 +125,6 @@ func Impersonate(_ *filter.Filter) error {
 // (Windows-only).
 //
 // Always returns 'ErrNoWindows' on non-Windows devices.
-func ImpersonateUser(_, _, _ string) error {
+func ImpersonateUserNetwork(_, _, _ string) error {
 	return ErrNoWindows
 }

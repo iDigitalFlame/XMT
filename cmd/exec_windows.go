@@ -36,6 +36,9 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
+// modernGo is a backwards compatibility flag used to disable post-WinVista features.
+const modernGo = true
+
 // NOTE(dij): This needs to be a var as if it's a const 'UpdateProcThreadAttribute'
 //            will throw an access violation.
 //
@@ -47,9 +50,9 @@ var envOnce struct {
 	r string
 	e []string
 }
-var versionOnce struct {
+var secOnce struct {
 	sync.Once
-	v, s bool
+	e bool
 }
 
 type closer uintptr
@@ -78,29 +81,16 @@ func envOnceFunc() {
 		envOnce.r = sysRootVar
 	}
 }
-func onceVersionCheck() {
-	if v, err := winapi.GetVersion(); err == nil && v > 0 {
-		switch m := byte(v & 0xFF); {
-		case m > 6:
-			versionOnce.v, versionOnce.s = true, true
-		case m == 6: // Must be at least Windows 6.0 (Vista/2008)
-			versionOnce.v, versionOnce.s = true, byte((v&0xFFFF)>>8) > 2 // Must be at least Windows 6.3 (8.1/2012 R2)
-			// NOTE(dij): If you're reading this. Microsoft lied on the documentation
-			//            for the flags. Windows 8/2012 (6.2) does NOT support the
-			//            policy flags and will error out if used. 8.1/2012 R2 (6.3)
-			//            does support the flags and works fine.
-		default:
-			versionOnce.v, versionOnce.s = false, false
-		}
+func secOnceFunc() {
+	if m, x, _ := winapi.GetVersionNumbers(); m > 6 {
+		secOnce.e = true
+	} else {
+		secOnce.e = m >= 6 && x >= 3
 	}
 }
-func checkVersion() bool {
-	versionOnce.Do(onceVersionCheck)
-	return versionOnce.v
-}
 func checkVersionSec() bool {
-	versionOnce.Do(onceVersionCheck)
-	return versionOnce.s
+	secOnce.Do(secOnceFunc)
+	return secOnce.e
 }
 func (e *executable) close() {
 	if atomic.LoadUintptr(&e.i.Process) == 0 {
@@ -174,8 +164,9 @@ func (e *executable) Suspend() error {
 func (e *executable) isStarted() bool {
 	// BUG(dij): I think this causes some 'ErrAlreadyStarted' issues.
 	//           keep watch on this.
+	//
+	// return e.i.ProcessID > 0 // && e.i.Process > 0
 	return atomic.LoadUint32(&e.i.ProcessID) > 0 || e.i.Process > 0
-	//return e.i.ProcessID > 0 // && e.i.Process > 0
 }
 func (e *executable) isRunning() bool {
 	return e.i.Process > 0
@@ -301,6 +292,7 @@ func (e *executable) wait(x context.Context, p *Process) {
 		if bugtrack.Enabled {
 			bugtrack.Track("cmd.executable.wait(): Creating Event failed, falling back to single wait: %s", err.Error())
 		}
+		err = nil
 	}
 	go func() {
 		if atomic.LoadUintptr(&e.i.Process) > 0 {
@@ -342,109 +334,128 @@ func (e *executable) wait(x context.Context, p *Process) {
 	p.stopWith(p.exit, nil)
 }
 func (e *executable) writer(w io.Writer) (uintptr, error) {
-	var h uintptr
-	if w == nil {
-		// 1 - WRITEONLY
-		f, err := os.OpenFile(os.DevNull, 1, 0)
-		if err != nil {
-			return 0, xerr.Wrap("cannot open NULL device", err)
-		}
-		e.closers, h = append(e.closers, f), f.Fd()
-	} else {
-		switch i := w.(type) {
-		case file:
-			f, err := i.File()
-			if err != nil {
-				return 0, xerr.Wrap("cannot obtain file handle", err)
-			}
-			h = f.Fd()
-		case fileFd:
-			h = i.Fd()
-		default:
-			x, y, err := os.Pipe()
-			if err != nil {
-				return 0, xerr.Wrap("cannot create Pipe", err)
-			}
-			h = y.Fd()
-			e.closers = append(e.closers, x)
-			e.closers = append(e.closers, y)
-			go func() {
-				if bugtrack.Enabled {
-					defer bugtrack.Recover("cmd.options.writer.func1()")
-				}
-				io.Copy(w, x)
-				x.Close()
-			}()
-		}
+	h, c, err := e.writerToHandle(w)
+	if err != nil {
+		return 0, err
 	}
-	var (
-		v, n uintptr = winapi.CurrentProcess, 0
-		err  error
-	)
-	if e.parent > 0 {
-		v = e.parent
-	}
-	// 0x2 - DUPLICATE_SAME_ACCESS
-	if err = winapi.DuplicateHandle(winapi.CurrentProcess, h, v, &n, 0, true, 0x2); err != nil {
-		return 0, xerr.Wrap("DuplicateHandle", err)
-	}
-	e.closers = append(e.closers, closer(n))
-	return n, nil
+	return e.addRetHandle(c, h)
 }
 func (e *executable) reader(r io.Reader) (uintptr, error) {
-	var h uintptr
-	if r == nil {
-		// 0 - READONLY
-		f, err := os.OpenFile(os.DevNull, 0, 0)
-		if err != nil {
-			return 0, xerr.Wrap("cannot open NULL device", err)
-		}
-		e.closers, h = append(e.closers, f), f.Fd()
-	} else {
-		switch i := r.(type) {
-		case file:
-			f, err := i.File()
-			if err != nil {
-				return 0, xerr.Wrap("cannot obtain file handle", err)
-			}
-			h = f.Fd()
-		case fileFd:
-			h = i.Fd()
-		default:
-			x, y, err := os.Pipe()
-			if err != nil {
-				return 0, xerr.Wrap("cannot create Pipe", err)
-			}
-			h = x.Fd()
-			e.closers = append(e.closers, x)
-			e.closers = append(e.closers, y)
-			go func() {
-				if bugtrack.Enabled {
-					defer bugtrack.Recover("cmd.options.reader.func1()")
-				}
-				io.Copy(y, r)
-				y.Close()
-			}()
-		}
+	h, c, err := e.readerToHandle(r)
+	if err != nil {
+		return 0, err
 	}
-	var (
-		v, n uintptr = winapi.CurrentProcess, 0
-		err  error
-	)
-	if e.parent > 0 {
-		v = e.parent
-	}
-	// 0x2 - DUPLICATE_SAME_ACCESS
-	if err = winapi.DuplicateHandle(winapi.CurrentProcess, h, v, &n, 0, true, 0x2); err != nil {
-		return 0, xerr.Wrap("DuplicateHandle", err)
-	}
-	e.closers = append(e.closers, closer(n))
-	return n, nil
+	return e.addRetHandle(c, h)
 }
 func (e *executable) SetParent(f *filter.Filter, p *Process) {
 	if e.filter = f; f != nil {
 		e.SetNewConsole(true, p)
 	}
+}
+func (e *executable) addRetHandle(c bool, h uintptr) (uintptr, error) {
+	if e.parent == 0 {
+		if c {
+			e.closers = append(e.closers, closer(h))
+		}
+		return h, nil
+	}
+	var (
+		n   uintptr
+		err = winapi.DuplicateHandle(winapi.CurrentProcess, h, e.parent, &n, 0, true, 0x2)
+		// 0x2 - DUPLICATE_SAME_ACCESS
+	)
+	if c {
+		winapi.CloseHandle(h)
+	}
+	if err != nil {
+		return 0, xerr.Wrap("DuplicateHandle", err)
+	}
+	return n, nil
+}
+func (e *executable) readerToHandle(r io.Reader) (uintptr, bool, error) {
+	if r == nil {
+		// 0 - READONLY
+		f, err := os.OpenFile(os.DevNull, 0, 0)
+		if err != nil {
+			return 0, false, xerr.Wrap("cannot open NULL device", err)
+		}
+		e.closers = append(e.closers, f)
+		return f.Fd(), false, nil
+	}
+	switch i := r.(type) {
+	case file:
+		f, err := i.File()
+		if err != nil {
+			return 0, false, xerr.Wrap("cannot obtain file handle", err)
+		}
+		// Closeable "c" is true, since this /should/ be a separate
+		// handle from the initial "File" type.
+		//
+		// NOTE(dij): Technically on Windows this will always fail
+		// See: https://cs.opensource.google/go/go/+/refs/tags/go1.19.2:src/net/fd_windows.go;l=175
+		//
+		// BUT if we're going off the *nix implementation, it would be a
+		// duplicate handle, and safe to close.
+		return f.Fd(), true, nil
+	case fileFd:
+		return i.Fd(), false, nil
+	}
+	x, y, err := os.Pipe()
+	if err != nil {
+		return 0, false, xerr.Wrap("cannot create Pipe", err)
+	}
+	e.closers = append(e.closers, x)
+	// e.closers = append(e.closers, y)
+	go func() {
+		if bugtrack.Enabled {
+			defer bugtrack.Recover("cmd.options.readerToHandle.func1()")
+		}
+		io.Copy(y, r)
+		y.Close()
+	}()
+	return x.Fd(), false, nil
+}
+func (e *executable) writerToHandle(w io.Writer) (uintptr, bool, error) {
+	if w == nil {
+		// 1 - WRITEONLY
+		f, err := os.OpenFile(os.DevNull, 1, 0)
+		if err != nil {
+			return 0, false, xerr.Wrap("cannot open NULL device", err)
+		}
+		e.closers = append(e.closers, f)
+		return f.Fd(), false, nil
+	}
+	switch i := w.(type) {
+	case file:
+		f, err := i.File()
+		if err != nil {
+			return 0, false, xerr.Wrap("cannot obtain file handle", err)
+		}
+		// Closeable "c" is true, since this /should/ be a separate handle from
+		// the initial "File" type.
+		//
+		// NOTE(dij): Technically on Windows this will always fail
+		// See: https://cs.opensource.google/go/go/+/refs/tags/go1.19.2:src/net/fd_windows.go;l=175
+		//
+		// BUT if we're going off the *nix implementation, it would be a duplicate
+		// handle, and safe to close.
+		return f.Fd(), true, nil
+	case fileFd:
+		return i.Fd(), false, nil
+	}
+	x, y, err := os.Pipe()
+	if err != nil {
+		return 0, false, xerr.Wrap("cannot create Pipe", err)
+	}
+	e.closers = append(e.closers, y)
+	e.closers = append(e.closers, x)
+	go func() {
+		if bugtrack.Enabled {
+			defer bugtrack.Recover("cmd.options.writerToHandle.func1()")
+		}
+		io.Copy(w, x)
+	}()
+	return y.Fd(), false, nil
 }
 func (e *executable) start(x context.Context, p *Process, sus bool) error {
 	r, err := exec.LookPath(p.Args[0])
@@ -463,14 +474,26 @@ func (e *executable) start(x context.Context, p *Process, sus bool) error {
 	if p.Stderr != nil || p.Stdout != nil || p.Stdin != nil {
 		var si, so, se uintptr
 		if si, err = e.reader(p.Stdin); err != nil {
+			if e.parent > 0 {
+				winapi.CloseHandle(e.parent)
+				e.parent = 0
+			}
 			return err
 		}
 		if so, err = e.writer(p.Stdout); err != nil {
+			if e.parent > 0 {
+				winapi.CloseHandle(e.parent)
+				e.parent = 0
+			}
 			return err
 		}
 		if p.Stderr == p.Stdout {
 			se = so
 		} else if se, err = e.writer(p.Stderr); err != nil {
+			if e.parent > 0 {
+				winapi.CloseHandle(e.parent)
+				e.parent = 0
+			}
 			return err
 		}
 		if v != nil {
@@ -492,7 +515,6 @@ func (e *executable) start(x context.Context, p *Process, sus bool) error {
 		//            'CreateProcessWithToken' instead of 'CreateProcess'.
 		//            This is only called IF there is no parent Process set, as
 		//            Windows permissions cause some fucky stuff to happen.
-		//
 		//            Failing silently is fine.
 		//
 		// NOTE(dij): Added a 'IsUserLoginToken' token to check the Token origin
@@ -527,8 +549,12 @@ func (e *executable) start(x context.Context, p *Process, sus bool) error {
 			bugtrack.Track("cmd.executable.start(): Using API call CreateProcessWithLogin for execution.")
 		}
 		// NOTE(dij): Network Only (0x2) logins seem to fail here.
+		//            Apparently a 0 value works!
+		// BUG(dij): Tracking "A logon request contained an invalid logon type value."
+		//           when launching with "0x2".
 		// 0x1 - LOGON_WITH_PROFILE
-		err = winapi.CreateProcessWithLogin(e.user, e.domain, e.pass, 0x1, r, strings.Join(p.Args, " "), p.flags, z, p.Dir, y, v, &e.i)
+		// 0x0 - *shrug*
+		err = winapi.CreateProcessWithLogin(e.user, e.domain, e.pass, 0x0, r, strings.Join(p.Args, " "), p.flags, z, p.Dir, y, v, &e.i)
 	case u > 0:
 		if bugtrack.Enabled {
 			bugtrack.Track("cmd.executable.start(): Using API call CreateProcessWithToken for execution.")
@@ -541,15 +567,21 @@ func (e *executable) start(x context.Context, p *Process, sus bool) error {
 		}
 		err = winapi.CreateProcess(r, strings.Join(p.Args, " "), nil, nil, true, p.flags, z, p.Dir, y, v, &e.i)
 	}
-	if runtime.UnlockOSThread(); err != nil {
+	if runtime.UnlockOSThread(); e.parent > 0 {
+		winapi.CloseHandle(e.parent)
+		e.parent = 0
+	}
+	if err != nil {
+		for i := range e.closers {
+			e.closers[i].Close()
+		}
 		return err
 	}
-	e.closers = append(e.closers, closer(e.i.Thread))
+	winapi.CloseHandle(e.i.Thread)
 	if e.closers = append(e.closers, closer(e.i.Process)); sus {
 		return nil
 	}
 	go e.wait(x, p)
-	// semSleep()
 	return nil
 }
 func (e *executable) startInfo() (*winapi.StartupInfoEx, *winapi.StartupInfo, error) {
@@ -565,25 +597,26 @@ func (e *executable) startInfo() (*winapi.StartupInfoEx, *winapi.StartupInfo, er
 			return nil, nil, xerr.Wrap("cannot convert title", err)
 		}
 	}
-	if x.StartupInfo.Cb = uint32(unsafe.Sizeof(x)); !checkVersion() {
+	if x.StartupInfo.Cb = uint32(unsafe.Sizeof(x)); !modernGo {
 		return nil, &x.StartupInfo, nil
 	}
 	if e.filter != nil && !e.filter.Empty() {
 		// (old 0x100CC1 - SYNCHRONIZE | PROCESS_DUP_HANDLE | PROCESS_CREATE_PROCESS |
 		//                  PROCESS_QUERY_INFORMATION | PROCESS_SUSPEND_RESUME | PROCESS_TERMINATE)
-		// 0x4C0 - PROCESS_QUERY_INFORMATION | PROCESS_DUP_HANDLE | PROCESS_CREATE_PROCESS
-		if e.parent, err = e.filter.HandleFunc(0x4C0, nil); err != nil {
+		// (old 0x4C0 - PROCESS_QUERY_INFORMATION | PROCESS_DUP_HANDLE | PROCESS_CREATE_PROCESS)
+		//
+		// 0x10C0 - PROCESS_CREATE_PROCESS | PROCESS_DUP_HANDLE | PROCESS_QUERY_LIMITED_INFORMATION
+		if e.parent, err = e.filter.HandleFunc(0x10C0, nil); err != nil {
 			return nil, nil, err
 		}
-		// BUG(dij): Apparently sometimes this isn't closed? It seems to /only/
-		//           happen during spawn? Look into this later.
-		e.closers = append(e.closers, closer(e.parent))
+		// FIXED(dij): Apparently sometimes this isn't closed? It seems to /only/
+		//             happen during spawn? Look into this later.
+		//
+		//             FIX: Close handle immediately after spawning process!
+		// e.closers = append(e.closers, closer(e.parent))
 	}
-	var (
-		s, w uint64
-		c    uint32
-	)
-	// NOTE(dij): SecProtect isn't allowed until Windows 8 and Windows Server 2012
+	var c uint32
+	// NOTE(dij): SecProtect isn't allowed until Windows 8.1 and Windows Server 2012R2
 	//            Thanks for the super small blurb of text on it Microsoft >:[
 	switch v := checkVersionSec(); {
 	case !v && e.parent == 0: // No sec and no parent
@@ -591,21 +624,17 @@ func (e *executable) startInfo() (*winapi.StartupInfoEx, *winapi.StartupInfo, er
 	case !v && e.parent > 0: // No sec, has parent (1 slot)
 		fallthrough
 	case v && e.parent == 0: // Has sec, no parent (1 slot)
-		w, c = 48, 1
+		c = 1
 	case v && e.parent > 0: // Has sec, has parent (2 slots)
-		w, c = 72, 2
+		c = 2
 	}
-	if err = winapi.InitializeProcThreadAttributeList(nil, c, &s, w); err != nil {
-		return nil, nil, xerr.Wrap("InitializeProcThreadAttributeList", err)
-	}
-	x.AttributeList = new(winapi.StartupAttributes)
-	if err = winapi.InitializeProcThreadAttributeList(x.AttributeList, c, &s, 0); err != nil {
-		return nil, nil, xerr.Wrap("InitializeProcThreadAttributeList", err)
-	}
+	x.AttributeList = &winapi.StartupAttributes{Count: c}
 	if x.StartupInfo.Cb = uint32(unsafe.Sizeof(x)); e.parent > 0 {
 		// 0x20000 - PROC_THREAD_ATTRIBUTE_PARENT_PROCESS
 		if err = winapi.UpdateProcThreadAttribute(x.AttributeList, 0x20000, unsafe.Pointer(&e.parent), uint64(unsafe.Sizeof(e.parent)), nil, nil); err != nil {
 			winapi.DeleteProcThreadAttributeList(x.AttributeList)
+			winapi.CloseHandle(e.parent)
+			e.parent = 0
 			return nil, nil, xerr.Wrap("UpdateProcThreadAttribute", err)
 		}
 		c--
@@ -613,7 +642,10 @@ func (e *executable) startInfo() (*winapi.StartupInfoEx, *winapi.StartupInfo, er
 	if c == 1 {
 		// 0x20007 - PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY
 		if err = winapi.UpdateProcThreadAttribute(x.AttributeList, 0x20007, unsafe.Pointer(&secProtect), uint64(unsafe.Sizeof(secProtect)), nil, nil); err != nil {
-			winapi.DeleteProcThreadAttributeList(x.AttributeList)
+			if winapi.DeleteProcThreadAttributeList(x.AttributeList); e.parent > 0 {
+				winapi.CloseHandle(e.parent)
+				e.parent = 0
+			}
 			return nil, nil, xerr.Wrap("UpdateProcThreadAttribute", err)
 		}
 	}

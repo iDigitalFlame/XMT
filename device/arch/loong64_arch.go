@@ -1,4 +1,4 @@
-//go:build implant
+//go:build loong64
 
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //
@@ -16,23 +16,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-package com
+package arch
 
-// String returns a character representation of this Flag.
-func (Flag) String() string {
-	return ""
-}
-
-// String returns a string descriptor of the Packet struct.
-func (Packet) String() string {
-	return ""
-}
-func (ipListener) String() string {
-	return ""
-}
-func (tcpListener) String() string {
-	return ""
-}
-func (udpListener) String() string {
-	return ""
-}
+// Current is the local machine's platform architecture.
+const Current = Loong64

@@ -1,4 +1,4 @@
-//go:build implant
+//go:build !windows
 
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //
@@ -16,16 +16,8 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-package regedit
+package winapi
 
-// String returns the string representation of the data held in the Data buffer.
-// Invalid values of keys return an empty string.
-func (Entry) String() string {
-	return ""
-}
-
-// TypeName returns a string representation of the Type value, which represents
-// the value data type.
-func (Entry) TypeName() string {
-	return ""
+func fullPath(n string) string {
+	return n
 }

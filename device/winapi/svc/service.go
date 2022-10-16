@@ -334,7 +334,7 @@ func (s *Service) UpdateState(v State, a ...Accepted) {
 }
 
 // DynamicStartReason will return the DynamicStartReason type. This function is
-// only available after Windows 7 and will return an error if it is not supported.
+// only available after Windows 8 and will return an error if it is not supported.
 func (s *Service) DynamicStartReason() (Reason, error) {
 	r, err := winapi.QueryServiceDynamicInformation(s.h, 1)
 	if err != nil {

@@ -35,6 +35,8 @@
         },
         "cSpell.words": [
             "allm",
+            "amsi",
+            "ASMI",
             "BSOD",
             "EXSTYLE",
             "gcflags",
@@ -43,6 +45,7 @@
             "HKCU",
             "HKLM",
             "ldflags",
+            "Loong",
             "mkdtemp",
             "netip",
             "nofrag",
@@ -55,6 +58,7 @@
             "SCRNSAVE",
             "STARTF",
             "vardic",
+            "wtsapi",
             "Zombified"
         ]
     }

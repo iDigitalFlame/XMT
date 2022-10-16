@@ -130,6 +130,7 @@ func (l *Listener) Close() error {
 		if err := winapi.CloseHandle(l.active); err != nil {
 			return err
 		}
+
 		l.active = 0
 	}
 	return nil
@@ -252,6 +253,9 @@ func (l *Listener) AcceptPipe() (*Conn, error) {
 	if err = winapi.ConnectNamedPipe(h, o); err == winapi.ErrIoPending || err == winapi.ErrIoIncomplete {
 		l.overlap, l.active = o, h
 		_, err = complete(h, o)
+	}
+	if atomic.LoadUint32(&l.done) == 1 {
+		return nil, net.ErrClosed
 	}
 	if winapi.CloseHandle(o.Event); err == winapi.ErrOperationAborted {
 		winapi.CloseHandle(h)

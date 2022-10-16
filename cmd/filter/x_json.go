@@ -1,4 +1,4 @@
-//go:build !crypt
+//go:build !nojson
 
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //

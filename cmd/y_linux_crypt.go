@@ -27,7 +27,7 @@ import (
 )
 
 func Processes() ([]ProcessInfo, error) {
-	l, err := os.ReadDir(crypt.Get(16)) // /proc/
+	l, err := os.ReadDir(crypt.Get(12)) // /proc/
 	if err != nil {
 		return nil, err
 	}
@@ -52,14 +52,14 @@ func Processes() ([]ProcessInfo, error) {
 			continue
 		}
 		b, err = os.ReadFile(
-			crypt.Get(16) + // /proc/
+			crypt.Get(12) + // /proc/
 				n +
-				crypt.Get(17), // /status
+				crypt.Get(13), // /status
 		)
 		if err != nil {
 			continue
 		}
-		u := getProcUser(crypt.Get(16) + n) // /proc/
+		u := getProcUser(crypt.Get(12) + n) // /proc/
 		if n, p = readProcStats(b); len(n) == 0 {
 			continue
 		}

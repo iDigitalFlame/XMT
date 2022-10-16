@@ -21,7 +21,9 @@ package winapi
 import (
 	"sync"
 	"syscall"
-	"unsafe"
+
+	// Needed to use "linkname"
+	_ "unsafe"
 
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
@@ -32,6 +34,9 @@ var searchSystem32 struct {
 	sync.Once
 	v bool
 }
+
+//go:linkname systemDirectoryPrefix syscall.systemDirectoryPrefix
+var systemDirectoryPrefix string
 
 func isBaseName(s string) bool {
 	for i := range s {
@@ -103,11 +108,7 @@ func loadLibraryEx(s string) (uintptr, error) {
 		// 0x800 - LOAD_LIBRARY_SEARCH_SYSTEM32
 		f = 0x800
 	} else if isBaseName(s) {
-		d, err := GetSystemDirectory()
-		if err != nil {
-			return 0, err
-		}
-		n = d + "\\" + s
+		n = systemDirectoryPrefix + s
 	}
 	return LoadLibraryEx(n, f)
 }
@@ -124,13 +125,6 @@ func findProc(h uintptr, s, n string) (uintptr, error) {
 
 //go:linkname syscallLoadLibrary syscall.loadlibrary
 func syscallLoadLibrary(n *uint16) (uintptr, syscall.Errno)
-func getSystemDirectory(s *uint16, n uint32) (uint32, error) {
-	r, _, e := syscall.SyscallN(funcGetSystemDirectory.address(), uintptr(unsafe.Pointer(s)), uintptr(n))
-	if r == 0 {
-		return 0, unboxError(e)
-	}
-	return uint32(r), nil
-}
 
 //go:linkname syscallGetProcAddress syscall.getprocaddress
 func syscallGetProcAddress(h uintptr, n *uint8) (uintptr, syscall.Errno)

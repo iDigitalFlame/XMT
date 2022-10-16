@@ -1,4 +1,4 @@
-//go:build implant
+//go:build windows && !crypt
 
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //
@@ -16,8 +16,22 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-package wc2
+package winapi
 
-func (listener) String() string {
-	return ""
-}
+const (
+	dllExt    = ".dll"
+	debugPriv = "SeDebugPrivilege"
+)
+
+var (
+	dllAmsi       = &lazyDLL{name: "amsi.dll"}
+	dllNtdll      = &lazyDLL{name: "ntdll.dll"}
+	dllGdi32      = &lazyDLL{name: "gdi32.dll"}
+	dllUser32     = &lazyDLL{name: "user32.dll"}
+	dllWinhttp    = &lazyDLL{name: "winhttp.dll"}
+	dllDbgHelp    = &lazyDLL{name: "DbgHelp.dll"}
+	dllKernel32   = &lazyDLL{name: "kernel32.dll"}
+	dllAdvapi32   = &lazyDLL{name: "advapi32.dll"}
+	dllWtsapi32   = &lazyDLL{name: "wtsapi32.dll"}
+	dllKernelBase = &lazyDLL{name: "kernelbase.dll"}
+)

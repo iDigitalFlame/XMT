@@ -21,6 +21,7 @@ package task
 import (
 	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/com"
+	"github.com/iDigitalFlame/xmt/data"
 )
 
 var (
@@ -29,6 +30,15 @@ var (
 	_ Callable = (*Process)(nil)
 	_ Callable = (*Assembly)(nil)
 )
+
+// Callable is an internal interface used to specify a wide range of Runnable
+// types that can be Marshaled into a Packet.
+//
+// Currently the DLL, Zombie, Assembly and Process instances are supported.
+type Callable interface {
+	task() uint8
+	MarshalStream(data.Writer) error
+}
 
 // Spawn will attempt to spawn a new instance using the provided Callable type
 // as the source.

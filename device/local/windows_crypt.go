@@ -31,49 +31,42 @@ func sysID() []byte {
 		return []byte(s.String())
 	}
 	// 0x101 - KEY_WOW64_64KEY | KEY_QUERY_VALUE
-	k, err := registry.Open(registry.KeyLocalMachine, crypt.Get(61), 0x101) // Software\Microsoft\Cryptography
+	k, err := registry.Open(registry.KeyLocalMachine, crypt.Get(51), 0x101) // Software\Microsoft\Cryptography
 	if err != nil {
 		return nil
 	}
-	v, _, err := k.String(crypt.Get(62)) // MachineGuid
+	v, _, err := k.String(crypt.Get(52)) // MachineGuid
 	if k.Close(); err == nil {
 		return []byte(v)
 	}
 	return nil
 }
 func version() string {
+	var n string
 	// 0x101 - KEY_WOW64_64KEY | KEY_QUERY_VALUE
-	k, err := registry.Open(registry.KeyLocalMachine, crypt.Get(63), 0x101) // Software\Microsoft\Windows NT\CurrentVersion
-	if err != nil {
-		return crypt.Get(64) // Windows
+	if k, err := registry.Open(registry.KeyLocalMachine, crypt.Get(53), 0x101); err == nil { // Software\Microsoft\Windows NT\CurrentVersion
+		n, _, _ = k.String(crypt.Get(54)) // ProductName
+		k.Close()
 	}
 	var (
-		b, v    string
-		n, _, _ = k.String(crypt.Get(65)) // ProductName
+		j, y, h = winapi.GetVersionNumbers()
+		b       = strconv.FormatUint(uint64(h), 10)
+		v       string
 	)
-	if s, _, err := k.String(crypt.Get(66)); err == nil { // CurrentBuild
-		b = s
-	} else if s, _, err := k.String(crypt.Get(67)); err == nil { // ReleaseId
-		b = s
-	}
-	if i, _, err := k.Integer(crypt.Get(68)); err == nil { // CurrentMajorVersionNumber
-		if x, _, err := k.Integer(crypt.Get(69)); err == nil { // CurrentMinorVersionNumber
-			v = strconv.FormatUint(i, 10) + "." + strconv.FormatUint(x, 10)
-		} else {
-			v = strconv.FormatUint(i, 10)
-		}
+	if y > 0 {
+		v = strconv.FormatUint(uint64(j), 10) + "." + strconv.FormatUint(uint64(y), 10)
 	} else {
-		v, _, _ = k.String(crypt.Get(70)) // CurrentVersion
+		v = strconv.FormatUint(uint64(j), 10)
 	}
-	switch k.Close(); {
+	switch {
 	case len(n) == 0 && len(b) == 0 && len(v) == 0:
-		return crypt.Get(64) // Windows
+		return crypt.Get(55) // Windows
 	case len(n) == 0 && len(b) > 0 && len(v) > 0:
-		return crypt.Get(64) + " (" + v + ", " + b + ")" // Windows
+		return crypt.Get(55) + " (" + v + ", " + b + ")" // Windows
 	case len(n) == 0 && len(b) == 0 && len(v) > 0:
-		return crypt.Get(64) + " (" + v + ")" // Windows
+		return crypt.Get(55) + " (" + v + ")" // Windows
 	case len(n) == 0 && len(b) > 0 && len(v) == 0:
-		return crypt.Get(64) + " (" + b + ")" // Windows
+		return crypt.Get(55) + " (" + b + ")" // Windows
 	case len(n) > 0 && len(b) > 0 && len(v) > 0:
 		return n + " (" + v + ", " + b + ")"
 	case len(n) > 0 && len(b) == 0 && len(v) > 0:
@@ -81,5 +74,5 @@ func version() string {
 	case len(n) > 0 && len(b) > 0 && len(v) == 0:
 		return n + " (" + b + ")"
 	}
-	return crypt.Get(64) // Windows
+	return crypt.Get(55) // Windows
 }

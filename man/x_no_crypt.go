@@ -26,17 +26,3 @@ const (
 	userAgent = "User-Agent"
 	userValue = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36"
 )
-
-func (o objSync) String() string {
-	switch o {
-	case Mutex:
-		return "mutex"
-	case Event:
-		return "event"
-	case Mailslot:
-		return "mailslot"
-	case Semaphore:
-		return "semaphore"
-	}
-	return "mutex"
-}

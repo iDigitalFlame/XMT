@@ -55,6 +55,20 @@ func IsDebugged() bool {
 	return false
 }
 
+// Logins returns an array that contains information about current logged
+// in users.
+//
+// This call is OS-independent but many contain invalid session types.
+//
+// Always returns an EINVAL on WSAM/JS.
+func Logins() ([]Login, error) {
+	b, err := os.ReadFile("/var/run/utmp")
+	if err != nil {
+		return nil, err
+	}
+	return readWhoEntries(b), nil
+}
+
 // Mounts attempts to get the mount points on the local device.
 //
 // On Windows devices, this is the drive letters available, otherwise on nix*

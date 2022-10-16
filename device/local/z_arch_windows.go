@@ -32,9 +32,9 @@ func systemType() uint8 {
 	//            Might have to look into it.
 	switch r, _ := winapi.IsWow64Process(); {
 	case r && device.Arch == arch.X86:
-		return uint8(uint8(device.OS)<<4 | uint8(arch.X64))
+		return uint8(uint8(device.OS)<<4 | uint8(arch.X86OnX64))
 	case r && device.Arch == arch.ARM:
-		return uint8(uint8(device.OS)<<4 | uint8(arch.ARM64))
+		return uint8(uint8(device.OS)<<4 | uint8(arch.ARMOnARM64))
 	}
 	return uint8(uint8(device.OS)<<4 | uint8(arch.Current))
 }

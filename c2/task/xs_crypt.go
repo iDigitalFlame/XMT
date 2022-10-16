@@ -25,11 +25,11 @@ import (
 
 func createEnvironment() map[string]any {
 	return map[string]any{
-		crypt.Get(8):  local.UUID.String(),   // ID
-		crypt.Get(9):  local.Version,         // OS
-		crypt.Get(10): local.Device.PID,      // PID
-		crypt.Get(11): local.Device.PPID,     // PPID
-		crypt.Get(12): local.Elevated(),      // ADMIN
-		crypt.Get(13): local.Device.Hostname, // HOSTNAME
+		crypt.Get(2): local.UUID.String(),   // ID
+		crypt.Get(3): local.Version,         // OS
+		crypt.Get(4): local.Device.PID,      // PID
+		crypt.Get(5): local.Device.PPID,     // PPID
+		crypt.Get(6): local.Elevated(),      // ADMIN
+		crypt.Get(7): local.Device.Hostname, // HOSTNAME
 	}
 }

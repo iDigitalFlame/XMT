@@ -41,30 +41,23 @@ func sysID() []byte {
 	return nil
 }
 func version() string {
+	var n string
 	// 0x101 - KEY_WOW64_64KEY | KEY_QUERY_VALUE
-	k, err := registry.Open(registry.KeyLocalMachine, `Software\Microsoft\Windows NT\CurrentVersion`, 0x101)
-	if err != nil {
-		return "Windows (?)"
+	if k, err := registry.Open(registry.KeyLocalMachine, `Software\Microsoft\Windows NT\CurrentVersion`, 0x101); err == nil {
+		n, _, _ = k.String("ProductName")
+		k.Close()
 	}
 	var (
-		b, v    string
-		n, _, _ = k.String("ProductName")
+		j, y, h = winapi.GetVersionNumbers()
+		b       = strconv.FormatUint(uint64(h), 10)
+		v       string
 	)
-	if s, _, err := k.String("CurrentBuild"); err == nil {
-		b = s
-	} else if s, _, err := k.String("ReleaseId"); err == nil {
-		b = s
-	}
-	if i, _, err := k.Integer("CurrentMajorVersionNumber"); err == nil {
-		if x, _, err := k.Integer("CurrentMinorVersionNumber"); err == nil {
-			v = strconv.FormatUint(i, 10) + "." + strconv.FormatUint(x, 10)
-		} else {
-			v = strconv.FormatUint(i, 10)
-		}
+	if y > 0 {
+		v = strconv.FormatUint(uint64(j), 10) + "." + strconv.FormatUint(uint64(y), 10)
 	} else {
-		v, _, _ = k.String("CurrentVersion")
+		v = strconv.FormatUint(uint64(j), 10)
 	}
-	switch k.Close(); {
+	switch {
 	case len(n) == 0 && len(b) == 0 && len(v) == 0:
 		return "Windows"
 	case len(n) == 0 && len(b) > 0 && len(v) > 0:

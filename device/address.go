@@ -184,6 +184,28 @@ func (a *Address) ToAddr() netip.Addr {
 	})
 }
 
+// SetBytes will set the internal values of this address to the specified bytes
+// contained in the byte array.
+//
+// This function will attempt to detect zeros to determin if this is just a
+// shortened IPv4 or IPv6 address.
+func (a *Address) SetBytes(b [16]byte) {
+	x := false
+	for i := 4; i < 16; i++ {
+		if b[i] > 0 {
+			x = true
+		}
+	}
+	if !x {
+		a.hi, a.low = 0, 0xFFFF00000000|uint64(b[0])<<24|uint64(b[1])<<16|uint64(b[2])<<8|uint64(b[3])
+		return
+	}
+	a.hi = uint64(b[7]) | uint64(b[6])<<8 | uint64(b[5])<<16 | uint64(b[4])<<24 |
+		uint64(b[3])<<32 | uint64(b[2])<<40 | uint64(b[1])<<48 | uint64(b[0])<<56
+	a.low = uint64(b[15]) | uint64(b[14])<<8 | uint64(b[13])<<16 | uint64(b[12])<<24 |
+		uint64(b[11])<<32 | uint64(b[10])<<40 | uint64(b[9])<<48 | uint64(b[8])<<56
+}
+
 // IsGlobalUnicast reports whether this is a global unicast address.
 //
 // The identification of global unicast addresses uses address type identification

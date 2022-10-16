@@ -30,9 +30,10 @@ import (
 )
 
 const (
-	flagUID    = 1 << 1
-	flagGID    = 1 << 2
-	flagChroot = 1 << 3
+	flagUID     = 1 << 1
+	flagGID     = 1 << 2
+	flagChroot  = 1 << 3
+	flagSuspend = 1 << 4
 )
 
 type executable struct {
@@ -145,7 +146,12 @@ func (executable) SetNoWindow(_ bool, _ *Process) {
 }
 func (executable) SetDetached(_ bool, _ *Process) {
 }
-func (executable) SetSuspended(_ bool, _ *Process) {
+func (executable) SetSuspended(s bool, p *Process) {
+	if s {
+		p.flags |= flagSuspend
+	} else {
+		p.flags = flagSuspend
+	}
 }
 func (executable) SetNewConsole(_ bool, _ *Process) {
 }
@@ -182,7 +188,7 @@ func (e *executable) start(x context.Context, p *Process, _ bool) error {
 			e.e.Env = append(e.e.Env, z[n])
 		}
 	}
-	if p.flags > 0 {
+	if p.flags > 0 && p.flags != flagSuspend {
 		e.e.SysProcAttr = &syscall.SysProcAttr{Chroot: e.c}
 		switch {
 		case p.flags&flagUID != 0 && p.flags&flagGID != 0:
@@ -199,6 +205,9 @@ func (e *executable) start(x context.Context, p *Process, _ bool) error {
 	}
 	if err := e.e.Start(); err != nil {
 		return err
+	}
+	if p.flags&flagSuspend != 0 {
+		syscall.Kill(int(e.Pid()), syscall.SIGSTOP)
 	}
 	go e.wait(p)
 	return nil

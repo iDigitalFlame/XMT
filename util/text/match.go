@@ -55,10 +55,10 @@ type String string
 // be generated to be used instead.
 //
 // In both cases, the '<', '[', ']', and '>' are only used to indicate usage,
-// and not actually used in the string value.
+// and are not actually used in the string value.
 //
 //  | Verb   | Description                                         | RegEx            |
-//  | ====== | =================================================== | ================ |
+//  | ------ | --------------------------------------------------- | ---------------- |
 //  | %<N>n  | 1 to N count of random single-digit numbers         | [0-9]{1,N}       |
 //  | %<N>fn | N count of random single-digit numbers              | [0-9]{N}         |
 //  | %<N>c  | 1 to N count of random ASCII non-number characters  | [a-zA-Z]{1,N}    |

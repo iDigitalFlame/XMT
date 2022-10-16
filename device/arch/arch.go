@@ -33,8 +33,16 @@ const (
 	ARM64 Architecture = 0x6
 	// WASM represents the WASM/JavaScript software family.
 	WASM Architecture = 0x7
+	// Loong64 represents the LoongArch64 chipset family.
+	Loong64 Architecture = 0x8
+	// X86OnX64 represents the 64-bit chipset family, but the executable
+	// is compiled for X86.
+	X86OnX64 Architecture = 0x9
+	// ARMOnARM64 represents the ARM64 chipset family, but the executable
+	// is compiled for ARM.
+	ARMOnARM64 Architecture = 0xA
 	// Unknown represents an unknown chipset family.
-	Unknown Architecture = 0x8
+	Unknown Architecture = 0xF
 )
 
 // Architecture is a number representation of the chipset architecture.
