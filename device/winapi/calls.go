@@ -649,6 +649,9 @@ func LookupPrivilegeValue(system, name string, l *LUID) error {
 //   Deletes the specified list of attributes for process and thread creation.
 //
 // https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-deleteprocthreadattributelist
+//
+// TODO(dij): Are we sure this function does anything? Ghidra shows that it just
+//            returns!
 func DeleteProcThreadAttributeList(a *StartupAttributes) error {
 	r, _, err := syscall.SyscallN(funcDeleteProcThreadAttributeList.address(), uintptr(unsafe.Pointer(a)))
 	if r == 0 {

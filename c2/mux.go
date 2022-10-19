@@ -388,7 +388,7 @@ func muxHandleInternal(s *Session, n *com.Packet, w data.Writer) error {
 		if err := local.Device.Refresh(); err != nil {
 			return err
 		}
-		s.Device = *local.Device.Machine
+		s.Device = local.Device.Machine
 		s.Device.MarshalStream(w)
 		return nil
 	case task.MvProfile:

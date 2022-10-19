@@ -28,9 +28,11 @@ type ctxReader struct {
 	io.ReadCloser
 }
 type nopReadCloser struct {
+	_ [0]func()
 	io.Reader
 }
 type nopWriteCloser struct {
+	_ [0]func()
 	io.Writer
 }
 
@@ -62,7 +64,7 @@ func ReadCloser(r io.Reader) io.ReadCloser {
 	if v, ok := r.(io.ReadCloser); ok {
 		return v
 	}
-	return &nopReadCloser{r}
+	return &nopReadCloser{Reader: r}
 }
 
 // WriteCloser is a function that will wrap the supplied Writer in a NopWriteCloser.
@@ -70,7 +72,7 @@ func WriteCloser(w io.Writer) io.WriteCloser {
 	if v, ok := w.(io.WriteCloser); ok {
 		return v
 	}
-	return &nopWriteCloser{w}
+	return &nopWriteCloser{Writer: w}
 }
 func (r *ctxReader) Read(b []byte) (int, error) {
 	select {
@@ -190,7 +192,7 @@ func NewCtxReader(x context.Context, r io.Reader) io.ReadCloser {
 	if c, ok := r.(io.ReadCloser); ok {
 		i.ReadCloser = c
 	} else {
-		i.ReadCloser = &nopReadCloser{r}
+		i.ReadCloser = &nopReadCloser{Reader: r}
 	}
 	i.ctx, i.cancel = context.WithCancel(x)
 	return i

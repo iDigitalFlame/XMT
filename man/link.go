@@ -78,7 +78,6 @@ type objSync uint8
 // Linker us an interface that specifies an object that can be used to check
 // for a Guardian instance.
 type Linker interface {
-	//String() string
 	check(s string) (bool, error)
 	create(s string) (listener, error)
 }

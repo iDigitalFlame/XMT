@@ -38,6 +38,7 @@ import (
 )
 
 var client struct {
+	_ [0]func()
 	sync.Once
 	v *http.Client
 }

@@ -134,7 +134,7 @@ func ConnectContext(x context.Context, l logx.Log, p Profile) (*Session, error) 
 		return nil, xerr.Wrap("unable to connect", err)
 	}
 	var (
-		s = &Session{ID: local.UUID, Device: *local.Device.Machine}
+		s = &Session{ID: local.UUID, Device: local.Device.Machine}
 		n = &com.Packet{ID: SvHello, Device: local.UUID, Job: uint16(util.FastRand())}
 	)
 	s.host.Set(h)
@@ -302,7 +302,7 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	copy(local.UUID[:], i[:])
 	copy(local.Device.ID[:], i[:])
 	var (
-		s = &Session{ID: i, Device: *local.Device.Machine}
+		s = &Session{ID: i, Device: local.Device.Machine}
 		h string
 	)
 	// KeyCrypt: Migration data to transfer the Session key.

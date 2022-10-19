@@ -26,6 +26,7 @@ import (
 )
 
 type random struct {
+	_ [0]func()
 	*rand.Rand
 }
 

@@ -335,11 +335,34 @@ func CheckFunction(dll, name string, b []byte) (bool, error) {
 		}
 		return false, nil
 	}
-	if (*(*[1]byte)(unsafe.Pointer(p + 1)))[0] == 0xFF {
+	if v := (*(*[1]byte)(unsafe.Pointer(p + 1)))[0]; v == 0xFF || v == 0xCC {
 		if bugtrack.Enabled {
 			bugtrack.Track("winapi.CheckFunction(): Detected an odd JMP instruction at %X, dll=%s, name=%s!", p, dll, name)
 		}
 		return false, nil
+	}
+	if (*(*[1]byte)(unsafe.Pointer(p + 2)))[0] == 0xCC || (*(*[1]byte)(unsafe.Pointer(p + 3)))[0] == 0xCC {
+		if bugtrack.Enabled {
+			bugtrack.Track("winapi.CheckFunction(): Detected an odd INT3 instruction at %X, dll=%s, name=%s!", p, dll, name)
+		}
+		return false, nil
+	}
+	// Interesting notice from BananaPhone: https://github.com/C-Sto/BananaPhone/blob/6585e59137610bc0f526bb6647384df74b4b30f3/pkg/BananaPhone/bananaphone.go#L256
+	// Check for ntdll.dll functions doing syscall prep.
+	// Check the first 4 bytes to see if they match.
+	//
+	//   mov r10, rcx ;(4c 8b d1)
+	//   mov eax, sysid ;(b8 sysid)
+	//
+	// NOTE(dij): This can cause some false positives on non-syscall functions
+	//            such as ETW or heap management functions.
+	if dllNtdll.addr > 0 && h == dllNtdll.addr {
+		if v := *(*[4]byte)(unsafe.Pointer(p)); v[0] != 0x4C && v[1] != 0x8B && v[2] != 0xD1 && v[3] != 0xB8 {
+			if bugtrack.Enabled {
+				bugtrack.Track("winapi.CheckFunction(): Detected an ntdll function that does not match standard syscall instructions at %X, dll=%s, name=%s!", p, dll, name)
+			}
+			return false, nil
+		}
 	}
 	return true, nil
 }

@@ -1,5 +1,7 @@
 # XMT: eXtensible Malware Toolkit
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/iDigitalFlame/xmt.svg)](https://pkg.go.dev/github.com/iDigitalFlame/xmt)
+
 XMT is a full-featured C2 framework written in Golang that allows for control,
 data exfiltration and some other cool functions. Can be used to make full C2
 clients/servers with little out-of-the-box changes.
@@ -7,27 +9,59 @@ clients/servers with little out-of-the-box changes.
 [ThunderStorm](https://github.com/iDigitalFlame/ThunderStorm) would be an implementation
 of this.
 
-The pkg.go.dev site has the framework documentation [here](https://pkg.go.dev/github.com/iDigitalFlame/xmt).
+This framework also contains many utility functions, including:
 
-## TODO
+- Advanced Process Control (Windows)
+- Device Identification
+- User Identification
+- Windows "Window" utils
+- Efficient Data Marshaling interfaces
+- Easy Network communication resources
+- Super low file size! ~5mb completely using [JetStream](https://github.com/iDigitalFlame/ThunderStorm)
+
+The pkg.go.dev site has some of the framework documentation and definitions
+[here](https://pkg.go.dev/github.com/iDigitalFlame/xmt).
+
+## Roadmap
+
+_Updated 10/18/22_
+
+- Reflective DLL Injection (Windows)
+- Linux mem_fd loader
+- "Device Check" package
+  - Detect VM
+  - Anti-VM checks
+- Linux shellcode support
+
+These are some things that would be nice to have, but are not as important as the
+above list:
+
+- Keylogging
+- MultiProxy support
+- X/Wayland/OSX Screenshot support
+- EDR Detection
+- More thread injection options (Windows)
+
+## TODOs
 
 These are some things I need to work on.
 
-- Keyloging
-- MultiProxy Support
-- Shellcode for Linux without CGO (potentially)
-- Add in memory (Reflective) DLL injection (Outside of SRDi)
-- ScreenShot support for macOS/Linux without CGO?
-- More Windows thread creation techniques besides NtCreateThreadEx
+- Documentation
+- Build tags list
+
+## References / Hightlights / Presentations
+
+BSides Las Vegas 2022: So you Wanta Build a C2?
+
+[Video](https://www.youtube.com/watch?v=uAfGtGlHLxs) /
+[Slides](https://public.idigitalflame.com/docs/so_you_wanta_build_a_c2.pdf)
 
 ## Bugs
 
-Issues that I know are broken.
+_Updated 10/18/22_
 
-- _device.GoExit() / winapi.KillRuntime()_: We can't determine which threads are ours (but we DO know they are Golang threads)
-   so we kill threads in the same process as us that might not be ours.
-
-If you're using this, feel free to submit issue tickets or pull requests. (I don't bite, mostly owo)
+So far, we're looking good. Feel free to submit issue tickets or pull requests if
+something is broken or doesn't act right. (I don't bite, mostly owo)
 
 ## Thanks and Credits
 

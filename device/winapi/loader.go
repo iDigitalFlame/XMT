@@ -31,6 +31,7 @@ import (
 const errPending = syscall.Errno(997)
 
 var searchSystem32 struct {
+	_ [0]func()
 	sync.Once
 	v bool
 }

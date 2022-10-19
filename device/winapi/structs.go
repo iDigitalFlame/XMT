@@ -412,7 +412,7 @@ func (s *SID) IsWellKnown(t uint32) bool {
 	return r > 0
 }
 func (s *SecurityDescriptor) len() uint32 {
-	r, _, _ := syscall.SyscallN(funcGetSecurityDescriptorLength.address(), uintptr(unsafe.Pointer(s)))
+	r, _, _ := syscall.SyscallN(funcRtlLengthSecurityDescriptor.address(), uintptr(unsafe.Pointer(s)))
 	return uint32(r)
 }
 func localFree(h uintptr) (uintptr, error) {

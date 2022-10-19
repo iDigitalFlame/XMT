@@ -29,6 +29,7 @@ import (
 )
 
 type proxyBase struct {
+	_ [0]func()
 	*Proxy
 }
 
@@ -153,7 +154,7 @@ func (s *Session) NewProxy(name, addr string, p Profile) (*Proxy, error) {
 	if v.ctx, v.cancel = context.WithCancel(s.ctx); cout.Enabled {
 		s.log.Info("[%s/P] Added Proxy Listener on %q!", s.ID, h)
 	}
-	s.proxy = &proxyBase{v}
+	s.proxy = &proxyBase{Proxy: v}
 	s.updateProxyStats() // true, name)
 	go v.listen()
 	return v, nil

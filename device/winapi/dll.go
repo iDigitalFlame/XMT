@@ -1,3 +1,5 @@
+//go:build windows || (!windows && !implant)
+
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //
 // This program is free software: you can redistribute it and/or modify
@@ -24,13 +26,13 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-const sectionSize = unsafe.Sizeof(sectionHeader{})
+const sectionSize = unsafe.Sizeof(imageSectionHeader{})
 
-type ntHeader struct {
+type imageNtHeader struct {
 	Signature uint32
-	File      fileHeader
+	File      imageFileHeader
 }
-type exportDir struct {
+type imageExportDir struct {
 	_, _                  uint32
 	_, _                  uint16
 	Name                  uint32
@@ -41,19 +43,19 @@ type exportDir struct {
 	AddressOfNames        uint32
 	AddressOfNameOrdinals uint32
 }
-type dosHeader struct {
+type imageDosHeader struct {
 	magic uint16
 	_     [56]byte
 	pos   int32
 }
-type fileHeader struct {
+type imageFileHeader struct {
 	Machine              uint16
 	NumberOfSections     uint16
 	_, _, _              uint32
 	SizeOfOptionalHeader uint16
 	Characteristics      uint16
 }
-type sectionHeader struct {
+type imageSectionHeader struct {
 	Name             [8]uint8
 	VirtualSize      uint32
 	VirtualAddress   uint32
@@ -63,19 +65,19 @@ type sectionHeader struct {
 	_, _             uint16
 	Characteristics  uint32
 }
-type dataDirectory struct {
+type imageDataDirectory struct {
 	VirtualAddress uint32
 	Size           uint32
 }
-type optionalHeader32 struct {
+type imageOptionalHeader32 struct {
 	_                   [92]byte
 	NumberOfRvaAndSizes uint32
-	Directory           [16]dataDirectory
+	Directory           [16]imageDataDirectory
 }
-type optionalHeader64 struct {
+type imageOptionalHeader64 struct {
 	_                   [108]byte
 	NumberOfRvaAndSizes uint32
-	Directory           [16]dataDirectory
+	Directory           [16]imageDataDirectory
 }
 
 func byteString(b [256]byte) string {
@@ -114,14 +116,6 @@ func ExtractDLLBase(dll string) (uint32, []byte, error) {
 func ExtractDLLBaseRaw(v []byte) (uint32, []byte, error) {
 	_, s, _, b, err := extractDLLBase(v)
 	return s.VirtualAddress, b[s.PointerToRawData:s.SizeOfRawData], err
-}
-func extractDLLBase86(p int32, b []byte) [16]dataDirectory {
-	o := (*optionalHeader32)(unsafe.Pointer(&b[p]))
-	return o.Directory
-}
-func extractDLLBase64(p int32, b []byte) [16]dataDirectory {
-	o := (*optionalHeader64)(unsafe.Pointer(&b[p]))
-	return o.Directory
 }
 
 // ExtractDLLFunction will extract 'count' bytes from the supplied DLL file path
@@ -162,7 +156,7 @@ func ExtractDLLFunctionRaw(v []byte, name string, count uint32) ([]byte, error) 
 		count = 16
 	}
 	var (
-		i = (*exportDir)(unsafe.Pointer(&b[e.PointerToRawData+a]))
+		i = (*imageExportDir)(unsafe.Pointer(&b[e.PointerToRawData+a]))
 		h = e.PointerToRawData - e.VirtualAddress
 		f = h + i.AddressOfFunctions
 		s = h + i.AddressOfNames
@@ -196,15 +190,18 @@ func ExtractDLLFunctionRaw(v []byte, name string, count uint32) ([]byte, error) 
 	}
 	return r, nil
 }
-func extractDLLBase(b []byte) (uint32, *sectionHeader, *sectionHeader, []byte, error) {
-	d := (*dosHeader)(unsafe.Pointer(&b[0]))
+func extractDLLBase(b []byte) (uint32, *imageSectionHeader, *imageSectionHeader, []byte, error) {
+	if len(b) == 0 {
+		return 0, nil, nil, nil, xerr.Sub("base is not a valid DOS header", 0x19)
+	}
+	d := (*imageDosHeader)(unsafe.Pointer(&b[0]))
 	if d.magic != 0x5A4D {
 		return 0, nil, nil, nil, xerr.Sub("base is not a valid DOS header", 0x19)
 	}
 	if len(b) < int(d.pos) {
 		return 0, nil, nil, nil, xerr.Sub("offset base is not a valid NT header", 0x1A)
 	}
-	n := *(*ntHeader)(unsafe.Pointer(&b[d.pos]))
+	n := *(*imageNtHeader)(unsafe.Pointer(&b[d.pos]))
 	if n.Signature != 0x00004550 {
 		return 0, nil, nil, nil, xerr.Sub("offset base is not a valid NT header", 0x1A)
 	}
@@ -214,25 +211,24 @@ func extractDLLBase(b []byte) (uint32, *sectionHeader, *sectionHeader, []byte, e
 	switch n.File.Machine {
 	case 0, 0x14C, 0x1C4, 0xAA64, 0x8664:
 	default:
-		return 0, nil, nil, nil, xerr.Sub("header does not represent a valid DLL", 0x1B)
+		return 0, nil, nil, nil, xerr.Sub("header does not represent a DLL", 0x1B)
 	}
 	var (
 		p = d.pos + int32(unsafe.Sizeof(n))
-		m = *(*uint16)(unsafe.Pointer(&b[p]))
-		v [16]dataDirectory
+		v [16]imageDataDirectory
 	)
-	if m == 0x20B {
-		v = extractDLLBase64(p, b)
+	if *(*uint16)(unsafe.Pointer(&b[p])) == 0x20B {
+		v = (*imageOptionalHeader64)(unsafe.Pointer(&b[p])).Directory
 	} else {
-		v = extractDLLBase86(p, b)
+		v = (*imageOptionalHeader32)(unsafe.Pointer(&b[p])).Directory
 	}
 	p = d.pos + int32(unsafe.Sizeof(n.File)) + int32(n.File.SizeOfOptionalHeader) + 4
 	// NOTE(dij): For clarity 's' is our '.text' section, it CAN be our entry
 	//            points section, but it might not. 'e' will store the entry
 	//            points section.
-	var s, e *sectionHeader
+	var s, e *imageSectionHeader
 	for i := uint16(0); i < n.File.NumberOfSections; i++ {
-		x := (*sectionHeader)(unsafe.Pointer(&b[p+(int32(sectionSize)*int32(i))]))
+		x := (*imageSectionHeader)(unsafe.Pointer(&b[p+(int32(sectionSize)*int32(i))]))
 		// Find the '.text' section
 		if x.Name[0] == 0x2E && x.Name[1] == 0x74 && x.Name[3] == 0x78 {
 			s = x

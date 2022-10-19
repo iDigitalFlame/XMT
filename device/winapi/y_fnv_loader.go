@@ -30,6 +30,7 @@ import (
 )
 
 type lazyDLL struct {
+	_ [0]func()
 	sync.Mutex
 	funcs map[uint32]*lazyProc
 	name  string
@@ -39,41 +40,6 @@ type lazyProc struct {
 	_    [0]func()
 	dll  *lazyDLL
 	addr uintptr
-}
-type imageNtHeader struct {
-	Signature uint32
-	File      imageFileHeader
-	Optional  imageOptionalHeader
-}
-type imageExportDir struct {
-	_, _                  uint32
-	_, _                  uint16
-	Name                  uint32
-	Base                  uint32
-	NumberOfFunctions     uint32
-	NumberOfNames         uint32
-	AddressOfFunctions    uint32
-	AddressOfNames        uint32
-	AddressOfNameOrdinals uint32
-}
-type imageDosHeader struct {
-	magic               uint16
-	_, _, _, _, _, _, _ uint16
-	_, _, _, _, _, _    uint16
-	_                   [4]uint16
-	_                   uint16
-	_                   [10]uint16
-	pos                 int32
-}
-type imageFileHeader struct {
-	_, _            uint16
-	_, _, _         uint32
-	_               uint16
-	Characteristics uint16
-}
-type imageDataDirectory struct {
-	VirtualAddress uint32
-	Size           uint32
 }
 
 func (d *lazyDLL) load() error {
@@ -135,22 +101,36 @@ func (d *lazyDLL) initFunctions(h uintptr) error {
 	if b.magic != 0x5A4D {
 		return xerr.Sub("base is not a valid DOS header", 0x19)
 	}
-	n := (*imageNtHeader)(unsafe.Pointer(h + uintptr(b.pos)))
+	n := *(*imageNtHeader)(unsafe.Pointer(h + uintptr(b.pos)))
 	if n.Signature != 0x00004550 {
 		return xerr.Sub("offset base is not a valid NT header", 0x1A)
 	}
 	if n.File.Characteristics&0x2000 == 0 {
 		return xerr.Sub("header does not represent a DLL", 0x1B)
 	}
-	if n.Optional.Directory[0].Size == 0 || n.Optional.Directory[0].VirtualAddress == 0 {
+	switch n.File.Machine {
+	case 0, 0x14C, 0x1C4, 0xAA64, 0x8664:
+	default:
+		return xerr.Sub("header does not represent a DLL", 0x1B)
+	}
+	var (
+		p = b.pos + int32(unsafe.Sizeof(n))
+		v [16]imageDataDirectory
+	)
+	if *(*uint16)(unsafe.Pointer(h + uintptr(p))) == 0x20B {
+		v = (*imageOptionalHeader64)(unsafe.Pointer(h + uintptr(p))).Directory
+	} else {
+		v = (*imageOptionalHeader32)(unsafe.Pointer(h + uintptr(p))).Directory
+	}
+	if v[0].Size == 0 || v[0].VirtualAddress == 0 {
 		return xerr.Sub("header has an invalid first entry point", 0x1C)
 	}
 	var (
-		i = (*imageExportDir)(unsafe.Pointer(h + uintptr(n.Optional.Directory[0].VirtualAddress)))
+		i = (*imageExportDir)(unsafe.Pointer(h + uintptr(v[0].VirtualAddress)))
 		f = h + uintptr(i.AddressOfFunctions)
 		s = h + uintptr(i.AddressOfNames)
 		o = h + uintptr(i.AddressOfNameOrdinals)
-		m = h + uintptr(n.Optional.Directory[0].VirtualAddress) + uintptr(n.Optional.Directory[0].Size)
+		m = h + uintptr(v[0].VirtualAddress) + uintptr(v[0].Size)
 	)
 	for x, k, a := uint32(0), uint32(0), uintptr(0); x < i.NumberOfNames; x++ {
 		k = fnvHash(*(*[256]byte)(unsafe.Pointer(

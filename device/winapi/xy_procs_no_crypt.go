@@ -23,7 +23,7 @@ var (
 	funcFormatMessage = dllKernelBase.proc("FormatMessageW")
 
 	funcNtClose                     = dllNtdll.proc("NtClose")
-	funcHeapFree                    = dllNtdll.proc("RtlFreeHeap")
+	funcRtlFreeHeap                 = dllNtdll.proc("RtlFreeHeap")
 	funcNtTraceEvent                = dllNtdll.proc("NtTraceEvent")
 	funcEtwEventWrite               = dllNtdll.proc("EtwEventWrite")
 	funcDbgBreakPoint               = dllNtdll.proc("DbgBreakPoint")
@@ -61,7 +61,7 @@ var (
 	funcNtQueryInformationThread    = dllNtdll.proc("NtQueryInformationThread")
 	funcNtQuerySystemInformation    = dllNtdll.proc("NtQuerySystemInformation")
 	funcNtQueryInformationProcess   = dllNtdll.proc("NtQueryInformationProcess")
-	funcGetSecurityDescriptorLength = dllNtdll.proc("RtlLengthSecurityDescriptor")
+	funcRtlLengthSecurityDescriptor = dllNtdll.proc("RtlLengthSecurityDescriptor")
 
 	funcSetEvent                      = dllKernelBase.proc("SetEvent")
 	funcReadFile                      = dllKernelBase.proc("ReadFile")
@@ -179,7 +179,6 @@ var (
 	funcWTSCloseServer             = dllWtsapi32.proc("WTSCloseServer")
 	funcWTSSendMessage             = dllWtsapi32.proc("WTSSendMessageW")
 	funcWTSLogoffSession           = dllWtsapi32.proc("WTSLogoffSession")
-	funcWTSQueryUserToken          = dllWtsapi32.proc("WTSQueryUserToken")
 	funcWTSEnumerateSessions       = dllWtsapi32.proc("WTSEnumerateSessionsW")
 	funcWTSDisconnectSession       = dllWtsapi32.proc("WTSDisconnectSession")
 	funcWTSEnumerateProcesses      = dllWtsapi32.proc("WTSEnumerateProcessesW")

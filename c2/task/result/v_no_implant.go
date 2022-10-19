@@ -36,6 +36,7 @@ import (
 //
 // Copied here from the winapi package.
 type Window struct {
+	_             [0]func()
 	Name          string
 	Flags         uint8
 	Handle        uintptr
@@ -43,6 +44,7 @@ type Window struct {
 	Width, Height int32
 }
 type fileInfo struct {
+	_    [0]func()
 	mod  time.Time
 	name string
 	size int64

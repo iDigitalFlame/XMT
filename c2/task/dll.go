@@ -64,8 +64,7 @@ import (
 //      uint32              // PID
 //      int32               // Exit Code
 type DLL struct {
-	Filter *filter.Filter
-
+	Filter  *filter.Filter
 	Path    string
 	Data    []byte
 	Wait    bool

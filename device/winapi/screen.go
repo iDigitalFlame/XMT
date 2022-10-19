@@ -20,6 +20,7 @@ package winapi
 
 import (
 	"image"
+	"image/color"
 	"image/png"
 	"io"
 	"runtime"
@@ -27,17 +28,19 @@ import (
 	"sync"
 	"syscall"
 	"unsafe"
-
-	"github.com/iDigitalFlame/xmt/data"
 )
 
 var screenFunctions struct {
+	_ [0]func()
 	sync.Once
 	c, b uintptr
 }
 
 type rect struct {
-	Left, Top, Right, Bottom int32
+	Left   int32
+	Top    int32
+	Right  int32
+	Bottom int32
 }
 type point struct {
 	X, Y int32
@@ -57,6 +60,11 @@ type devMode struct {
 	Width    uint32
 	Height   uint32
 	_        [40]byte
+}
+type imagePtr struct {
+	_ [0]func()
+	h uintptr
+	b image.Rectangle
 }
 type boundsInfo struct {
 	Index uint32
@@ -123,6 +131,9 @@ func getDC(w uintptr) (uintptr, error) {
 	}
 	return r, nil
 }
+func (imagePtr) ColorModel() color.Model {
+	return color.RGBAModel
+}
 func getDesktopWindow() (uintptr, error) {
 	r, _, err := syscall.SyscallN(funcGetDesktopWindow.address())
 	if r == 0 {
@@ -154,6 +165,27 @@ func deleteDC(h uintptr) (uintptr, error) {
 		return 0, unboxError(err)
 	}
 	return r, nil
+}
+func (i imagePtr) At(x, y int) color.Color {
+	// NOTE(dij): There's no point of double copy-ing the bytes, so we just use
+	//            this helper to "flip" it (it's basically reversed with alpha
+	//            as a constant) and write it out to the Writer directly.
+	//
+	//            Gotta do this as the runtime seems to like to hold onto the
+	//            RGBA struct for some reason, even when we clear it.
+	if i.b.Min.X > x || x >= i.b.Max.X || i.b.Min.Y > y || y >= i.b.Max.Y {
+		return color.RGBA64{}
+	}
+	b := *(*[4]byte)(unsafe.Pointer(i.h + uintptr((y-i.b.Min.Y)*(4*(i.b.Max.X-i.b.Min.X))+(x-i.b.Min.X)*4)))
+	return color.RGBA64{
+		R: uint16(b[2])<<8 | uint16(b[2]),
+		G: uint16(b[1])<<8 | uint16(b[1]),
+		B: uint16(b[0])<<8 | uint16(b[0]),
+		A: 0xFFFF,
+	}
+}
+func (i imagePtr) Bounds() image.Rectangle {
+	return i.b
 }
 func deleteObject(h uintptr) (uintptr, error) {
 	r, _, err := syscall.SyscallN(funcDeleteObject.address(), h)
@@ -234,22 +266,7 @@ func ScreenShot(x, y, width, height uint32, w io.Writer) error {
 			if o, err = selectObject(d, b); err == nil {
 				if err = bitBlt(d, 0, 0, width, height, m, x, y, 0xCC0020); err == nil {
 					if _, err = getDIBits(m, b, 0, height, (*uint8)(unsafe.Pointer(l)), (*bitmapInfo)(unsafe.Pointer(&h)), 0); err == nil {
-						var r *image.RGBA
-						if r, err = tryCreateImage(image.Rect(0, 0, int(width), int(height))); err == nil {
-							_ = r.Pix[len(r.Pix)-1]
-							for z, i, k := l, 0, uint32(0); k < height && i < len(r.Pix); k++ {
-								for j := uint32(0); j < width; j++ {
-									r.Pix[i], r.Pix[i+1], r.Pix[i+2], r.Pix[i+3] = *(*uint8)(unsafe.Pointer(z + 2)), *(*uint8)(unsafe.Pointer(z + 1)), *(*uint8)(unsafe.Pointer(z)), 0xFF
-									i += 4
-									z += 4
-								}
-							}
-							err = png.Encode(w, r)
-							for i := range r.Pix {
-								r.Pix[i] = 0 // Should be a memclr.
-							}
-							r.Pix, r = nil, nil
-						}
+						err = png.Encode(w, imagePtr{h: l, b: image.Rect(0, 0, int(width), int(height))})
 					}
 				}
 				selectObject(d, o)
@@ -264,14 +281,6 @@ func ScreenShot(x, y, width, height uint32, w io.Writer) error {
 	runtime.GC()
 	debug.FreeOSMemory()
 	return err
-}
-func tryCreateImage(r image.Rectangle) (i *image.RGBA, err error) {
-	defer func() {
-		if recover() != nil {
-			err = data.ErrTooLarge
-		}
-	}()
-	return image.NewRGBA(r), nil
 }
 func monitorCountCallback(_, _ uintptr, _ *rect, d uintptr) uintptr {
 	n := (*uint32)(unsafe.Pointer(d))

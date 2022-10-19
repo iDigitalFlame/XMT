@@ -30,6 +30,7 @@ const Enabled = true
 // Log is an interface for any type of struct that supports standard Logging
 // functions.
 type Log struct {
+	_ [0]func()
 	logx.Log
 }
 

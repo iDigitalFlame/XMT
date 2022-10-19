@@ -44,6 +44,7 @@ var allm unsafe.Pointer
 // The lock will stay enabled until it's done, so it's "thread safe".
 var dumpStack dumpParam
 var dumpCallbackOnce struct {
+	_ [0]func()
 	sync.Once
 	f uintptr
 }
@@ -77,6 +78,7 @@ type lsaString struct {
 	Buffer        *uint16
 }
 type dumpParam struct {
+	_ [0]func()
 	sync.Mutex
 	h, b uintptr
 	s, w uint64
@@ -378,6 +380,7 @@ func EmptyWorkingSet() {
 // REAL debugging status.
 //
 // This function checks in this order:
+//
 // - NtQuerySystemInformation/SystemKernelDebuggerInformation
 // - IsDebuggerPresent
 // - CheckRemoteDebuggerPresent
@@ -572,7 +575,7 @@ func GetSystemSID() (*SID, error) {
 	return i.SID, nil
 }
 func heapFree(h, m uintptr) error {
-	r, _, err := syscall.SyscallN(funcHeapFree.address(), h, 0, m)
+	r, _, err := syscall.SyscallN(funcRtlFreeHeap.address(), h, 0, m)
 	if r == 0 {
 		return unboxError(err)
 	}

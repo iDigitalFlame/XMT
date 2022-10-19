@@ -32,7 +32,6 @@ var TargetEmpty Target
 // 'text.String' wrapper. This struct can be used as a C2 client connector. If
 // the Client property is not set, the DefaultClient value will be used.
 type Target struct {
-	_                [0]func()
 	URL, Host, Agent Stringer
 	Headers          map[string]Stringer
 }

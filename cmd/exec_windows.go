@@ -51,6 +51,7 @@ var envOnce struct {
 	e []string
 }
 var secOnce struct {
+	_ [0]func()
 	sync.Once
 	e bool
 }

@@ -38,6 +38,7 @@ var (
 //
 // This struct is similar to 'device.Login' but contains more non-generic data.
 type Session struct {
+	_         [0]func()
 	User      string
 	Host      string
 	Domain    string
@@ -72,7 +73,6 @@ type wtsSession struct {
 	Station   *uint16
 	State     uint32
 }
-
 type wtsProcess struct {
 	// DO NOT REORDER
 	SessionID uint32
@@ -84,6 +84,7 @@ type wtsProcess struct {
 // SessionProcess is a struct that contains information about a Process reterived
 // via a 'WTSEnumerateProcesses' call.
 type SessionProcess struct {
+	_         [0]func()
 	Name      string
 	User      string
 	SessionID uint32
@@ -128,10 +129,10 @@ func (s *Session) getSessionInfo(h uintptr) error {
 		return unboxError(err)
 	}
 	switch a.Family {
-	case 2:
+	case 0x2:
 		copy(s.From[0:], a.Address[2:6])
 		s.Remote = true
-	case 23:
+	case 0x17:
 		copy(s.From[0:], a.Address[0:])
 		s.Remote = true
 	default:
@@ -159,24 +160,6 @@ func WTSOpenServer(server string) (uintptr, error) {
 		return invalid, unboxError(err1)
 	}
 	return r, nil
-}
-
-// WTSQueryUserToken Windows API Call
-//   Obtains the primary access token of the logged-on user specified by the
-//   session ID. To call this function successfully, the calling application
-//   must be running within the context of the LocalSystem account and have the
-//   SE_TCB_NAME privilege.
-//
-// https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsqueryusertoken
-func WTSQueryUserToken(sid int32) (uintptr, error) {
-	var (
-		h         uintptr
-		r, _, err = syscall.SyscallN(funcWTSQueryUserToken.address(), uintptr(sid), uintptr(unsafe.Pointer(&h)))
-	)
-	if r == 0 {
-		return 0, unboxError(err)
-	}
-	return h, nil
 }
 
 // WTSGetSessions will attempt to reterive a detailed list of all Sessions

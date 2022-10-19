@@ -28,6 +28,7 @@ import (
 
 var winCb windowSearcher
 var enumWindowsOnce struct {
+	_ [0]func()
 	sync.Once
 	f uintptr
 }
@@ -50,6 +51,7 @@ type input struct {
 // Window is a struct that represents a Windows Window. The handles are the same
 // for the duration of the Window's existence.
 type Window struct {
+	_             [0]func()
 	Name          string
 	Flags         uint8
 	Handle        uintptr

@@ -63,6 +63,7 @@ type OSType uint8
 
 // Login is a struct that represents a current user Session on the device.
 type Login struct {
+	_         [0]func()
 	User      string
 	Host      string
 	Login     time.Time

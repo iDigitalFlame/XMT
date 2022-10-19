@@ -51,6 +51,7 @@ type proxyData struct {
 }
 type eventer chan event
 type connection struct {
+	_   [0]func()
 	s   *Server
 	w   Wrapper
 	t   Transform

@@ -18,12 +18,16 @@
 
 package winapi
 
-import "unsafe"
+import (
+	"syscall"
+	"unsafe"
+)
 
 // ThreadEntry is a basic struct passed to the user supplied function during
 // a call to 'EnumThreads'. This struct supplies basic Thread information and
 // can be used to gain more information about a Thread.
 type ThreadEntry struct {
+	_   [0]func()
 	TID uint32
 	PID uint32
 	sus uint8
@@ -33,6 +37,7 @@ type ThreadEntry struct {
 // a call to 'EnumProcesses'. This struct supplies basic Process information
 // and can be used to gain more information about a Process.
 type ProcessEntry struct {
+	_       [0]func()
 	Name    string
 	PID     uint32
 	PPID    uint32
@@ -109,6 +114,10 @@ func (t ThreadEntry) suspended(h uintptr) (bool, error) {
 	if t.sus > 0 {
 		return t.sus == 2, nil
 	}
+	if getCurrentThreadID() == t.TID {
+		// Can't do a suspend/resume cycle on ourselves.
+		return false, syscall.EINVAL
+	}
 	if _, err := SuspendThread(h); err != nil {
 		return false, err
 	}
@@ -122,7 +131,7 @@ func (t ThreadEntry) suspended(h uintptr) (bool, error) {
 // Info will attempt to retrieve the Process session and Token elevation status
 // and return it as a boolean (true if elevated) and a Session ID.
 //
-// The access mask can be used to determin the open permissions for the Process
+// The access mask can be used to determine the open permissions for the Process
 // and this function will automatically add the PROCESS_QUERY_INFORMATION mask.
 // If no access testing is desired, a value of zero is accepted.
 //
@@ -142,7 +151,7 @@ func (p ProcessEntry) Info(a uint32, elevated, session bool) (bool, uint32, erro
 // InfoEx will attempt to retrieve the Process handle (optional) session and Token
 // elevation status and return it as a boolean (true if elevated) and a Session ID.
 //
-// The access mask can be used to determin the open permissions for the Process
+// The access mask can be used to determine the open permissions for the Process
 // and this function will automatically add the PROCESS_QUERY_INFORMATION mask.
 // If no access testing is desired, a value of zero is accepted. Unlike the non-Ex
 // function 'Info', this function will return the un-closed Process handle if

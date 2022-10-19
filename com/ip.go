@@ -34,6 +34,7 @@ type ipStream struct {
 	udpStream
 }
 type ipListener struct {
+	_ [0]func()
 	net.Listener
 	proto byte
 }
@@ -42,6 +43,7 @@ type ipConnector struct {
 	proto byte
 }
 type ipPacketConn struct {
+	_ [0]func()
 	net.PacketConn
 }
 
@@ -80,7 +82,7 @@ func (i *ipConnector) Listen(x context.Context, s string) (net.Listener, error) 
 		new:  make(chan *udpConn, 16),
 		del:  make(chan udpAddr, 16),
 		cons: make(map[udpAddr]*udpConn),
-		sock: &ipPacketConn{c},
+		sock: &ipPacketConn{PacketConn: c},
 	}
 	l.ctx, l.cancel = context.WithCancel(x)
 	go l.purge()

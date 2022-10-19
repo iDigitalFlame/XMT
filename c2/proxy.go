@@ -58,6 +58,7 @@ type Proxy struct {
 	state      state
 }
 type proxyClient struct {
+	_         [0]func()
 	send, chn chan *com.Packet
 	wake      chan struct{}
 	peek      *com.Packet

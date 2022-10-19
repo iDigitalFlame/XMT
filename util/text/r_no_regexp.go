@@ -25,6 +25,7 @@ import (
 )
 
 type tokenMatcher struct {
+	_ [0]func()
 	v string
 	i bool
 }

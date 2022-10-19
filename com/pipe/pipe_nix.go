@@ -33,6 +33,7 @@ import (
 var dialer = new(net.Dialer)
 
 type listener struct {
+	_ [0]func()
 	p string
 	net.Listener
 }

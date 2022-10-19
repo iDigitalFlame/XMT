@@ -19,6 +19,7 @@ package data
 import "io"
 
 type reader struct {
+	_   [0]func()
 	r   io.Reader
 	buf [8]byte
 }

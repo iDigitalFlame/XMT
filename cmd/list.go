@@ -23,6 +23,7 @@ import "github.com/iDigitalFlame/xmt/data"
 //
 // This struct also supports binary Marshaling/UnMarshaling.
 type ProcessInfo struct {
+	_          [0]func()
 	Name, User string
 	PID, PPID  uint32
 }

@@ -35,7 +35,7 @@ var (
 
 // Device is the pointer to the local machine instance. This instance is loaded
 // at runtime and is used for local data gathering and identification.
-var Device = (&local{&device.Machine{
+var Device = (&local{Machine: device.Machine{
 	ID:       UUID,
 	PID:      uint32(os.Getpid()),
 	PPID:     getPPID(),
@@ -47,7 +47,7 @@ var Device = (&local{&device.Machine{
 }}).init()
 
 type local struct {
-	*device.Machine
+	/* * */ device.Machine
 }
 
 // Elevated will return true if the current process has elevated privileges,

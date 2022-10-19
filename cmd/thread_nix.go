@@ -21,6 +21,7 @@ package cmd
 import "github.com/iDigitalFlame/xmt/device"
 
 type thread struct {
+	_   [0]func()
 	ctx any
 }
 

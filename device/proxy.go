@@ -47,12 +47,14 @@ type matchIP struct {
 }
 type matchAll struct{}
 type matchCIDR struct {
+	_ [0]func()
 	*net.IPNet
 }
 type matcher interface {
 	match(string, string, net.IP) bool
 }
 type matchDomain struct {
+	_ [0]func()
 	h string
 	p string
 	x bool
@@ -74,7 +76,7 @@ func (c *config) parse() {
 			return
 		}
 		if _, r, err := net.ParseCIDR(v); err == nil {
-			c.ip = append(c.ip, matchCIDR{r})
+			c.ip = append(c.ip, matchCIDR{IPNet: r})
 			continue
 		}
 		h, p, err := net.SplitHostPort(v)

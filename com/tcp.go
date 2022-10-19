@@ -24,7 +24,6 @@ import (
 )
 
 type tcpClient struct {
-	_ [0]func()
 	c tcpConnector
 }
 type tcpListener struct {

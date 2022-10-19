@@ -93,6 +93,7 @@ const (
 var service Service
 
 var callBack struct {
+	_ [0]func()
 	sync.Once
 	f, m uintptr
 }
@@ -125,6 +126,7 @@ type Change struct {
 // Status combines State and Accepted commands to fully describe running
 // service.
 type Status struct {
+	_          [0]func()
 	State      State
 	Accepts    Accepted
 	CheckPoint uint32
