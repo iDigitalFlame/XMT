@@ -36,7 +36,13 @@ jobs:
       run: |
         go test ./...
 
-    - name: Coveralls
-      uses: coverallsapp/github-action@master
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Generate Coverage Profile
+      run: |
+        go test -v -cover ./... -coverprofile coverage.out -coverpkg ./...
+        go tool cover -func coverage.out -o coverage.out
+
+    - name: Upload coverage reports to Codecov
+      run: |
+        curl -Os https://uploader.codecov.io/latest/linux/codecov
+        chmod +x codecov
+        ./codecov
