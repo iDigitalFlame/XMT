@@ -26,9 +26,8 @@ import (
 	"github.com/iDigitalFlame/xmt/data"
 )
 
-const epoch = 116444736000000000
-
-var (
+const (
+	epoch          = 0x19DB1DED53E8000
 	wtsProcSize    = unsafe.Sizeof(wtsProcess{})
 	wtsSessionSize = unsafe.Sizeof(wtsSession{})
 )

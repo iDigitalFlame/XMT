@@ -37,7 +37,7 @@ const (
 	ErrInsufficientBuffer syscall.Errno = 122
 )
 
-var (
+const (
 	// CurrentThread returns the handle for the current thread. It is a pseudo
 	// handle that does not need to be closed.
 	CurrentThread = ^uintptr(2 - 1)

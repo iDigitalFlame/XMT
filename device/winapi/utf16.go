@@ -30,8 +30,8 @@ const (
 	utfSurgA       = 0xd800
 	utfSurgB       = 0xdc00
 	utfSurgC       = 0xe000
-	utfRuneMax     = '\U0010FFFF'
-	utfReplacement = '\uFFFD'
+	utfRuneMax     = rune(0x10FFFF) // '\U0010FFFF'
+	utfReplacement = rune(0xFFFD)   // '\uFFFD'
 )
 
 // SliceHeader is the runtime representation of a slice.
@@ -167,7 +167,7 @@ func utf16Encode(s []rune) ([]uint16, error) {
 }
 func utf16EncodeRune(r rune) (uint16, uint16) {
 	if r < utfSelf || r > utfRuneMax {
-		return utfReplacement, utfReplacement
+		return uint16(utfReplacement), uint16(utfReplacement)
 	}
 	r -= utfSelf
 	return uint16(utfSurgA + (r>>10)&0x3FF), uint16(utfSurgB + r&0x3FF)

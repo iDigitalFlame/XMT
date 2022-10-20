@@ -89,9 +89,9 @@ func (t ThreadEntry) IsSuspended() (bool, error) {
 	return s, nil
 }
 
-// Handle is a convenience function that calls 'OpenProcess' on the Process with
-// the supplied access mask and returns a Process handle that must be closed
-// when you are done using.
+// Handle is a convenience function that calls 'OpenThread' on the Thread with
+// the supplied access mask and returns a Thread handle that must be closed
+// when you are done using it.
 //
 // This function does NOT make handles inheritable.
 //
@@ -102,7 +102,7 @@ func (t ThreadEntry) Handle(a uint32) (uintptr, error) {
 
 // Handle is a convenience function that calls 'OpenProcess' on the Process with
 // the supplied access mask and returns a Process handle that must be closed
-// when you are done using.
+// when you are done using it.
 //
 // This function does NOT make handles inheritable.
 //
@@ -174,13 +174,17 @@ func (p ProcessEntry) InfoEx(a uint32, elevated, session, handle bool) (uintptr,
 	// NOTE(dij): The reason we have an access param is so we can only open
 	//            the handle once while we're doing this to "check" if we can
 	//            access it with the requested access we want.
-	//            When Filters don't call this function, we do a quick 'Handle'
-	//            check to make sure we can open it before adding to the eval list.
+	//            When Filters call this function, we do a quick 'Handle' check
+	//            to make sure we can open it before adding to the eval list.
 	h, err := OpenProcess(a|0x400, false, p.PID)
 	if err != nil {
 		return 0, false, 0, err
 	}
 	if !elevated && !session {
+		if !handle {
+			CloseHandle(h)
+			return 0, false, 0, nil
+		}
 		return h, false, 0, nil
 	}
 	var t uintptr
@@ -214,6 +218,7 @@ func (p ProcessEntry) InfoEx(a uint32, elevated, session, handle bool) (uintptr,
 	}
 	if CloseHandle(t); !handle {
 		CloseHandle(h)
+		return 0, e, v, nil
 	}
 	return h, e, v, nil
 }
