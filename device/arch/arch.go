@@ -14,6 +14,9 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+// Package arch contains platform architecture constants and a specific type
+// that correlates to the current system architecture.
+//
 package arch
 
 const (

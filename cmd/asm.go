@@ -1,5 +1,3 @@
-package cmd
-
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //
 // This program is free software: you can redistribute it and/or modify
@@ -15,6 +13,8 @@ package cmd
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
+
+package cmd
 
 import (
 	"context"

@@ -14,6 +14,10 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+// Package pipe contains a cross-device compatable Pipes/NamedPipes connection
+// interface. This package differs from the standard library as it allows for
+// setting permissions on the Pipes without any OS-specific functions.
+//
 package pipe
 
 import (

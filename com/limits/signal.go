@@ -14,6 +14,11 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+// Package limits contains many options for setting Global limits on how the
+// overall application behaves. Many of these options are configured by build tags.
+//
+// Other functions include re-implemented standard library functions.
+//
 package limits
 
 import (

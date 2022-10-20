@@ -23,6 +23,7 @@
 // The other exported types allow for generation of mutable expressions that can
 // be used to generate matching regular expression values. These work well with
 // any package that works with stringers, such as the "wc2" package.
+//
 package text
 
 import (

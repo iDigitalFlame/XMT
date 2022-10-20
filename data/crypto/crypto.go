@@ -14,6 +14,9 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+// Package crypto contains helper functions and interfaces that can be used to
+// easily read and write different types of encrypted data.
+//
 package crypto
 
 import (

@@ -14,6 +14,10 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+// Package registry contains code to handle common Windows registry operations.
+//
+// Optimized copy from sys/windows/registry to work with Crypt.
+//
 package registry
 
 import "github.com/iDigitalFlame/xmt/util/xerr"

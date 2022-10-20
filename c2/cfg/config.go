@@ -17,6 +17,7 @@
 // Package cfg is used to generate Binary versions of C2 Profiles and can be
 // used to create automatic Profile 'Groups' with multiple communication and
 // encoding types to be used by a Single session.
+//
 package cfg
 
 import (

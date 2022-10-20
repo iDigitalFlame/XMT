@@ -14,6 +14,9 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+// Package wc2 contains a HTTP/Web based communication channel, which follows
+// the Golang 'net.Conn' interface and is very configurable.
+//
 package wc2
 
 import (

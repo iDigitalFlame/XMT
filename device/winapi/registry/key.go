@@ -16,9 +16,6 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-// Package registry
-//
-// Optimized copy from sys/windows/registry to work with Crypt.
 package registry
 
 import (

@@ -14,6 +14,10 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+// Package transform contains built-in implementations of the 'c2.Transform'
+// interface, which can be used to manupilate data that is passed between
+// Sessions and C2 Servers.
+//
 package transform
 
 import (

@@ -16,6 +16,12 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+// Package crypt is a builtin package that provides compile-time encoded string
+// values to be decoded and used when first starting up.
+//
+// This package should only be used with the "crypt" tag, which is auto compiled
+// during build.
+//
 package crypt
 
 // Get returns the crypt value at the provided string index.

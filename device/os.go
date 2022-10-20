@@ -14,6 +14,10 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+// Package device contains many function that provide access to Operating System
+// functions and resources. Many of these are OS agnostic and might not work
+// as intended on some systems.
+//
 package device
 
 import (

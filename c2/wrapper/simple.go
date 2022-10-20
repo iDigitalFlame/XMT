@@ -14,7 +14,10 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-// Package wrapper is a simple container package for c2 Wrapper types.
+// Package wrapper contains built-in implementations of the 'c2.Wrapper'
+// interface, which can be used to wrap or encode data that is passed between
+// Sessions and C2 Servers.
+//
 package wrapper
 
 import (

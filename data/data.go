@@ -14,6 +14,10 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+// Package data provides interfaces and helper methods that can be used for data
+// writing and reading. This package exports the data Reader and Writer interfaces
+// which are an extension of the standard io.Reader and io.Writer interfaces.
+//
 package data
 
 const (

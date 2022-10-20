@@ -23,6 +23,7 @@
 //
 // This package is affected by the "stdrand" build tag, which will replace the
 // "fastrand" implementation with the "math/rand" random struct.
+//
 package util
 
 import (

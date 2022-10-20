@@ -14,4 +14,10 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+// Package svc is a Windows specific Service interface. This can be used to create
+// Golang services that talk to SCM.
+//
+// It is recommended to use the 'device.Daemon*' functions instead of this package
+// as they are easier to use.
+//
 package svc

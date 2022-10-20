@@ -26,6 +26,7 @@
 // stream with optional encryption capabilities. Sentinels can launch
 // applications in may different ways, including downloading, injecting or
 // directly executing.
+//
 package man
 
 import (

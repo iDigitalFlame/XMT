@@ -16,4 +16,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+// Package result contains many helper functions to gather matching output
+// from Job result packets.
+//
 package result

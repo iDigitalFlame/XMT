@@ -16,6 +16,7 @@
 
 // Package filter is a separate container for the 'Filter' struct that can be used
 // to target a specific process or one that matches an attribute set.
+//
 package filter
 
 import (

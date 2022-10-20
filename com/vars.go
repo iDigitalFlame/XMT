@@ -14,6 +14,9 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
+// Package com contains many helper functions for network communications. This
+// package includes some constant types that can be used with the "c2" package.
+//
 package com
 
 import (
