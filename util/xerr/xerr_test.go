@@ -14,44 +14,22 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-package main
+package xerr
 
 import (
-	"context"
-	"fmt"
-	"time"
-	//"github.com/iDigitalFlame/xmt/cmd/script/sotto"
+	"errors"
+	"io"
+	"testing"
 )
 
-const script1 = `
-// JavaScript test via Otto.
-//
-function derp() {
-	console.log("hello!");
+func TestErrorWithSub(t *testing.T) {
+	if v := Sub("test error", 0xFA).Error(); v != "test error" && v != "0xFA" {
+		t.Fatalf(`Error string "%s" did not match the given string value!`, v)
+	}
 }
 
-derp();
-console.log(exec('pwd'));
-
-var a = 2;
-var v = exec("bash -c 'echo \"derp " + a + " value\" > /tmp/derp.txt'");
-console.log("got " + v);
-
-print("Sleeping 5 seconds..");
-sleep(0.5);
-print("Done!");
-
-var f = exec("cat /tmp/derp.txt");
-print("read " + f, f);
-exec("rm /tmp/derp.txt");
-`
-
-func testOtto() {
-	var (
-		l, c   = context.WithTimeout(context.Background(), time.Duration(20)*time.Second)
-		r, err = "", l //  sotto.InvokeContext(l, script1)
-	)
-
-	fmt.Printf("output [%s], error[%s]\n", r, err)
-	c()
+func TestErrorWithWrap(t *testing.T) {
+	if e := Wrap("test error", io.EOF); !errors.Is(e, io.EOF) && !errors.Is(errors.Unwrap(e), io.EOF) {
+		t.Fatalf(`Wrapped error "%s" did not match the given wrapped value!`, e)
+	}
 }

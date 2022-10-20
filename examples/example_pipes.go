@@ -17,35 +17,35 @@
 package main
 
 import (
+	"io"
 	"os"
-	"path/filepath"
+	"os/signal"
+	"syscall"
 
-	"github.com/iDigitalFlame/xmt/cmd"
-	"github.com/iDigitalFlame/xmt/cmd/filter"
+	"github.com/iDigitalFlame/xmt/com/pipe"
 )
 
-func testDLL() {
-	var (
-		e, _ = os.Executable()
-		p    = filepath.Dir(e)
-		d    = filepath.Join(p, os.Args[1])
-	)
-
-	os.Stdout.WriteString("DLL at: " + d + "\n")
-
-	c := cmd.NewDLL(d)
-	if len(os.Args) >= 3 {
-		c.SetParent(filter.F().SetInclude(os.Args[2]))
-	} else {
-		c.SetParent(filter.Random)
-	}
-
-	var (
-		err   = c.Run()
-		_, ok = err.(*cmd.ExitError)
-	)
-
-	if c.Stop(); !ok && err != nil {
+func examplePipes() {
+	l, err := pipe.ListenPerms(pipe.Format("testing1"), pipe.PermEveryone)
+	if err != nil {
 		panic(err)
 	}
+
+	s := make(chan os.Signal, 1)
+	signal.Notify(s, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-s
+		l.Close()
+	}()
+
+	for {
+		c, err := l.Accept()
+		if err != nil {
+			break
+		}
+		go io.Copy(os.Stdout, c)
+	}
+
+	close(s)
 }

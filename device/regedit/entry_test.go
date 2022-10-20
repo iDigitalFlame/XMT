@@ -14,38 +14,34 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-package main
+package regedit
 
 import (
-	"io"
-	"os"
-	"os/signal"
-	"syscall"
+	"testing"
 
-	"github.com/iDigitalFlame/xmt/com/pipe"
+	"github.com/iDigitalFlame/xmt/device/winapi/registry"
 )
 
-func testPipes() {
-	l, err := pipe.ListenPerms(pipe.Format("testing1"), pipe.PermEveryone)
+func TestEntry(t *testing.T) {
+	e := Entry{
+		Data: []byte{0xFF, 0x0, 0x10, 0x20},
+		Type: registry.TypeDword,
+	}
+	v, err := e.ToInteger()
 	if err != nil {
-		panic(err)
+		t.Fatalf("ToInteger returned an error: %s", err.Error())
 	}
-
-	s := make(chan os.Signal, 1)
-	signal.Notify(s, syscall.SIGINT, syscall.SIGTERM)
-
-	go func() {
-		<-s
-		l.Close()
-	}()
-
-	for {
-		c, err := l.Accept()
-		if err != nil {
-			break
-		}
-		go io.Copy(os.Stdout, c)
+	if v != 0x201000FF {
+		t.Fatalf("ToInteger result 0x%X does not match expected 0x201000FF!", v)
 	}
-
-	close(s)
+	z := Entry{
+		Data: []byte{0xFF, 0, 0x10, 0x20, 0x40, 0x40, 0x40, 0x50},
+		Type: registry.TypeQword,
+	}
+	if v, err = z.ToInteger(); err != nil {
+		t.Fatalf("ToInteger returned an error: %s", err.Error())
+	}
+	if v != 0x50404040201000FF {
+		t.Fatalf("ToInteger result 0x%X does not match expected 0x50404040201000FF!", v)
+	}
 }

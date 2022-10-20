@@ -1,0 +1,37 @@
+name: Analysis and Checking
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        go: [1.18]
+    steps:
+    - name: Setup Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: ">=1.18"
+
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Run staticcheck
+      uses: dominikh/staticcheck-action@v1.2.0
+      with:
+        run: all
+        version: "latest"
+        install-go: false
+        cache-key: ${{ matrix.go }}
+        working-directory: ${{ matrix.dir }}
+
+    - name: Run Tests
+      run: |
+        go test ./...

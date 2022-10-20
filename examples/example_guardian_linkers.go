@@ -25,10 +25,8 @@ import (
 	"github.com/iDigitalFlame/xmt/man"
 )
 
-func testGuardianTypes() {
-
+func exampleGuardianLinkers() {
 	if len(os.Args) == 1 {
-
 		fmt.Printf("g1 = %t\n", man.Check(man.Pipe, "1guard1"))
 		fmt.Printf("g2 = %t\n", man.Check(man.TCP, ":5011"))
 		fmt.Printf("g3 = %t\n", man.Check(man.Mutex, "1guard2"))

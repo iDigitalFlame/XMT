@@ -14,45 +14,26 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-package main
+package text
 
 import (
-	"context"
-	"fmt"
-	"os"
-	"os/signal"
-
-	"github.com/iDigitalFlame/xmt/man"
+	"strconv"
+	"testing"
 )
 
-func testGuardian() {
-	if len(os.Args) == 2 {
-		var s man.Sentinel
-		s.AddExecute(man.Self)
-		ok, err := s.Wake(man.Pipe, os.Args[1])
-		if err != nil {
-			fmt.Println("error", err)
+func TestMatcher(t *testing.T) {
+	for i := 0; i < 32; i++ {
+		m := Matcher("test1-%5n-%5c-%5u-%5l-%5s-%d-%h-test1-" + strconv.Itoa(i))
+		if !m.Match().MatchString(m.String()) {
+			t.Fatalf(`Matcher "%s" did not match it's generated Regexp!`, m)
 		}
-		if ok {
-			fmt.Println("launched!")
+	}
+}
+func TestMatcherInverse(t *testing.T) {
+	for i := 0; i < 32; i++ {
+		m := Matcher("test1-%5n-%5c-%5u-%5l-%5s-%d-%h-test1-" + strconv.Itoa(i))
+		if m.MatchEx(false).MatchString(m.String()) {
+			t.Fatalf(`Matcher "%s" matched it's generated inverse Regexp!`, m)
 		}
-
-		fmt.Println("pinged!")
-		return
 	}
-
-	var (
-		x, c   = context.WithCancel(context.Background())
-		g, err = man.GuardContext(x, man.Pipe, "testguard")
-	)
-	if err != nil {
-		panic(err)
-	}
-
-	s := make(chan os.Signal, 1)
-	signal.Notify(s)
-
-	<-s
-	c()
-	g.Wait()
 }

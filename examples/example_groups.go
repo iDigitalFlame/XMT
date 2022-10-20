@@ -29,7 +29,7 @@ import (
 	// _ "net/http/pprof"
 )
 
-func testGroups() {
+func exampleGroups() {
 	// This example shows off the multi-Profile group!
 	//
 	// The client process will reconnect to any listener that first
@@ -71,7 +71,6 @@ func testGroups() {
 	}
 	client(c)
 }
-
 func server(c cfg.Config) {
 	// Uncomment to enable profiling.
 	// go http.ListenAndServe("localhost:9090", nil)

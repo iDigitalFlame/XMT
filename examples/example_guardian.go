@@ -17,38 +17,42 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"os"
+	"os/signal"
 
-	"github.com/iDigitalFlame/xmt/cmd"
-	"github.com/iDigitalFlame/xmt/cmd/filter"
+	"github.com/iDigitalFlame/xmt/man"
 )
 
-func testElevated() {
-
-	if len(os.Args) <= 1 {
-		os.Stderr.WriteString("usage: " + os.Args[0] + " <command>\n")
-		os.Exit(2)
-	}
-
-	switch os.Args[1] {
-	case "/?", "?", "-h", "-?":
-		os.Stderr.WriteString("usage: " + os.Args[0] + " <command>\n")
-		os.Exit(2)
-	default:
-	}
-
-	x := cmd.NewProcess(os.Args[1:]...)
-	x.SetParent(&filter.Filter{Include: []string{"TrustedInstaller.exe"}, Elevated: filter.True})
-
-	b, err := x.CombinedOutput()
-
-	if err != nil {
-		if _, ok := err.(*cmd.ExitError); !ok {
-			panic(err)
+func exampleGuardian() {
+	if len(os.Args) == 2 {
+		var s man.Sentinel
+		s.AddExecute(man.Self)
+		ok, err := s.Wake(man.Pipe, os.Args[1])
+		if err != nil {
+			fmt.Println("error", err)
 		}
+		if ok {
+			fmt.Println("launched!")
+		}
+
+		fmt.Println("pinged!")
+		return
 	}
 
-	os.Stdout.Write(b)
-	os.Stdout.WriteString("\n")
+	var (
+		x, c   = context.WithCancel(context.Background())
+		g, err = man.GuardContext(x, man.Pipe, "testguard")
+	)
+	if err != nil {
+		panic(err)
+	}
 
+	s := make(chan os.Signal, 1)
+	signal.Notify(s)
+
+	<-s
+	c()
+	g.Wait()
 }

@@ -32,7 +32,7 @@ import (
 // Otto is a mapping for the Otto (github.com/robertkrimen/otto) JavaScript engine.
 // This can be used to run JavaScript directly and can be registered by the
 // 'task.RegisterScript' function to include the engine in the XMT task runtime.
-const Otto ottoEngine = 0xD0
+const Otto ottoEngine = 0xE0
 
 var (
 	ottoPool = sync.Pool{

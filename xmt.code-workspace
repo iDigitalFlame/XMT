@@ -53,11 +53,13 @@
             "noproxy",
             "noservice",
             "pexec",
+            "Privs",
             "Protos",
             "RPCSS",
             "SCRNSAVE",
             "STARTF",
             "vardic",
+            "vulncheck",
             "wtsapi",
             "Zombified"
         ]

@@ -14,28 +14,17 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-package main
+package util
 
-import (
-	"fmt"
-	"time"
+import "testing"
 
-	"github.com/iDigitalFlame/xmt/cmd"
-	"github.com/iDigitalFlame/xmt/cmd/filter"
-)
-
-func testShellcode() {
-	c := &cmd.Assembly{
-		Data: []byte{},
+func TestBuilder(t *testing.T) {
+	var b Builder
+	for i := 0; i < 32; i++ {
+		b.WriteString("hello ")
+		b.WriteString("world!")
+		if v := b.Output(); v != "hello world!" {
+			t.Fatalf(`String Builder output value "%s" does not match the expected value!`, v)
+		}
 	}
-
-	c.Timeout = 3 * time.Second
-	c.SetParent(filter.Random)
-
-	if err := c.Start(); err != nil {
-		panic(err)
-	}
-
-	fmt.Println(c.Wait())
-	fmt.Println(c.ExitCode())
 }

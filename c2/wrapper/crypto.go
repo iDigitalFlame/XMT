@@ -74,7 +74,8 @@ func Block(b cipher.Block, v []byte) (c2.Wrapper, error) {
 	return &block{v: v, Block: b}, nil
 }
 
-// Stream returns a Wrapper based on the crypto.Writer and crypto.Reader interfaces, such as XOR.
+// Stream returns a Wrapper based on the crypto.Writer and crypto.Reader interfaces,
+// such as XOR.
 func Stream(r crypto.Reader, w crypto.Writer) c2.Wrapper {
 	return &stream{r: r, w: w}
 }

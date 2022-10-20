@@ -51,13 +51,13 @@ var (
 	//
 	// This client is only valid for clients that connect to servers with properly
 	// signed and trusted certificates.
-	TLS = &tcpClient{c: tcpConnector{tls: new(tls.Config), Dialer: TCP.(*tcpConnector).Dialer}}
+	TLS = &tcpClient{c: tcpConnector{tls: &tls.Config{MinVersion: tls.VersionTLS12}, Dialer: TCP.(*tcpConnector).Dialer}}
 
 	// TLSInsecure is the TCP over TLS connector profile. This client uses TCP
 	// wrapped in TLS encryption using certificates.
 	//
 	// This instance DOES NOT check the server certificate for validity.
-	TLSInsecure = &tcpClient{c: tcpConnector{tls: &tls.Config{InsecureSkipVerify: true}, Dialer: TCP.(*tcpConnector).Dialer}}
+	TLSInsecure = &tcpClient{c: tcpConnector{tls: &tls.Config{MinVersion: tls.VersionTLS11, InsecureSkipVerify: true}, Dialer: TCP.(*tcpConnector).Dialer}}
 )
 
 type deadliner interface {

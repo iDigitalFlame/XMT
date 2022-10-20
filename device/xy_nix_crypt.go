@@ -49,6 +49,9 @@ func IsDebugged() bool {
 		return false
 	}
 	for _, e := range strings.Split(string(b), "\n") {
+		if len(e) <= 9 {
+			continue
+		}
 		if e[9] == ':' && e[8] == 'd' && e[0] == 'T' && e[1] == 'r' && e[5] == 'r' {
 			return e[len(e)-1] != '0' && e[len(e)-2] != ' ' && e[len(e)-2] != 9 && e[len(e)-2] != '\t'
 		}

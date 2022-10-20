@@ -17,21 +17,17 @@
 package main
 
 import (
-	"context"
 	"os"
 	"time"
 
 	"github.com/PurpleSec/logx"
 	"github.com/iDigitalFlame/xmt/c2"
 	"github.com/iDigitalFlame/xmt/c2/wrapper"
-	"github.com/iDigitalFlame/xmt/com/limits"
 	"github.com/iDigitalFlame/xmt/com/wc2"
 	"github.com/iDigitalFlame/xmt/util/text"
 )
 
-func testWC2() {
-	limits.MemorySweep(context.Background())
-
+func exampleWC2() {
 	if len(os.Args) == 2 {
 		var (
 			s = c2.NewServer(logx.Console(logx.Debug))
@@ -74,6 +70,5 @@ func testWC2() {
 	if err != nil {
 		panic(err)
 	}
-
 	s.Wait()
 }

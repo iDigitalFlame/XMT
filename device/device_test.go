@@ -1,5 +1,3 @@
-//go:build windows
-
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,24 +14,23 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-package main
+package device
 
-import (
-	"fmt"
+import "testing"
 
-	"github.com/iDigitalFlame/xmt/cmd"
-	"github.com/iDigitalFlame/xmt/device/winapi"
-)
-
-func testPrivs() {
-	if err := winapi.EnablePrivileges("SeShutdownPrivilege", "SeUndockPrivilege"); err != nil {
-		panic(err)
+func TestDebug(t *testing.T) {
+	v := IsDebugged()
+	t.Logf("IsDebugged returned: %t", v)
+}
+func TestExpand(t *testing.T) {
+	v := [...]string{
+		"${PWD}-1",
+		"$PWD",
+		"%PWD%",
 	}
-
-	z := cmd.NewProcess("whoami", "/priv")
-	o, err := z.CombinedOutput()
-	if err != nil {
-		panic(err)
+	for i := range v {
+		if r := Expand(v[i]); v[i] == r {
+			t.Fatalf(`Expanded string "%s" equals non-expanded string "%s"!`, r, v)
+		}
 	}
-	fmt.Println(string(o))
 }

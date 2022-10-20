@@ -220,7 +220,7 @@ func matchWithToken(s, v string) bool {
 		}
 	}
 	if l < 0 {
-		return l == -1
+		return l == -1 || (l == -2 && s == v)
 	}
 	if l < len(s) {
 		return len(s)-l == len(v)-w && s[l:] == v[w:]

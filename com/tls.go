@@ -44,15 +44,14 @@ var ErrInvalidTLSConfig = xerr.Sub("invalid or missing TLS certificates", 0x2D)
 // mTLS insights sourced from: https://kofo.dev/how-to-mtls-in-golang
 func NewTLSConfig(mu bool, ver uint16, ca, pem, key []byte) (*tls.Config, error) {
 	c := &tls.Config{}
-	if ver > 0 && ver < 0xFF {
-		ver = tls.VersionTLS10 + ver
-	}
-	if ver > tls.VersionTLS10 {
+	switch {
+	case ver > 0 && ver < 0xFF:
+		c.MinVersion = ver + tls.VersionTLS10
+	case ver > tls.VersionTLS10:
 		c.MinVersion = ver
+	default:
+		c.MinVersion = tls.VersionTLS12
 	}
-	// NOTE(dij): I kinda want to add a setting here if TLS min ver is unset
-	//            that we set it to /at least/ TLSv1.2, but that might break
-	//            stuff.
 	if len(pem) > 0 && len(key) > 0 {
 		x, err := tls.X509KeyPair(pem, key)
 		if err != nil {

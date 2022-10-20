@@ -39,7 +39,7 @@ import (
 // Monkey is a mapping for the Monkey (github.com/skx/monkey) Scripting engine.
 // This can be used to run Monkey scripts directly and can be registered by the
 // 'task.RegisterScript' function to include the engine in the XMT task runtime.
-const Monkey monkeyEngine = 0xD1
+const Monkey monkeyEngine = 0xE1
 
 var (
 	monkeyPool = sync.Pool{
