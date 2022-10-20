@@ -27,7 +27,6 @@ func TestErrorWithSub(t *testing.T) {
 		t.Fatalf(`Error string "%s" did not match the given string value!`, v)
 	}
 }
-
 func TestErrorWithWrap(t *testing.T) {
 	if e := Wrap("test error", io.EOF); !errors.Is(e, io.EOF) && !errors.Is(errors.Unwrap(e), io.EOF) {
 		t.Fatalf(`Wrapped error "%s" did not match the given wrapped value!`, e)

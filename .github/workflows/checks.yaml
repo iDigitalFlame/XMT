@@ -26,7 +26,7 @@ jobs:
     - name: Run staticcheck
       uses: dominikh/staticcheck-action@v1.2.0
       with:
-        run: all
+        checks: all
         version: "latest"
         install-go: false
         cache-key: ${{ matrix.go }}
