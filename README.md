@@ -3,6 +3,8 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/iDigitalFlame/xmt)](https://goreportcard.com/report/github.com/iDigitalFlame/xmt)
 [![Go Reference](https://pkg.go.dev/badge/github.com/iDigitalFlame/xmt.svg)](https://pkg.go.dev/github.com/iDigitalFlame/xmt)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Analysis and Checking](https://github.com/iDigitalFlame/XMT/actions/workflows/checks.yaml/badge.svg)](https://github.com/iDigitalFlame/XMT/actions/workflows/checks.yaml)
+[![codecov](https://codecov.io/github/iDigitalFlame/XMT/branch/main/graph/badge.svg?token=REQESSIT7C)](https://codecov.io/github/iDigitalFlame/XMT)
 
 XMT is a full-featured C2 framework written in Golang that allows for control,
 data exfiltration and some other cool functions. Can be used to make full C2
