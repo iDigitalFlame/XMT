@@ -1,4 +1,4 @@
-name: Analysis and Checking
+name: Code Analysis
 
 on:
   push:
