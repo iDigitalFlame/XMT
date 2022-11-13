@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/iDigitalFlame/xmt/c2/cfg"
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/c2/task"
 	"github.com/iDigitalFlame/xmt/com"
@@ -40,9 +41,6 @@ const (
 	// that have this as their ID value will be forwarded to the authoritative
 	// Mux and will be discarded if it does not match an active Job ID.
 	RvResult uint8 = 0x14
-	// RvMigrate is the ID value returned when a Session Migration has completed.
-	// This Packet usually carries the new Device struct data.
-	RvMigrate uint8 = 0x13
 
 	fragMax     = 0xFFFF
 	readTimeout = time.Millisecond * 250
@@ -54,7 +52,7 @@ const (
 // These Packet ID values are used for network congestion and flow control and
 // should not be used in standard Packet entries.
 const (
-	SvProxy    uint8 = 0x1
+	SvResync   uint8 = 0x1
 	SvHello    uint8 = 0x2
 	SvRegister uint8 = 0x3 // Considered a MvDrop.
 	SvComplete uint8 = 0x4
@@ -65,7 +63,7 @@ const (
 var (
 	// ErrTooManyPackets is an error returned by many of the Packet writing
 	// functions when attempts to combine Packets would create a Packet grouping
-	// size larger than the maximum size (65535 or 0xFFFF).
+	// size larger than the maximum size (65535/0xFFFF).
 	ErrTooManyPackets = xerr.Sub("frag/multi count is larger than 0xFFFF", 0x56)
 
 	empty time.Time
@@ -111,62 +109,7 @@ func mergeTags(one, two []uint32) []uint32 {
 	}
 	return r
 }
-func readFull(r io.Reader, c int, b []byte) error {
-	n, err := r.Read(b)
-	if err != nil {
-		return err
-	}
-	if n != c {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func verifyPacket(n *com.Packet, i device.ID) bool {
-	if n.Job == 0 && n.Flags&com.FlagProxy == 0 && n.ID > 1 {
-		n.Job = uint16(util.FastRand())
-	}
-	if n.Device.Empty() {
-		n.Device = i
-		return true
-	}
-	return n.Device == i
-}
-func writeFull(w io.Writer, c int, b []byte) error {
-	n, err := w.Write(b)
-	if err != nil {
-		return err
-	}
-	if n != c {
-		return io.ErrShortWrite
-	}
-	return nil
-}
-func readSlice(r io.Reader, d *[8]byte) ([]byte, error) {
-	if err := readFull(r, 8, (*d)[:]); err != nil {
-		return nil, err
-	}
-	b := make(
-		[]byte, uint64(d[7])|uint64(d[6])<<8|uint64(d[5])<<16|uint64(d[4])<<24|
-			uint64(d[3])<<32|uint64(d[2])<<40|uint64(d[1])<<48|uint64(d[0])<<56,
-	)
-	return b, readFull(r, len(b), b)
-}
-func (p *proxyData) UnmarshalStream(r data.Reader) error {
-	if err := r.ReadString(&p.b); err != nil {
-		return err
-	}
-	return r.ReadString(&p.n)
-}
-func writeSlice(w io.Writer, d *[8]byte, b []byte) error {
-	n := uint64(len(b))
-	(*d)[0], (*d)[1], (*d)[2], (*d)[3] = byte(n>>56), byte(n>>48), byte(n>>40), byte(n>>32)
-	(*d)[4], (*d)[5], (*d)[6], (*d)[7] = byte(n>>24), byte(n>>16), byte(n>>8), byte(n)
-	if err := writeFull(w, 8, (*d)[:]); err != nil {
-		return err
-	}
-	return writeFull(w, int(n), b)
-}
-func receiveSingle(s *Session, l *Listener, n *com.Packet) {
+func receiveSingle(s *Session, n *com.Packet) {
 	if s == nil {
 		return
 	}
@@ -176,55 +119,37 @@ func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 		)
 	}
 	switch n.ID {
-	case SvProxy:
-		if s.IsClient() {
+	case SvResync:
+		if !s.hasJob(n.Job) {
+			if cout.Enabled {
+				s.log.Error("[%s/Cr0] Client sent a SvResync Packet not associated with an active Job!", s.ID, n.Job)
+			}
 			return
 		}
 		if cout.Enabled {
-			s.log.Info("[%s] Client indicated that it updated it's Proxy info.", s.ID)
+			s.log.Debug("[%s/Cr0] Client sent a SvResync Packet associated with Job %d!", s.ID, n.Job)
 		}
-		c, err := n.Uint8()
+		t, err := n.Uint8()
 		if err != nil {
 			if cout.Enabled {
-				s.log.Error("[%s] Could not Unmarshal Proxy data: %s!", s.ID, err.Error())
+				s.log.Error("[%s/Cr0] Error reading SvResync Packet: %s!", s.ID, err.Error())
 			}
 			return
 		}
-		if c == 0 {
-			s.updateProxyInfo(nil)
-			return
-		}
-		v := make([]proxyData, c)
-		for i := range v {
-			if err := v[i].UnmarshalStream(n); err != nil {
-				if cout.Enabled {
-					s.log.Error("[%s] Could not Unmarshal Proxy data: %s!", s.ID, err.Error())
-				}
-				return
+		if _, err := s.readDeviceInfo(t, n); err != nil {
+			if cout.Enabled {
+				s.log.Error("[%s/Cr0] Error reading SvResync Packet result: %s!", s.ID, err.Error())
 			}
-		}
-		s.updateProxyInfo(v)
-		return
-	case RvMigrate:
-		if s.IsClient() {
 			return
 		}
 		if cout.Enabled {
-			s.log.Info("[%s] Client indicated that it migrated, updating local device information.", s.ID)
+			s.log.Debug("[%s/Cr0] Client indicated that it changed profile/time, updating local Session information.", s.ID)
 		}
-		var (
-			v   = s.Device
-			err = s.Device.UnmarshalStream(n)
-		)
-		if s.parent = l; err != nil {
-			if s.Device = v; cout.Enabled {
-				s.log.Error("[%s] Could not Unmarshal device data: %s!", s.ID, err.Error())
-			}
-		}
+		return
 	case SvShutdown:
 		if !s.IsClient() {
 			if cout.Enabled {
-				s.log.Info("[%s] Client indicated shutdown, acknowledging and closing Session.", s.ID)
+				s.log.Info("[%s/Cr0] Client indicated shutdown, acknowledging and closing Session.", s.ID)
 			}
 			s.write(true, &com.Packet{ID: SvShutdown, Job: 1, Device: s.ID})
 			s.s.Remove(s.ID, false)
@@ -234,7 +159,7 @@ func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 				return
 			}
 			if cout.Enabled {
-				s.log.Info("[%s] Server indicated shutdown, closing Session.", s.ID)
+				s.log.Info("[%s/Cr0] Server indicated shutdown, closing Session.", s.ID)
 			}
 		}
 		s.close(false)
@@ -244,13 +169,13 @@ func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 			return
 		}
 		if cout.Enabled {
-			s.log.Info("[%s] Server indicated that we must re-register, resending SvRegister info!", s.ID)
+			s.log.Info("[%s/Cr0] Server indicated that we must re-register, resending SvRegister info!", s.ID)
 		}
 		if s.proxy != nil && s.proxy.IsActive() {
 			s.proxy.subsRegister()
 		}
 		v := &com.Packet{ID: SvHello, Job: uint16(util.FastRand()), Device: s.ID}
-		s.Device.MarshalStream(v)
+		s.writeDeviceInfo(infoHello, v)
 		for i := range s.key {
 			s.key[i] = 0
 		}
@@ -258,13 +183,10 @@ func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 			s.log.Debug("[%s] Generated KeyCrypt key set!", s.ID)
 		}
 		if bugtrack.Enabled {
-			bugtrack.Track("c2.receiveSingle(): %s KeyCrypt details [%v].", s.ID, s.key)
+			bugtrack.Track("c2.receiveSingle(): %s KeyCrypt details %v.", s.ID, s.key)
 		}
 		if s.queue(v); len(s.send) <= 1 {
 			s.Wake()
-		}
-		if s.IsProxy() {
-			s.updateProxyStats()
 		}
 		return
 	}
@@ -276,6 +198,16 @@ func receiveSingle(s *Session, l *Listener, n *com.Packet) {
 		return
 	}
 	s.m.queue(event{p: n, s: s, af: s.handle})
+}
+func verifyPacket(n *com.Packet, i device.ID) bool {
+	if n.Job == 0 && n.Flags&com.FlagProxy == 0 && n.ID > 1 {
+		n.Job = uint16(util.FastRand())
+	}
+	if n.Device.Empty() {
+		n.Device = i
+		return true
+	}
+	return n.Device == i
 }
 func receive(s *Session, l *Listener, n *com.Packet) error {
 	if n == nil || n.Device.Empty() || isPacketNoP(n) || (l == nil && s == nil) {
@@ -316,7 +248,7 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 				return err
 			}
 			if cout.Enabled {
-				s.log.Trace("[%s] Unpacked Packet %q..", s.ID, v)
+				s.log.Trace(`[%s] Unpacked Packet "%s"..`, s.ID, v)
 			}
 			if err := receive(s, l, v); err != nil {
 				n.Clear()
@@ -329,7 +261,7 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 	case n.Flags&com.FlagFrag != 0 && n.Flags&com.FlagMulti == 0:
 		if n.ID == SvDrop || n.ID == SvRegister {
 			if cout.Enabled {
-				s.log.Warning("[%s] Indicated to clear Frag Group %X!", s.ID, n.Flags.Group())
+				s.log.Warning("[%s] Indicated to clear Frag Group 0x%X!", s.ID, n.Flags.Group())
 			}
 			if s.state.SetLast(n.Flags.Group()); n.ID != SvRegister {
 				return nil
@@ -341,13 +273,13 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 		}
 		if n.Flags.Len() == 1 {
 			if cout.Enabled {
-				s.log.Trace("[%s] Received a single frag (len=1) for Group %X, clearing Flags!", s.ID, n.Flags.Group())
+				s.log.Trace("[%s] Received a single frag (len=1) for Group 0x%X, clearing Flags!", s.ID, n.Flags.Group())
 			}
 			n.Flags.Clear()
 			return receive(s, l, n)
 		}
 		if cout.Enabled {
-			s.log.Trace("[%s] Received frag for Group %X (%d of %d).", s.ID, n.Flags.Group(), n.Flags.Position()+1, n.Flags.Len())
+			s.log.Trace("[%s] Received frag for Group 0x%X (%d of %d).", s.ID, n.Flags.Group(), n.Flags.Position()+1, n.Flags.Len())
 		}
 		var (
 			g     = n.Flags.Group()
@@ -355,7 +287,7 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 		)
 		if !ok && n.Flags.Position() > 0 {
 			if s.write(true, &com.Packet{ID: SvDrop, Flags: n.Flags, Device: s.ID}); cout.Enabled {
-				s.log.Warning("[%s] Received an invalid Frag Group %X, indicating to drop it!", s.ID, n.Flags.Group())
+				s.log.Warning("[%s] Received an invalid Frag Group 0x%X, indicating to drop it!", s.ID, n.Flags.Group())
 			}
 			return nil
 		}
@@ -368,14 +300,14 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 		}
 		if v := c.done(); v != nil {
 			if delete(s.frags, g); cout.Enabled {
-				s.log.Trace("[%s] Completed Frag Group %X, %d total.", s.ID, n.Flags.Group(), n.Flags.Len())
+				s.log.Trace("[%s] Completed Frag Group 0x%X, %d total.", s.ID, n.Flags.Group(), n.Flags.Len())
 			}
 			return receive(s, l, v)
 		}
 		s.frag(n.Job, n.Flags.Group(), n.Flags.Len(), n.Flags.Position())
 		return nil
 	}
-	receiveSingle(s, l, n)
+	receiveSingle(s, n)
 	return nil
 }
 func writeUnpack(dst, src *com.Packet, flags, tags bool) error {
@@ -413,7 +345,7 @@ func writeUnpack(dst, src *com.Packet, flags, tags bool) error {
 	src.Clear()
 	return nil
 }
-func readPacketFrom(c io.Reader, w Wrapper, n *com.Packet) error {
+func readPacketFrom(c io.Reader, w cfg.Wrapper, n *com.Packet) error {
 	if w == nil {
 		if bugtrack.Enabled {
 			bugtrack.Track("c2.readPacketFrom(): Passing read to direct Unmarshal.")
@@ -432,7 +364,7 @@ func readPacketFrom(c io.Reader, w Wrapper, n *com.Packet) error {
 	}
 	return nil
 }
-func writePacketTo(c *data.Chunk, w Wrapper, n *com.Packet) error {
+func writePacketTo(c *data.Chunk, w cfg.Wrapper, n *com.Packet) error {
 	if w == nil {
 		if bugtrack.Enabled {
 			bugtrack.Track("c2.writePacketTo(): Passing write to direct Marshal.")
@@ -474,14 +406,14 @@ func spinTimeout(x context.Context, n string, t time.Duration) net.Conn {
 	f()
 	return c
 }
-func readPacket(c net.Conn, w Wrapper, t Transform) (*com.Packet, error) {
+func readPacket(c net.Conn, w cfg.Wrapper, t cfg.Transform) (*com.Packet, error) {
 	var n com.Packet
 	if w == nil && t == nil {
 		if err := n.Unmarshal(&readerTimeout{c: c, t: readTimeout}); err != nil {
 			return nil, xerr.Wrap("unable to read from stream", err)
 		}
 		if bugtrack.Enabled {
-			bugtrack.Track("c2.readPacket(): Direct Unmarshal result n=%s", n.String())
+			bugtrack.Track("c2.readPacket(): Direct Unmarshal result n=%s", n)
 		}
 		return &n, nil
 	}
@@ -513,11 +445,11 @@ func readPacket(c net.Conn, w Wrapper, t Transform) (*com.Packet, error) {
 		return nil, err
 	}
 	if bugtrack.Enabled {
-		bugtrack.Track("c2.readPacket(): Unmarshal result n=%s", n.String())
+		bugtrack.Track("c2.readPacket(): Unmarshal result n=%s", n)
 	}
 	return &n, nil
 }
-func writePacket(c net.Conn, w Wrapper, t Transform, n *com.Packet) error {
+func writePacket(c net.Conn, w cfg.Wrapper, t cfg.Transform, n *com.Packet) error {
 	if w == nil && t == nil {
 		err := n.Marshal(c)
 		n.Clear()
@@ -571,8 +503,8 @@ func nextPacket(a notifier, q <-chan *com.Packet, n *com.Packet, i device.ID, t 
 		if n == nil {
 			n = <-q
 		}
-		// need to add a check here to see if len(c) == 0
-		// if so, drop a SvNop and return only the first
+		// TODO(dij): ?need to add a check here to see if len(c) == 0
+		//            if so, drop a SvNop and return only the first
 		if isPacketNoP(n) && ((s > 0 && !m) || (n.Device.Empty() || n.Device == i)) {
 			n.Clear()
 			n = nil

@@ -1,4 +1,4 @@
-//go:build !nojson
+//go:build !nojson && !implant
 
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //
@@ -49,6 +49,10 @@ func (c cBit) String() string {
 		return "jitter"
 	case valWeight:
 		return "weight"
+	case valKillDate:
+		return "killdate"
+	case valWorkHours:
+		return "workhours"
 	case SelectorLastValid:
 		return "select-last"
 	case SelectorRoundRobin:
@@ -116,6 +120,10 @@ func bitFromName(s string) cBit {
 		return valJitter
 	case "weight":
 		return valWeight
+	case "killdate":
+		return valKillDate
+	case "workhours":
+		return valWorkHours
 	case "select-last":
 		return SelectorLastValid
 	case "select-round-robin":
@@ -204,6 +212,38 @@ func (c Config) String() string {
 func JSON(s ...Setting) ([]byte, error) {
 	return json.Marshal(Pack(s...))
 }
+func parseDayString(s string) (uint8, error) {
+	if len(s) == 0 {
+		return 0, nil
+	}
+	if s == "SMTWRFS" {
+		return 0, nil
+	}
+	var d uint8
+	for i := range s {
+		switch s[i] {
+		case 's', 'S':
+			if i == 0 {
+				d |= DaySunday
+				break
+			}
+			d |= DaySaturday
+		case 'm', 'M':
+			d |= DayMonday
+		case 't', 'T':
+			d |= DayTuesday
+		case 'w', 'W':
+			d |= DayWednesday
+		case 'r', 'R':
+			d |= DayThursday
+		case 'f', 'F':
+			d |= DayFriday
+		default:
+			return 0, xerr.New("invalid day char")
+		}
+	}
+	return d, nil
+}
 
 // MarshalJSON will attempt to convert the raw binary data in this Config
 // instance into a JSON format.
@@ -267,6 +307,31 @@ func (c Config) MarshalJSON() ([]byte, error) {
 				uint64(c[i+8]) | uint64(c[i+7])<<8 | uint64(c[i+6])<<16 | uint64(c[i+5])<<24 |
 					uint64(c[i+4])<<32 | uint64(c[i+3])<<40 | uint64(c[i+2])<<48 | uint64(c[i+1])<<56,
 			).String()))
+		case valKillDate:
+			if i+8 >= n {
+				return nil, xerr.Wrap("killdate", ErrInvalidSetting)
+			}
+			u := uint64(c[i+8]) | uint64(c[i+7])<<8 | uint64(c[i+6])<<16 | uint64(c[i+5])<<24 |
+				uint64(c[i+4])<<32 | uint64(c[i+3])<<40 | uint64(c[i+2])<<48 | uint64(c[i+1])<<56
+			if u == 0 {
+				b.WriteString(`""`)
+			} else {
+				b.WriteString(`"` + time.Unix(int64(u), 0).Format(time.RFC3339) + `"`)
+			}
+		case valWorkHours:
+			if i+5 >= n {
+				return nil, xerr.Wrap("workhours", ErrInvalidSetting)
+			}
+			if b.WriteByte('{'); c[i+1] > 0 || c[i+2] > 0 || c[i+3] > 0 || c[i+4] > 0 || c[i+5] > 0 {
+				b.WriteString(
+					`"start_hour":` + strconv.FormatUint(uint64(c[i+2]), 10) + `,` +
+						`"start_min":` + strconv.FormatUint(uint64(c[i+3]), 10) + `,` +
+						`"end_hour":` + strconv.FormatUint(uint64(c[i+4]), 10) + `,` +
+						`"end_min":` + strconv.FormatUint(uint64(c[i+5]), 10) + `,` +
+						`"days":"` + dayNumToString(c[i+1]) + `"`,
+				)
+			}
+			b.WriteByte('}')
 		case valJitter, valWeight, valIP, valTLSx, valB64Shift:
 			if i+1 >= n {
 				return nil, ErrInvalidSetting
@@ -530,6 +595,56 @@ func (c *Config) UnmarshalJSON(b []byte) error {
 					return xerr.Wrap("weight", err)
 				}
 				r = append(r, cBytes{byte(valWeight), v})
+			case valKillDate:
+				var s string
+				if err := json.Unmarshal(m[i].Args, &s); err != nil {
+					return xerr.Wrap("killdate", err)
+				}
+				if len(s) == 0 {
+					r = append(r, cBytes{byte(valKillDate), 0, 0, 0, 0, 0, 0, 0, 0})
+				} else {
+					t, err := time.Parse(time.RFC3339, s)
+					if err != nil {
+						return xerr.Wrap("killdate", err)
+					}
+					v := t.Unix()
+					r = append(r, cBytes{
+						byte(valKillDate), byte(v >> 56), byte(v >> 48), byte(v >> 40), byte(v >> 32),
+						byte(v >> 24), byte(v >> 16), byte(v >> 8), byte(v),
+					})
+				}
+			case valWorkHours:
+				var z mapper
+				if err := json.Unmarshal(m[i].Args, &z); err != nil {
+					return xerr.Wrap("workhours", err)
+				}
+				var (
+					s, y, u, j uint8
+					k          string
+				)
+				if err := z.Unmarshal("days", false, &k); err != nil {
+					return err
+				}
+				if err := z.Unmarshal("start_hour", false, &s); err != nil {
+					return err
+				}
+				if err := z.Unmarshal("start_min", false, &y); err != nil {
+					return err
+				}
+				if err := z.Unmarshal("end_hour", false, &u); err != nil {
+					return err
+				}
+				if err := z.Unmarshal("end_min", false, &j); err != nil {
+					return err
+				}
+				d, err := parseDayString(k)
+				if err != nil {
+					return xerr.Wrap("workhours", err)
+				}
+				if s > 23 || y > 59 || u > 23 || j > 59 {
+					return xerr.Wrap("workhours", ErrInvalidSetting)
+				}
+				r = append(r, cBytes{byte(valWorkHours), d, s, y, u, j})
 			case valIP:
 				var v uint8
 				if err := json.Unmarshal(m[i].Args, &v); err != nil {

@@ -54,10 +54,7 @@ func (p ProcessInfo) MarshalStream(w data.Writer) error {
 	if err := w.WriteString(p.Name); err != nil {
 		return err
 	}
-	if err := w.WriteString(p.User); err != nil {
-		return err
-	}
-	return nil
+	return w.WriteString(p.User)
 }
 
 // UnmarshalStream transforms this struct from a binary format that is read from
@@ -72,8 +69,5 @@ func (p *ProcessInfo) UnmarshalStream(r data.Reader) error {
 	if err := r.ReadString(&p.Name); err != nil {
 		return err
 	}
-	if err := r.ReadString(&p.User); err != nil {
-		return err
-	}
-	return nil
+	return r.ReadString(&p.User)
 }

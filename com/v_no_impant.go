@@ -87,10 +87,7 @@ func byteHexStr(b byte) string {
 }
 
 // String returns a string descriptor of the Packet struct.
-func (p *Packet) String() string {
-	if p == nil {
-		return "<nil>"
-	}
+func (p Packet) String() string {
 	switch {
 	case p.Empty() && p.Flags == 0 && p.Job == 0 && p.ID == 0:
 		return "NoP"

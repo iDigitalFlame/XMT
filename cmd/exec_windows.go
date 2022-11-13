@@ -110,12 +110,12 @@ func (c closer) Close() error {
 }
 func wait(h, m uintptr) error {
 	if m == 0 {
-		if r, err := winapi.WaitForSingleObject(h, -1); r != 0 {
+		if _, err := winapi.WaitForSingleObject(h, -1); err != nil {
 			return err
 		}
 		return nil
 	}
-	if r, err := winapi.WaitForMultipleObjects([]uintptr{h, m}, false, -1); r != 0 {
+	if _, err := winapi.WaitForMultipleObjects([]uintptr{h, m}, false, -1); err != nil {
 		return err
 	}
 	return nil
@@ -137,7 +137,7 @@ func ResumeProcess(p uint32) error {
 	if err != nil {
 		return err
 	}
-	err = winapi.ResumeProcess(h)
+	err = winapi.NtResumeProcess(h)
 	winapi.CloseHandle(h)
 	return err
 }
@@ -152,21 +152,17 @@ func SuspendProcess(p uint32) error {
 	if err != nil {
 		return err
 	}
-	err = winapi.SuspendProcess(h)
+	err = winapi.NtSuspendProcess(h)
 	winapi.CloseHandle(h)
 	return err
 }
 func (e *executable) Resume() error {
-	return winapi.ResumeProcess(e.i.Process)
+	return winapi.NtResumeProcess(e.i.Process)
 }
 func (e *executable) Suspend() error {
-	return winapi.SuspendProcess(e.i.Process)
+	return winapi.NtSuspendProcess(e.i.Process)
 }
 func (e *executable) isStarted() bool {
-	// BUG(dij): I think this causes some 'ErrAlreadyStarted' issues.
-	//           keep watch on this.
-	//
-	// return e.i.ProcessID > 0 // && e.i.Process > 0
 	return atomic.LoadUint32(&e.i.ProcessID) > 0 || e.i.Process > 0
 }
 func (e *executable) isRunning() bool {
@@ -283,7 +279,7 @@ func createEnvBlock(env []string, split bool) []string {
 }
 func (e *executable) wait(x context.Context, p *Process) {
 	if bugtrack.Enabled {
-		defer bugtrack.Recover("cmd.executable.wait()")
+		defer bugtrack.Recover("cmd.(*executable).wait()")
 	}
 	var (
 		w   = make(chan error)
@@ -291,14 +287,14 @@ func (e *executable) wait(x context.Context, p *Process) {
 	)
 	if e.m, err = winapi.CreateEvent(nil, false, false, ""); err != nil {
 		if bugtrack.Enabled {
-			bugtrack.Track("cmd.executable.wait(): Creating Event failed, falling back to single wait: %s", err.Error())
+			bugtrack.Track("cmd.(*executable).wait(): Creating Event failed, falling back to single wait: %s", err.Error())
 		}
 		err = nil
 	}
 	go func() {
 		if atomic.LoadUintptr(&e.i.Process) > 0 {
 			if bugtrack.Enabled {
-				defer bugtrack.Recover("cmd.executable.wait.func1()")
+				defer bugtrack.Recover("cmd.(*executable).wait():func1()")
 			}
 			w <- wait(e.i.Process, e.m)
 		}
@@ -518,22 +514,16 @@ func (e *executable) start(x context.Context, p *Process, sus bool) error {
 		//            Windows permissions cause some fucky stuff to happen.
 		//            Failing silently is fine.
 		//
-		// NOTE(dij): Added a 'IsUserLoginToken' token to check the Token origin
+		// NOTE(dij): Added a 'IsUserNetworkToken' token to check the Token origin
 		//            to see if it's an impersonated user token or a stolen elevated
 		//            process token, as impersonated user tokens do NOT like being
 		//            ran with 'CreateProcessWithToken'.
-		//
-		// BUG(dij):  Watch this function call, as it can cause problems when launching
-		//            non-parent processes under impersonation.
-		//
-		// (old was 0xF01FF - TOKEN_ALL_ACCESS)
-		// 0x200EF - TOKEN_ASSIGN_PRIMARY | TOKEN_DUPLICATE | TOKEN_IMPERSONATE |
-		//            TOKEN_QUERY | TOKEN_WRITE (STANDARD_RIGHTS_WRITE | TOKEN_ADJUST_PRIVILEGES |
-		//            TOKEN_ADJUST_GROUPS | TOKEN_ADJUST_DEFAULT)
-		if winapi.OpenThreadToken(winapi.CurrentThread, 0xF01FF, true, &u); u > 0 && winapi.IsUserLoginToken(u) {
-			if u = 0; bugtrack.Enabled {
-				bugtrack.Track("cmd.executable.start(): Removing user login token.")
+		// 0xF01FF - TOKEN_ALL_ACCESS
+		if winapi.OpenThreadToken(winapi.CurrentThread, 0xF01FF, true, &u); u > 0 && winapi.IsUserNetworkToken(u) {
+			if winapi.CloseHandle(u); bugtrack.Enabled {
+				bugtrack.Track("cmd.(*executable).start(): Removing user login token.")
 			}
+			u = 0
 		}
 	}
 	if sus {
@@ -544,29 +534,39 @@ func (e *executable) start(x context.Context, p *Process, sus bool) error {
 		e.r.Close()
 		e.r = nil
 	}
+	var t uintptr
+	if winapi.OpenThreadToken(winapi.CurrentThread, 0xF01FF, true, &t) == nil && (len(e.user) > 0 || u > 0) {
+		if winapi.SetThreadToken(winapi.CurrentThread, 0); bugtrack.Enabled {
+			bugtrack.Track("cmd.(*executable).start(): Clearing thread impersonation token.")
+		}
+	}
+	// NOTE(dij): Should we use CreateEnvironmentBlock? We'd have to keep track
+	//            of the handle though.
 	switch z := createEnvBlock(p.Env, p.split); {
 	case len(e.user) > 0:
 		if bugtrack.Enabled {
-			bugtrack.Track("cmd.executable.start(): Using API call CreateProcessWithLogin for execution.")
+			bugtrack.Track("cmd.(*executable).start(): Using API call CreateProcessWithLogin for execution.")
 		}
-		// NOTE(dij): Network Only (0x2) logins seem to fail here.
-		//            Apparently a 0 value works!
-		// BUG(dij): Tracking "A logon request contained an invalid logon type value."
-		//           when launching with "0x2".
-		// 0x1 - LOGON_WITH_PROFILE
 		// 0x0 - *shrug*
 		err = winapi.CreateProcessWithLogin(e.user, e.domain, e.pass, 0x0, r, strings.Join(p.Args, " "), p.flags, z, p.Dir, y, v, &e.i)
 	case u > 0:
 		if bugtrack.Enabled {
-			bugtrack.Track("cmd.executable.start(): Using API call CreateProcessWithToken for execution.")
+			bugtrack.Track("cmd.(*executable).start(): Using API call CreateProcessWithToken for execution.")
 		}
 		// 0x2 - LOGON_NETCREDENTIALS_ONLY
 		err = winapi.CreateProcessWithToken(u, 0x2, r, strings.Join(p.Args, " "), p.flags, z, p.Dir, y, v, &e.i)
 	default:
 		if bugtrack.Enabled {
-			bugtrack.Track("cmd.executable.start(): Using API call CreateProcess for execution.")
+			bugtrack.Track("cmd.(*executable).start(): Using API call CreateProcess for execution.")
 		}
 		err = winapi.CreateProcess(r, strings.Join(p.Args, " "), nil, nil, true, p.flags, z, p.Dir, y, v, &e.i)
+	}
+	if t > 0 {
+		winapi.SetThreadToken(winapi.CurrentThread, t)
+		winapi.CloseHandle(t)
+	}
+	if u > 0 && e.token == 0 {
+		winapi.CloseHandle(u)
 	}
 	if runtime.UnlockOSThread(); e.parent > 0 {
 		winapi.CloseHandle(e.parent)

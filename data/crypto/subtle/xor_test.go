@@ -29,6 +29,6 @@ func TestXOR(t *testing.T) {
 	copy(m, b)
 	XorOp(b, []byte("this is my key!"))
 	if XorOp(b, []byte("this is my key!")); !bytes.Equal(m, b) {
-		t.Fatalf("Xor'd bytes does not match the initial byte slice!")
+		t.Fatalf("TestXOR(): Xor bytes does not match the initial byte slice!")
 	}
 }

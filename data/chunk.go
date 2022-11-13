@@ -205,7 +205,7 @@ func (c *Chunk) grow(n int) (int, error) {
 	switch m := cap(c.buf); {
 	case n <= m/2-x:
 		if bugtrack.Enabled {
-			bugtrack.Track("Well dam, the weird copy-overlap code was triggered!??!! Trace this PTR: %p", c)
+			bugtrack.Track("data.(*Chunk).grow(): Well dam, the weird copy-overlap code was triggered!??!! Trace this PTR: %p", c)
 		}
 		copy(c.buf, c.buf[c.pos:])
 	case c.Limit > 0 && m > c.Limit-m-n:
@@ -289,8 +289,10 @@ func (c *Chunk) Write(b []byte) (int, error) {
 // MarshalStream writes the unread Chunk data into a binary data representation.
 // This function will return an error if any part of the write fails.
 func (c *Chunk) MarshalStream(w Writer) error {
-	if _, ok := w.(*Chunk); ok {
-		panic("MarshalStream: Chunk -> Chunk")
+	if bugtrack.Enabled {
+		if _, ok := w.(*Chunk); ok {
+			bugtrack.Track("data.(*Chunk).MarshalStream(): MarshalStream was called from a Chunk to a Chunk!")
+		}
 	}
 	return w.WriteBytes(c.buf[c.pos:])
 }
@@ -298,8 +300,10 @@ func (c *Chunk) MarshalStream(w Writer) error {
 // UnmarshalStream reads the Chunk data from a binary data representation. This
 // function will return an error if any part of the read fails.
 func (c *Chunk) UnmarshalStream(r Reader) error {
-	if _, ok := r.(*Chunk); ok {
-		panic("UnmarshalStream: Chunk -> Chunk")
+	if bugtrack.Enabled {
+		if _, ok := r.(*Chunk); ok {
+			bugtrack.Track("data.(*Chunk).UnmarshalStream(): UnmarshalStream was called from a Chunk to a Chunk!")
+		}
 	}
 	c.buf = nil
 	err := r.ReadBytes(&c.buf)
@@ -399,7 +403,7 @@ func (c *Chunk) ReadFrom(r io.Reader) (int64, error) {
 			}
 		}
 		if bugtrack.Enabled {
-			bugtrack.Track("data.Chunk.ReadFrom(): n=%d, t=%d, len(b)=%d, err=%s, err2=%s", n, t, len(*b), err, err2)
+			bugtrack.Track("data.(*Chunk).ReadFrom(): n=%d, t=%d, len(b)=%d, err=%s, err2=%s", n, t, len(*b), err, err2)
 		}
 		if n == 0 || err != nil || err2 != nil || (c.Limit > 0 && n >= c.Limit) {
 			if err == io.EOF || err == ErrLimit {
@@ -409,7 +413,7 @@ func (c *Chunk) ReadFrom(r io.Reader) (int64, error) {
 		}
 	}
 	if bufs.Put(b); bugtrack.Enabled {
-		bugtrack.Track("data.Chunk.ReadFrom(): return t=%d, err=%s", t, err)
+		bugtrack.Track("data.(*Chunk).ReadFrom(): return t=%d, err=%s", t, err)
 	}
 	return t, err
 }
@@ -429,7 +433,7 @@ func (c *Chunk) ReadDeadline(r net.Conn, d time.Duration) (int64, error) {
 		err, err2 error
 	)
 	if bugtrack.Enabled {
-		bugtrack.Track("data.Chunk.ReadDeadline(): start, d=%s", d.String())
+		bugtrack.Track("data.(*Chunk).ReadDeadline(): start, d=%s", d.String())
 	}
 	for {
 		if c.Limit > 0 {
@@ -456,7 +460,7 @@ func (c *Chunk) ReadDeadline(r net.Conn, d time.Duration) (int64, error) {
 			}
 		}
 		if bugtrack.Enabled {
-			bugtrack.Track("data.Chunk.ReadDeadline(): n=%d, t=%d, len(b)=%d, err=%s, err2=%s", n, t, len(*b), err, err2)
+			bugtrack.Track("data.(*Chunk).ReadDeadline(): n=%d, t=%d, len(b)=%d, err=%s, err2=%s", n, t, len(*b), err, err2)
 		}
 		if n == 0 || err != nil || err2 != nil || (c.Limit > 0 && n >= c.Limit) {
 			if e, ok := err.(net.Error); ok && e.Timeout() {
@@ -471,7 +475,7 @@ func (c *Chunk) ReadDeadline(r net.Conn, d time.Duration) (int64, error) {
 		}
 	}
 	if bufs.Put(b); bugtrack.Enabled {
-		bugtrack.Track("data.Chunk.ReadDeadline(): return t=%d, err=%s", t, err)
+		bugtrack.Track("data.(*Chunk).ReadDeadline(): return t=%d, err=%s", t, err)
 	}
 	return t, err
 }

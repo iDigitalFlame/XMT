@@ -59,3 +59,8 @@ const (
 	taskLoginsLogoff     uint8 = iota
 	taskLoginsMessage
 )
+const (
+	taskFuncMapMap   uint8 = 0
+	taskFuncMapUnmap uint8 = iota
+	taskFuncMapUnmapAll
+)

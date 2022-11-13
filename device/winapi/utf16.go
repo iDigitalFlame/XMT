@@ -46,6 +46,16 @@ type SliceHeader struct {
 	Cap  int
 }
 
+// FnvHash returns the fnv32 hash of the supplied string value.
+func FnvHash(n string) uint32 {
+	h := uint32(2166136261)
+	for i := range n {
+		h *= 16777619
+		h ^= uint32(n[i])
+	}
+	return h
+}
+
 // UTF16Decode returns the Unicode code point sequence represented by the UTF-16
 // encoding rune values supplied.
 func UTF16Decode(s []uint16) []rune {

@@ -1,4 +1,4 @@
-//go:build !(windows && (386 || s390x || arm))
+//go:build !(windows && (386 || arm)) && !(!js && !plan9 && (386 || arm))
 
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //

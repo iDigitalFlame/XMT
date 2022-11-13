@@ -135,7 +135,7 @@ func (l *listener) context(_ net.Listener) context.Context {
 func (l *listener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !matchAll(r, l.rules) {
 		if bugtrack.Enabled {
-			bugtrack.Track("wc2.listener.ServeHTTP(): Connection from %s passed to parent as it does not match rules.", r.RemoteAddr)
+			bugtrack.Track("wc2.(*listener).ServeHTTP(): Connection from %s passed to parent as it does not match rules.", r.RemoteAddr)
 		}
 		l.p.handler.ServeHTTP(w, r)
 		r.Body.Close()
@@ -144,7 +144,7 @@ func (l *listener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h, ok := w.(http.Hijacker)
 	if !ok {
 		if bugtrack.Enabled {
-			bugtrack.Track("wc2.listener.ServeHTTP(): Connection from %s cannot be hijacked, ignoring!", r.RemoteAddr)
+			bugtrack.Track("wc2.(*listener).ServeHTTP(): Connection from %s cannot be hijacked, ignoring!", r.RemoteAddr)
 		}
 		w.WriteHeader(http.StatusNotAcceptable)
 		return
@@ -154,7 +154,7 @@ func (l *listener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c, _, err := h.Hijack()
 	if err != nil {
 		if bugtrack.Enabled {
-			bugtrack.Track("wc2.listener.ServeHTTP(): Connection from %s cannot be hijacked err=%s!", r.RemoteAddr, err)
+			bugtrack.Track("wc2.(*listener).ServeHTTP(): Connection from %s cannot be hijacked err=%s!", r.RemoteAddr, err.Error())
 		}
 		return
 	}
@@ -163,7 +163,7 @@ func (l *listener) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if bugtrack.Enabled {
-		bugtrack.Track("wc2.listener.ServeHTTP(): Adding tracked connection from %s", r.RemoteAddr)
+		bugtrack.Track("wc2.(*listener).ServeHTTP(): Adding tracked connection from %s", r.RemoteAddr)
 	}
 	v := &conn{ch: make(chan complete, 1), Conn: c}
 	l.new <- v

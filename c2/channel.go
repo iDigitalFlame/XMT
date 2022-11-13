@@ -24,6 +24,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/iDigitalFlame/xmt/c2/cfg"
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
@@ -72,9 +73,9 @@ type connServer interface {
 	clientLock()
 	clientUnlock()
 	prefix() string
-	wrapper() Wrapper
 	clientClear(uint32)
-	transform() Transform
+	wrapper() cfg.Wrapper
+	transform() cfg.Transform
 	clientGet(uint32) (connHost, bool)
 	clientSet(uint32, chan *com.Packet)
 	notify(connHost, *com.Packet) error
@@ -171,7 +172,7 @@ func handle(l *cout.Log, c net.Conn, h connServer, a string) {
 	n, err := readPacket(c, h.wrapper(), h.transform())
 	if err != nil {
 		if c.Close(); cout.Enabled {
-			l.Error("[%s] %s: Error reading Packet: %s!", h.prefix(), a, err)
+			l.Error("[%s] %s: Error reading Packet: %s!", h.prefix(), a, err.Error())
 		}
 		return
 	}
@@ -182,19 +183,19 @@ func handle(l *cout.Log, c net.Conn, h connServer, a string) {
 		// KeyCrypt: Should NOT be encrypted here.
 		if err = h.notify(nil, n); err != nil {
 			if cout.Enabled {
-				l.Warning("[%s:%s] %s: Error processing Oneshot: %s!", h.prefix(), n.Device, a, err)
+				l.Error("[%s:%s] %s: Error processing Oneshot: %s!", h.prefix(), n.Device, a, err.Error())
 			}
 		}
 		return
 	}
 	if cout.Enabled {
-		l.Debug("[%s:%s] %s: Received Packet %q (non-channel).", h.prefix(), n.Device, a, n)
+		l.Trace(`[%s:%s] %s: Received Packet "%s" (non-channel).`, h.prefix(), n.Device, a, n)
 	}
 	// KeyCrypt: Packet 'n' is decrypted here.
 	v, err := h.talk(a, n)
 	if err != nil {
 		if c.Close(); cout.Enabled {
-			l.Error("[%s:%s] %s: Error processing Packet: %s!", h.prefix(), n.Device, a, err)
+			l.Error("[%s:%s] %s: Error processing Packet: %s!", h.prefix(), n.Device, a, err.Error())
 		}
 		return
 	}
@@ -202,7 +203,7 @@ func handle(l *cout.Log, c net.Conn, h connServer, a string) {
 	v.next.Crypt(v.key)
 	if err := writePacket(c, h.wrapper(), h.transform(), v.next); err != nil {
 		if c.Close(); cout.Enabled {
-			l.Error("[%s:%s] %s: Error writing Packet: %s!", h.prefix(), v.next.Device, a, err)
+			l.Error("[%s:%s] %s: Error writing Packet: %s!", h.prefix(), v.next.Device, a, err.Error())
 		}
 		return
 	}
@@ -239,29 +240,33 @@ func (c *conn) channelRead(l *cout.Log, h connServer, a string, x net.Conn) {
 		defer bugtrack.Recover("c2.conn.channelRead()")
 	}
 	if cout.Enabled {
-		l.Info("[%s:%s:S->C:R] %s: Started Channel reader.", h.prefix(), c.host.name(), a)
+		l.Debug("[%s:%s:S->C:R] %s: Started Channel reader.", h.prefix(), c.host.name(), a)
 	}
 	for x.SetReadDeadline(c.host.deadlineRead()); c.host.chanRunning(); x.SetReadDeadline(c.host.deadlineRead()) {
 		n, err := readPacket(x, h.wrapper(), h.transform())
 		if err != nil {
 			if cout.Enabled {
-				l.Error("[%s:%s:S->C:R] %s: Error reading next wire Packet: %s!", h.prefix(), c.host.name(), a, err)
+				if errors.Is(err, net.ErrClosed) {
+					l.Debug("[%s:%s:S->C:R] %s: Read channel socket closed.", h.prefix(), c.host.name(), a)
+				} else {
+					l.Error("[%s:%s:S->C:R] %s: Error reading next wire Packet: %s!", h.prefix(), c.host.name(), a, err.Error())
+				}
 			}
 			break
 		}
 		// KeyCrypt: Decrypt incoming Packet here.
 		if n.Crypt(c.key); cout.Enabled {
-			l.Debug("[%s:%s:S->C:R] %s: Received a Packet %q.", h.prefix(), c.host.name(), a, n)
+			l.Trace(`[%s:%s:S->C:R] %s: Received a Packet "%s".`, h.prefix(), c.host.name(), a, n)
 		}
 		if err = c.resolve(l, c.host, h, a, n.Tags, true); err != nil {
 			if cout.Enabled {
-				l.Error("[%s:%s:S->C:R] %s: Error processing Packet data: %s!", h.prefix(), c.host.name(), a, err)
+				l.Error("[%s:%s:S->C:R] %s: Error processing Packet data: %s!", h.prefix(), c.host.name(), a, err.Error())
 			}
 			break
 		}
 		if err = c.process(l, h, a, n, true); err != nil {
 			if cout.Enabled {
-				l.Error("[%s:%s:S->C:R] %s: Error processing Packet data: %s!", h.prefix(), c.host.name(), a, err)
+				l.Error("[%s:%s:S->C:R] %s: Error processing Packet data: %s!", h.prefix(), c.host.name(), a, err.Error())
 			}
 			break
 		}
@@ -279,19 +284,19 @@ func (c *conn) channelRead(l *cout.Log, h connServer, a string, x net.Conn) {
 		}
 	}
 	if cout.Enabled {
-		l.Info("[%s:%s:S->C:R] Closed Channel reader.", h.prefix(), c.host.name())
+		l.Debug("[%s:%s:S->C:R] Closed Channel reader.", h.prefix(), c.host.name())
 	}
 	c.stop(h, x)
 }
 func (c *conn) channelWrite(l *cout.Log, h connServer, a string, x net.Conn) {
 	if cout.Enabled {
-		l.Info("[%s:%s:S->C:W] %s: Started Channel writer.", h.prefix(), c.host.name(), a)
+		l.Debug("[%s:%s:S->C:W] %s: Started Channel writer.", h.prefix(), c.host.name(), a)
 	}
 	for x.SetReadDeadline(c.host.deadlineWrite()); c.host.chanRunning(); x.SetReadDeadline(c.host.deadlineWrite()) {
 		n := c.host.next(false)
 		if n == nil {
 			if cout.Enabled {
-				l.Info("[%s:%s:S->C:W] Session indicated channel close!", h.prefix(), c.host.name())
+				l.Debug("[%s:%s:S->C:W] Session indicated channel close!", h.prefix(), c.host.name())
 			}
 			break
 		}
@@ -300,15 +305,15 @@ func (c *conn) channelWrite(l *cout.Log, h connServer, a string, x net.Conn) {
 		}
 		// KeyCrypt: Encrypt outgoing Packet.
 		if n.Crypt(c.key); cout.Enabled {
-			l.Debug("[%s:%s:S->C:W] %s: Sending Packet %q.", h.prefix(), c.host.name(), a, n)
+			l.Trace(`[%s:%s:S->C:W] %s: Sending Packet "%s".`, h.prefix(), c.host.name(), a, n)
 		}
 		// KeyCrypt: "next" was called, check for a Key Swap.
 		if err := writePacket(x, h.wrapper(), h.transform(), n); err != nil {
 			if n.Clear(); cout.Enabled {
 				if errors.Is(err, net.ErrClosed) {
-					l.Info("[%s:%s:S->C:W] %s: Write channel socket closed.", h.prefix(), c.host.name(), a)
+					l.Debug("[%s:%s:S->C:W] %s: Write channel socket closed.", h.prefix(), c.host.name(), a)
 				} else {
-					l.Error("[%s:%s:S->C:W] %s: Error attempting to write Packet: %s!", h.prefix(), c.host.name(), a, err)
+					l.Error("[%s:%s:S->C:W] %s: Error attempting to write Packet: %s!", h.prefix(), c.host.name(), a, err.Error())
 				}
 			}
 			// KeyCrypt: Revert key exchange as send failed.
@@ -319,13 +324,13 @@ func (c *conn) channelWrite(l *cout.Log, h connServer, a string, x net.Conn) {
 		c.host.keyCheck()
 		if n.Clear(); n.Flags&com.FlagChannelEnd != 0 || c.host.chanStop() {
 			if cout.Enabled {
-				l.Info("[%s:%s:S->C:W] Session/Packet indicated channel close!", h.prefix(), c.host.name())
+				l.Debug("[%s:%s:S->C:W] Session/Packet indicated channel close!", h.prefix(), c.host.name())
 			}
 			break
 		}
 	}
 	if cout.Enabled {
-		l.Info("[%s:%s:S->C:W] Closed Channel writer.", h.prefix(), c.host.name())
+		l.Debug("[%s:%s:S->C:W] Closed Channel writer.", h.prefix(), c.host.name())
 	}
 }
 func (c *conn) process(l *cout.Log, h connServer, a string, n *com.Packet, o bool) error {
@@ -354,7 +359,7 @@ func (c *conn) process(l *cout.Log, h connServer, a string, n *com.Packet, o boo
 		}
 	}
 	if cout.Enabled {
-		l.Debug("[%s:%s] %s: Queuing result %q.", h.prefix(), c.host.name(), a, c.next)
+		l.Trace(`[%s:%s] %s: Queuing result "%s".`, h.prefix(), c.host.name(), a, c.next)
 	}
 	if len(c.add) > 0 {
 		if cout.Enabled {
@@ -367,7 +372,7 @@ func (c *conn) process(l *cout.Log, h connServer, a string, n *com.Packet, o boo
 			}
 			if err := writeUnpack(c.next, c.add[i], true, true); err != nil {
 				if c.add[i].Clear(); cout.Enabled {
-					l.Warning("[%s:%s] %s: Ignoring an invalid Multi Packet: %s!", h.prefix(), c.host.name(), a, err)
+					l.Warning("[%s:%s] %s: Ignoring an invalid Multi Packet: %s!", h.prefix(), c.host.name(), a, err.Error())
 				}
 				c.next.Clear()
 				return err
@@ -381,7 +386,7 @@ func (c *conn) process(l *cout.Log, h connServer, a string, n *com.Packet, o boo
 	}
 	if !c.host.chanRunning() && (c.host.chanStart() || n.Flags&com.FlagChannel != 0) {
 		if c.next.Flags |= com.FlagChannel; cout.Enabled {
-			l.Debug("[%s:%s] %s: Setting Channel flag on next Packet %q.", h.prefix(), c.host.name(), a, c.next)
+			l.Debug(`[%s:%s] %s: Setting Channel flag on next Packet "%s".`, h.prefix(), c.host.name(), a, c.next)
 		}
 	}
 	return nil
@@ -389,7 +394,7 @@ func (c *conn) process(l *cout.Log, h connServer, a string, n *com.Packet, o boo
 func (c *conn) processSingle(l *cout.Log, h connServer, a string, n *com.Packet, o bool) error {
 	if err := h.notify(c.host, n); err != nil {
 		if cout.Enabled {
-			l.Error("[%s:%s] %s: Error processing Packet: %s!", h.prefix(), c.host.name(), a, err)
+			l.Error("[%s:%s] %s: Error processing Packet: %s!", h.prefix(), c.host.name(), a, err.Error())
 		}
 		return err
 	}
@@ -405,12 +410,12 @@ func (c *conn) processSingle(l *cout.Log, h connServer, a string, n *com.Packet,
 			err := writeUnpack(c.next, v, true, true)
 			if v = nil; err != nil {
 				if cout.Enabled {
-					l.Error("[%s:%s] %s: Error packing Packet response: %s!", h.prefix(), c.host.name(), a, err)
+					l.Error("[%s:%s] %s: Error packing Packet response: %s!", h.prefix(), c.host.name(), a, err.Error())
 				}
 			}
 			// KeyCrypt: "next" was called (result was non-nil), check for a Key Swap.
 			c.host.keyCheck()
-			return nil
+			return err
 		}
 		return nil
 	}
@@ -434,7 +439,7 @@ func (c *conn) processMultiple(l *cout.Log, h connServer, a string, n *com.Packe
 		if err := v.UnmarshalStream(n); err != nil {
 			n.Clear()
 			if c.next.Clear(); cout.Enabled {
-				l.Error("[%s:%s/M] %s: Error reading a lower level Packet: %s!", h.prefix(), c.host.name(), a, err)
+				l.Error("[%s:%s/M] %s: Error reading a lower level Packet: %s!", h.prefix(), c.host.name(), a, err.Error())
 			}
 			return err
 		}
@@ -446,7 +451,7 @@ func (c *conn) processMultiple(l *cout.Log, h connServer, a string, n *com.Packe
 			return ErrMalformedPacket
 		}
 		if cout.Enabled {
-			l.Debug("[%s:%s/M] %s: Unpacked a Packet %q.", h.prefix(), c.host.name(), a, v.String())
+			l.Trace(`[%s:%s/M] %s: Unpacked a Packet "%s".`, h.prefix(), c.host.name(), a, v.String())
 		}
 		if len(v.Tags) > 0 {
 			if v.Tags = nil; cout.Enabled {
@@ -461,11 +466,11 @@ func (c *conn) processMultiple(l *cout.Log, h connServer, a string, n *com.Packe
 		}
 		if v.Flags&com.FlagOneshot != 0 {
 			if cout.Enabled {
-				l.Debug("[%s:%s/M] %s: Received an Oneshot Packet %q.", h.prefix(), v.Device, a, v)
+				l.Debug(`[%s:%s/M] %s: Received an Oneshot Packet "%s".`, h.prefix(), v.Device, a, v)
 			}
 			if err := h.notify(c.host, v); err != nil {
 				if cout.Enabled {
-					l.Warning("[%s:%s/M] %s: Error processing Oneshot Packet: %s!", h.prefix(), v.Device, a, err)
+					l.Error("[%s:%s/M] %s: Error processing Oneshot Packet: %s!", h.prefix(), v.Device, a, err.Error())
 				}
 			}
 			continue
@@ -475,7 +480,7 @@ func (c *conn) processMultiple(l *cout.Log, h connServer, a string, n *com.Packe
 			v.Crypt(c.key)
 			if err := h.notify(c.host, v); err != nil {
 				if cout.Enabled {
-					l.Warning("[%s:%s/M] %s: Error processing Packet: %s!", h.prefix(), v.Device, a, err)
+					l.Error("[%s:%s/M] %s: Error processing Packet: %s!", h.prefix(), v.Device, a, err.Error())
 				}
 			}
 			if o {
@@ -493,7 +498,7 @@ func (c *conn) processMultiple(l *cout.Log, h connServer, a string, n *com.Packe
 			err := writeUnpack(c.next, z, true, true)
 			if z = nil; err != nil {
 				if c.next.Clear(); cout.Enabled {
-					l.Error("[%s:%s/M] %s: Error packing Packet response: %s!", h.prefix(), v.Device, a, err)
+					l.Error("[%s:%s/M] %s: Error packing Packet response: %s!", h.prefix(), v.Device, a, err.Error())
 				}
 			}
 			continue
@@ -502,7 +507,7 @@ func (c *conn) processMultiple(l *cout.Log, h connServer, a string, n *com.Packe
 		k, q, r, err := h.talkSub(a, v, o)
 		if err != nil {
 			if c.next.Clear(); cout.Enabled {
-				l.Error("[%s:%s/M] %s: Error reading Session Packet: %s!", h.prefix(), v.Device, a, err)
+				l.Error("[%s:%s/M] %s: Error reading Session Packet: %s!", h.prefix(), v.Device, a, err.Error())
 			}
 			return err
 		}
@@ -515,7 +520,7 @@ func (c *conn) processMultiple(l *cout.Log, h connServer, a string, n *com.Packe
 		err = writeUnpack(c.next, r, true, true)
 		if r.Clear(); err != nil {
 			if c.next.Clear(); cout.Enabled {
-				l.Error("[%s:%s/M] %s: Error packing Packet response: %s!", h.prefix(), v.Device, a, err)
+				l.Error("[%s:%s/M] %s: Error packing Packet response: %s!", h.prefix(), v.Device, a, err.Error())
 			}
 			return err
 		}

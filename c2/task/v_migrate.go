@@ -40,6 +40,19 @@ type Callable interface {
 	MarshalStream(data.Writer) error
 }
 
+func (DLL) task() uint8 {
+	return TvDLL
+}
+func (Zombie) task() uint8 {
+	return TvZombie
+}
+func (Process) task() uint8 {
+	return TvExecute
+}
+func (Assembly) task() uint8 {
+	return TvAssembly
+}
+
 // Spawn will attempt to spawn a new instance using the provided Callable type
 // as the source.
 //
@@ -105,7 +118,7 @@ func Spawn(f *filter.Filter, s string, c Callable) *com.Packet {
 //      uint8           // Callable Type
 //      <...>           // Callable Data
 //  Output:
-//      <none>          // RvMigrate packet sent separately
+//      <none>          // RvResult packet sent separately
 func Migrate(f *filter.Filter, s string, c Callable) *com.Packet {
 	return MigrateProfileEx(f, true, s, nil, c)
 }
@@ -189,7 +202,7 @@ func SpawnPull(f *filter.Filter, s, url, agent string) *com.Packet {
 //      string          // URL
 //      string          // User-Agent
 //  Output:
-//      <none>          // RvMigrate packet sent separately
+//      <none>          // RvResult packet sent separately
 func MigratePull(f *filter.Filter, s, url, agent string) *com.Packet {
 	return MigratePullProfileEx(f, true, s, nil, url, agent)
 }
@@ -268,7 +281,7 @@ func SpawnProfile(f *filter.Filter, s string, b []byte, c Callable) *com.Packet 
 //      uint8           // Callable Type
 //      <...>           // Callable Data
 //  Output:
-//      <none>          // RvMigrate packet sent separately
+//      <none>          // RvResult packet sent separately
 func MigrateProfile(f *filter.Filter, s string, b []byte, c Callable) *com.Packet {
 	return MigrateProfileEx(f, true, s, b, c)
 }
@@ -350,7 +363,7 @@ func SpawnPullProfile(f *filter.Filter, s string, b []byte, url, agent string) *
 //      uint8           // Callable Type
 //      <...>           // Callable Data
 //  Output:
-//      <none>          // RvMigrate packet sent separately
+//      <none>          // RvResult packet sent separately
 func MigrateProfileEx(f *filter.Filter, w bool, s string, b []byte, c Callable) *com.Packet {
 	n := &com.Packet{ID: MvMigrate}
 	n.WriteBool(w)
@@ -403,7 +416,7 @@ func MigrateProfileEx(f *filter.Filter, w bool, s string, b []byte, c Callable) 
 //      string          // URL
 //      string          // User-Agent
 //  Output:
-//      <none>          // RvMigrate packet sent separately
+//      <none>          // RvResult packet sent separately
 func MigratePullProfile(f *filter.Filter, s string, b []byte, url, agent string) *com.Packet {
 	return MigratePullProfileEx(f, true, s, b, url, agent)
 }
@@ -444,7 +457,7 @@ func MigratePullProfile(f *filter.Filter, s string, b []byte, url, agent string)
 //      string          // URL
 //      string          // User-Agent
 //  Output:
-//      <none>          // RvMigrate packet sent separately
+//      <none>          // RvResult packet sent separately
 func MigratePullProfileEx(f *filter.Filter, w bool, s string, b []byte, url, agent string) *com.Packet {
 	n := &com.Packet{ID: MvMigrate}
 	n.WriteBool(w)

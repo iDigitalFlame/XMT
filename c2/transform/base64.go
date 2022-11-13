@@ -53,7 +53,7 @@ func (b B64) Read(p []byte, w io.Writer) error {
 	n := base64.StdEncoding.DecodedLen(len(p))
 	if n > bufMax {
 		if bugtrack.Enabled {
-			bugtrack.Track("transform.B64.Read(): Creating non-heap buffer, n=%d, bufMax=%d", n, bufMax)
+			bugtrack.Track("transform.(B64).Read(): Creating non-heap buffer, n=%d, bufMax=%d", n, bufMax)
 		}
 		var (
 			o   = make([]byte, n)
@@ -65,7 +65,7 @@ func (b B64) Read(p []byte, w io.Writer) error {
 	o := bufs.Get().(*[]byte)
 	if len(*o) < n {
 		if bugtrack.Enabled {
-			bugtrack.Track("transform.B64.Read(): Increasing heap buffer size len(*o)=%d, n=%d", len(*o), n)
+			bugtrack.Track("transform.(B64).Read(): Increasing heap buffer size len(*o)=%d, n=%d", len(*o), n)
 		}
 		*o = append(*o, make([]byte, n-len(*o))...)
 	}

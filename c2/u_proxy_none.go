@@ -19,9 +19,9 @@
 package c2
 
 import (
-	"io"
-
+	"github.com/iDigitalFlame/xmt/c2/cfg"
 	"github.com/iDigitalFlame/xmt/com"
+	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -47,7 +47,6 @@ func (proxyBase) tags() []uint32 {
 func (proxyBase) IsActive() bool {
 	return false
 }
-func (*Session) updateProxyStats() {}
 
 // Proxy returns the current Proxy (if enabled). This function take a name
 // argument that is a string that specifies the Proxy name.
@@ -72,38 +71,28 @@ func (proxyBase) accept(_ *com.Packet) bool {
 // cannot accept any more connections before being reopened.
 //
 // If the replacement fails, the Proxy will be closed.
-func (Proxy) Replace(_ string, _ Profile) error {
+func (Proxy) Replace(_ string, _ cfg.Profile) error {
 	return xerr.Sub("proxy support disabled", 0x53)
 }
-func (*Session) writeProxyInfo(w io.Writer, d *[8]byte) error {
-	(*d)[0] = 0
-	return writeFull(w, 1, (*d)[0:1])
+func (*Session) writeProxyData(_ bool, w data.Writer) error {
+	return w.WriteUint8(0)
 }
-func readProxyInfo(r io.Reader, d *[8]byte) ([]proxyData, error) {
-	if err := readFull(r, 1, (*d)[0:1]); err != nil {
+func readProxyData(f bool, r data.Reader) ([]proxyData, error) {
+	n, err := r.Uint8()
+	if err != nil {
 		return nil, err
 	}
-	m := int((*d)[0])
-	if m == 0 {
-		return nil, nil
-	}
-	var err error
-	for i := 0; i < m && i < 0xFF; i++ {
-		if err = readFull(r, 4, (*d)[0:4]); err != nil {
+	for i := uint8(0); i < n; i++ {
+		if _, err = r.Bytes(); err != nil {
 			return nil, err
 		}
-		n, s := make([]byte, uint16((*d)[1])|uint16((*d)[0])<<8), make([]byte, uint16((*d)[3])|uint16((*d)[2])<<8)
-		if len(n) > 0 {
-			if err = readFull(r, len(n), n); err != nil {
-				return nil, err
-			}
+		if _, err = r.Bytes(); err != nil {
+			return nil, err
 		}
-		if len(s) > 0 {
-			if err = readFull(r, len(s), s); err != nil {
-				return nil, err
-			}
+		if !f {
+			continue
 		}
-		if _, err = readSlice(r, d); err != nil {
+		if _, err = r.Bytes(); err != nil {
 			return nil, err
 		}
 	}
@@ -119,6 +108,6 @@ func readProxyInfo(r io.Reader, d *[8]byte) ([]proxyData, error) {
 //
 // This function will return an error if this is not a client Session or
 // listening fails.
-func (*Session) NewProxy(_, _ string, _ Profile) (*Proxy, error) {
+func (*Session) NewProxy(_, _ string, _ cfg.Profile) (*Proxy, error) {
 	return nil, xerr.Sub("proxy support disabled", 0x53)
 }

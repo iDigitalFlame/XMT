@@ -147,14 +147,27 @@ func (c *Chunk) Bytes() ([]byte, error) {
 	if l > MaxSlice {
 		return nil, ErrTooLarge
 	}
-	var (
+	// NOTE(dij): This looks like an awesome optimization, we reslice instead of
+	//            allocating and writing a new slice.
+	//
+	// BUG(dij): Tracking just incase something breaks horribly.
+	if n := len(c.buf); n < c.pos+int(l) {
+		o := c.buf[c.pos:]
+		c.pos = n
+		return o, io.EOF
+	}
+	o := c.buf[c.pos : uint64(c.pos)+l]
+	c.pos += int(l)
+	return o, nil
+
+	/*var (
 		n int
 		b = make([]byte, l)
-	)
-	if n, err = io.ReadFull(c, b); err != nil {
-		switch {
-		case err == io.EOF:
-		case err == ErrLimit:
+	)*/
+	/*if n, err = io.ReadFull(c, b); err != nil {
+		switch err {
+		case io.EOF:
+		case ErrLimit:
 		default:
 			return nil, err
 		}
@@ -162,7 +175,7 @@ func (c *Chunk) Bytes() ([]byte, error) {
 	if uint64(n) != l {
 		return b[:n], io.EOF
 	}
-	return b, nil
+	return b, nil*/
 }
 
 // ReadUint reads the value from the Chunk payload buffer into the provided pointer.

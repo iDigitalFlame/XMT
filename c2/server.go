@@ -26,6 +26,7 @@ import (
 
 	"github.com/PurpleSec/logx"
 
+	"github.com/iDigitalFlame/xmt/c2/cfg"
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/device"
@@ -87,7 +88,7 @@ func (s *Server) listen() {
 					s.queue(event{s: v, sf: s.Shutdown})
 				}
 				if delete(s.sessions, i); cout.Enabled {
-					s.log.Info("[%s] Removed closed Session 0x%X.", v.parent.name, i)
+					s.log.Debug("[%s] Removed closed Session 0x%X.", v.parent.name, i)
 				}
 			}
 			s.lock.Unlock()
@@ -267,7 +268,7 @@ func NewServerContext(x context.Context, l logx.Log) *Server {
 // Listen adds the Listener under the name provided. A Listener struct to
 // control and receive callback functions is added to assist in managing
 // connections to this Listener.
-func (s *Server) Listen(name, addr string, p Profile) (*Listener, error) {
+func (s *Server) Listen(name, addr string, p cfg.Profile) (*Listener, error) {
 	return s.ListenContext(s.ctx, name, addr, p)
 }
 
@@ -276,7 +277,7 @@ func (s *Server) Listen(name, addr string, p Profile) (*Listener, error) {
 // connections to this Listener.
 //
 // This function version allows for overriding the Context passed to the Session.
-func (s *Server) ListenContext(x context.Context, name, addr string, p Profile) (*Listener, error) {
+func (s *Server) ListenContext(x context.Context, name, addr string, p cfg.Profile) (*Listener, error) {
 	if p == nil {
 		return nil, ErrInvalidProfile
 	}
@@ -307,7 +308,7 @@ func (s *Server) ListenContext(x context.Context, name, addr string, p Profile) 
 		connection: connection{s: s, m: s, p: p, w: w, t: t, log: s.log},
 	}
 	if s.init.Do(func() { go s.listen() }); cout.Enabled {
-		s.log.Info("[%s] Added Listener on %q!", n, h)
+		s.log.Info(`[%s] Added Listener on "%s"!`, n, h)
 	}
 	l.ctx, l.cancel = context.WithCancel(x)
 	s.new <- l

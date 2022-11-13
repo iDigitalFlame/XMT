@@ -215,10 +215,7 @@ func (f *Filter) MarshalStream(w data.Writer) error {
 	if err := data.WriteStringList(w, f.Exclude); err != nil {
 		return err
 	}
-	if err := data.WriteStringList(w, f.Include); err != nil {
-		return err
-	}
-	return nil
+	return data.WriteStringList(w, f.Include)
 }
 
 // UnmarshalStream will attempt to read the Filter data from the supplied Reader
@@ -252,10 +249,7 @@ func (f *Filter) unmarshalStream(r data.Reader) error {
 	if err := data.ReadStringList(r, &f.Exclude); err != nil {
 		return err
 	}
-	if err := data.ReadStringList(r, &f.Include); err != nil {
-		return err
-	}
-	return nil
+	return data.ReadStringList(r, &f.Include)
 }
 
 // UnmarshalStream will attempt to read the Filter data from the supplied Reader

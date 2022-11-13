@@ -286,7 +286,7 @@ func WebExec(x context.Context, w data.Writer, url, agent string) (cmd.Runnable,
 	if f.Close(); err != nil {
 		return nil, n, err
 	}
-	if bugtrack.Enabled {
+	if b = nil; bugtrack.Enabled {
 		bugtrack.Track("man.WebExec(): Download to temp file url=%s, n=%s", url, n)
 	}
 	if os.Chmod(n, 0755); d {

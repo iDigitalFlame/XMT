@@ -56,7 +56,7 @@ func (i *ipStream) Read(b []byte) (int, error) {
 	n, err := i.udpStream.Read(b)
 	if n > 20 {
 		if bugtrack.Enabled {
-			bugtrack.Track("com.ipStream.Read(): Cutting off IP header n=%d, after n=%d", n, n-20)
+			bugtrack.Track("com.(*ipStream).Read(): Cutting off IP header n=%d, after n=%d", n, n-20)
 		}
 		copy(b, b[20:])
 		n -= 20

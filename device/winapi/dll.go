@@ -19,6 +19,7 @@
 package winapi
 
 import (
+	"io"
 	"os"
 	"strings"
 	"unsafe"
@@ -149,8 +150,12 @@ func ExtractDLLFunctionRaw(v []byte, name string, count uint32) ([]byte, error) 
 	if err != nil {
 		return nil, err
 	}
-	if len(b) < int(a) {
+	u := uint32(len(b))
+	if u < a {
 		return nil, xerr.Sub("cannot find data section", 0x1D)
+	}
+	if u < e.PointerToRawData+a+e.VirtualSize+40 {
+		return nil, io.ErrUnexpectedEOF
 	}
 	if count == 0 {
 		count = 16
@@ -164,7 +169,10 @@ func ExtractDLLFunctionRaw(v []byte, name string, count uint32) ([]byte, error) 
 		m = q.VirtualAddress + q.VirtualSize
 		r = make([]byte, 0, count)
 	)
-	for x, k, a := uint32(0), "", uint32(0); x < i.NumberOfNames; x++ {
+	if u < f || u < s || u < o || u < m {
+		return nil, io.ErrUnexpectedEOF
+	}
+	for x, k, c := uint32(0), "", uint32(0); x < i.NumberOfNames; x++ {
 		k = byteString(*(*[256]byte)(unsafe.Pointer(
 			&b[h+*(*uint32)(unsafe.Pointer(&b[s+(x*4)]))],
 		)))
@@ -172,17 +180,17 @@ func ExtractDLLFunctionRaw(v []byte, name string, count uint32) ([]byte, error) 
 			continue
 		}
 		// Grab ASM from '.text' section
-		a = (q.PointerToRawData - q.VirtualAddress) + *(*uint32)(unsafe.Pointer(
+		c = (q.PointerToRawData - q.VirtualAddress) + *(*uint32)(unsafe.Pointer(
 			&b[f+uint32(*(*uint16)(unsafe.Pointer(&b[o+(x*2)]))*4)],
 		))
-		if a < m && a > f {
+		if c < m && c > f {
 			if xerr.ExtendedInfo {
-				return nil, xerr.Sub(`function is a forward to "`+byteString(*(*[256]byte)(unsafe.Pointer(&b[a])))+`"`, 0x70)
+				return nil, xerr.Sub(`function is a forward to "`+byteString(*(*[256]byte)(unsafe.Pointer(&b[c])))+`"`, 0x70)
 			}
 			return nil, xerr.Sub("function is a forward", 0x70)
 		}
 		for z := uint32(0); z < count; z++ {
-			r = append(r, b[a+z])
+			r = append(r, b[c+z])
 		}
 	}
 	if len(r) == 0 {
@@ -191,14 +199,17 @@ func ExtractDLLFunctionRaw(v []byte, name string, count uint32) ([]byte, error) 
 	return r, nil
 }
 func extractDLLBase(b []byte) (uint32, *imageSectionHeader, *imageSectionHeader, []byte, error) {
-	if len(b) == 0 {
+	if len(b) < 62 {
 		return 0, nil, nil, nil, xerr.Sub("base is not a valid DOS header", 0x19)
 	}
-	d := (*imageDosHeader)(unsafe.Pointer(&b[0]))
+	var (
+		u = int32(len(b))
+		d = (*imageDosHeader)(unsafe.Pointer(&b[0]))
+	)
 	if d.magic != 0x5A4D {
 		return 0, nil, nil, nil, xerr.Sub("base is not a valid DOS header", 0x19)
 	}
-	if len(b) < int(d.pos) {
+	if u < d.pos+24 {
 		return 0, nil, nil, nil, xerr.Sub("offset base is not a valid NT header", 0x1A)
 	}
 	n := *(*imageNtHeader)(unsafe.Pointer(&b[d.pos]))
@@ -217,18 +228,27 @@ func extractDLLBase(b []byte) (uint32, *imageSectionHeader, *imageSectionHeader,
 		p = d.pos + int32(unsafe.Sizeof(n))
 		v [16]imageDataDirectory
 	)
+	if u < p+104 {
+		return 0, nil, nil, nil, io.ErrUnexpectedEOF
+	}
 	if *(*uint16)(unsafe.Pointer(&b[p])) == 0x20B {
 		v = (*imageOptionalHeader64)(unsafe.Pointer(&b[p])).Directory
 	} else {
 		v = (*imageOptionalHeader32)(unsafe.Pointer(&b[p])).Directory
 	}
-	p = d.pos + int32(unsafe.Sizeof(n.File)) + int32(n.File.SizeOfOptionalHeader) + 4
+	if p = d.pos + int32(unsafe.Sizeof(n.File)) + int32(n.File.SizeOfOptionalHeader) + 4; u < p {
+		return 0, nil, nil, nil, io.ErrUnexpectedEOF
+	}
 	// NOTE(dij): For clarity 's' is our '.text' section, it CAN be our entry
 	//            points section, but it might not. 'e' will store the entry
 	//            points section.
 	var s, e *imageSectionHeader
 	for i := uint16(0); i < n.File.NumberOfSections; i++ {
-		x := (*imageSectionHeader)(unsafe.Pointer(&b[p+(int32(sectionSize)*int32(i))]))
+		k := p + (int32(sectionSize) * int32(i))
+		if u < k+40 {
+			return 0, nil, nil, nil, io.ErrUnexpectedEOF
+		}
+		x := (*imageSectionHeader)(unsafe.Pointer(&b[k]))
 		// Find the '.text' section
 		if x.Name[0] == 0x2E && x.Name[1] == 0x74 && x.Name[3] == 0x78 {
 			s = x

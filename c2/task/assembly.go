@@ -77,10 +77,7 @@ func (a *Assembly) UnmarshalStream(r data.Reader) error {
 	if err := filter.UnmarshalStream(r, &a.Filter); err != nil {
 		return err
 	}
-	if err := r.ReadBytes(&a.Data); err != nil {
-		return err
-	}
-	return nil
+	return r.ReadBytes(&a.Data)
 }
 func taskAssembly(x context.Context, r data.Reader, w data.Writer) error {
 	a, z, err := AssemblyUnmarshal(x, r)

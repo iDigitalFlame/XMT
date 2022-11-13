@@ -29,19 +29,19 @@ func TestEntry(t *testing.T) {
 	}
 	v, err := e.ToInteger()
 	if err != nil {
-		t.Fatalf("ToInteger returned an error: %s", err.Error())
+		t.Fatalf("TestEntry(): ToInteger returned an error: %s", err.Error())
 	}
 	if v != 0x201000FF {
-		t.Fatalf("ToInteger result 0x%X does not match expected 0x201000FF!", v)
+		t.Fatalf(`TestEntry(): ToInteger result "0x%X" does not match expected "0x201000FF"!`, v)
 	}
 	z := Entry{
 		Data: []byte{0xFF, 0, 0x10, 0x20, 0x40, 0x40, 0x40, 0x50},
 		Type: registry.TypeQword,
 	}
 	if v, err = z.ToInteger(); err != nil {
-		t.Fatalf("ToInteger returned an error: %s", err.Error())
+		t.Fatalf("TestEntry(): ToInteger returned an error: %s", err.Error())
 	}
 	if v != 0x50404040201000FF {
-		t.Fatalf("ToInteger result 0x%X does not match expected 0x50404040201000FF!", v)
+		t.Fatalf(`TestEntry(): ToInteger result "0x%X" does not match expected "0x50404040201000FF"!"`, v)
 	}
 }

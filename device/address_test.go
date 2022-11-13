@@ -21,7 +21,7 @@ import (
 	"testing"
 )
 
-func TestAddresses(t *testing.T) {
+func TestAddress(t *testing.T) {
 	v := [...]net.IP{
 		net.ParseIP("127.0.0.1"),
 		net.ParseIP("::1"),
@@ -31,22 +31,22 @@ func TestAddresses(t *testing.T) {
 	}
 	for i := range v {
 		if len(v[i]) == 0 {
-			t.Fatalf("ParseIP index %d returned an invalid net.IP!", i)
+			t.Fatalf(`TestAddress(): ParseIP index "%d" returned an invalid net.IP!`, i)
 		}
 		var a Address
 		if a.Set(v[i]); a.IsUnspecified() {
-			t.Fatalf("Address %d should not be zero!", i)
+			t.Fatalf(`TestAddress(): Address "%d" should not be zero!`, i)
 		}
 		if v[i][0] == 127 && a.IsLoopback() {
-			t.Fatalf(`Address "%s" IsLoopback() should return true!`, a.String())
+			t.Fatalf(`TestAddress(): Address "%s" IsLoopback() should return true!`, a.String())
 		}
 		if x := v[i].To4(); x != nil {
 			if a.Len() != 32 {
-				t.Fatalf(`IPv4 Address "%s" Len() should return 32!`, a.String())
+				t.Fatalf(`TestAddress(): IPv4 Address "%s" Len() should return "32"!`, a.String())
 			}
 		} else {
 			if a.Len() != 128 {
-				t.Fatalf(`IPv6 Address "%s" Len() should return 128!`, a.String())
+				t.Fatalf(`TestAddress(): IPv6 Address "%s" Len() should return "128"!`, a.String())
 			}
 		}
 	}

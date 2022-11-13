@@ -26,6 +26,8 @@ import (
 	"github.com/PurpleSec/escape"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
+	"github.com/iDigitalFlame/xmt/device"
+	"github.com/iDigitalFlame/xmt/device/local/tags"
 )
 
 const maxEvents = 2048
@@ -170,6 +172,7 @@ func (s *Session) JSON(w io.Writer) error {
 		`"arch":"` + s.Device.Arch().String() + `",` +
 		`"os":` + escape.JSON(s.Device.OS().String()) + `,` +
 		`"elevated":` + strconv.FormatBool(s.Device.IsElevated()) + `,` +
+		`"capabilities":"` + tags.ParseCapabilities(s.Device.OS() == device.Windows, s.Device.Capabilities) + `",` +
 		`"domain":` + strconv.FormatBool(s.Device.IsDomainJoined()) + `,` +
 		`"pid":` + strconv.FormatUint(uint64(s.Device.PID), 10) + `,` +
 		`"ppid":` + strconv.FormatUint(uint64(s.Device.PPID), 10) + `,` +
@@ -208,8 +211,30 @@ func (s *Session) JSON(w io.Writer) error {
 			`"last":"` + s.Last.Format(time.RFC3339) + `",` +
 			`"via":` + escape.JSON(s.host.String()) + `,` +
 			`"sleep":` + strconv.FormatUint(uint64(s.sleep), 10) + `,` +
-			`"jitter":` + strconv.FormatUint(uint64(s.jitter), 10),
+			`"jitter":` + strconv.FormatUint(uint64(s.jitter), 10) + `,`,
 	))
+	if err != nil {
+		return err
+	}
+	if s.kill != nil {
+		_, err = w.Write([]byte(`"kill_date":"` + s.kill.Format(time.RFC3339) + `",`))
+	} else {
+		_, err = w.Write([]byte(`"kill_date":"",`))
+	}
+	if err != nil {
+		return err
+	}
+	if s.work != nil {
+		_, err = w.Write([]byte(
+			`"work_hours":{"start_hour":` + strconv.FormatUint(uint64(s.work.StartHour), 10) + `,` +
+				`"start_min":` + strconv.FormatUint(uint64(s.work.StartMin), 10) + `,` +
+				`"end_hour":` + strconv.FormatUint(uint64(s.work.EndHour), 10) + `,` +
+				`"end_min":` + strconv.FormatUint(uint64(s.work.EndMin), 10) + `,` +
+				`"days":"` + s.work.String() + `"}`,
+		))
+	} else {
+		_, err = w.Write([]byte(`"work_hours":{}`))
+	}
 	if err != nil {
 		return err
 	}
@@ -309,10 +334,4 @@ func (l *Listener) MarshalJSON() ([]byte, error) {
 	d := b.Payload()
 	returnBuffer(b)
 	return d, nil
-}
-func (s *Session) updateProxyInfo(v []proxyData) {
-	if s.IsClient() {
-		return
-	}
-	s.proxies = v
 }

@@ -168,6 +168,11 @@ func (f Filter) TokenFunc(a uint32, x filter) (uintptr, error) {
 func (f Filter) HandleFunc(a uint32, x filter) (uintptr, error) {
 	// If we have a specific PID in mind that's valid.
 	if f.PID > 4 {
+		if err := winapi.GetDebugPrivilege(); err != nil {
+			if bugtrack.Enabled {
+				bugtrack.Track("filter.(Filter).open(): GetDebugPrivilege failed with err=%s", err.Error())
+			}
+		}
 		h, err := winapi.OpenProcess(a, false, f.PID)
 		if h == 0 || err != nil {
 			return 0, xerr.Wrap("OpenProcess", err)
@@ -221,6 +226,11 @@ func (f Filter) ThreadFunc(a uint32, x filter) (uintptr, error) {
 	if err != nil {
 		return 0, err
 	}
+	if err = winapi.GetDebugPrivilege(); err != nil {
+		if bugtrack.Enabled {
+			bugtrack.Track("filter.(Filter).open(): GetDebugPrivilege failed with err=%s", err.Error())
+		}
+	}
 	var v uintptr
 	err = winapi.EnumThreads(i, func(e winapi.ThreadEntry) error {
 		if v, err = e.Handle(a); err == nil {
@@ -230,6 +240,9 @@ func (f Filter) ThreadFunc(a uint32, x filter) (uintptr, error) {
 	})
 	if err != nil {
 		return 0, err
+	}
+	if v == 0 {
+		return 0, ErrNoProcessFound
 	}
 	return v, nil
 }
@@ -242,7 +255,7 @@ func (f Filter) open(a uint32, r bool, x filter) (winapi.ProcessEntry, error) {
 	)
 	if err := winapi.GetDebugPrivilege(); err != nil {
 		if bugtrack.Enabled {
-			bugtrack.Track("filter.Filter.open(): GetDebugPrivilege failed with err=%s", err)
+			bugtrack.Track("filter.(Filter).open(): GetDebugPrivilege failed with err=%s", err.Error())
 		}
 	}
 	err := winapi.EnumProcesses(func(e winapi.ProcessEntry) error {
@@ -258,7 +271,7 @@ func (f Filter) open(a uint32, r bool, x filter) (winapi.ProcessEntry, error) {
 				return nil
 			}
 			if winapi.CloseHandle(h); bugtrack.Enabled {
-				bugtrack.Track("filter.Filter.open(): Added process e.Name=%q, e.PID=%d for eval.", e.Name, e.PID)
+				bugtrack.Track("filter.(Filter).open(): Added process e.Name=%s, e.PID=%d for eval.", e.Name, e.PID)
 			}
 			z = append(z, e)
 			// NOTE(dij): Left this commented to be un-commented if you want a
@@ -289,7 +302,7 @@ func (f Filter) open(a uint32, r bool, x filter) (winapi.ProcessEntry, error) {
 			}
 		}
 		if z = append(z, e); bugtrack.Enabled {
-			bugtrack.Track("filter.Filter.open(): Added process e.Name=%q, e.PID=%d for eval.", e.Name, e.PID)
+			bugtrack.Track("filter.(Filter).open(): Added process e.Name=%s, e.PID=%d for eval.", e.Name, e.PID)
 		}
 		return nil
 	})
@@ -300,20 +313,20 @@ func (f Filter) open(a uint32, r bool, x filter) (winapi.ProcessEntry, error) {
 	case 0:
 		if !r && x == nil && f.Fallback {
 			if bugtrack.Enabled {
-				bugtrack.Track("filter.Filter.open(): First run failed, starting fallback!")
+				bugtrack.Track("filter.(Filter).open(): First run failed, starting fallback!")
 			}
 			return f.open(a, true, x)
 		}
 		return emptyProc, ErrNoProcessFound
 	case 1:
 		if bugtrack.Enabled {
-			bugtrack.Track("filter.Filter.open(): Choosing process e.Name=%q, e.PID=%d.", z[0].Name, z[0].PID)
+			bugtrack.Track("filter.(Filter).open(): Choosing process e.Name=%s, e.PID=%d.", z[0].Name, z[0].PID)
 		}
 		return z[0], nil
 	}
 	n := z[int(util.FastRandN(len(z)))]
 	if bugtrack.Enabled {
-		bugtrack.Track("filter.Filter.open(): Choosing process e.Name=%q, e.PID=%d.", n.Name, n.PID)
+		bugtrack.Track("filter.(Filter).open(): Choosing process e.Name=%s, e.PID=%d.", n.Name, n.PID)
 	}
 	return n, nil
 }

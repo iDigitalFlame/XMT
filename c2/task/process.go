@@ -115,10 +115,7 @@ func (p *Process) UnmarshalStream(r data.Reader) error {
 	if err := filter.UnmarshalStream(r, &p.Filter); err != nil {
 		return err
 	}
-	if err := r.ReadBytes(&p.Stdin); err != nil {
-		return err
-	}
-	return nil
+	return r.ReadBytes(&p.Stdin)
 }
 func taskProcess(x context.Context, r data.Reader, w data.Writer) error {
 	p, z, err := ProcessUnmarshal(x, r)

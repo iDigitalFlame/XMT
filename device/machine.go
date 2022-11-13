@@ -29,8 +29,9 @@ type Machine struct {
 	Version  string
 	Hostname string
 
-	Network   Network
-	PID, PPID uint32
+	Network      Network
+	PID, PPID    uint32
+	Capabilities uint32
 
 	ID       ID
 	System   uint8
@@ -89,10 +90,10 @@ func (m Machine) MarshalStream(w data.Writer) error {
 	if err := w.WriteUint8(m.Elevated); err != nil {
 		return err
 	}
-	if err := m.Network.MarshalStream(w); err != nil {
+	if err := w.WriteUint32(m.Capabilities); err != nil {
 		return err
 	}
-	return nil
+	return m.Network.MarshalStream(w)
 }
 
 // UnmarshalStream transforms this struct from a binary format that is read from
@@ -122,8 +123,8 @@ func (m *Machine) UnmarshalStream(r data.Reader) error {
 	if err := r.ReadUint8(&m.Elevated); err != nil {
 		return err
 	}
-	if err := m.Network.UnmarshalStream(r); err != nil {
+	if err := r.ReadUint32(&m.Capabilities); err != nil {
 		return err
 	}
-	return nil
+	return m.Network.UnmarshalStream(r)
 }

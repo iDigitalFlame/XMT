@@ -23,17 +23,45 @@ import (
 
 func TestMatcher(t *testing.T) {
 	for i := 0; i < 32; i++ {
-		m := Matcher("test1-%5n-%5c-%5u-%5l-%5s-%d-%h-test1-" + strconv.Itoa(i))
+		m := Matcher("test1-%d-%h-%5n-%5c-%5u-%5l-%5s-%d-%h-test1-" + strconv.Itoa(i))
 		if !m.Match().MatchString(m.String()) {
-			t.Fatalf(`Matcher "%s" did not match it's generated Regexp!`, m)
+			t.Fatalf(`TestMatcher(): Matcher "%s" did not match it's generated Regexp!`, m)
+		}
+	}
+	for i := 0; i < 32; i++ {
+		m := Matcher("test1-%5l-%5d-%5fl-%5fu-%5fn-test2-" + strconv.Itoa(i))
+		if !m.Match().MatchString(m.String()) {
+			t.Fatalf(`TestMatcher(): Matcher "%s" did not match it's generated Regexp!`, m)
+		}
+	}
+	for i := 0; i < 32; i++ {
+		m := Matcher("test1-%5c-%5fc-%5fh-%5fd-%5n-%5fn-test3-" + strconv.Itoa(i))
+		if !m.Match().MatchString(m.String()) {
+			t.Fatalf(`TestMatcher(): Matcher "%s" did not match it's generated Regexp!`, m)
+		}
+	}
+}
+func TestMatcherAny(t *testing.T) {
+	for i := 0; i < 32; i++ {
+		m := Matcher("%s-test1-%5h-%5n-%5c-%5u-%5l-%5s-%d-%h-test1-" + strconv.Itoa(i))
+		if !MatchAny.MatchString(m.String()) {
+			t.Fatalf(`TestMatcherAny(): Matcher "%s" did not match MatchAny!`, m)
+		}
+	}
+}
+func TestMatcherNone(t *testing.T) {
+	for i := 0; i < 32; i++ {
+		m := Matcher("%s-test1-%5h-%5n-%5c-%5u-%5l-%5s-%d-%h-test1-" + strconv.Itoa(i))
+		if MatchNone.MatchString(m.String()) {
+			t.Fatalf(`TestMatcherNone(): Matcher "%s" matched MatchNone!`, m)
 		}
 	}
 }
 func TestMatcherInverse(t *testing.T) {
 	for i := 0; i < 32; i++ {
-		m := Matcher("test1-%5n-%5c-%5u-%5l-%5s-%d-%h-test1-" + strconv.Itoa(i))
+		m := Matcher("%s-test1-%5h-%5n-%5c-%5u-%5l-%5s-%d-%h-test1-" + strconv.Itoa(i))
 		if m.MatchEx(false).MatchString(m.String()) {
-			t.Fatalf(`Matcher "%s" matched it's generated inverse Regexp!`, m)
+			t.Fatalf(`TestMatcherInverse(): Matcher "%s" matched it's generated inverse Regexp!`, m)
 		}
 	}
 }

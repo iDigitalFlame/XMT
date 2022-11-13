@@ -24,7 +24,6 @@ import (
 	"crypto/cipher"
 	"io"
 
-	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/data/crypto/subtle"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
@@ -32,28 +31,15 @@ import (
 type reader struct {
 	_ [0]func()
 	r io.Reader
-	c Reader
+	c *CBK
 }
 type writer struct {
 	_ [0]func()
 	w io.Writer
-	c Writer
+	c *CBK
 }
 type flusher interface {
 	Flush() error
-}
-
-// Reader is an interface that supports reading bytes from a Reader through the
-// wrapped Cipher.
-type Reader interface {
-	Read(io.Reader, []byte) (int, error)
-}
-
-// Writer is an interface that supports writing bytes to a Writer through the
-// wrapped Cipher.
-type Writer interface {
-	Flush(io.Writer) error
-	Write(io.Writer, []byte) (int, error)
 }
 
 func (w *writer) Flush() error {
@@ -88,7 +74,7 @@ func UnwrapString(key, data []byte) string {
 	return string(data)
 }
 
-// NewAes attempts to create a new AES block Cipher from the provided key data.
+// NewAes attempts to create a new AES block cipher from the provided key data.
 // Errors will be returned if the key length is invalid.
 func NewAes(k []byte) (cipher.Block, error) {
 	return aes.NewCipher(k)
@@ -100,40 +86,66 @@ func (w *writer) Write(b []byte) (int, error) {
 	return w.c.Write(w.w, b)
 }
 
-// NewReader creates an io.ReadCloser type from the specified Cipher and Reader.
-func NewReader(c Reader, r io.Reader) io.Reader {
-	if c == nil {
-		return r
+// NewXORReader creates an io.WriteCloser type from the specified XOR cipher and
+// Reader.
+//
+// This creates a Block cipher with a auto-generated IV based on the key value.
+// To control the IV value, use the 'NewCBKReader' function instead.
+func NewXORReader(x XOR, r io.Reader) io.Reader {
+	v := make([]byte, len(x))
+	for i := range x {
+		v[i] = (x[i] + byte(i)) ^ 2
 	}
+	return io.NopCloser(&cipher.StreamReader{R: r, S: cipher.NewCFBDecrypter(x, v)})
+}
+
+// NewCBKReader creates an io.ReadCloser type from the specified CBK cipher and
+// Reader.
+func NewCBKReader(c *CBK, r io.Reader) io.Reader {
 	return &reader{c: c, r: r}
 }
 
-// NewWriter creates an io.WriteCloser type from the specified Cipher and Writer.
-func NewWriter(c Writer, w io.Writer) io.WriteCloser {
-	if c == nil {
-		return data.WriteCloser(w)
+// NewXORWriter creates an io.WriteCloser type from the specified XOR cipher and
+// Writer.
+//
+// This creates a Block cipher with a auto-generated IV based on the key value.
+// To control the IV value, use the 'NewBlockWriter' function instead.
+func NewXORWriter(x XOR, w io.Writer) io.WriteCloser {
+	v := make([]byte, len(x))
+	for i := range x {
+		v[i] = (x[i] + byte(i)) ^ 2
 	}
+	return &cipher.StreamWriter{W: w, S: cipher.NewCFBEncrypter(x, v)}
+}
+
+// NewCBKWriter creates an io.WriteCloser type from the specified CBK cipher and
+// Writer.
+func NewCBKWriter(c *CBK, w io.Writer) io.WriteCloser {
 	return &writer{c: c, w: w}
 }
 
-// Decrypter creates a data.Reader type from the specified block Cipher, IV and
-// Reader.
+// NewBlockReader creates a data.Reader type from the specified block cipher,
+// IV and Reader.
 //
 // This is used to Decrypt data. This function returns an error if the blocksize
 // of the Block does not equal the length of the supplied IV.
-func Decrypter(b cipher.Block, iv []byte, r io.Reader) (io.ReadCloser, error) {
+//
+// This uses CFB mode.
+func NewBlockReader(b cipher.Block, iv []byte, r io.Reader) (io.ReadCloser, error) {
 	if len(iv) != b.BlockSize() {
 		return nil, xerr.Sub("block size must equal IV size", 0x29)
 	}
 	return io.NopCloser(&cipher.StreamReader{R: r, S: cipher.NewCFBDecrypter(b, iv)}), nil
 }
 
-// Encrypter creates a data.Reader type from the specified block Cipher, IV and
-// Writer.
+// NewBlockWriter creates a data.Reader type from the specified block cipher,
+// IV and Writer.
 //
 // This is used to Encrypt data. This function returns an error if the blocksize
 // of the Block does not equal the length of the supplied IV.
-func Encrypter(b cipher.Block, iv []byte, w io.Writer) (io.WriteCloser, error) {
+//
+// This uses CFB mode.
+func NewBlockWriter(b cipher.Block, iv []byte, w io.Writer) (io.WriteCloser, error) {
 	if len(iv) != b.BlockSize() {
 		return nil, xerr.Sub("block size must equal IV size", 0x29)
 	}

@@ -41,16 +41,16 @@ func TestTransformBase64Shift(t *testing.T) {
 func testWrapper(t *testing.T, x transform) {
 	var i, o bytes.Buffer
 	if err := x.Write([]byte("hello world!"), &o); err != nil {
-		t.Fatalf("Write failed with error: %s!", err.Error())
+		t.Fatalf("TestTransform(): Write failed with error: %s!", err.Error())
 	}
 	if err := x.Read(o.Bytes(), &i); err != nil {
-		t.Fatalf("Write failed with error: %s!", err.Error())
+		t.Fatalf("TestTransform(): Write failed with error: %s!", err.Error())
 	}
 	v := make([]byte, 12)
 	if _, err := i.Read(v); err != nil && err != io.EOF {
-		t.Fatalf("Read failed with error: %s!", err.Error())
+		t.Fatalf("TestTransform(): Read failed with error: %s!", err.Error())
 	}
 	if string(v) != "hello world!" {
-		t.Fatalf(`Result output "%s" did not match "hello world!"!`, v)
+		t.Fatalf(`TestTransform(): Result output "%s" did not match "hello world!"!`, v)
 	}
 }

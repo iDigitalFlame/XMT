@@ -28,14 +28,13 @@ The pkg.go.dev site has some of the framework documentation and definitions
 
 ## Roadmap
 
-_Updated 10/18/22_
+_Updated 11/12/22_
 
 - Reflective DLL Injection (Windows)
 - Linux mem_fd loader
 - "Device Check" package
   - Detect VM
   - Anti-VM checks
-- Linux shellcode support
 
 These are some things that would be nice to have, but are not as important as the
 above list:
@@ -44,6 +43,7 @@ above list:
 - MultiProxy support
 - X/Wayland/OSX Screenshot support
 - EDR Detection
+- Linux shellcode support
 - More thread injection options (Windows)
 
 ## TODOs
@@ -62,13 +62,14 @@ BSides Las Vegas 2022: So you Wanta Build a C2?
 
 ## Bugs
 
-_Updated 10/18/22_
+_Updated 11/12/22_
 
-So far, we're looking good. Feel free to submit issue tickets or pull requests if
-something is broken or doesn't act right. (I don't bite, mostly owo)
+Feel free to submit issue tickets or pull requests if something is broken or
+doesn't act right. (I don't bite, mostly owo)
 
 ## Thanks and Credits
 
+- [Geoff Chappell](https://www.geoffchappell.com) for his insights into various Windows API stuff
 - Package Monkey by @skx [github.com/skx/monkey](https://github.com/skx/monkey)
 - Package Otto by @robertkrimen [github.com/robertkrimen/otto](https://github.com/robertkrimen/otto)
 - Intern method by @bradfitz [tailscale.com/blog/netaddr-new-ip-type-for-go/](https://tailscale.com/blog/netaddr-new-ip-type-for-go/)

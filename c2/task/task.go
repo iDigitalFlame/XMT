@@ -80,6 +80,8 @@ const (
 	TvLogins      uint8 = 0xDA
 	TvLoginsAct   uint8 = 0xDB
 	TvLoginsProc  uint8 = 0xDC
+	TvFuncMap     uint8 = 0xDD
+	TvFuncMapList uint8 = 0xDE
 )
 
 // Mappings is a fixed size array that contains the Tasker mappings for each
@@ -117,6 +119,8 @@ var Mappings = [0xFF]Tasker{
 	TvLogins:      taskLogins,
 	TvLoginsAct:   taskLoginsAct,
 	TvLoginsProc:  taskLoginsProc,
+	TvFuncMap:     taskFuncMap,
+	TvFuncMapList: taskFuncMapList,
 }
 
 // Tasklet is an interface that allows for Sessions to be directly tasked

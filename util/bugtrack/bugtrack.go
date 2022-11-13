@@ -59,7 +59,7 @@ func init() {
 	}
 	log = logx.Multiple(l, logx.Writer(os.Stderr, logx.Trace))
 	log.SetPrefix("BUGTRACK")
-	log.Info("Bugtrack log init complete, log file can be found at %q.", f)
+	log.Info(`Bugtrack log init complete, log file can be found at "%s".`, f)
 }
 
 // Recover is a "guard" function to be used to gracefully shut down a program

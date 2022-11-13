@@ -32,7 +32,7 @@ func TestSplit(t *testing.T) {
 	for i := range v {
 		r := Split(v[i].Cmd)
 		if len(r) != len(v[i].Result) {
-			t.Fatalf(`Split result %v does not match expected %v for "%s"!`, r, v[i].Result, v[i].Cmd)
+			t.Fatalf(`TestSplit(): Result "%s" does not match expected "%s" for "%s"!`, r, v[i].Result, v[i].Cmd)
 		}
 	}
 }

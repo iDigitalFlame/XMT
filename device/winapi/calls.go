@@ -30,24 +30,12 @@ import (
 //
 // https://docs.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-revqerttoself
 //
-// Calls 'NtSetInformationThread' under the hood.
-func RevertToSelf() error {
-	//r, _, err := syscall.SyscallN(funcRevertToSelf.address())
-	// 0x5 - ThreadImpersonationToken
-	if r, _, _ := syscall.SyscallN(funcNtSetInformationThread.address(), CurrentThread, 0x5, 0, 0); r > 0 {
-		return formatNtError(r)
-	}
-	return nil
-}
-
-// IsDebuggerPresent Windows API Call
-//   Determines whether the calling process is being debugged by a user-mode
-//   debugger.
+// Alias of 'SetAllThreadsToken(0)'
 //
-// https://docs.microsoft.com/en-us/windows/win32/api/debugapi/nf-debugapi-isdebuggerpresent
-func IsDebuggerPresent() bool {
-	r, _, _ := syscall.SyscallN(funcIsDebuggerPresent.address())
-	return r > 0
+// NOTE(dij): This only clears the token on all the Golang Threads. Same as
+//            'device.RevertToSelf'.
+func RevertToSelf() error {
+	return SetAllThreadsToken(0)
 }
 
 // BlockInput Windows API Call
@@ -70,9 +58,12 @@ func BlockInput(e bool) error {
 //   Sets the specified event object to the signaled state.
 //
 // https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-setevent
+//
+// Re-targeted to use 'NtSetEvent' instead.
+// https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-zwsetevent
 func SetEvent(h uintptr) error {
-	if r, _, err := syscall.SyscallN(funcSetEvent.address(), h); r == 0 {
-		return unboxError(err)
+	if r, _, _ := syscall.SyscallN(funcNtSetEvent.address(), h, 0); r > 0 {
+		return formatNtError(r)
 	}
 	return nil
 }
@@ -85,6 +76,10 @@ func SetEvent(h uintptr) error {
 // Re-targeted to use 'NtClose' instead.
 // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntclose
 func CloseHandle(h uintptr) error {
+	// NOTE(dij): Uncomment to track empty handles
+	// if h == 0 {
+	// 	panic("invalid")
+	// }
 	r, _, _ := syscall.SyscallN(funcNtClose.address(), h)
 	if bugtrack.Enabled { // Trace Bad Handles
 		bugtrack.Track("winapi.CloseHandle() h=0x%X, r=0x%X", h, r)
@@ -122,36 +117,33 @@ func RegFlushKey(h uintptr) error {
 //
 // https://docs.microsoft.com/en-us/windows/win32/api/wow64apiset/nf-wow64apiset-iswow64process
 func IsWow64Process() (bool, error) {
-	if funcIsWow64Process.find() != nil {
+	if funcRtlWow64GetProcessMachines.find() != nil {
 		// Running on "true" x86.
 		return false, nil
 	}
-	var (
-		o         bool
-		r, _, err = syscall.SyscallN(funcIsWow64Process.address(), CurrentProcess, uintptr(unsafe.Pointer(&o)))
-	)
-	if r == 0 {
-		return false, unboxError(err)
+	var p, n uint16
+	if r, _, _ := syscall.SyscallN(funcRtlWow64GetProcessMachines.address(), CurrentProcess, uintptr(unsafe.Pointer(&p)), uintptr(unsafe.Pointer(&n))); r > 0 {
+		return false, formatNtError(r)
 	}
-	return o, nil
+	return p > 0, nil
 }
 
-// ResumeProcess Windows API Call
+// NtResumeProcess Windows API Call
 //   Resumes a process and all it's threads.
 //
 // http://www.pinvoke.net/default.aspx/ntdll/NtResumeProcess.html
-func ResumeProcess(h uintptr) error {
+func NtResumeProcess(h uintptr) error {
 	if r, _, _ := syscall.SyscallN(funcNtResumeProcess.address(), h); r > 0 {
 		return formatNtError(r)
 	}
 	return nil
 }
 
-// SuspendProcess Windows API Call
+// NtSuspendProcess Windows API Call
 //   Suspends a process and all it's threads.
 //
 // http://www.pinvoke.net/default.aspx/ntdll/NtSuspendProcess.html
-func SuspendProcess(h uintptr) error {
+func NtSuspendProcess(h uintptr) error {
 	if r, _, _ := syscall.SyscallN(funcNtSuspendProcess.address(), h); r > 0 {
 		return formatNtError(r)
 	}
@@ -163,11 +155,15 @@ func SuspendProcess(h uintptr) error {
 //
 // https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getlogicaldrives
 func GetLogicalDrives() (uint32, error) {
-	r, _, err := syscall.SyscallN(funcGetLogicalDrives.address())
-	if r == 0 {
-		return 0, unboxError(err)
+	var (
+		n       uint32
+		b       [8]uint32
+		r, _, _ = syscall.SyscallN(funcNtQueryInformationProcess.address(), CurrentProcess, 0x17, uintptr(unsafe.Pointer(&b[0])), 0x24, uintptr(unsafe.Pointer(&n)))
+	)
+	if r > 0 {
+		return 0, formatNtError(r)
 	}
-	return uint32(r), nil
+	return b[0], nil
 }
 
 // DisconnectNamedPipe Windows API Call
@@ -215,19 +211,6 @@ func GetProcessID(h uintptr) (uint32, error) {
 	return uint32(p.UniqueProcessID), nil
 }
 
-// ImpersonateLoggedOnUser Windows API Call
-//   The ImpersonateLoggedOnUser function lets the calling thread impersonate the
-//   security context of a logged-on user. The user is represented by a token handle.
-//
-// https://docs.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-impersonateloggedonuser
-func ImpersonateLoggedOnUser(h uintptr) error {
-	r, _, err := syscall.SyscallN(funcImpersonateLoggedOnUser.address(), h)
-	if r == 0 {
-		return unboxError(err)
-	}
-	return nil
-}
-
 // SuspendThread Windows API Call
 //   Suspends the specified thread.
 //
@@ -249,10 +232,15 @@ func SuspendThread(h uintptr) (uint32, error) {
 //   which thread created the I/O operation.
 //
 // https://docs.microsoft.com/en-us/windows/win32/fileio/cancelioex-func
+//
+// Re-targeted to use 'NtCancelIoFileEx' instead.
+// https://learn.microsoft.com/en-us/windows/win32/devnotes/nt-cancel-io-file-ex
+//
+// NOTE(dij): ^ THIS IS WRONG! It forgets the IO_STATUS_BLOCK entry at the end.
 func CancelIoEx(h uintptr, o *Overlapped) error {
-	r, _, err := syscall.SyscallN(funcCancelIoEx.address(), h, uintptr(unsafe.Pointer(o)))
-	if r == 0 {
-		return unboxError(err)
+	var s [4 + ptrSize]byte // IO_STATUS_BLOCK
+	if r, _, _ := syscall.SyscallN(funcNtCancelIoFileEx.address(), h, uintptr(unsafe.Pointer(o)), uintptr(unsafe.Pointer(&s))); r > 0 {
+		return formatNtError(r)
 	}
 	return nil
 }
@@ -278,6 +266,38 @@ func TerminateThread(h uintptr, e uint32) error {
 // https://docs.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regdeletekeyw
 func RegDeleteKey(h uintptr, path string) error {
 	return RegDeleteKeyEx(h, path, 0)
+}
+
+// SetProcessIsCritical Windows API Call
+//   Set process system critical status.
+//   Returns the last Critical status.
+//
+// https://www.codeproject.com/articles/43405/protecting-your-process-with-rtlsetprocessiscriti
+func SetProcessIsCritical(c bool) (bool, error) {
+	var s, o byte
+	if c {
+		s = 1
+	}
+	r, _, err := syscall.SyscallN(funcRtlSetProcessIsCritical.address(), uintptr(s), uintptr(unsafe.Pointer(&o)), 0)
+	if r > 0 {
+		return false, unboxError(err)
+	}
+	return o == 1, nil
+}
+
+// SetThreadToken Windows API Call
+//   The SetThreadToken function assigns an impersonation token to a thread. The
+//   function can also cause a thread to stop using an impersonation token.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-setthreadtoken
+//
+// Calls 'NtSetInformationThread' under the hood.
+func SetThreadToken(h uintptr, t uintptr) error {
+	// 0x5 - ThreadImpersonationToken
+	if r, _, _ := syscall.SyscallN(funcNtSetInformationThread.address(), h, 0x5, uintptr(unsafe.Pointer(&t)), unsafe.Sizeof(t)); r > 0 {
+		return formatNtError(r)
+	}
+	return nil
 }
 
 // RegDeleteTree Windows API Call
@@ -323,19 +343,6 @@ func ImpersonateNamedPipeClient(h uintptr) error {
 	return nil
 }
 
-// SetThreadToken Windows API Call
-//   The SetThreadToken function assigns an impersonation token to a thread. The
-//   function can also cause a thread to stop using an impersonation token.
-//
-// https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-setthreadtoken
-func SetThreadToken(h *uintptr, t uintptr) error {
-	r, _, err := syscall.SyscallN(funcSetThreadToken.address(), uintptr(unsafe.Pointer(h)), t)
-	if r == 0 {
-		return unboxError(err)
-	}
-	return nil
-}
-
 // RegDeleteValue Windows API Call
 //   Removes a named value from the specified registry key. Note that value names
 //   are not case sensitive.
@@ -371,23 +378,6 @@ func GetExitCodeThread(h uintptr, e *uint32) error {
 	return nil
 }
 
-// RtlSetProcessIsCritical Windows API Call
-//   Set process system critical status.
-//   Returns the last Critical status.
-//
-// https://www.codeproject.com/articles/43405/protecting-your-process-with-rtlsetprocessiscriti
-func RtlSetProcessIsCritical(c bool) (bool, error) {
-	var s, o byte
-	if c {
-		s = 1
-	}
-	r, _, err := syscall.SyscallN(funcRtlSetProcessIsCritical.address(), uintptr(s), uintptr(unsafe.Pointer(&o)), 0)
-	if r > 0 {
-		return false, unboxError(err)
-	}
-	return o == 1, nil
-}
-
 // NtFreeVirtualMemory Windows API Call
 //   The NtFreeVirtualMemory routine releases, decommits, or both releases and
 //   decommits, a region of pages within the virtual address space of a specified
@@ -396,7 +386,7 @@ func RtlSetProcessIsCritical(c bool) (bool, error) {
 // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntfreevirtualmemory
 func NtFreeVirtualMemory(h, address uintptr) error {
 	var (
-		s       uint32
+		s       uintptr
 		r, _, _ = syscall.SyscallN(
 			funcNtFreeVirtualMemory.address(), h, uintptr(unsafe.Pointer(&address)), uintptr(unsafe.Pointer(&s)),
 			0x8000,
@@ -486,7 +476,7 @@ func ConnectNamedPipe(h uintptr, o *Overlapped) error {
 }
 
 // NtUnmapViewOfSection Windows API Call
-//   The NtUnmapViewOfSection routine unmaps a view of a section from the virtual
+//   The NtUnmapViewOfSection routine un-maps a view of a section from the virtual
 //   address space of a subject process.
 //
 // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwunmapviewofsection
@@ -679,12 +669,29 @@ func CreateToolhelp32Snapshot(flags, pid uint32) (uintptr, error) {
 //
 // https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject
 func WaitForSingleObject(h uintptr, timeout int32) (uint32, error) {
-	r, _, err := syscall.SyscallN(funcWaitForSingleObject.address(), h, uintptr(uint32(timeout)))
-	// 0xFFFFFFFF - WAIT_FAILED
-	if r == 0xFFFFFFFF {
-		return 0, unboxError(err)
+	if v := int64(h); v >= -12 && v <= -10 {
+		if p, err := getProcessPeb(); err == nil {
+			switch v {
+			case -10: // STD_INPUT_HANDLE
+				h = p.ProcessParameters.StandardInput
+			case -11: // STD_OUTPUT_HANDLE
+				h = p.ProcessParameters.StandardOutput
+			case -12: // STD_ERROR_HANDLE
+				h = p.ProcessParameters.StandardError
+			}
+		}
 	}
-	return uint32(r), nil
+	var t *uint64
+	if timeout != -1 {
+		n := uint64(timeout * -10000)
+		t = &n
+	}
+	r, _, _ := syscall.SyscallN(funcNtWaitForSingleObject.address(), h, 0, uintptr(unsafe.Pointer(t)))
+	switch r {
+	case 0, 0x000000C0, 0x00000101, 0x00000102:
+		return uint32(r), nil
+	}
+	return 0, formatNtError(r)
 }
 
 // ReadFile Windows API Call
@@ -1028,21 +1035,50 @@ func NtCreateThreadEx(h, address, args uintptr, suspended bool) (uintptr, error)
 //
 // Calls 'WaitForMultipleObjectsEx' under the hood.
 func WaitForMultipleObjects(h []uintptr, all bool, timeout int32) (uint32, error) {
-	n, a := uint32(len(h)), 0
+	n, a := uint32(len(h)), 1
 	if n <= 0 || n > 64 {
 		return 0, syscall.EINVAL
 	}
 	if all {
-		a = 1
+		a = 0
 	}
-	r, _, err := syscall.SyscallN(
-		funcWaitForMultipleObjects.address(), uintptr(n), uintptr(unsafe.Pointer(&h[0])), uintptr(a), uintptr(uint32(timeout)), 0,
+	var (
+		p   *processPeb
+		err error
 	)
-	// 0xFFFFFFFF - WAIT_FAILED
-	if r == 0xFFFFFFFF {
-		return 0, unboxError(err)
+	for i := range h {
+		v := int64(h[i])
+		if v < -12 || v > -10 {
+			continue
+		}
+		if p == nil && err == nil {
+			p, err = getProcessPeb()
+		}
+		if p != nil {
+			switch v {
+			case -10: // STD_INPUT_HANDLE
+				h[i] = p.ProcessParameters.StandardInput
+			case -11: // STD_OUTPUT_HANDLE
+				h[i] = p.ProcessParameters.StandardOutput
+			case -12: // STD_ERROR_HANDLE
+				h[i] = p.ProcessParameters.StandardError
+			}
+		}
 	}
-	return uint32(r), nil
+	var t *uint64
+	if timeout != -1 {
+		n := uint64(timeout * -10000)
+		t = &n
+	}
+	r, _, _ := syscall.SyscallN(funcNtWaitForMultipleObjects.address(), uintptr(n), uintptr(unsafe.Pointer(&h[0])), uintptr(a), 0, uintptr(unsafe.Pointer(t)))
+	switch r {
+	case 0, 0x000000C0, 0x00000101, 0x00000102:
+		return uint32(r), nil
+	}
+	if r <= 64 {
+		return uint32(r), nil
+	}
+	return 0, formatNtError(r)
 }
 
 // CreateMutex Windows API Call
@@ -1250,13 +1286,16 @@ func CreateSemaphore(sa *SecurityAttributes, initial, max uint32, name string) (
 //   rights to obtain the information.
 //
 // https://docs.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-gettokeninformation
+//
+// Re-targeted to use 'NtQueryInformationToken' instead.
+// https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntqueryinformationtoken
 func GetTokenInformation(t uintptr, class uint32, info *byte, length uint32, ret *uint32) error {
-	r, _, err := syscall.SyscallN(
-		funcGetTokenInformation.address(), t, uintptr(class), uintptr(unsafe.Pointer(info)), uintptr(length),
-		uintptr(unsafe.Pointer(ret)),
+	r, _, _ := syscall.SyscallN(
+		funcNtQueryInformationToken.address(), t, uintptr(class), uintptr(unsafe.Pointer(info)),
+		uintptr(length), uintptr(unsafe.Pointer(ret)),
 	)
-	if r == 0 {
-		return unboxError(err)
+	if r > 0 {
+		return formatNtError(r)
 	}
 	return nil
 }

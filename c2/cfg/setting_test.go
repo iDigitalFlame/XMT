@@ -20,22 +20,23 @@ import (
 	"context"
 	"testing"
 	"time"
-
-	"github.com/iDigitalFlame/xmt/c2"
 )
 
-func TestCfg(t *testing.T) {
+func TestConfig(t *testing.T) {
 	c := Pack(
 		Host("127.0.0.1:8085"),
 		ConnectTCP,
 		Sleep(time.Second*5),
 		Jitter(0),
+		Weight(10),
+		KillDate(time.Now().AddDate(1, 0, 0)),
 	)
 	c.AddGroup(
 		Host("127.0.0.1:8086"),
 		ConnectTCP,
 		Sleep(time.Second*10),
 		Jitter(50),
+		&WorkHours{Days: DayFriday},
 	)
 	c.AddGroup(
 		Host("127.0.0.1:8087"),
@@ -45,33 +46,37 @@ func TestCfg(t *testing.T) {
 	)
 	c.AddGroup(Host("127.0.0.1:8088")) // Invalid
 	c.Add(SelectorLastValid)
-	v, err := Raw(c.Bytes())
+	p, err := Raw(c.Bytes())
 	if err != nil {
-		t.Fatalf("Raw failed with error: %s!", err.Error())
+		t.Fatalf("TestConfig(): Raw failed with error: %s!", err.Error())
+	}
+	v, ok := p.(*Group)
+	if !ok {
+		t.Fail()
 	}
 	if v.Jitter() != 0 {
-		t.Fatalf("First Jitter should be 0, but is %d!", v.Jitter())
+		t.Fatalf(`TestConfig(): First Jitter should be "0", but is "%d"!`, v.Jitter())
 	}
 	if h, _, _ := v.Next(); h != "127.0.0.1:8085" {
-		t.Fatalf(`First Host should be "127.0.0.1:8085", but is %s!`, h)
+		t.Fatalf(`TestConfig(): First Host should be "127.0.0.1:8085", but is "%s"!`, h)
 	}
 	v.Switch(false)
 	if v.Jitter() != 0 {
-		t.Fatalf("First Jitter should be 0, but is %d!", v.Jitter())
+		t.Fatalf(`TestConfig(): First Jitter should be "0", but is "%d"!`, v.Jitter())
 	}
 	if h, _, _ := v.Next(); h != "127.0.0.1:8085" {
-		t.Fatalf(`First Host should be "127.0.0.1:8085", but is %s!`, h)
+		t.Fatalf(`TestConfig(): First Host should be "127.0.0.1:8085", but is "%s"!`, h)
 	}
 	v.Switch(true)
 	if v.Jitter() != 50 {
-		t.Fatalf("Second Jitter should be 50, but is %d!", v.Jitter())
+		t.Fatalf(`TestConfig(): Second Jitter should be "50", but is "%d"!`, v.Jitter())
 	}
 	if h, _, _ := v.Next(); h != "127.0.0.1:8086" {
-		t.Fatalf(`Second Host should be "127.0.0.1:8086", but is %s!`, h)
+		t.Fatalf(`TestConfig(): Second Host should be "127.0.0.1:8086", but is "%s"!`, h)
 	}
 	v.Switch(true) // Advance 2 places
 	v.Switch(true)
-	if _, err := v.Connect(context.Background(), ""); err != c2.ErrNotAConnector {
-		t.Fatalf(`Last Group should raise "ErrNotAConnector" but instead got: %s!`, err)
+	if _, err := v.Connect(context.Background(), ""); err != ErrNotAConnector {
+		t.Fatalf(`TestConfig(): Last Group should raise "ErrNotAConnector" but instead got: %s!`, err)
 	}
 }

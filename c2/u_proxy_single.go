@@ -20,37 +20,16 @@ package c2
 
 import (
 	"context"
-	"io"
 
+	"github.com/iDigitalFlame/xmt/c2/cfg"
 	"github.com/iDigitalFlame/xmt/c2/cout"
-	"github.com/iDigitalFlame/xmt/com"
-	"github.com/iDigitalFlame/xmt/device/local"
+	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 type proxyBase struct {
 	_ [0]func()
 	*Proxy
-}
-
-func (s *Session) updateProxyStats() { // old: (_ bool, _ string) {
-	// Just update the server with our Proxy info.
-	if !s.IsClient() || !s.IsActive() {
-		return
-	}
-	n := &com.Packet{ID: SvProxy, Device: local.UUID}
-	switch {
-	case s.proxy == nil:
-		n.WriteUint8(0)
-	case !s.proxy.IsActive():
-		s.proxy = nil
-		n.WriteUint8(0)
-	default:
-		n.WriteUint8(1)
-		n.WriteString(s.proxy.addr)
-		n.WriteString(s.proxy.name)
-	}
-	s.queue(n)
 }
 
 // Proxy returns the current Proxy (if enabled). This function take a name
@@ -72,21 +51,28 @@ func (s *Session) checkProxyMarshal() bool {
 	_, ok := s.proxy.p.(marshaler)
 	return ok
 }
-func (s *Session) writeProxyInfo(w io.Writer, d *[8]byte) error {
-	if s.proxy == nil || !s.proxy.IsActive() {
-		(*d)[0] = 0
-		return writeFull(w, 1, (*d)[0:1])
+func (s *Session) writeProxyData(f bool, w data.Writer) error {
+	if !s.IsClient() || !s.IsActive() {
+		return nil
 	}
-	n, v := uint64(len(s.proxy.addr)), uint64(len(s.proxy.name))
-	(*d)[0], (*d)[1], (*d)[2], (*d)[3], (*d)[4] = 1, byte(n>>8), byte(n), byte(v>>8), byte(v)
-	if err := writeFull(w, 4, (*d)[0:4]); err != nil {
+	if s.proxy == nil {
+		return w.WriteUint8(0)
+	}
+	if !s.proxy.IsActive() {
+		s.proxy = nil
+		return w.WriteUint8(0)
+	}
+	if err := w.WriteUint8(1); err != nil {
 		return err
 	}
-	if err := writeFull(w, len(s.proxy.addr), []byte(s.proxy.addr)); err != nil {
+	if err := w.WriteString(s.proxy.name); err != nil {
 		return err
 	}
-	if err := writeFull(w, len(s.proxy.name), []byte(s.proxy.name)); err != nil {
+	if err := w.WriteString(s.proxy.addr); err != nil {
 		return err
+	}
+	if !f {
+		return nil
 	}
 	p, ok := s.proxy.p.(marshaler)
 	if !ok {
@@ -96,7 +82,7 @@ func (s *Session) writeProxyInfo(w io.Writer, d *[8]byte) error {
 	if err != nil {
 		return err
 	}
-	return writeSlice(w, d, b)
+	return w.WriteBytes(b)
 }
 
 // NewProxy establishes a new listening Proxy connection using the supplied Profile
@@ -108,7 +94,7 @@ func (s *Session) writeProxyInfo(w io.Writer, d *[8]byte) error {
 //
 // This function will return an error if this is not a client Session or
 // listening fails.
-func (s *Session) NewProxy(name, addr string, p Profile) (*Proxy, error) {
+func (s *Session) NewProxy(name, addr string, p cfg.Profile) (*Proxy, error) {
 	if !s.IsClient() {
 		return nil, xerr.Sub("must be a client session", 0x4E)
 	}
@@ -152,10 +138,9 @@ func (s *Session) NewProxy(name, addr string, p Profile) (*Proxy, error) {
 		connection: connection{s: s.s, p: p, w: w, m: s.m, t: t, log: s.log},
 	}
 	if v.ctx, v.cancel = context.WithCancel(s.ctx); cout.Enabled {
-		s.log.Info("[%s/P] Added Proxy Listener on %q!", s.ID, h)
+		s.log.Info(`[%s/P] Added Proxy Listener on "%s"!`, s.ID, h)
 	}
 	s.proxy = &proxyBase{Proxy: v}
-	s.updateProxyStats() // true, name)
 	go v.listen()
 	return v, nil
 }

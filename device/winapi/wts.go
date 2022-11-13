@@ -233,10 +233,7 @@ func (p SessionProcess) MarshalStream(w data.Writer) error {
 	if err := w.WriteString(p.Name); err != nil {
 		return err
 	}
-	if err := w.WriteString(p.User); err != nil {
-		return err
-	}
-	return nil
+	return w.WriteString(p.User)
 }
 
 // WTSLogoffSession Windows API Call

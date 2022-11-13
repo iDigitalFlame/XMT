@@ -129,12 +129,12 @@ func (t *thread) wait(p, i uint32) {
 	)
 	if t.m, err = winapi.CreateEvent(nil, false, false, ""); err != nil {
 		if bugtrack.Enabled {
-			bugtrack.Track("cmd.thread.wait(): Creating Event failed, falling back to single wait: %s", err.Error())
+			bugtrack.Track("cmd.(*thread).wait(): Creating Event failed, falling back to single wait: %s", err.Error())
 		}
 	}
 	go func() {
 		if bugtrack.Enabled {
-			defer bugtrack.Recover("cmd.thread.wait.func1()")
+			defer bugtrack.Recover("cmd.(*thread).wait():func1()")
 		}
 		var e error
 		if e = wait(t.hwnd, t.m); p > 0 && i > 0 {

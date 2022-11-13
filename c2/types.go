@@ -22,6 +22,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/iDigitalFlame/xmt/c2/cfg"
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
@@ -53,10 +54,10 @@ type eventer chan event
 type connection struct {
 	_   [0]func()
 	s   *Server
-	w   Wrapper
-	t   Transform
+	w   cfg.Wrapper
+	t   cfg.Transform
 	m   messager
-	p   Profile
+	p   cfg.Profile
 	ctx context.Context
 	log *cout.Log
 }
@@ -104,7 +105,7 @@ func (e eventer) listen(s *Session) {
 		defer bugtrack.Recover("c2.eventer.listen()")
 	}
 	if cout.Enabled {
-		s.log.Info("Client-side event processing thread started!")
+		s.log.Debug("Client-side event processing thread started!")
 	}
 	for {
 		select {
@@ -138,7 +139,7 @@ func (e event) process(l *cout.Log) {
 			case e.s.recv <- e.p:
 			default:
 				if cout.Enabled {
-					l.Warning("[%s] Packet %q was dropped during receive!", e.s.ID, e.p)
+					l.Warning(`[%s] Packet "%s" was dropped during receive!`, e.s.ID, e.p)
 				}
 			}
 			break
@@ -157,7 +158,7 @@ func (e event) process(l *cout.Log) {
 			case e.s.recv <- e.p:
 			default:
 				if cout.Enabled {
-					l.Warning("[%s] Packet %q was dropped during receive!", e.s.ID, e.p)
+					l.Warning(`[%s] Packet "%s" was dropped during receive!`, e.s.ID, e.p)
 				}
 			}
 			break

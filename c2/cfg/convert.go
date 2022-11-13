@@ -20,7 +20,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/iDigitalFlame/xmt/c2"
 	"github.com/iDigitalFlame/xmt/c2/transform"
 	"github.com/iDigitalFlame/xmt/c2/wrapper"
 	"github.com/iDigitalFlame/xmt/com"
@@ -31,9 +30,9 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-func init() {
+/*func init() {
 	c2.ProfileParser = Raw
-}
+}*/
 func (c Config) next(i int) int {
 	if i > len(c) || i < 0 {
 		return -1
@@ -47,9 +46,9 @@ func (c Config) next(i int) int {
 		return i + 1
 	case valIP, valB64Shift, valJitter, valWeight, valTLSx:
 		return i + 2
-	case valCBK:
+	case valCBK, valWorkHours:
 		return i + 6
-	case valSleep:
+	case valSleep, valKillDate:
 		return i + 9
 	case valWC2:
 		if i+7 >= len(c) {
@@ -162,7 +161,7 @@ func (c Config) Validate() error {
 //
 // Other functions that may return errors on creation, like encryption wrappers
 // for example, will stop the build process and will return that wrapped error.
-func (c Config) Build() (c2.Profile, error) {
+func (c Config) Build() (Profile, error) {
 	if len(c) == 0 {
 		return nil, nil
 	}
@@ -230,6 +229,17 @@ loop:
 		case valWeight:
 			if i+1 >= n {
 				return -1, xerr.Wrap("weight", ErrInvalidSetting)
+			}
+		case valKillDate:
+			if i+8 >= n {
+				return -1, xerr.Wrap("killdate", ErrInvalidSetting)
+			}
+		case valWorkHours:
+			if i+5 >= n {
+				return -1, xerr.Wrap("workhours", ErrInvalidSetting)
+			}
+			if c[i+2] > 23 || c[i+3] > 59 || c[i+4] > 23 || c[i+5] > 59 {
+				return -1, xerr.Wrap("workhours", ErrInvalidSetting)
 			}
 		case SelectorRoundRobin, SelectorLastValid, SelectorRandom, SelectorSemiRandom, SelectorSemiRoundRobin:
 		case ConnectTCP, ConnectTLS, ConnectUDP, ConnectICMP, ConnectPipe, ConnectTLSNoVerify:
@@ -383,7 +393,7 @@ loop:
 func (c Config) build(x int) (*profile, int, int8, error) {
 	var (
 		p profile
-		w []c2.Wrapper
+		w []Wrapper
 		n int
 		z int8 = -1
 	)
@@ -414,8 +424,8 @@ loop:
 				uint64(c[i+8]) | uint64(c[i+7])<<8 | uint64(c[i+6])<<16 | uint64(c[i+5])<<24 |
 					uint64(c[i+4])<<32 | uint64(c[i+3])<<40 | uint64(c[i+2])<<48 | uint64(c[i+1])<<56,
 			)
-			if p.sleep <= 0 {
-				p.sleep = c2.DefaultSleep
+			if p.sleep < 0 {
+				p.sleep = DefaultSleep
 			}
 		case valJitter:
 			if i+1 >= n {
@@ -423,6 +433,8 @@ loop:
 			}
 			if p.jitter = int8(c[i+1]); p.jitter > 100 {
 				p.jitter = 100
+			} else if p.jitter < -1 {
+				p.jitter = 0
 			}
 		case valWeight:
 			if i+1 >= n {
@@ -430,6 +442,30 @@ loop:
 			}
 			if p.weight = c[i+1]; p.weight > 100 {
 				p.weight = 100
+			}
+		case valKillDate:
+			if i+8 >= n {
+				return nil, -1, -1, xerr.Wrap("killdate", ErrInvalidSetting)
+			}
+			u := uint64(c[i+8]) | uint64(c[i+7])<<8 | uint64(c[i+6])<<16 | uint64(c[i+5])<<24 |
+				uint64(c[i+4])<<32 | uint64(c[i+3])<<40 | uint64(c[i+2])<<48 | uint64(c[i+1])<<56
+			if u == 0 {
+				p.kill = &time.Time{}
+			} else {
+				d := time.Unix(int64(u), 0)
+				p.kill = &d
+			}
+		case valWorkHours:
+			if i+5 >= n {
+				return nil, -1, -1, xerr.Wrap("workhours", ErrInvalidSetting)
+			}
+			if c[i+2] > 23 || c[i+3] > 59 || c[i+4] > 23 || c[i+5] > 59 {
+				return nil, -1, -1, xerr.Wrap("workhours", ErrInvalidSetting)
+			}
+			if c[i+1] == 0 && c[i+2] == 0 && c[i+3] == 0 && c[i+4] == 0 && c[i+5] == 0 {
+				p.work = &WorkHours{}
+			} else {
+				p.work = &WorkHours{Days: c[i+1], StartHour: c[i+2], StartMin: c[i+3], EndHour: c[i+4], EndMin: c[i+5]}
 			}
 		case SelectorRandom, SelectorRoundRobin, SelectorLastValid, SelectorSemiRandom, SelectorSemiRoundRobin:
 			z = int8(c[i] - byte(SelectorLastValid))
@@ -597,8 +633,7 @@ loop:
 			if k > n || k < i {
 				return nil, -1, -1, xerr.Wrap("xor", ErrInvalidSetting)
 			}
-			x := crypto.XOR(c[i+3 : k+3])
-			w = append(w, wrapper.Stream(x, x))
+			w = append(w, wrapper.NewXOR(c[i+3:k+3]))
 		case valCBK:
 			if i+5 >= n {
 				return nil, -1, -1, xerr.Wrap("cbk", ErrInvalidSetting)
@@ -619,7 +654,7 @@ loop:
 			if err != nil {
 				return nil, -1, -1, xerr.Wrap("aes", err)
 			}
-			u, err := wrapper.Block(b, c[v:z])
+			u, err := wrapper.NewBlock(b, c[v:z])
 			if err != nil {
 				return nil, -1, -1, xerr.Wrap("aes", err)
 			}
@@ -659,7 +694,7 @@ loop:
 		}
 	}
 	if len(w) > 1 {
-		p.w = c2.MultiWrapper(w)
+		p.w = MultiWrapper(w)
 	} else if len(w) == 1 {
 		p.w = w[0]
 	}

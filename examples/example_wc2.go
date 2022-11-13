@@ -22,6 +22,7 @@ import (
 
 	"github.com/PurpleSec/logx"
 	"github.com/iDigitalFlame/xmt/c2"
+	"github.com/iDigitalFlame/xmt/c2/cfg"
 	"github.com/iDigitalFlame/xmt/c2/wrapper"
 	"github.com/iDigitalFlame/xmt/com/wc2"
 	"github.com/iDigitalFlame/xmt/util/text"
@@ -38,7 +39,7 @@ func exampleWC2() {
 		x.ServeDirectory("/", "/tmp")
 		x.TargetAsRule()
 
-		v := c2.Static{
+		v := cfg.Static{
 			L: x,
 			J: 30,
 			S: time.Second * 5,
@@ -58,7 +59,7 @@ func exampleWC2() {
 	x := wc2.NewClient(0, &wc2.Target{URL: text.Matcher("/login/ajax/%s/%d")})
 	x.Target.Header("X-Watch", text.Matcher("%5fs-%5fs"))
 
-	v := c2.Static{
+	v := cfg.Static{
 		C: x,
 		J: 30,
 		S: time.Second * 5,

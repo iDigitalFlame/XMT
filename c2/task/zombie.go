@@ -160,10 +160,7 @@ func (z Zombie) MarshalStream(w data.Writer) error {
 	if err := z.Filter.MarshalStream(w); err != nil {
 		return err
 	}
-	if err := w.WriteBytes(z.Stdin); err != nil {
-		return err
-	}
-	return nil
+	return w.WriteBytes(z.Stdin)
 }
 
 // UnmarshalStream reads the data for this Zombie from the supplied Reader.
@@ -204,8 +201,5 @@ func (z *Zombie) UnmarshalStream(r data.Reader) error {
 	if err := filter.UnmarshalStream(r, &z.Filter); err != nil {
 		return err
 	}
-	if err := r.ReadBytes(&z.Stdin); err != nil {
-		return err
-	}
-	return nil
+	return r.ReadBytes(&z.Stdin)
 }

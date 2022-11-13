@@ -28,6 +28,7 @@ import (
 
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/device/winapi"
+	"github.com/iDigitalFlame/xmt/util/bugtrack"
 )
 
 const retry = 100 * time.Millisecond
@@ -111,29 +112,41 @@ func (l *Listener) Close() error {
 	if atomic.LoadUint32(&l.done) == 1 {
 		return nil
 	}
+	var err error // We shouldn't let errors stop us from cleaning up!
 	if atomic.StoreUint32(&l.done, 1); l.handle > 0 {
-		if err := winapi.DisconnectNamedPipe(l.handle); err != nil {
-			return err
+		if err = winapi.DisconnectNamedPipe(l.handle); err != nil {
+			if bugtrack.Enabled {
+				bugtrack.Track("com.(*Listener).Close(): DisconnectNamedPipe error: %s!", err.Error())
+			}
 		}
-		if err := winapi.CloseHandle(l.handle); err != nil {
-			return err
+		if err = winapi.CloseHandle(l.handle); err != nil {
+			if bugtrack.Enabled {
+				bugtrack.Track("com.(*Listener).Close(): CloseHandle(handle) error: %s!", err.Error())
+			}
 		}
 		l.handle = 0
 	}
 	if l.overlap != nil && l.active > 0 {
-		if err := winapi.CancelIoEx(l.active, l.overlap); err != nil {
-			return err
+		if err = winapi.CancelIoEx(l.active, l.overlap); err != nil {
+			if bugtrack.Enabled {
+				bugtrack.Track("com.(*Listener).Close(): CancelIoEx error: %s!", err.Error())
+			}
 		}
-		if err := winapi.CloseHandle(l.overlap.Event); err != nil {
-			return err
+		if err = winapi.CloseHandle(l.overlap.Event); err != nil {
+			if bugtrack.Enabled {
+				bugtrack.Track("com.(*Listener).Close(): CloseHandle(event) error: %s!", err.Error())
+			}
 		}
-		if err := winapi.CloseHandle(l.active); err != nil {
-			return err
+		if l.active > 0 { // Extra check as it can be reset here sometimes.
+			if err = winapi.CloseHandle(l.active); err != nil {
+				if bugtrack.Enabled {
+					bugtrack.Track("com.(*Listener).Close(): CloseHandle(active) error: %s!", err.Error())
+				}
+			}
 		}
-
 		l.active = 0
 	}
-	return nil
+	return err
 }
 
 // Addr returns the listener's network address.
@@ -145,15 +158,11 @@ func (l *Listener) Addr() net.Addr {
 // will set the token of this Thread to the Pipe's connected client token.
 //
 // A call to 'device.RevertToSelf()' will reset the token.
-//
-// BUG(dij): Need to test this further. It "works" but I'm not 100% sure if it's
-//           due to the client lacking the "SeImpersonate" privilege or something
-//           else...
 func (c *Conn) Impersonate() error {
 	if c.handle == 0 {
 		return nil
 	}
-	return winapi.ImpersonateNamedPipeClient(c.handle)
+	return winapi.ImpersonatePipeToken(c.handle)
 }
 
 // LocalAddr returns the Pipe's local endpoint address.
@@ -254,9 +263,10 @@ func (l *Listener) AcceptPipe() (*Conn, error) {
 		l.overlap, l.active = o, h
 		_, err = complete(h, o)
 	}
-	if atomic.LoadUint32(&l.done) == 1 {
+	if l.active = 0; atomic.LoadUint32(&l.done) == 1 {
 		return nil, net.ErrClosed
 	}
+	winapi.CancelIoEx(l.active, l.overlap)
 	if winapi.CloseHandle(o.Event); err == winapi.ErrOperationAborted {
 		winapi.CloseHandle(h)
 		return nil, ErrClosed

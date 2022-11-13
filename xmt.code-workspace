@@ -5,6 +5,9 @@
         },
         {
             "path": "../Libraries/PersistKit"
+        },
+        {
+            "path": "../Libraries/TinyPatchedGo"
         }
     ],
     "settings": {
@@ -40,6 +43,7 @@
             "BSOD",
             "EXSTYLE",
             "gcflags",
+            "Ghidra",
             "GOARCH",
             "GOROOT",
             "HKCU",
@@ -57,7 +61,10 @@
             "Protos",
             "RPCSS",
             "SCRNSAVE",
+            "SMTWRFS",
             "STARTF",
+            "TITLEISAPPID",
+            "unmapping",
             "vardic",
             "vulncheck",
             "wtsapi",

@@ -42,6 +42,7 @@ build_tags=(
               nofrag,regexp
               nofrag,ews
               nofrag
+              funcmap
            )
 
 go mod tidy
@@ -73,10 +74,10 @@ run_vet_all() {
 }
 run_staticcheck() {
     printf "\x1b[1m\x1b[33m[+] Static Check GOARCH=$1 GOOS=$2..\x1b[0m\n"
-    env GOARCH=$1 GOOS=$2 staticcheck -checks all -f text ./... | grep -vE '^tests/|^unit_tests/'
+    env GOARCH=$1 GOOS=$2 staticcheck -checks all -f text ./... | grep -vE '^examples/|^unit_tests/'
     for tags in ${build_tags[@]}; do
         printf "\x1b[1m\x1b[34m[+] Static Check GOARCH=$1 GOOS=$2 with tags \"${tags}\"..\x1b[0m\n"
-        env GOARCH=$1 GOOS=$2 staticcheck -checks all -f text -tags $tags ./... | grep -vE '^tests/|^unit_tests/'
+        env GOARCH=$1 GOOS=$2 staticcheck -checks all -f text -tags $tags ./... | grep -vE '^examples/|^unit_tests/'
         # | grep -vE '(ST1000)|(ST1003)'
     done
 }

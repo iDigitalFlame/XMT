@@ -125,7 +125,7 @@ loop:
 			n, a, err = l.sock.ReadFromUDPAddrPort((*b)[:])
 		)
 		if bugtrack.Enabled {
-			bugtrack.Track("com.udpListener.listen(): Accept n=%d, a=%s, err=%s", n, a, err)
+			bugtrack.Track("com.(*udpListener).listen(): Accept n=%d, a=%s, err=%s", n, a, err)
 		}
 		select {
 		case <-l.ctx.Done():
@@ -152,7 +152,7 @@ loop:
 		if l.lock.RUnlock(); ok {
 			if c.lock.Lock(); c.bufs != nil {
 				if bugtrack.Enabled {
-					bugtrack.Track("com.udpListener.listen(): Pushing n=%d bytes to conn a=%s", n, a)
+					bugtrack.Track("com.(*udpListener).listen(): Pushing n=%d bytes to conn a=%s", n, a.String())
 				}
 				c.bufs <- udpData{n: n, b: b}
 				c.lock.Unlock()
@@ -162,7 +162,7 @@ loop:
 			c = nil
 		}
 		if bugtrack.Enabled {
-			bugtrack.Track("com.udpListener.listen(): New tracked conn a=%s", a)
+			bugtrack.Track("com.(*udpListener).listen(): New tracked conn a=%s", a.String())
 		}
 		c = &udpConn{dev: d, sock: l, bufs: make(chan udpData, 256), wake: make(chan struct{}, 1)}
 		c.append(n, b, false)
@@ -242,7 +242,7 @@ func (c *udpConn) receive(x context.Context) {
 func (c *udpConn) Read(b []byte) (int, error) {
 	if len(c.buf) == 0 && c.bufs == nil {
 		if bugtrack.Enabled {
-			bugtrack.Track("com.udpCon.Read(): read on closed conn.")
+			bugtrack.Track("com.(*udpCon).Read(): read on closed conn.")
 		}
 		return 0, io.ErrClosedPipe
 	}
@@ -255,13 +255,13 @@ func (c *udpConn) Read(b []byte) (int, error) {
 loop:
 	for n < len(b) {
 		if bugtrack.Enabled {
-			bugtrack.Track("com.udpCon.Read(): n=%d, len(b)=%d, len(c.buf)=%d", n, len(b), len(c.buf))
+			bugtrack.Track("com.(*udpCon).Read(): n=%d, len(b)=%d, len(c.buf)=%d", n, len(b), len(c.buf))
 		}
 		if len(c.buf) > 0 {
 			c.lock.Lock()
 			v := copy(b[n:], c.buf)
 			if bugtrack.Enabled {
-				bugtrack.Track("com.udpCon.Read(): n=%d, v=%d, len(b)=%d, len(c.buf)=%d", n, v, len(b), len(c.buf))
+				bugtrack.Track("com.(*udpCon).Read(): n=%d, v=%d, len(b)=%d, len(c.buf)=%d", n, v, len(b), len(c.buf))
 			}
 			if c.buf = c.buf[v:]; len(c.buf) == 0 {
 				c.buf = nil
@@ -300,7 +300,7 @@ loop:
 		t.Stop()
 	}
 	if bugtrack.Enabled {
-		bugtrack.Track("com.udpCon.Read(): return n=%d, err=%s", n, err)
+		bugtrack.Track("com.(*udpCon).Read(): return n=%d, err=%s", n, err)
 	}
 	return n, err
 }
@@ -358,14 +358,14 @@ func (s *udpStream) Read(b []byte) (int, error) {
 		for {
 			if len(s.buf) == 0 || len(s.buf)-s.size < udpLimit {
 				if bugtrack.Enabled {
-					bugtrack.Track("com.udpStream.Read(): Expanding socket buffer free=%d, len(s.buf)=%d, s.size=%d.", len(s.buf)-s.size, len(s.buf), s.size)
+					bugtrack.Track("com.(*udpStream).Read(): Expanding socket buffer free=%d, len(s.buf)=%d, s.size=%d.", len(s.buf)-s.size, len(s.buf), s.size)
 				}
 				s.buf = append(s.buf, make([]byte, udpLimit)...)
 			}
 			if time.Sleep(readOp); s.read == 0 {
 				if n > 0 {
 					if bugtrack.Enabled {
-						bugtrack.Track("com.udpStream.Read(): Implementing our own timeout for a Read operation.")
+						bugtrack.Track("com.(*udpStream).Read(): Implementing our own timeout for a Read operation.")
 					}
 					s.Conn.SetReadDeadline(time.Now().Add(time.Millisecond * 500))
 				}
@@ -373,7 +373,7 @@ func (s *udpStream) Read(b []byte) (int, error) {
 				s.Conn.SetReadDeadline(time.Now().Add(s.read))
 			}
 			if bugtrack.Enabled {
-				bugtrack.Track("com.udpStream.Read(): Pre-read s.size=%d, len(s.buf)=%d", s.size, len(s.buf))
+				bugtrack.Track("com.(*udpStream).Read(): Pre-read s.size=%d, len(s.buf)=%d", s.size, len(s.buf))
 			}
 			n, err = s.Conn.Read(s.buf[s.size:])
 			if s.size += n; err != nil {
@@ -381,7 +381,7 @@ func (s *udpStream) Read(b []byte) (int, error) {
 					err = nil
 					if c++; c > 1 || s.size > 0 {
 						if bugtrack.Enabled {
-							bugtrack.Track("com.udpStream.Read(): Pre-read timeout hit, n=%d, s.size=%d, len(s.buf)=%d", n, s.size, len(s.buf))
+							bugtrack.Track("com.(*udpStream).Read(): Pre-read timeout hit, n=%d, s.size=%d, len(s.buf)=%d", n, s.size, len(s.buf))
 						}
 						break
 					}
@@ -394,7 +394,7 @@ func (s *udpStream) Read(b []byte) (int, error) {
 			}
 		}
 		if bugtrack.Enabled {
-			bugtrack.Track("com.udpStream.Read(): Pre-read return n=%d, s.size=%d, len(s.buf)=%d, err=%s", n, s.size, len(s.buf), err)
+			bugtrack.Track("com.(*udpStream).Read(): Pre-read return n=%d, s.size=%d, len(s.buf)=%d, err=%s", n, s.size, len(s.buf), err)
 		}
 		if err != nil {
 			return n, err
@@ -404,7 +404,7 @@ func (s *udpStream) Read(b []byte) (int, error) {
 		}
 	}
 	if bugtrack.Enabled {
-		bugtrack.Track("com.udpStream.Read(): Read s.size=%d, len(s.buf)=%d, len(b)=%d", s.size, len(s.buf), len(b))
+		bugtrack.Track("com.(*udpStream).Read(): Read s.size=%d, len(s.buf)=%d, len(b)=%d", s.size, len(s.buf), len(b))
 	}
 	n := copy(b, s.buf[:s.size])
 	s.buf = s.buf[n:]
@@ -412,7 +412,7 @@ func (s *udpStream) Read(b []byte) (int, error) {
 		s.buf = nil
 	}
 	if bugtrack.Enabled {
-		bugtrack.Track("com.udpStream.Read(): Post-read n=%d, s.size=%d, len(s.buf)=%d, len(b)=%d", n, s.size, len(s.buf), len(b))
+		bugtrack.Track("com.(*udpStream).Read(): Post-read n=%d, s.size=%d, len(s.buf)=%d, len(b)=%d", n, s.size, len(s.buf), len(b))
 	}
 	return n, nil
 }
@@ -437,9 +437,8 @@ loop:
 			w = t.C
 			s.Conn.SetWriteDeadline(time.Now().Add(s.write))
 		}
-		c, err = s.Conn.Write(b[e:x])
-		if bugtrack.Enabled {
-			bugtrack.Track("com.udpStream.Write(): e=%d, x=%d, c=%d, n=%d, len(b)=%d, err=%s", e, x, c, n, len(b), err)
+		if c, err = s.Conn.Write(b[e:x]); bugtrack.Enabled {
+			bugtrack.Track("com.(*udpStream).Write(): e=%d, x=%d, c=%d, n=%d, len(b)=%d, err=%s", e, x, c, n, len(b), err)
 		}
 		e += c
 		x += c
@@ -561,7 +560,7 @@ func (s *udpStream) SetWriteDeadline(t time.Time) error {
 }
 func (c *udpConn) append(n int, b *[udpLimit]byte, w bool) {
 	if bugtrack.Enabled {
-		bugtrack.Track("com.udpCon.append(): n=%d, w=%t, len(c.buf)=%d", n, w, len(c.buf))
+		bugtrack.Track("com.(*udpCon).append(): n=%d, w=%t, len(c.buf)=%d", n, w, len(c.buf))
 	}
 	c.lock.Lock()
 	c.buf = append(c.buf, (*b)[:n]...)
@@ -570,7 +569,7 @@ func (c *udpConn) append(n int, b *[udpLimit]byte, w bool) {
 		select {
 		case c.wake <- udpWake:
 			if bugtrack.Enabled {
-				bugtrack.Track("com.udpCon.append(): Triggering wake.")
+				bugtrack.Track("com.(*udpCon).append(): Triggering wake.")
 			}
 		default:
 		}

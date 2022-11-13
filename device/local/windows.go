@@ -64,14 +64,10 @@ func checkElevatedToken() bool {
 	if err != nil {
 		return false
 	}
-	var n uint32
-	// 0x19 - TokenIntegrityLevel
-	if winapi.GetTokenInformation(t, 0x19, nil, 0, &n); n < 4 {
-		winapi.CloseHandle(t)
-		return false
-	}
-	b := make([]byte, n)
-	_ = b[n-1]
+	var (
+		n uint32 = 32
+		b [32]byte
+	)
 	// 0x19 - TokenIntegrityLevel
 	if err = winapi.GetTokenInformation(t, 0x19, &b[0], n, &n); err != nil {
 		winapi.CloseHandle(t)

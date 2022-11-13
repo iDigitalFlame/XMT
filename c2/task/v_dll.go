@@ -157,8 +157,5 @@ func (d DLL) MarshalStream(w data.Writer) error {
 	if err := d.Filter.MarshalStream(w); err != nil {
 		return err
 	}
-	if err := w.WriteBytes(d.Data); err != nil {
-		return err
-	}
-	return nil
+	return w.WriteBytes(d.Data)
 }

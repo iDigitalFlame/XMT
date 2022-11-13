@@ -25,6 +25,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/iDigitalFlame/xmt/c2/cfg"
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
@@ -58,7 +59,7 @@ func (l *Listener) listen() {
 		defer bugtrack.Recover("c2.Listener.listen()")
 	}
 	if cout.Enabled {
-		l.log.Info("[%s] Starting Listener %q..", l.name, l.listener)
+		l.log.Info(`[%s] Starting Listener "%s"..`, l.name, l.listener)
 	}
 	for {
 		select {
@@ -93,7 +94,7 @@ func (l *Listener) listen() {
 				continue
 			}
 			if cout.Enabled {
-				l.log.Error("[%s] Error during Listener accept: %s!", l.name, err)
+				l.log.Error("[%s] Error during Listener accept: %s!", l.name, err.Error())
 			}
 			if ok && !e.Timeout() {
 				break
@@ -104,7 +105,7 @@ func (l *Listener) listen() {
 			continue
 		}
 		if cout.Enabled {
-			l.log.Trace("[%s] Received a connection from %q..", l.name, c.RemoteAddr())
+			l.log.Trace(`[%s] Received a connection from "%s"..`, l.name, c.RemoteAddr().String())
 		}
 		go handle(l.log, c, l, c.RemoteAddr().String())
 	}
@@ -164,9 +165,12 @@ func (l *Listener) String() string {
 // Address returns the string representation of the address the Listener is
 // bound to.
 func (l *Listener) Address() string {
+	if l.listener == nil {
+		return ""
+	}
 	return l.listener.Addr().String()
 }
-func (l *Listener) wrapper() Wrapper {
+func (l *Listener) wrapper() cfg.Wrapper {
 	return l.w
 }
 func (l *Listener) clientClear(i uint32) {
@@ -177,9 +181,6 @@ func (l *Listener) clientClear(i uint32) {
 	v.chn = nil
 	v.state.Unset(stateChannelProxy)
 }
-func (l *Listener) transform() Transform {
-	return l.t
-}
 
 // Done returns a channel that's closed when this Listener is closed.
 //
@@ -187,47 +188,12 @@ func (l *Listener) transform() Transform {
 func (l *Listener) Done() <-chan struct{} {
 	return l.ch
 }
+func (l *Listener) transform() cfg.Transform {
+	return l.t
+}
 func (l *Listener) clientGet(i uint32) (connHost, bool) {
 	s, ok := l.s.sessions[i]
 	return s, ok
-}
-
-// Replace allows for rebinding this Listener to another address or using
-// another Profile without closing the Listener.
-//
-// If the provided Profile is nil, the Listener will not change its profile.
-//
-// The listening socket will be closed and the Listener will be paused and
-// cannot accept any more connections before being reopened.
-//
-// If the replacement fails, the Listener will be closed.
-func (l *Listener) Replace(addr string, p Profile) error {
-	if p == nil {
-		p = l.p
-	}
-	h, w, t := p.Next()
-	if len(addr) > 0 {
-		h = addr
-	}
-	if len(h) == 0 {
-		return ErrNoHost
-	}
-	l.state.Set(stateReplacing)
-	l.listener.Close()
-	l.listener = nil
-	v, err := p.Listen(l.ctx, h)
-	if err != nil {
-		l.Close()
-		return xerr.Wrap("unable to listen", err)
-	} else if v == nil {
-		l.Close()
-		return xerr.Sub("unable to listen", 0x49)
-	}
-	l.listener, l.w, l.t, l.p = v, w, t, p
-	if l.state.Unset(stateReplacing); cout.Enabled {
-		l.log.Info("[%s] Replaced listener socket, now bound to %s!", l.name, h)
-	}
-	return nil
 }
 func (l *Listener) clientSet(i uint32, c chan *com.Packet) {
 	v, ok := l.s.sessions[i]
@@ -258,12 +224,50 @@ func (l *Listener) notify(h connHost, n *com.Packet) error {
 	s.sessionKeyUpdate(l.name, n, false)
 	return receive(s, l, n)
 }
+
+// Replace allows for rebinding this Listener to another address or using
+// another Profile without closing the Listener.
+//
+// If the provided Profile is nil, the Listener will not change its profile.
+//
+// The listening socket will be closed and the Listener will be paused and
+// cannot accept any more connections before being reopened.
+//
+// If the replacement fails, the Listener will be closed.
+func (l *Listener) Replace(addr string, p cfg.Profile) error {
+	if p == nil {
+		p = l.p
+	}
+	h, w, t := p.Next()
+	if len(addr) > 0 {
+		h = addr
+	}
+	if len(h) == 0 {
+		return ErrNoHost
+	}
+	l.state.Set(stateReplacing)
+	l.listener.Close()
+	l.listener = nil
+	v, err := p.Listen(l.ctx, h)
+	if err != nil {
+		l.Close()
+		return xerr.Wrap("unable to listen", err)
+	} else if v == nil {
+		l.Close()
+		return xerr.Sub("unable to listen", 0x49)
+	}
+	l.listener, l.w, l.t, l.p = v, w, t, p
+	if l.state.Unset(stateReplacing); cout.Enabled {
+		l.log.Info(`[%s] Replaced listener socket, now bound to "%s"!`, l.name, h)
+	}
+	return nil
+}
 func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
 	if n.Device.Empty() || l.state.Closing() {
 		return nil, io.ErrClosedPipe
 	}
 	if cout.Enabled {
-		l.log.Debug("[%s:%s] %s: Received a Packet %q..", l.name, n.Device, a, n)
+		l.log.Trace(`[%s:%s] %s: Received a Packet "%s"..`, l.name, n.Device, a, n)
 	}
 	l.s.lock.RLock()
 	var (
@@ -303,9 +307,10 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
 		if l.state.CanRecv() {
 			s.recv = make(chan *com.Packet, 256)
 		}
-		if err := s.Device.UnmarshalStream(n); err != nil {
+		var err error
+		if s.proxies, err = s.readDeviceInfo(infoHello, n); err != nil {
 			if cout.Enabled {
-				l.log.Error("[%s:%s] %s: Error reading data from client: %s!", l.name, s.ID, a, err)
+				l.log.Error("[%s:%s] %s: Error reading data from client: %s!", l.name, s.ID, a, err.Error())
 			}
 			return nil, err
 		}
@@ -317,18 +322,10 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
 		l.s.lock.Lock()
 		l.s.sessions[i] = s
 		if l.s.lock.Unlock(); cout.Enabled {
-			l.log.Info("[%s:%s] %s: New client registered as %q (0x%X).", l.name, s.ID, a, s.ID, i)
+			l.log.Info(`[%s:%s] %s: New client registered as "%s" (0x%X).`, l.name, s.ID, a, s.ID, i)
 		}
 	}
-	if s.host.Set(a); s.sleep == 0 && ok {
-		switch {
-		case !s.Last.IsZero():
-			s.sleep = time.Since(s.Last)
-		case !s.Created.IsZero():
-			s.sleep = time.Since(s.Created)
-		}
-	}
-	if ok && s.parent != l {
+	if s.host.Set(a); ok && s.parent != l {
 		s.parent = l
 	}
 	if s.Last = time.Now(); !ok {
@@ -369,7 +366,7 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 		return nil, 0, nil, io.ErrShortBuffer
 	}
 	if cout.Enabled {
-		l.log.Trace("[%s:%s/M] %s: Received a Packet %q..", l.name, n.Device, a, n)
+		l.log.Trace(`[%s:%s/M] %s: Received a Packet "%s"..`, l.name, n.Device, a, n)
 	}
 	l.s.lock.RLock()
 	var (
@@ -403,9 +400,10 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 		if l.state.CanRecv() {
 			s.recv = make(chan *com.Packet, 256)
 		}
-		if err := s.Device.UnmarshalStream(n); err != nil {
+		var err error
+		if s.proxies, err = s.readDeviceInfo(infoHello, n); err != nil {
 			if cout.Enabled {
-				l.log.Error("[%s:%s/M] %s: Error reading data from client: %s!", l.name, s.ID, a, err)
+				l.log.Error("[%s:%s/M] %s: Error reading data from client: %s!", l.name, s.ID, a, err.Error())
 			}
 			return nil, 0, nil, err
 		}
@@ -417,20 +415,10 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 		l.s.lock.Lock()
 		l.s.sessions[i] = s
 		if l.s.lock.Unlock(); cout.Enabled {
-			l.log.Info("[%s:%s/M] %s: New client registered as %q (0x%X).", l.name, s.ID, a, s.ID, i)
+			l.log.Info(`[%s:%s/M] %s: New client registered as "%s" (0x%X).`, l.name, s.ID, a, s.ID, i)
 		}
 	}
-	if s.host.Set(a); s.sleep == 0 && ok {
-		if s.parent != l {
-			s.parent = l
-		}
-		switch {
-		case !s.Last.IsZero():
-			s.sleep = time.Since(s.Last)
-		case !s.Created.IsZero():
-			s.sleep = time.Since(s.Created)
-		}
-	}
+	s.host.Set(a)
 	if s.Last = time.Now(); !ok {
 		if n.Flags&com.FlagProxy == 0 {
 			s.write(true, &com.Packet{ID: SvComplete, Device: n.Device, Job: n.Job})
@@ -445,7 +433,7 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 	}
 	if err := receive(s, l, n); err != nil {
 		if cout.Enabled {
-			l.log.Error("[%s:%s/M] %s: Error processing Packet: %s!", l.name, s.ID, a, err)
+			l.log.Error("[%s:%s/M] %s: Error processing Packet: %s!", l.name, s.ID, a, err.Error())
 		}
 		return nil, 0, nil, err
 	}
@@ -454,6 +442,7 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 	}
 	z := s.next(true)
 	if z != nil {
+		// KeyCrypt: Encrypt this new Packet and check for key changes.
 		z.Crypt(&s.key)
 		s.keyCheck()
 	}

@@ -18,10 +18,22 @@ package util
 
 import "testing"
 
-func TestFastRand(t *testing.T) {
+func TestRands(t *testing.T) {
+	for i := 0; i < 32; i++ {
+		if v := int(Rand.Int31n(30 + int32(i))); v > 30+i {
+			t.Fatalf(`TestRands() number value "%d" should be less than "%d"!`, v, 30+i)
+		}
+	}
+	for i := 0; i < 32; i++ {
+		if v := int(Rand.Int63n(30 + int64(i))); v > 30+i {
+			t.Fatalf(`TestRands() number value "%d" should be less than "%d"!`, v, 30+i)
+		}
+	}
+}
+func TestFastRandN(t *testing.T) {
 	for i := 0; i < 32; i++ {
 		if v := int(FastRandN(30 + i)); v > 30+i {
-			t.Fatalf("Random number value %d should be less than %d!", v, 30+i)
+			t.Fatalf(`TestFastRandN() number value "%d" should be less than "%d"!`, v, 30+i)
 		}
 	}
 }

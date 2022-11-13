@@ -15,6 +15,9 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
+# crypt_builder.py
+# Generates a crypt mapping string or build based off the build tags supplied.
+
 from io import BytesIO
 from json import loads
 from os import environ

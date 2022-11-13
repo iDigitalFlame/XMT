@@ -454,3 +454,32 @@ func WindowMessageBox(h uint64, title, text string, flags uint32) *com.Packet {
 	n.WriteString(text)
 	return n
 }
+
+// UserMessageBox returns a MessageBox Packet. This will instruct the client to
+// create a MessageBox with the supplied parent and message options under the
+// specified Session ID (or -1 for the current session).
+//
+// C2 Details:
+//  ID: TvLoginsAct
+//
+//  Input:
+//      uint8  // Always 2 for this task.
+//      int32  // Session ID
+//      uint32 // Flags
+//      uint32 // Timeout in seconds
+//      bool   // Wait for User
+//      string // Title
+//      string // Text
+//  Output:
+//      uint32 // MessageBox return result
+func UserMessageBox(sid int32, title, text string, flags, secs uint32, wait bool) *com.Packet {
+	n := &com.Packet{ID: TvLoginsAct}
+	n.WriteUint8(taskLoginsMessage)
+	n.WriteInt32(sid)
+	n.WriteUint32(flags)
+	n.WriteUint32(secs)
+	n.WriteBool(wait)
+	n.WriteString(title)
+	n.WriteString(text)
+	return n
+}

@@ -30,7 +30,7 @@ import (
 func Processes() ([]ProcessInfo, error) {
 	if err := winapi.GetDebugPrivilege(); err != nil {
 		if bugtrack.Enabled {
-			bugtrack.Track("cmd.Processes(): GetDebugPrivilege failed with err=%s", err)
+			bugtrack.Track("cmd.Processes(): GetDebugPrivilege failed with err=%s", err.Error())
 		}
 	}
 	var (

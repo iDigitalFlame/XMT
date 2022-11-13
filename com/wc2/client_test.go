@@ -20,21 +20,21 @@ import "testing"
 
 func TestRawParse(t *testing.T) {
 	if _, err := rawParse("google.com"); err != nil {
-		t.Fatalf(`Raw URL Parse "google.com" failed with error: %s!`, err.Error())
+		t.Fatalf(`TestRawParse(): Raw URL Parse "google.com" failed with error: %s!`, err.Error())
 	}
 	if _, err := rawParse("https://google.com"); err != nil {
-		t.Fatalf(`Raw URL Parse "https://google.com" failed with error: %s!`, err.Error())
+		t.Fatalf(`TestRawParse(): Raw URL Parse "https://google.com" failed with error: %s!`, err.Error())
 	}
 	if _, err := rawParse("/google.com"); err != nil {
-		t.Fatalf(`Raw URL Parse "/google.com" failed with error: %s!`, err.Error())
+		t.Fatalf(`TestRawParse(): Raw URL Parse "/google.com" failed with error: %s!`, err.Error())
 	}
 	if _, err := rawParse("\\\\google.com"); err == nil {
-		t.Fatalf(`Raw URL Parse "\\google.com" should have failed!`)
+		t.Fatalf(`TestRawParse(): Raw URL Parse "\\google.com" should have failed!`)
 	}
 	if _, err := rawParse("\\google.com"); err == nil {
-		t.Fatalf(`Raw URL Parse "\google.com" should have failed!`)
+		t.Fatalf(`TestRawParse(): Raw URL Parse "\google.com" should have failed!`)
 	}
 	if _, err := rawParse("derp:google.com"); err == nil {
-		t.Fatalf(`Raw URL Parse "\google.com" should have failed!`)
+		t.Fatalf(`TestRawParse(): Raw URL Parse "\google.com" should have failed!`)
 	}
 }

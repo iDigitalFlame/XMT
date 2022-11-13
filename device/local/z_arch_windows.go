@@ -1,4 +1,4 @@
-//go:build windows && (386 || s390x || arm)
+//go:build windows && (386 || arm)
 
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //
@@ -28,8 +28,6 @@ func systemType() uint8 {
 	// NOTE(dij): Check if we're running under WOW64 and report the /actual/
 	//            system arch, since we only know what we've been built as.
 	//            Apparently applies to x86 AND ARM!
-	// TODO(dij): Is there a thing like this for *nix?
-	//            Might have to look into it.
 	switch r, _ := winapi.IsWow64Process(); {
 	case r && device.Arch == arch.X86:
 		return uint8(uint8(device.OS)<<4 | uint8(arch.X86OnX64))

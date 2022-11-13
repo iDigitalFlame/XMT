@@ -397,10 +397,7 @@ func (i Window) MarshalStream(w data.Writer) error {
 	if err := w.WriteInt32(i.Width); err != nil {
 		return err
 	}
-	if err := w.WriteInt32(i.Height); err != nil {
-		return err
-	}
-	return nil
+	return w.WriteInt32(i.Height)
 }
 
 // EnableWindow Windows API Call

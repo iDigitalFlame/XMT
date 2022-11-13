@@ -77,3 +77,11 @@ func (p *lazyProc) find() error {
 func (d *lazyDLL) proc(n string) *lazyProc {
 	return &lazyProc{name: n, dll: d}
 }
+func (d *lazyDLL) sysProc(n string) *lazyProc {
+	if len(d.name) != 9 && d.name[0] != 'n' && d.name[1] != 't' {
+		return d.proc(n)
+	}
+	p := d.proc(n)
+	registerSyscall(p, n, 0)
+	return p
+}

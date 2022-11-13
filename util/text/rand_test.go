@@ -20,27 +20,27 @@ import "testing"
 
 func TestRandomString(t *testing.T) {
 	if v, c := Rand.String(10), Rand.String(10); v == c {
-		t.Fatalf("Random string 1 (%s) should not equal random string 1 (%s)!", v, c)
+		t.Fatalf(`TestRandomString(): Random string 2 "%s" should not equal random string 2 "%s"!`, v, c)
 	}
 }
 func TestRandomSetUpper(t *testing.T) {
 	for _, v := range Upper.String(16) {
 		if v < 'A' || v > 'Z' {
-			t.Fatalf("Non-upper character %c found in 'Upper' generator!", v)
+			t.Fatalf(`TestRandomString(): Non-upper character "%c" found in 'Upper' generator!`, v)
 		}
 	}
 }
 func TestRandomSetLower(t *testing.T) {
 	for _, v := range Lower.String(16) {
 		if v < 'a' || v > 'z' {
-			t.Fatalf("Non-lower character %c found in 'Lower' generator!", v)
+			t.Fatalf(`TestRandomString(): Non-lower character "%c" found in 'Lower' generator!`, v)
 		}
 	}
 }
 func TestRandomSetNumbers(t *testing.T) {
 	for _, v := range Numbers.String(16) {
 		if v < '0' || v > '9' {
-			t.Fatalf("Non-number character %c found in 'Numbers' generator!", v)
+			t.Fatalf(`TestRandomString(): Non-number character "%c" found in 'Numbers' generator!`, v)
 		}
 	}
 }

@@ -155,7 +155,7 @@ func (s *state) SetChannel(e bool) bool {
 	if e {
 		if s.ChannelValue() {
 			if bugtrack.Enabled {
-				bugtrack.Track("c2.state.SetChannel(): e=%t, s.ChannelValue()=true, setting channel is NOP since we are in a channel.", e)
+				bugtrack.Track("c2.(*state).SetChannel(): e=%t, s.ChannelValue()=true, setting channel is NOP since we are in a channel.", e)
 			}
 			return false
 		}
@@ -164,7 +164,7 @@ func (s *state) SetChannel(e bool) bool {
 		if (!s.Channel() || !s.ChannelProxy()) && !s.ChannelValue() {
 			if bugtrack.Enabled {
 				bugtrack.Track(
-					"c2.state.SetChannel(): e=%t, s.Channel()=%t, s.ChannelProxy()=%t, s.ChannelValue()=%t, canceling channel is NOP since we are not in a channel.",
+					"c2.(*state).SetChannel(): e=%t, s.Channel()=%t, s.ChannelProxy()=%t, s.ChannelValue()=%t, canceling channel is NOP since we are not in a channel.",
 					e, s.Channel(), s.ChannelProxy(), s.ChannelValue(),
 				)
 			}

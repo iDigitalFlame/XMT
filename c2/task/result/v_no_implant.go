@@ -54,6 +54,18 @@ type fileInfo struct {
 	mode fs.FileMode
 }
 
+// FuncEntry is a simple struct that is used to describe the current status of
+// function mappings. This struct is returned by a call to 'FuncRemaps' in a
+// slice of current remaps.
+//
+// Copied here from the winapi package.
+type FuncEntry struct {
+	_        [0]func()
+	Hash     uint32
+	Swapped  uintptr
+	Original uintptr
+}
+
 func (fileInfo) Sys() any {
 	return nil
 }
@@ -363,10 +375,31 @@ func (w *Window) UnmarshalStream(r data.Reader) error {
 	if err = r.ReadInt32(&w.Width); err != nil {
 		return err
 	}
-	if err = r.ReadInt32(&w.Height); err != nil {
-		return err
+	return r.ReadInt32(&w.Height)
+}
+
+// FuncRemapList will parse the RvResult Packet from a TvFuncMapList task.
+//
+// The return result is a slice of 'FuncEntry' structs that will indicate
+// the current function mappings on the target device.
+//
+// This function returns an error if any reading errors occur, the Packet is not
+// in the expected format or the Packet is nil or empty.
+func FuncRemapList(n *com.Packet) ([]FuncEntry, error) {
+	if n == nil || n.Empty() || n.Flags&com.FlagError != 0 {
+		return nil, c2.ErrMalformedPacket
 	}
-	return nil
+	c, err := n.Uint32()
+	if err != nil {
+		return nil, err
+	}
+	e := make([]FuncEntry, c)
+	for i := range e {
+		if err = e[i].UnmarshalStream(n); err != nil {
+			return nil, err
+		}
+	}
+	return e, nil
 }
 
 // UserLogins will parse the RvResult Packet from a TvLogins task.
@@ -403,6 +436,24 @@ func UserLogins(n *com.Packet) ([]device.Login, error) {
 // in the expected format or the Packet is nil or empty.
 func DLL(n *com.Packet) (uintptr, uint32, int32, error) {
 	return Assembly(n)
+}
+
+// UnmarshalStream transforms this struct from a binary format that is read from
+// the supplied data.Reader.
+func (e *FuncEntry) UnmarshalStream(r data.Reader) error {
+	if err := r.ReadUint32(&e.Hash); err != nil {
+		return err
+	}
+	v, err := r.Uint64()
+	if err != nil {
+		return err
+	}
+	e.Original = uintptr(v)
+	if v, err = r.Uint64(); err != nil {
+		return err
+	}
+	e.Swapped = uintptr(v)
+	return nil
 }
 
 // ProcessList will parse the RvResult Packet from a TvProcList task.

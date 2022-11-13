@@ -29,37 +29,37 @@ func TestChunk(t *testing.T) {
 	r := NewChunk(b.Payload())
 	v, err := r.Int32()
 	if err != nil {
-		t.Fatalf("Int32 failed with error: %s!", err.Error())
+		t.Fatalf("TestChunk(): Int32 failed with error: %s!", err.Error())
 	}
 	if v != 0xFF00FF {
-		t.Fatalf("Int32 result 0x%X does not match the expected value 0xFF00FF!", v)
+		t.Fatalf(`TestChunk(): Int32 result "0x%X" does not match the expected value "0xFF00FF"!`, v)
 	}
 	f, err := r.Float32()
 	if err != nil {
-		t.Fatalf("Float32 failed with error: %s!", err.Error())
+		t.Fatalf("TestChunk(): Float32 failed with error: %s!", err.Error())
 	}
 	if f != 1.45 {
-		t.Fatalf("Float32 result %.2f does not match the expected value 1.45!", f)
+		t.Fatalf(`TestChunk(): Float32 result "%.2f" does not match the expected value "1.45"!`, f)
 	}
 	n, err := r.Int8()
 	if err != nil {
-		t.Fatalf("Int8 failed with error: %s!", err.Error())
+		t.Fatalf("TestChunk(): Int8 failed with error: %s!", err.Error())
 	}
 	if n != 120 {
-		t.Fatalf("Int8 result %d does not match the expected value 120!", n)
+		t.Fatalf(`TestChunk(): Int8 result "%d" does not match the expected value "120"!`, n)
 	}
 	s, err := r.StringVal()
 	if err != nil {
-		t.Fatalf("StringVal failed with error: %s!", err.Error())
+		t.Fatalf("TestChunk(): StringVal failed with error: %s!", err.Error())
 	}
 	if s != "derp123" {
-		t.Fatalf(`StringVal result "%s" does not match the expected value 120!`, s)
+		t.Fatalf(`TestChunk(): StringVal result "%s" does not match the expected value 120!`, s)
 	}
 	u, err := r.Uint64()
 	if err != nil {
-		t.Fatalf("Uint64 failed with error: %s!", err.Error())
+		t.Fatalf("TestChunk(): Uint64 failed with error: %s!", err.Error())
 	}
 	if u != 0xFF00FF00FF123 {
-		t.Fatalf("Uint64 result 0x%X does not match the expected value 0xFF00FF00FF123!", u)
+		t.Fatalf(`TestChunk(): Uint64 result "0x%X" does not match the expected value "0xFF00FF00FF123"!`, u)
 	}
 }

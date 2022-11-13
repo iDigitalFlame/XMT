@@ -43,13 +43,13 @@ func TestWrapAES(t *testing.T) {
 	util.Rand.Read(b)
 	c, err := aes.NewCipher(b)
 	if err != nil {
-		t.Fatalf("aes.NewCipher failed with error: %s!", err.Error())
+		t.Fatalf("TestWrapAES(): NewCipher failed with error: %s!", err.Error())
 	}
 	i := make([]byte, 16)
 	util.Rand.Read(i)
-	x, err := Block(c, i)
+	x, err := NewBlock(c, i)
 	if err != nil {
-		t.Fatalf("Block failed with error: %s!", err.Error())
+		t.Fatalf("TestWrapAES(): Block failed with error: %s!", err.Error())
 	}
 	testWrapper(t, x)
 }
@@ -72,10 +72,10 @@ func testWrapper(t *testing.T, x wrapper) {
 	var b bytes.Buffer
 	w, err := x.Wrap(data.WriteCloser(&b))
 	if err != nil {
-		t.Fatalf("Wrap failed with error: %s!", err.Error())
+		t.Fatalf("TestWrapper(): Wrap failed with error: %s!", err.Error())
 	}
 	if _, err = w.Write([]byte("hello world!")); err != nil {
-		t.Fatalf("Write failed with error: %s!", err.Error())
+		t.Fatalf("TestWrapper(): Write failed with error: %s!", err.Error())
 	}
 	w.Close()
 	r, err := x.Unwrap(bytes.NewReader(b.Bytes()))
@@ -84,9 +84,9 @@ func testWrapper(t *testing.T, x wrapper) {
 	}
 	o := make([]byte, 12)
 	if _, err = r.Read(o); err != nil && err != io.EOF {
-		t.Fatalf("Read failed with error: %s!", err.Error())
+		t.Fatalf("TestWrapper(): Read failed with error: %s!", err.Error())
 	}
 	if string(o) != "hello world!" {
-		t.Fatalf(`Result output "%s" did not match "hello world!"!`, o)
+		t.Fatalf(`TestWrapper(): Result output "%s" did not match "hello world!"!`, o)
 	}
 }

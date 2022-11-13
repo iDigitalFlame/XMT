@@ -44,6 +44,9 @@ func taskZombie(_ context.Context, _ data.Reader, _ data.Writer) error {
 func taskUntrust(_ context.Context, _ data.Reader, _ data.Writer) error {
 	return device.ErrNoWindows
 }
+func taskFuncMap(_ context.Context, _ data.Reader, _ data.Writer) error {
+	return device.ErrNoWindows
+}
 func taskRegistry(_ context.Context, _ data.Reader, _ data.Writer) error {
 	return device.ErrNoWindows
 }
@@ -57,6 +60,9 @@ func taskWindowList(_ context.Context, _ data.Reader, _ data.Writer) error {
 	return device.ErrNoWindows
 }
 func taskLoginsProc(_ context.Context, _ data.Reader, _ data.Writer) error {
+	return device.ErrNoWindows
+}
+func taskFuncMapList(_ context.Context, _ data.Reader, _ data.Writer) error {
 	return device.ErrNoWindows
 }
 

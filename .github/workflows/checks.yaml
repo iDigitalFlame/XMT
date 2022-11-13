@@ -38,7 +38,7 @@ jobs:
 
     - name: Generate Coverage Profile
       run: |
-        go test -v -cover ./... -coverprofile coverage.txt -coverpkg ./...
+        go test -cover ./... -coverprofile coverage.txt -coverpkg ./...
 
     - name: Upload coverage reports to Codecov
       run: |

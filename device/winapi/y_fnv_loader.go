@@ -96,6 +96,14 @@ func (d *lazyDLL) proc(h uint32) *lazyProc {
 	d.funcs[h] = p
 	return p
 }
+func (d *lazyDLL) sysProc(h uint32) *lazyProc {
+	if len(d.name) != 9 && d.name[0] != 'n' && d.name[1] != 't' {
+		return d.proc(h)
+	}
+	p := d.proc(h)
+	registerSyscall(p, "", h)
+	return p
+}
 func (d *lazyDLL) initFunctions(h uintptr) error {
 	b := (*imageDosHeader)(unsafe.Pointer(h))
 	if b.magic != 0x5A4D {
@@ -178,7 +186,7 @@ func loadForwardFunc(b *[256]byte) (uintptr, error) {
 		d = d + dllExt
 	}
 	if bugtrack.Enabled {
-		bugtrack.Track("winapi.loadForwardFunc(): Loading forwarded function %q from %q.", f, d)
+		bugtrack.Track(`winapi.loadForwardFunc(): Loading forwarded function "%s" from "%s".`, f, d)
 	}
 	x, err := loadDLL(d)
 	if err != nil {

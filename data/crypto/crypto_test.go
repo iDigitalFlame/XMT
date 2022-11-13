@@ -32,26 +32,26 @@ func TestXOR(t *testing.T) {
 	)
 	util.Rand.Read(x)
 	util.Rand.Read(i)
-	z, err := Encrypter(x, i, &w)
+	z, err := NewBlockWriter(x, i, &w)
 	if err != nil {
-		t.Fatalf("Encrypter failed with error: %s!", err.Error())
+		t.Fatalf("TestXOR(): Encrypter failed with error: %s!", err.Error())
 	}
 	if _, err = z.Write([]byte("hello there")); err != nil {
-		t.Fatalf("Write failed with error: %s!", err.Error())
+		t.Fatalf("TestXOR(): Write failed with error: %s!", err.Error())
 	}
 	if err = z.Close(); err != nil {
-		t.Fatalf("Close failed with error: %s!", err.Error())
+		t.Fatalf("TestXOR(): Close failed with error: %s!", err.Error())
 	}
-	r, err := Decrypter(x, i, bytes.NewReader(w.Bytes()))
+	r, err := NewBlockReader(x, i, bytes.NewReader(w.Bytes()))
 	if err != nil {
-		t.Fatalf("Encrypter failed with error: %s!", err.Error())
+		t.Fatalf("TestXOR(): Encrypter failed with error: %s!", err.Error())
 	}
 	o := make([]byte, 11)
 	if _, err := r.Read(o); err != nil {
-		t.Fatalf("Read failed with error: %s!", err.Error())
+		t.Fatalf("TestXOR(): Read failed with error: %s!", err.Error())
 	}
 	if string(o) != "hello there" {
-		t.Fatalf(`Result output "%s" did not match "hello there"!`, o)
+		t.Fatalf(`TestXOR(): Result output "%s" did not match "hello there"!`, o)
 	}
 }
 func TestCBK(t *testing.T) {
@@ -59,23 +59,23 @@ func TestCBK(t *testing.T) {
 		c, _ = NewCBKEx(0x90, 128, nil)
 		v, _ = NewCBKSource(c.A, c.B, c.C, c.D, 128)
 		b    bytes.Buffer
-		w    = NewWriter(c, &b)
+		w    = NewCBKWriter(c, &b)
 	)
 	if _, err := w.Write([]byte("hello there")); err != nil {
-		t.Fatalf("Write failed with error: %s!", err.Error())
+		t.Fatalf("TestCBK(): Write failed with error: %s!", err.Error())
 	}
 	if err := w.Close(); err != nil {
-		t.Fatalf("Close failed with error: %s!", err.Error())
+		t.Fatalf("TestCBK(): Close failed with error: %s!", err.Error())
 	}
 	var (
-		r = NewReader(v, bytes.NewReader(b.Bytes()))
+		r = NewCBKReader(v, bytes.NewReader(b.Bytes()))
 		o = make([]byte, 11)
 	)
 	if _, err := r.Read(o); err != nil {
-		t.Fatalf("Read failed with error: %s!", err.Error())
+		t.Fatalf("TestCBK(): Read failed with error: %s!", err.Error())
 	}
 	if string(o) != "hello there" {
-		t.Fatalf(`Result output "%s" did not match "hello there"!`, o)
+		t.Fatalf(`TestCBK(): Result output "%s" did not match "hello there"!`, o)
 	}
 }
 func TestAES(t *testing.T) {
@@ -83,32 +83,32 @@ func TestAES(t *testing.T) {
 	util.Rand.Read(k)
 	b, err := aes.NewCipher(k)
 	if err != nil {
-		t.Fatalf("aes.NewCipher failed with error: %s!", err.Error())
+		t.Fatalf("TestAES(): NewCipher failed with error: %s!", err.Error())
 	}
 	var (
 		i = make([]byte, 16)
 		w bytes.Buffer
 	)
 	util.Rand.Read(i)
-	z, err := Encrypter(b, i, &w)
+	z, err := NewBlockWriter(b, i, &w)
 	if err != nil {
-		t.Fatalf("Encrypter failed with error: %s!", err.Error())
+		t.Fatalf("TestAES(): Encrypter failed with error: %s!", err.Error())
 	}
 	if _, err = z.Write([]byte("hello there")); err != nil {
-		t.Fatalf("Write failed with error: %s!", err.Error())
+		t.Fatalf("TestAES(): Write failed with error: %s!", err.Error())
 	}
 	if err = z.Close(); err != nil {
-		t.Fatalf("Close failed with error: %s!", err.Error())
+		t.Fatalf("TestAES():Close failed with error: %s!", err.Error())
 	}
-	r, err := Decrypter(b, i, bytes.NewReader(w.Bytes()))
+	r, err := NewBlockReader(b, i, bytes.NewReader(w.Bytes()))
 	if err != nil {
-		t.Fatalf("Encrypter failed with error: %s!", err.Error())
+		t.Fatalf("TestAES(): Encrypter failed with error: %s!", err.Error())
 	}
 	o := make([]byte, 11)
 	if _, err := r.Read(o); err != nil {
-		t.Fatalf("Read failed with error: %s!", err.Error())
+		t.Fatalf("TestAES():Read failed with error: %s!", err.Error())
 	}
 	if string(o) != "hello there" {
-		t.Fatalf(`Result output "%s" did not match "hello there"!`, o)
+		t.Fatalf(`TestAES(): Result output "%s" did not match "hello there"!`, o)
 	}
 }

@@ -19,8 +19,7 @@ package device
 import "testing"
 
 func TestDebug(t *testing.T) {
-	v := IsDebugged()
-	t.Logf("IsDebugged returned: %t", v)
+	t.Logf("TestDebug(): IsDebugged returned: %t", IsDebugged())
 }
 func TestExpand(t *testing.T) {
 	v := [...]string{
@@ -30,7 +29,7 @@ func TestExpand(t *testing.T) {
 	}
 	for i := range v {
 		if r := Expand(v[i]); v[i] == r {
-			t.Fatalf(`Expanded string "%s" equals non-expanded string "%s"!`, r, v)
+			t.Fatalf(`TestExpand(): Expanded string "%s" equals non-expanded string "%s"!`, r, v)
 		}
 	}
 }

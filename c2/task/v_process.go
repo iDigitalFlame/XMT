@@ -151,8 +151,5 @@ func (p Process) MarshalStream(w data.Writer) error {
 	if err := p.Filter.MarshalStream(w); err != nil {
 		return err
 	}
-	if err := w.WriteBytes(p.Stdin); err != nil {
-		return err
-	}
-	return nil
+	return w.WriteBytes(p.Stdin)
 }

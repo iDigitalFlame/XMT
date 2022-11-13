@@ -328,7 +328,7 @@ func checkToken(c byte, f bool, n int, v string) (int, bool) {
 	switch c {
 	case 'h':
 		n = numSize(n, 16)
-	case 'd', 'n':
+	case 'd': //, 'n':
 		n = numSize(n, 10)
 	}
 	if len(v) < n {

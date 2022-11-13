@@ -26,13 +26,17 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-const ptrSize = unsafe.Sizeof(uintptr(0))
+const (
+	ptrSize      = unsafe.Sizeof(uintptr(0))
+	kernelShared = uintptr(0x7FFE0000)
+)
 
 var caught struct{}
 
@@ -113,6 +117,13 @@ type processPeb struct {
 	_                      [1]uintptr
 	SessionID              uint32
 }
+type timeZoneInfo struct {
+	Bias         uint32
+	_            [80]byte
+	StdBias      uint32
+	_            [80]byte
+	DaylightBias uint32
+}
 type highContrast struct {
 	// DO NOT REORDER
 	Size  uint32
@@ -160,6 +171,17 @@ type ntUnicodeString struct {
 	_, _          uint16
 	Buffer        [260]uint16
 }
+type systemBasicInfo struct {
+	// DO NOT REORDER
+	_             [8]byte
+	PageSize      uint32
+	PhysicalPages uint32
+	LowPage       uint32
+	HighPage      uint32
+	_             uint32
+	_             [3]uintptr
+	NumProc       uint8
+}
 type processBasicInfo struct {
 	// DO NOT REORDER
 	ExitStatus                   uint32
@@ -168,6 +190,37 @@ type processBasicInfo struct {
 	_                            uint32
 	UniqueProcessID              uintptr
 	InheritedFromUniqueProcessID uintptr
+}
+type kernelSharedData struct {
+	_          [20]byte
+	SystemTime struct {
+		LowPart  uint32
+		HighPart int32
+		_        int32
+	}
+	_                     [16]byte
+	NtSystemRoot          [260]uint16
+	MaxStackTraceDepth    uint32
+	_                     uint32
+	_                     [32]byte
+	NtBuildNumber         uint32
+	_                     [8]byte
+	NtMajorVersion        uint32
+	NtMinorVersion        uint32
+	ProcessorFeatures     [64]byte
+	_                     [20]byte
+	SystemExpirationDate  uint64
+	_                     [4]byte
+	KdDebuggerEnabled     uint8
+	MitigationPolicies    uint8
+	_                     [2]byte
+	ActiveConsoleID       uint32
+	_                     [12]byte
+	NumberOfPhysicalPages uint32
+	SafeBootMode          uint8
+	VirtualizationFlags   uint8
+	_                     [2]byte
+	SharedDataFlags       uint32
 }
 type lsaAccountDomainInfo struct {
 	// DO NOT REORDER
@@ -212,14 +265,14 @@ func killRuntime() {
 	// 0x2 - GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT
 	if r, _, err := syscall.SyscallN(funcGetModuleHandleEx.address(), 0x2, 0, uintptr(unsafe.Pointer(&q))); r == 0 {
 		if bugtrack.Enabled {
-			bugtrack.Track("winapi.killRuntime(): GetModuleHandleEx failed err=%s", err)
+			bugtrack.Track("winapi.killRuntime(): GetModuleHandleEx failed err=%s", err.Error())
 		}
 		return
 	}
 	var k modInfo
 	if r, _, err := syscall.SyscallN(funcK32GetModuleInformation.address(), CurrentProcess, q, uintptr(unsafe.Pointer(&k)), unsafe.Sizeof(k)); r == 0 {
 		if bugtrack.Enabled {
-			bugtrack.Track("winapi.killRuntime(): K32GetModuleInformation failed err=%s", err)
+			bugtrack.Track("winapi.killRuntime(): K32GetModuleInformation failed err=%s", err.Error())
 		}
 		return
 	}
@@ -285,11 +338,12 @@ func killRuntime() {
 	})
 	if err != nil {
 		if bugtrack.Enabled {
-			bugtrack.Track("winapi.killRuntime(): EnumThreads failed err=%s", err)
+			bugtrack.Track("winapi.killRuntime(): EnumThreads failed err=%s", err.Error())
 		}
 		return
 	}
-	if b || len(m) == 0 {
+	// Unmap all function mappings (if any)
+	if FuncUnmapAll(); b || len(m) == 0 {
 		for i := range m {
 			CloseHandle(m[i])
 		}
@@ -325,6 +379,11 @@ func killRuntime() {
 			return
 		}
 	}
+	// NOTE(dij): Potential footgun? Free all loaded libaries since we're leaving
+	//            but not /exiting/. FreeLibrary shouldn't cause an issue as it
+	//            /should/ only clean unused libraries after we are done.
+	//            ntdll.dll will NOT be unloaded.
+	freeLoadedLibaries()
 	// What's left is that we're probally injected into memory somewhere, and
 	// we just need to nuke the runtime without affecting the host.
 	for i := range m {
@@ -337,7 +396,7 @@ func killRuntime() {
 	}
 	if u, m = nil, nil; err != nil {
 		if bugtrack.Enabled {
-			bugtrack.Track("winapi.killRuntime(): Terminate error err=%s", err)
+			bugtrack.Track("winapi.killRuntime(): Terminate error err=%s", err.Error())
 		}
 		return
 	}
@@ -376,17 +435,31 @@ func EmptyWorkingSet() {
 	syscall.SyscallN(funcSetProcessWorkingSetSizeEx.address(), CurrentProcess, invalid, invalid)
 }
 
+// InSafeMode returns true if the current device was booted into Safe Mode, false
+// otherwise.
+func InSafeMode() bool {
+	return (*kernelSharedData)(unsafe.Pointer(kernelShared)).SafeBootMode > 0
+}
+
 // IsDebugged attempts to check multiple system calls in order to determine
 // REAL debugging status.
 //
 // This function checks in this order:
 //
+// - KSHARED.KdDebuggerEnabled
+// - KSHARED.SharedDataFlags.DbgErrorPortPresent
 // - NtQuerySystemInformation/SystemKernelDebuggerInformation
-// - IsDebuggerPresent
+// - IsDebuggerPresent (from PEB)
 // - CheckRemoteDebuggerPresent
 //
 // Errors make the function return false only if they are the last call.
 func IsDebugged() bool {
+	switch s := (*kernelSharedData)(unsafe.Pointer(kernelShared)); {
+	case s.KdDebuggerEnabled > 1:
+		return true
+	case s.SharedDataFlags&0x1 != 0: // 0x1 - DbgErrorPortPresent
+		return true
+	}
 	var (
 		d uint16
 		x uint32
@@ -394,9 +467,6 @@ func IsDebugged() bool {
 	// 0x23 - SystemKernelDebuggerInformation
 	syscall.SyscallN(funcNtQuerySystemInformation.address(), 0x23, uintptr(unsafe.Pointer(&d)), 2, uintptr(unsafe.Pointer(&x)))
 	if x == 2 && ((d&0xFF) > 1 || (d>>8) == 0) {
-		return true
-	}
-	if IsDebuggerPresent() {
 		return true
 	}
 	if p, err := getProcessPeb(); err == nil && p.BeingDebugged > 0 {
@@ -411,6 +481,52 @@ func IsDebugged() bool {
 	err = CheckRemoteDebuggerPresent(h, &v)
 	CloseHandle(h)
 	return err == nil && v
+}
+
+// IsSystemEval returns true if the KSHARED_USER_DATA.SystemExpirationDate value
+// is greater than zero.
+//
+// SystemExpirationDate is the time that remains in any evaluation copies of
+// Windows. This can be used to find systems that may be used for testing and
+// are not production machines.
+func IsSystemEval() bool {
+	return (*kernelSharedData)(unsafe.Pointer(kernelShared)).SystemExpirationDate > 0
+}
+
+// IsUACEnabled returns true if UAC (User Account Control) is enabled, false
+// otherwise.
+func IsUACEnabled() bool {
+	// 0x2 - DbgElevationEnabled
+	return (*kernelSharedData)(unsafe.Pointer(kernelShared)).SharedDataFlags&0x2 != 0
+}
+func freeLoadedLibaries() {
+	if dllAmsi.addr > 0 {
+		syscall.FreeLibrary(syscall.Handle(dllAmsi.addr))
+	}
+	if dllGdi32.addr > 0 {
+		syscall.FreeLibrary(syscall.Handle(dllGdi32.addr))
+	}
+	if dllUser32.addr > 0 {
+		syscall.FreeLibrary(syscall.Handle(dllUser32.addr))
+	}
+	if dllWinhttp.addr > 0 {
+		syscall.FreeLibrary(syscall.Handle(dllWinhttp.addr))
+	}
+	if dllDbgHelp.addr > 0 {
+		syscall.FreeLibrary(syscall.Handle(dllDbgHelp.addr))
+	}
+	if dllAdvapi32.addr > 0 {
+		syscall.FreeLibrary(syscall.Handle(dllAdvapi32.addr))
+	}
+	if dllWtsapi32.addr > 0 {
+		syscall.FreeLibrary(syscall.Handle(dllWtsapi32.addr))
+	}
+	if dllKernel32.addr > 0 {
+		syscall.FreeLibrary(syscall.Handle(dllKernel32.addr))
+	}
+	if dllKernelBase.addr > 0 {
+		syscall.FreeLibrary(syscall.Handle(dllKernelBase.addr))
+	}
 }
 func (p *dumpParam) close() {
 	heapFree(p.b, p.h)
@@ -482,12 +598,12 @@ func Untrust(p uint32) error {
 	// 0x20 - SE_GROUP_INTEGRITY
 	x.Sid, x.Attributes = (*SID)(unsafe.Pointer(&s[0])), 0x20
 	// 0x19 - TokenIntegrityLevel
-	r, _, err1 = syscall.SyscallN(funcSetTokenInformation.address(), t, 0x19, uintptr(unsafe.Pointer(&x)), uintptr(c+4))
+	r, _, _ = syscall.SyscallN(funcNtSetInformationToken.address(), t, 0x19, uintptr(unsafe.Pointer(&x)), uintptr(c+4))
 	CloseHandle(h)
-	if CloseHandle(t); r > 0 {
+	if CloseHandle(t); r == 0 {
 		return nil
 	}
-	return unboxError(err1)
+	return formatNtError(r)
 }
 
 // SystemDirectory Windows API Call
@@ -529,6 +645,37 @@ func fullPath(n string) string {
 	}
 	return systemDirectoryPrefix + n
 }
+
+// IsUTCTime checks the current system TimeZone information to see if the device
+// is set to the UTC time zone. Most systems in debugging/logging environments will
+// have this set.
+//
+// This function detects UTC as it's biases are always zero and is the only time
+// zone that has this feature.
+func IsUTCTime() (bool, error) {
+	var (
+		t       timeZoneInfo
+		n       int
+		r, _, _ = syscall.SyscallN(funcNtQuerySystemInformation.address(), 0x2C, uintptr(unsafe.Pointer(&t)), unsafe.Sizeof(t), uintptr(unsafe.Pointer(&n)))
+		// 0x2C - SystemCurrentTimeZoneInformation
+	)
+	if r > 0 {
+		return false, formatNtError(r)
+	}
+	return t.Bias == 0 && t.DaylightBias == 0 && t.StdBias == 0, nil
+}
+
+// GetKernelTime returns the system time based on the KSHARED_USER_DATA struct in
+// memory that is converted to a time.Time struct.
+//
+// This can be used to get the system time without relying on any API calls.
+func GetKernelTime() time.Time {
+	var (
+		s = (*kernelSharedData)(unsafe.Pointer(kernelShared))
+		t = time.Unix(0, ((int64(s.SystemTime.HighPart)<<32|int64(s.SystemTime.LowPart))-epoch)*100)
+	)
+	return t
+}
 func getCurrentThreadID() uint32 {
 	r, _, _ := syscall.SyscallN(funcGetCurrentThreadID.address())
 	return uint32(r)
@@ -554,6 +701,16 @@ func (p *dumpParam) init() error {
 // 'LoadLibraryW' function in 'kernel32.dll' that's currently loaded.
 func LoadLibraryAddress() uintptr {
 	return funcLoadLibrary.address()
+}
+
+// IsStackTracingEnabled returns true if the KSHARED_USER_DATA.MaxStackTraceDepth
+// value is greater than zero.
+//
+// MaxStackTraceDepth is a value that represents the stack trace depth if tracing
+// is enabled. If this flag is greater than zero, it is likely that some form of
+// debug tracing is enabled.
+func IsStackTracingEnabled() bool {
+	return (*kernelSharedData)(unsafe.Pointer(kernelShared)).MaxStackTraceDepth > 0
 }
 
 // GetSystemSID will attempt to determine the System SID value and return it.
@@ -582,7 +739,7 @@ func heapFree(h, m uintptr) error {
 	return nil
 }
 func heapDestroy(h uintptr) error {
-	r, _, err := syscall.SyscallN(funcHeapDestroy.address(), h)
+	r, _, err := syscall.SyscallN(funcRtlDestroyHeap.address(), h)
 	if r == 0 {
 		return unboxError(err)
 	}
@@ -622,6 +779,20 @@ func SetHighContrast(e bool) error {
 		return unboxError(err)
 	}
 	return nil
+}
+
+// IsVirtualizationEnabled return true if the current device processor has the
+// PF_VIRT_FIRMWARE_ENABLED flag. This will just indicate if the device has the
+// capability to run Virtual Machines. This is commonly not the case of many VMs
+// themselves.
+//
+// Be cautious, as many hypervisors have the ability to still expose this CPU
+// flag to guests.
+//
+// This flag is grabbed from KSHARED_USER_DATA.
+func IsVirtualizationEnabled() bool {
+	// 0x15 - PF_VIRT_FIRMWARE_ENABLED
+	return (*kernelSharedData)(unsafe.Pointer(kernelShared)).ProcessorFeatures[0x15] > 0
 }
 
 // SetCommandLine will attempt to read the Process PEB and overrite the
@@ -722,24 +893,6 @@ func IsTokenElevated(h uintptr) bool {
 	return err == nil && n == uint32(unsafe.Sizeof(e)) && e != 0
 }
 
-// IsUserLoginToken will return true if the origin of the Token was a LoginUser
-// API call and NOT a duplicated token via Impersonation.
-func IsUserLoginToken(t uintptr) bool {
-	if t == 0 {
-		return false
-	}
-	var (
-		n   uint32
-		b   [8]byte
-		err = GetTokenInformation(t, 0x11, &b[0], 8, &n)
-		// 0x11 - TokenOrigin
-	)
-	if err != nil {
-		return false
-	}
-	return uint32(b[3])<<24|uint32(b[2])<<16|uint32(b[1])<<8|uint32(b[0]) > 1000
-}
-
 // CheckDebugWithLoad will attempt to check for a debugger by loading a non-loaded
 // DLL specified and will check for exclusive access (which is false for debuggers).
 //
@@ -753,7 +906,7 @@ func CheckDebugWithLoad(d string) bool {
 		n, err = UTF16PtrFromString(p)
 	)
 	if err != nil {
-		panic(err.Error())
+		return false
 	}
 	var (
 		h       uintptr
@@ -769,11 +922,31 @@ func CheckDebugWithLoad(d string) bool {
 	// 0x0        - EXCLUSIVE
 	// 0x3        - OPEN_EXISTING
 	f, err := CreateFile(p, 0x80000000, 0, nil, 0x3, 0, 0)
-	if syscall.SyscallN(funcFreeLibrary.address(), h); err != nil {
+	if syscall.FreeLibrary(syscall.Handle(h)); err != nil {
 		return true
 	}
 	CloseHandle(f)
 	return false
+}
+
+// IsUserNetworkToken will return true if the origin of the Token was a LoginUser
+// network impersonation API call and NOT a duplicated Token via Token or Thread
+// impersonation.
+func IsUserNetworkToken(t uintptr) bool {
+	if t == 0 {
+		return false
+	}
+	var (
+		n   uint32
+		b   [16]byte
+		err = GetTokenInformation(t, 0x7, &b[0], 16, &n)
+		// 0x7 - TokenSource
+	)
+	if err != nil {
+		return false
+	}
+	// Match [65 100 118 97 112 105 32 32] == "Advapi"
+	return b[0] == 65 && b[1] == 100 && b[6] == 32 && b[7] == 32
 }
 
 // EnablePrivileges will attempt to enable the supplied Windows privilege values
@@ -798,6 +971,14 @@ func EnablePrivileges(s ...string) error {
 	CloseHandle(t)
 	return err
 }
+
+// SetAllThreadsToken sets the Token for all current Golang threads. This is an
+// easy way to do thread impersonation across the entire runtime.
+//
+// Calls 'ForEachThread' -> 'SetThreadToken' under the hood.
+func SetAllThreadsToken(h uintptr) error {
+	return ForEachThread(func(t uintptr) error { return SetThreadToken(t, h) })
+}
 func getProcessPeb() (*processPeb, error) {
 	var (
 		p       processBasicInfo
@@ -817,6 +998,9 @@ func getProcessPeb() (*processPeb, error) {
 //
 // This function is only usable on Windows with a Server Pipe handle.
 //
+// BUG(dij): I'm not sure if this is broken or this is how it's handled. I'm
+//           getting error 5.
+//
 // Pipe insights:
 //   https://papers.vx-underground.org/papers/Windows/System%20Components%20and%20Abuse/Offensive%20Windows%20IPC%20Internals%201%20Named%20Pipes.pdf
 func ImpersonatePipeToken(h uintptr) error {
@@ -830,11 +1014,11 @@ func ImpersonatePipeToken(h uintptr) error {
 	}
 	var y uintptr
 	// 0xF01FF - TOKEN_ALL_ACCESS
-	if err := OpenThreadToken(CurrentThread, 0xF01FF, false, &y); err != nil {
+	if err := OpenThreadToken(CurrentThread, 0xF01FF, true, &y); err != nil {
 		runtime.UnlockOSThread()
 		return err
 	}
-	err := ForEachThread(func(t uintptr) error { return SetThreadToken(&t, y) })
+	err := SetAllThreadsToken(y)
 	CloseHandle(y)
 	runtime.UnlockOSThread()
 	return err
@@ -859,6 +1043,22 @@ func (p *dumpParam) resize(n uint64) error {
 	}
 	p.h, p.s = h, v
 	return nil
+}
+
+// PhysicalInfo will query the system using NtQuerySystemInformation to grab the
+// number of CPUs installed and the current memory (in MB) that is avaliable to
+// the system (installed physically).
+func PhysicalInfo() (uint8, uint32, error) {
+	var (
+		n       uint64
+		i       systemBasicInfo
+		r, _, _ = syscall.SyscallN(funcNtQuerySystemInformation.address(), 0x0, uintptr(unsafe.Pointer(&i)), unsafe.Sizeof(i), uintptr(unsafe.Pointer(&n)))
+		// 0x0 - SystemBasicInformation
+	)
+	if r > 0 {
+		return 0, 0, formatNtError(r)
+	}
+	return i.NumProc, uint32((uint64(i.PageSize)*uint64(i.PhysicalPages))/0x100000) + 1, nil
 }
 func getThreadID(h uintptr) (uint32, error) {
 	var (

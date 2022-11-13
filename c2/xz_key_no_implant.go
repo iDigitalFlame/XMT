@@ -28,7 +28,7 @@ import (
 func (s *Session) sessionKeyInit(l string, n *com.Packet) {
 	if v, err := n.Read(s.key[:]); v != data.KeySize || err != nil {
 		if cout.Enabled {
-			s.log.Warning("[%s:%s/Crypt] Error (Re)Generating key set!", l, s.ID)
+			s.log.Error("[%s:%s/Crypt] Error (Re)Generating key set!", l, s.ID)
 		}
 		return
 	}
@@ -36,11 +36,12 @@ func (s *Session) sessionKeyInit(l string, n *com.Packet) {
 		s.log.Debug("[%s:%s/Crypt] (Re)Generated key set!", l, s.ID)
 	}
 	if bugtrack.Enabled {
-		bugtrack.Track("c2.Session.sessionKeyInit(): %s Key details [%v].", s.ID, s.key)
+		bugtrack.Track("c2.(*Session).sessionKeyInit(): %s Key details %v.", s.ID, s.key)
 	}
 }
 func (s *Session) sessionKeyUpdate(l string, n *com.Packet, d bool) {
 	if d {
+		// KeyCrypt: Encrypt this Packet.
 		n.Crypt(&s.key)
 	}
 	if n.Flags&com.FlagCrypt == 0 || n.Empty() {

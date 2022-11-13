@@ -26,6 +26,7 @@ import (
 	"os"
 
 	"github.com/iDigitalFlame/xmt/device"
+	"github.com/iDigitalFlame/xmt/device/local/tags"
 )
 
 var (
@@ -39,14 +40,15 @@ var (
 // Device is the pointer to the local machine instance. This instance is loaded
 // at runtime and is used for local data gathering and identification.
 var Device = (&local{Machine: device.Machine{
-	ID:       UUID,
-	PID:      uint32(os.Getpid()),
-	PPID:     getPPID(),
-	User:     getUsername(),
-	System:   systemType(),
-	Version:  Version,
-	Network:  make(device.Network, 0),
-	Elevated: isElevated(),
+	ID:           UUID,
+	PID:          uint32(os.Getpid()),
+	PPID:         getPPID(),
+	User:         getUsername(),
+	System:       systemType(),
+	Version:      Version,
+	Network:      make(device.Network, 0),
+	Elevated:     isElevated(),
+	Capabilities: tags.Enabled,
 }}).init()
 
 type local struct {

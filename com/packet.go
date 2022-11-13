@@ -45,7 +45,7 @@ var (
 // Packet is a struct that is a Reader and Writer that can be generated to be
 // sent, or received from a Connection.
 //
-// Acts as a data buffer and 'child' of 'data.Chunk'.
+// Acts as a data buffer and 'parent' of 'data.Chunk'.
 type Packet struct {
 	Tags []uint32
 	data.Chunk
@@ -114,7 +114,7 @@ func (p *Packet) Marshal(w io.Writer) error {
 func (p *Packet) readBody(r io.Reader) error {
 	if len(p.Tags) > 0 {
 		if bugtrack.Enabled {
-			bugtrack.Track("com.Packet.readBody(): len(p.Tags)=%d", len(p.Tags))
+			bugtrack.Track("com.(*Packet).readBody(): len(p.Tags)=%d", len(p.Tags))
 		}
 		var b [4]byte
 		for i := range p.Tags {
@@ -131,7 +131,7 @@ func (p *Packet) readBody(r io.Reader) error {
 		}
 	}
 	if bugtrack.Enabled {
-		bugtrack.Track("com.Packet.readBody(): p.len=%d", p.len)
+		bugtrack.Track("com.(*Packet).readBody(): p.len=%d", p.len)
 	}
 	if p.len == 0 {
 		return nil
@@ -147,7 +147,7 @@ func (p *Packet) readBody(r io.Reader) error {
 		}
 	}
 	if bugtrack.Enabled {
-		bugtrack.Track("com.Packet.readBody(): p.len=%d, t=%d, err=%s", p.len, t, err)
+		bugtrack.Track("com.(*Packet).readBody(): p.len=%d, t=%d, err=%s", p.len, t, err)
 	}
 	if t < p.len {
 		return io.ErrUnexpectedEOF
@@ -173,7 +173,7 @@ func (p *Packet) Unmarshal(r io.Reader) error {
 func (p *Packet) writeBody(w io.Writer) error {
 	if len(p.Tags) > 0 {
 		if bugtrack.Enabled {
-			bugtrack.Track("com.Packet.writeBody(): len(p.Tags)=%d", len(p.Tags))
+			bugtrack.Track("com.(*Packet).writeBody(): len(p.Tags)=%d", len(p.Tags))
 		}
 		var b [4]byte
 		for _, t := range p.Tags {
@@ -201,7 +201,7 @@ func (p *Packet) writeBody(w io.Writer) error {
 		return io.ErrShortWrite
 	}
 	if bugtrack.Enabled {
-		bugtrack.Track("com.Packet.writeBody(): p.Chunk.Size()=%d, n=%d, err=%s", p.Chunk.Size(), n, err)
+		bugtrack.Track("com.(*Packet).writeBody(): p.Chunk.Size()=%d, n=%d, err=%s", p.Chunk.Size(), n, err)
 	}
 	return nil
 }
@@ -214,7 +214,7 @@ func (p *Packet) readHeader(r io.Reader) error {
 		n, err = io.ReadFull(r, b[:])
 	)
 	if bugtrack.Enabled {
-		bugtrack.Track("com.Packet.readHeader(): n=%d, err=%s", n, err)
+		bugtrack.Track("com.(*Packet).readHeader(): n=%d, err=%s", n, err)
 	}
 	if n != 14 {
 		if err != nil {
@@ -225,7 +225,7 @@ func (p *Packet) readHeader(r io.Reader) error {
 	_ = b[13]
 	if bugtrack.Enabled {
 		bugtrack.Track(
-			"com.Packet.readHeader(): b=[%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d]",
+			"com.(*Packet).readHeader(): b=[%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d]",
 			b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[8], b[9], b[10], b[11], b[12], b[13],
 		)
 	}
@@ -246,7 +246,7 @@ func (p *Packet) readHeader(r io.Reader) error {
 			break
 		}
 		if bugtrack.Enabled {
-			bugtrack.Track("com.Packet.readHeader(): 1, n=%d, b=[%d]", n, b[0])
+			bugtrack.Track("com.(*Packet).readHeader(): 1, n=%d, b=[%d]", n, b[0])
 		}
 		p.len, err = uint64(b[0]), nil
 	case 3:
@@ -257,7 +257,7 @@ func (p *Packet) readHeader(r io.Reader) error {
 			break
 		}
 		if bugtrack.Enabled {
-			bugtrack.Track("com.Packet.readHeader(): 3, n=%d, b=[%d, %d]", n, b[0], b[1])
+			bugtrack.Track("com.(*Packet).readHeader(): 3, n=%d, b=[%d, %d]", n, b[0], b[1])
 		}
 		p.len, err = uint64(b[1])|uint64(b[0])<<8, nil
 	case 5:
@@ -268,7 +268,7 @@ func (p *Packet) readHeader(r io.Reader) error {
 			break
 		}
 		if bugtrack.Enabled {
-			bugtrack.Track("com.Packet.readHeader(): 5, n=%d, b=[%d, %d, %d, %d]", n, b[0], b[1], b[2], b[3])
+			bugtrack.Track("com.(*Packet).readHeader(): 5, n=%d, b=[%d, %d, %d, %d]", n, b[0], b[1], b[2], b[3])
 		}
 		p.len, err = uint64(b[3])|uint64(b[2])<<8|uint64(b[1])<<16|uint64(b[0])<<24, nil
 	case 7:
@@ -280,7 +280,7 @@ func (p *Packet) readHeader(r io.Reader) error {
 		}
 		if bugtrack.Enabled {
 			bugtrack.Track(
-				"com.Packet.readHeader(): 7, n=%d, b=[%d, %d, %d, %d, %d, %d, %d, %d]",
+				"com.(*Packet).readHeader(): 7, n=%d, b=[%d, %d, %d, %d, %d, %d, %d, %d]",
 				n, b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
 			)
 		}
@@ -290,7 +290,7 @@ func (p *Packet) readHeader(r io.Reader) error {
 		return data.ErrInvalidType
 	}
 	if bugtrack.Enabled {
-		bugtrack.Track("com.Packet.readHeader(): p.ID=%d, p.len=%d, err=%s", p.ID, p.len, err)
+		bugtrack.Track("com.(*Packet).readHeader(): p.ID=%d, p.len=%d, err=%s", p.ID, p.len, err)
 	}
 	return err
 }
@@ -301,7 +301,7 @@ func (p *Packet) writeHeader(w io.Writer) error {
 	}
 	if bugtrack.Enabled {
 		if p.Device.Empty() {
-			bugtrack.Track("com.Packet.writeHeader(): Calling writeHeader with empty Device, p.ID=%d!", p.ID)
+			bugtrack.Track("com.(*Packet).writeHeader(): Calling writeHeader with empty Device, p.ID=%d!", p.ID)
 		}
 	}
 	if err := p.Device.Write(w); err != nil {
@@ -347,7 +347,7 @@ func (p *Packet) writeHeader(w io.Writer) error {
 		return io.ErrShortWrite
 	}
 	if bugtrack.Enabled {
-		bugtrack.Track("com.Packet.writeHeader(): p.ID=%d, p.len=%d, n=%d", p.ID, p.Chunk.Size(), c+14+device.IDSize)
+		bugtrack.Track("com.(*Packet).writeHeader(): p.ID=%d, p.len=%d, n=%d", p.ID, p.Chunk.Size(), c+14+device.IDSize)
 	}
 	return nil
 }
@@ -356,7 +356,7 @@ func (p *Packet) writeHeader(w io.Writer) error {
 func (p *Packet) MarshalStream(w data.Writer) error {
 	if bugtrack.Enabled {
 		if p.Device.Empty() {
-			bugtrack.Track("com.Packet.writeHeader(): Calling writeHeader with empty Device, p.ID=%d!", p.ID)
+			bugtrack.Track("com.(*Packet).writeHeader(): Calling writeHeader with empty Device, p.ID=%d!", p.ID)
 		}
 	}
 	if err := w.WriteUint8(p.ID); err != nil {
@@ -379,10 +379,7 @@ func (p *Packet) MarshalStream(w data.Writer) error {
 			return err
 		}
 	}
-	if err := p.Chunk.MarshalStream(w); err != nil {
-		return err
-	}
-	return nil
+	return p.Chunk.MarshalStream(w)
 }
 
 // UnmarshalStream reads the data of this Packet from the supplied Reader.
@@ -414,8 +411,5 @@ func (p *Packet) UnmarshalStream(r data.Reader) error {
 			}
 		}
 	}
-	if err := p.Chunk.UnmarshalStream(r); err != nil {
-		return err
-	}
-	return nil
+	return p.Chunk.UnmarshalStream(r)
 }

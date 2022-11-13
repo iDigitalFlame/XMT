@@ -115,7 +115,7 @@ func netHandleConn(c net.Conn) {
 	)
 	if err == nil && n == 65 && b[0] == 0xFF {
 		if bugtrack.Enabled {
-			bugtrack.Track("man.handleConnSock(): Connection from %q handled.", c.RemoteAddr())
+			bugtrack.Track(`man.netHandleConn(): Connection from "%s" handled.`, c.RemoteAddr().String())
 		}
 		h := sha512.New()
 		h.Write(b[1:])

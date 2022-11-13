@@ -16,7 +16,9 @@
 
 package cfg
 
-import "time"
+import (
+	"time"
+)
 
 const (
 	// Separator is an entry that can be used to create Groups in Config instances.
@@ -27,10 +29,12 @@ const (
 
 	invalid = cBit(0)
 
-	valHost   = cBit(0xA0)
-	valSleep  = cBit(0xA1)
-	valJitter = cBit(0xA2)
-	valWeight = cBit(0xA3)
+	valHost      = cBit(0xA0)
+	valSleep     = cBit(0xA1)
+	valJitter    = cBit(0xA2)
+	valWeight    = cBit(0xA3)
+	valKillDate  = cBit(0xA4)
+	valWorkHours = cBit(0xA5)
 )
 
 type cBit byte
@@ -97,6 +101,19 @@ func Host(s string) Setting {
 }
 func (c cBytes) args() []byte {
 	return c
+}
+
+// KillDate returns a Setting that will specify the KillDate setting of the
+// generated Profile. Zero values will clear the set value.
+func KillDate(t time.Time) Setting {
+	if t.IsZero() {
+		return cBytes{byte(valKillDate), 0, 0, 0, 0, 0, 0, 0, 0}
+	}
+	v := t.Unix()
+	return cBytes{
+		byte(valKillDate), byte(v >> 56), byte(v >> 48), byte(v >> 40), byte(v >> 32),
+		byte(v >> 24), byte(v >> 16), byte(v >> 8), byte(v),
+	}
 }
 
 // Sleep returns a Setting that will specify the Sleep timeout setting of the

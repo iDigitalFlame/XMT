@@ -1,3 +1,5 @@
+//go:build !implant
+
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //
 // This program is free software: you can redistribute it and/or modify
@@ -22,13 +24,21 @@ import (
 	"testing"
 )
 
-func TestErrorWithSub(t *testing.T) {
-	if v := Sub("test error", 0xFA).Error(); v != "test error" && v != "0xFA" {
-		t.Fatalf(`Error string "%s" did not match the given string value!`, v)
+func TestErrorNew(t *testing.T) {
+	if v := New("test error").Error(); v != "test error" {
+		t.Fatalf(`TestErrorNew(): Error() "%s" did not match the given string value!`, v)
 	}
 }
-func TestErrorWithWrap(t *testing.T) {
+func TestErrorSub(t *testing.T) {
+	if v := Sub("test error", 0xFA).Error(); v != "test error" && v != "0xFA" {
+		t.Fatalf(`TestErrorSub(): Error() "%s" did not match the given string value!`, v)
+	}
+}
+func TestErrorWrap(t *testing.T) {
 	if e := Wrap("test error", io.EOF); !errors.Is(e, io.EOF) && !errors.Is(errors.Unwrap(e), io.EOF) {
-		t.Fatalf(`Wrapped error "%s" did not match the given wrapped value!`, e)
+		t.Fatalf(`TestErrorWrap(): Wrapped error "%s" did not match the given wrapped error!`, e)
+	}
+	if e := Wrap("test error", io.EOF); e.Error() != "test error: EOF" {
+		t.Fatalf(`TestErrorWrap(): Wrapped error string "%s" did not match the given error string!`, e)
 	}
 }

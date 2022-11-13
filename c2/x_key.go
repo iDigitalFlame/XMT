@@ -34,11 +34,11 @@ func (s *Session) keyCheck() {
 		return
 	}
 	if cout.Enabled {
-		s.log.Info("[%s] Regenerated KeyCrypt key set!", s.ID)
+		s.log.Debug("[%s] Regenerated KeyCrypt key set!", s.ID)
 	}
 	copy(s.key[:], (*s.keyNew)[:])
 	if generateKeys(&s.key, s.ID); bugtrack.Enabled {
-		bugtrack.Track("c2.Session.keyCheck(): %s KeyCrypt details %v.", s.ID, s.key)
+		bugtrack.Track("c2.(*Session).keyCheck(): %s KeyCrypt details %v.", s.ID, s.key)
 	}
 	s.keyNew = nil
 }

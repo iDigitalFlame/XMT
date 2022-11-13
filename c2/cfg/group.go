@@ -22,7 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/iDigitalFlame/xmt/c2"
 	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
@@ -83,8 +82,10 @@ type Group struct {
 	sel uint8
 }
 type profile struct {
-	w    c2.Wrapper
-	t    c2.Transform
+	w    Wrapper
+	t    Transform
+	kill *time.Time
+	work *WorkHours
 	conn any
 
 	src   []byte
@@ -209,8 +210,35 @@ func (g *Group) Sleep() time.Duration {
 	}
 	return g.cur.sleep
 }
+
+// KillDate returns a value that indicates the date and time when the Session will
+// stop functioning. If this value is nil, there is no 'KillDate'.
+func (g *Group) KillDate() *time.Time {
+	if g.init(); g.cur == nil {
+		return nil
+	}
+	return g.cur.kill
+}
+func (p *profile) KillDate() *time.Time {
+	return p.kill
+}
 func (p *profile) Sleep() time.Duration {
 	return p.sleep
+}
+
+// WorkHours returns a value that indicates when the Session should be active
+// and communicate with the C2 Server. The returned struct can be used to
+// determine which days the Session can connect.
+//
+// If the returned value is nil, there are no Working hours restrictions.
+func (g *Group) WorkHours() *WorkHours {
+	if g.init(); g.cur == nil {
+		return nil
+	}
+	return g.cur.work
+}
+func (p *profile) WorkHours() *WorkHours {
+	return p.work
 }
 
 // MarshalBinary allows the source of this Group to be retrieved to be reused
@@ -236,13 +264,13 @@ func (p *profile) MarshalBinary() ([]byte, error) {
 // Implementations of a Profile are recommend to ensure that this function does
 // not affect how the Profile currently works until a call to 'Switch' as this
 // WILL be called on startup of a Session.
-func (g *Group) Next() (string, c2.Wrapper, c2.Transform) {
+func (g *Group) Next() (string, Wrapper, Transform) {
 	if g.init(); g.cur == nil {
 		return "", nil, nil
 	}
 	return g.cur.Next()
 }
-func (p *profile) Next() (string, c2.Wrapper, c2.Transform) {
+func (p *profile) Next() (string, Wrapper, Transform) {
 	if len(p.hosts) == 0 {
 		return "", p.w, p.t
 	}
@@ -260,14 +288,14 @@ func (p *profile) Next() (string, c2.Wrapper, c2.Transform) {
 // to stop in-flight calls.
 func (g *Group) Connect(x context.Context, s string) (net.Conn, error) {
 	if g.init(); g.cur == nil {
-		return nil, c2.ErrNotAConnector
+		return nil, ErrNotAConnector
 	}
 	return g.cur.Connect(x, s)
 }
 func (p *profile) Connect(x context.Context, s string) (net.Conn, error) {
-	c, ok := p.conn.(c2.Connector)
+	c, ok := p.conn.(Connector)
 	if !ok {
-		return nil, c2.ErrNotAConnector
+		return nil, ErrNotAConnector
 	}
 	return c.Connect(x, s)
 }
@@ -280,14 +308,14 @@ func (p *profile) Connect(x context.Context, s string) (net.Conn, error) {
 // to stop running Listeners.
 func (g *Group) Listen(x context.Context, s string) (net.Listener, error) {
 	if g.init(); g.cur == nil {
-		return nil, c2.ErrNotAListener
+		return nil, ErrNotAListener
 	}
 	return g.cur.Listen(x, s)
 }
 func (p *profile) Listen(x context.Context, s string) (net.Listener, error) {
-	l, ok := p.conn.(c2.Accepter)
+	l, ok := p.conn.(Accepter)
 	if !ok {
-		return nil, c2.ErrNotAListener
+		return nil, ErrNotAListener
 	}
 	return l.Listen(x, s)
 }

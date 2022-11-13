@@ -24,7 +24,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/iDigitalFlame/xmt/c2"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -155,7 +154,7 @@ func (c Config) Group(p int) Config {
 // Raw will parse the raw bytes and return a compiled Profile interface.
 //
 // Validation or setting errors will be returned if they occur.
-func Raw(b []byte) (c2.Profile, error) {
+func Raw(b []byte) (Profile, error) {
 	return Config(b).Build()
 }
 
@@ -164,7 +163,7 @@ func Raw(b []byte) (c2.Profile, error) {
 //
 // Validation or setting errors will be returned if they occur or if any
 // file I/O errors occur.
-func File(s string) (c2.Profile, error) {
+func File(s string) (Profile, error) {
 	// 0 - READONLY
 	f, err := os.OpenFile(s, 0, 0)
 	if err != nil {
@@ -215,7 +214,7 @@ func Write(w io.Writer, s ...Setting) error {
 //
 // Validation or setting errors will be returned if they occur or if any
 // I/O errors occur.
-func Reader(r io.Reader) (c2.Profile, error) {
+func Reader(r io.Reader) (Profile, error) {
 	b, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
@@ -227,6 +226,6 @@ func Reader(r io.Reader) (c2.Profile, error) {
 // interface.
 //
 // Validation or setting errors will be returned if they occur.
-func Build(s ...Setting) (c2.Profile, error) {
+func Build(s ...Setting) (Profile, error) {
 	return Pack(s...).Build()
 }

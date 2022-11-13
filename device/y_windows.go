@@ -94,7 +94,7 @@ func proxyInit() *config {
 	)
 	if err != nil {
 		if bugtrack.Enabled {
-			bugtrack.Track("device.proxyInit(): Retrieving proxy info failed, falling back to no proxy: %s", err)
+			bugtrack.Track("device.proxyInit(): Retrieving proxy info failed, falling back to no proxy: %s", err.Error())
 		}
 		return nil
 	}
@@ -154,10 +154,7 @@ func proxyInit() *config {
 //
 // Always returns 'ErrNoWindows' on non-Windows devices.
 func RevertToSelf() error {
-	// Revert
-	winapi.RevertToSelf()
-	// THEN set tokens to nil.
-	return winapi.ForEachThread(func(t uintptr) error { return winapi.SetThreadToken(&t, 0) })
+	return winapi.SetAllThreadsToken(0)
 }
 func split(s string) []string {
 	if len(s) == 0 {
@@ -292,7 +289,7 @@ func SetCritical(c bool) (bool, error) {
 	if err := winapi.GetDebugPrivilege(); err != nil {
 		return false, err
 	}
-	return winapi.RtlSetProcessIsCritical(c)
+	return winapi.SetProcessIsCritical(c)
 }
 
 // Impersonate attempts to steal the Token in use by the target process of the
@@ -333,9 +330,7 @@ func Impersonate(f *filter.Filter) error {
 	if winapi.CloseHandle(x); err != nil {
 		return err
 	}
-	runtime.LockOSThread()
-	err = winapi.ForEachThread(func(t uintptr) error { return winapi.SetThreadToken(&t, y) })
-	runtime.UnlockOSThread()
+	err = winapi.SetAllThreadsToken(y)
 	winapi.CloseHandle(y)
 	return err
 }
@@ -359,9 +354,7 @@ func ImpersonateThread(f *filter.Filter) error {
 	}
 	s := winapi.SecurityQualityOfService{ImpersonationLevel: 2}
 	s.Length = uint32(unsafe.Sizeof(s))
-	runtime.LockOSThread()
 	err = winapi.ForEachThread(func(x uintptr) error { return winapi.NtImpersonateThread(x, h, &s) })
-	runtime.UnlockOSThread()
 	winapi.CloseHandle(h)
 	return err
 }
@@ -419,8 +412,38 @@ func DumpProcess(f *filter.Filter, w io.Writer) error {
 	return err
 }
 
-// ImpersonateUserNetwork attempts to log in with the supplied credentials and impersonate
-// the logged in account.
+// ImpersonateUser attempts to log in with the supplied credentials and
+// impersonate the logged in account.
+//
+// This will set the permissions of all threads in use by the runtime. Once work
+// has completed, it is recommended to call the 'RevertToSelf' function to
+// revert the token changes.
+//
+// This impersonation is locally based, similar to impersonating a Process token.
+//
+// This also loads the user profile.
+//
+// Always returns 'ErrNoWindows' on non-Windows devices.
+func ImpersonateUser(user, domain, pass string) error {
+	// 0x2 - LOGON32_LOGON_INTERACTIVE
+	h, err := winapi.LoginUser(user, domain, pass, 0x2, 0x0)
+	if err != nil {
+		return err
+	}
+	// 0x2000000 - MAXIMUM_ALLOWED
+	// 0x2       - SecurityImpersonation
+	var x uintptr
+	err = winapi.DuplicateTokenEx(h, 0x2000000, nil, 2, 2, &x)
+	if winapi.CloseHandle(h); err != nil {
+		return err
+	}
+	err = winapi.SetAllThreadsToken(x)
+	winapi.CloseHandle(x)
+	return err
+}
+
+// ImpersonateUserNetwork attempts to log in with the supplied credentials and
+// impersonate the logged in account.
 //
 // This will set the permissions of all threads in use by the runtime. Once work
 // has completed, it is recommended to call the 'RevertToSelf' function to
@@ -429,32 +452,20 @@ func DumpProcess(f *filter.Filter, w io.Writer) error {
 // This impersonation is network based, unlike impersonating a Process token.
 // (Windows-only, would be cool to do a *nix one).
 func ImpersonateUserNetwork(user, domain, pass string) error {
-	// NOTE(dij): Do we need to do this?
-	//  AdjustPrivileges("SeAssignPrimaryTokenPrivilege", "SeIncreaseQuotaPrivilege")
-	// TODO(dij): Maybe revisit this? I need a good way to test the validity of
-	//            this function.
 	// 0x9 - LOGON32_LOGON_NEW_CREDENTIALS
-	x, err := winapi.LoginUser(user, domain, pass, 0x9, 0)
+	// 0x3 - LOGON32_PROVIDER_WINNT50
+	h, err := winapi.LoginUser(user, domain, pass, 0x9, 0x3)
 	if err != nil {
 		return err
 	}
-	runtime.LockOSThread()
-	// NOTE(dij): For best results, we FIRST impersonate the token, THEN
-	//            we try to set the token to each user thread with a duplicated
-	//            token set to impersonate. (Similar to an Impersonate call).
-	err = winapi.ImpersonateLoggedOnUser(x)
-	if winapi.CloseHandle(x); err != nil {
-		runtime.UnlockOSThread()
+	// 0x2000000 - MAXIMUM_ALLOWED
+	// 0x2       - SecurityImpersonation
+	var x uintptr
+	err = winapi.DuplicateTokenEx(h, 0x2000000, nil, 2, 2, &x)
+	if winapi.CloseHandle(h); err != nil {
 		return err
 	}
-	var y uintptr
-	// 0xF01FF - TOKEN_ALL_ACCESS
-	if err = winapi.OpenThreadToken(winapi.CurrentThread, 0xF01FF, false, &y); err != nil {
-		runtime.UnlockOSThread()
-		return err
-	}
-	err = winapi.ForEachThread(func(t uintptr) error { return winapi.SetThreadToken(&t, y) })
-	runtime.UnlockOSThread()
-	winapi.CloseHandle(y)
+	err = winapi.SetAllThreadsToken(x)
+	winapi.CloseHandle(x)
 	return err
 }

@@ -40,6 +40,6 @@ func TestTargets(t *testing.T) {
 		"Content-Host": []string{text.Matcher("host-%10fs-%h").String()},
 	}
 	if !r.match(&h) {
-		t.Fatalf("Rule does not match generated http.Request!")
+		t.Fatalf("TestTargets(): Rule does not match generated http.Request!")
 	}
 }

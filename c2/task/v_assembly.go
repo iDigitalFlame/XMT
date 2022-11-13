@@ -142,8 +142,5 @@ func (a Assembly) MarshalStream(w data.Writer) error {
 	if err := a.Filter.MarshalStream(w); err != nil {
 		return err
 	}
-	if err := w.WriteBytes(a.Data); err != nil {
-		return err
-	}
-	return nil
+	return w.WriteBytes(a.Data)
 }

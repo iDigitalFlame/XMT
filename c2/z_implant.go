@@ -48,5 +48,4 @@ func (*Listener) oneshot(_ *com.Packet) {}
 // If shutdown is true, this will trigger a Shutdown packet to be sent to close
 // down the client and will wait until the client acknowledges the shutdown
 // request before removing.
-func (*Server) Remove(_ device.ID, _ bool)     {}
-func (*Session) updateProxyInfo(_ []proxyData) {}
+func (*Server) Remove(_ device.ID, _ bool) {}

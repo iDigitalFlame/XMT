@@ -85,8 +85,5 @@ func (d *DLL) UnmarshalStream(r data.Reader) error {
 	if err := filter.UnmarshalStream(r, &d.Filter); err != nil {
 		return err
 	}
-	if err := r.ReadBytes(&d.Data); err != nil {
-		return err
-	}
-	return nil
+	return r.ReadBytes(&d.Data)
 }

