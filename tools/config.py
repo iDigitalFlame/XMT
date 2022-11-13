@@ -2114,5 +2114,5 @@ if __name__ == "__main__":
     try:
         _Builder().run()
     except Exception as err:
-        print(f"Error: {err}\n{format_exc(limit=3)}", file=stderr)
+        print(f"Error: {err}\n{format_exc(3)}", file=stderr)
         exit(1)
