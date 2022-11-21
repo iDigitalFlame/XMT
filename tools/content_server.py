@@ -45,7 +45,7 @@ class Server(FileSystemEventHandler):
         self._obs = None
 
     def _reload(self):
-        print(f'Reading config file "{self._file}"...')
+        print(f'Reading config file "{self._file}"..')
         with open(self._file) as f:
             e = loads(f.read())
         if not isinstance(e, dict):
