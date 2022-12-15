@@ -31,31 +31,32 @@ import "github.com/iDigitalFlame/xmt/util/crypt"
 // data.
 //
 // C2 Details:
-//  ID: TvExecute
 //
-//  Input:
-//      Process struct {
-//          []string        // Args
-//          string          // Dir
-//          []string        // Environment
-//          uint32          // Flags
-//          bool            // Wait
-//          int64           // Timeout
-//          Filter struct { // Filter
-//              bool        // Filter Status
-//              uint32      // PID
-//              bool        // Fallback
-//              uint8       // Session
-//              uint8       // Elevated
-//              []string    // Exclude
-//              []string    // Include
-//          }
-//          []byte          // Stdin Data
-//      }
-//  Output:
-//      uint32              // PID
-//      int32               // Exit Code
-//      []byte              // Output (Stdout and Stderr)
+//	ID: TvExecute
+//
+//	Input:
+//	    Process struct {
+//	        []string        // Args
+//	        string          // Dir
+//	        []string        // Environment
+//	        uint32          // Flags
+//	        bool            // Wait
+//	        int64           // Timeout
+//	        Filter struct { // Filter
+//	            bool        // Filter Status
+//	            uint32      // PID
+//	            bool        // Fallback
+//	            uint8       // Session
+//	            uint8       // Elevated
+//	            []string    // Exclude
+//	            []string    // Include
+//	        }
+//	        []byte          // Stdin Data
+//	    }
+//	Output:
+//	    uint32              // PID
+//	    int32               // Exit Code
+//	    []byte              // Output (Stdout and Stderr)
 func Shell(c string) Process {
 	return Process{Args: []string{crypt.Get(8), c}, Wait: true} // @SHELL@
 }

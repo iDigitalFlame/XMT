@@ -48,6 +48,7 @@
             "GOROOT",
             "HKCU",
             "HKLM",
+            "KSHARED",
             "ldflags",
             "Loong",
             "mkdtemp",
@@ -66,6 +67,7 @@
             "TITLEISAPPID",
             "unmapping",
             "vardic",
+            "VIRT",
             "vulncheck",
             "wtsapi",
             "Zombified"

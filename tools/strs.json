@@ -601,5 +601,11 @@
         "tags": [
             "regexp"
         ]
+    },
+    "100": {
+        "value": "crypt32.dll",
+        "tags": [
+            "windows"
+        ]
     }
 }

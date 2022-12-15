@@ -38,35 +38,36 @@ import (
 // If none are specified, the Process will be ran under the client process.
 //
 // C2 Details:
-//  ID: TvExecute
 //
-//  Input:
-//      Process struct {
-//          []string        // Args
-//          string          // Dir
-//          []string        // Environment
-//          uint32          // Flags
-//          bool            // Wait
-//          int64           // Timeout
-//          bool            // Hide
-//          string          // Username
-//          string          // Domain
-//          string          // Password
-//          Filter struct { // Filter
-//              bool        // Filter Status
-//              uint32      // PID
-//              bool        // Fallback
-//              uint8       // Session
-//              uint8       // Elevated
-//              []string    // Exclude
-//              []string    // Include
-//          }
-//          []byte          // Stdin Data
-//      }
-//  Output:
-//      uint32              // PID
-//      int32               // Exit Code
-//      []byte              // Output (Stdout and Stderr)
+//	ID: TvExecute
+//
+//	Input:
+//	    Process struct {
+//	        []string        // Args
+//	        string          // Dir
+//	        []string        // Environment
+//	        uint32          // Flags
+//	        bool            // Wait
+//	        int64           // Timeout
+//	        bool            // Hide
+//	        string          // Username
+//	        string          // Domain
+//	        string          // Password
+//	        Filter struct { // Filter
+//	            bool        // Filter Status
+//	            uint32      // PID
+//	            bool        // Fallback
+//	            uint8       // Session
+//	            uint8       // Elevated
+//	            []string    // Exclude
+//	            []string    // Include
+//	        }
+//	        []byte          // Stdin Data
+//	    }
+//	Output:
+//	    uint32              // PID
+//	    int32               // Exit Code
+//	    []byte              // Output (Stdout and Stderr)
 type Process struct {
 	Filter             *filter.Filter
 	Dir                string

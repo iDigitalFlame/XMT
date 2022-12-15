@@ -18,7 +18,6 @@
 // overall application behaves. Many of these options are configured by build tags.
 //
 // Other functions include re-implemented standard library functions.
-//
 package limits
 
 import (

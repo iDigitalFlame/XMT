@@ -16,7 +16,6 @@
 
 // Package c2 is the primary Command & Control (C2) endpoint for creating and
 // managing a C2 Session or spinning up a C2 service.
-//
 package c2
 
 import (

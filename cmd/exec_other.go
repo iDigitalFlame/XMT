@@ -40,12 +40,12 @@ func (e *executable) close() {
 			e.closers[i].Close()
 		}
 	}
-	//if e.e.Process != nil {
 	// NOTE(dij): This causes *nix systems to create a Zombie process
-	//            (not what we want). Not sure if it matters enough to fix
-	//            tho.
-	// e.e.Process.Release()
-	//}
+	//            (not what we want). Not sure if it matters enough to fix tho.
+	//
+	//	if e.e.Process != nil {
+	//	    e.e.Process.Release()
+	//	}
 }
 func (executable) Resume() error {
 	return nil

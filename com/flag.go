@@ -67,12 +67,11 @@ const (
 //
 // Mapping
 //
-//   | 64     56        48        40        32        24        16         8       0 |
-//   | ----------------- | ----------------- | ----------------- | ----------------- |
-//   | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 |
-//   |    Frag Total     |   Frag Position   |   Frag Group ID   |       Flags       |
-//   |                         Frag Data                         |                   |
-//
+//	| 64     56        48        40        32        24        16         8       0 |
+//	| ----------------- | ----------------- | ----------------- | ----------------- |
+//	| 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 | 8 4 2 1 |
+//	|    Frag Total     |   Frag Position   |   Frag Group ID   |       Flags       |
+//	|                         Frag Data                         |                   |
 type Flag uint64
 
 // Clear clears all Frag and Multi related data values.

@@ -33,20 +33,21 @@ import (
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvWindowList
 //
-//  Input:
-//      <none>
-//  Output:
-//      uint32     // Count
-//      []Window { // List of open Windows
-//          uint64 // Handle
-//          string // Title
-//          uint32 // Position X
-//          uint32 // Position Y
-//          uint32 // Width
-//          uint32 // Height
-//      }
+//	ID: TvWindowList
+//
+//	Input:
+//	    <none>
+//	Output:
+//	    uint32     // Count
+//	    []Window { // List of open Windows
+//	        uint64 // Handle
+//	        string // Title
+//	        uint32 // Position X
+//	        uint32 // Position Y
+//	        uint32 // Width
+//	        uint32 // Height
+//	    }
 func WindowList() *com.Packet {
 	return &com.Packet{ID: TvWindowList}
 }
@@ -58,12 +59,13 @@ func WindowList() *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvTroll
 //
-//  Input:
-//      uint8  // Can be 0 or 1 depending on the state set.
-//  Output:
-//      <none>
+//	ID: TvTroll
+//
+//	Input:
+//	    uint8  // Can be 0 or 1 depending on the state set.
+//	Output:
+//	    <none>
 func SwapMouse(e bool) *com.Packet {
 	n := &com.Packet{ID: TvTroll}
 	if e {
@@ -81,12 +83,13 @@ func SwapMouse(e bool) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvTroll
 //
-//  Input:
-//      uint8  // Can be 6 or 7 depending on the state set.
-//  Output:
-//      <none>
+//	ID: TvTroll
+//
+//	Input:
+//	    uint8  // Can be 6 or 7 depending on the state set.
+//	Output:
+//	    <none>
 func BlockInput(e bool) *com.Packet {
 	n := &com.Packet{ID: TvTroll}
 	if e {
@@ -106,13 +109,14 @@ func BlockInput(e bool) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvTroll
 //
-//  Input:
-//      uint8  // Always set to 5 for this task.
-//      string // Destination
-//  Output:
-//      <none>
+//	ID: TvTroll
+//
+//	Input:
+//	    uint8  // Always set to 5 for this task.
+//	    string // Destination
+//	Output:
+//	    <none>
 func Wallpaper(s string) *com.Packet {
 	n := &com.Packet{ID: TvTroll}
 	n.WriteUint8(taskTrollWallpaperPath)
@@ -127,12 +131,13 @@ func Wallpaper(s string) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvTroll
 //
-//  Input:
-//      uint8  // Can be 2 or 3 depending on the state set.
-//  Output:
-//      <none>
+//	ID: TvTroll
+//
+//	Input:
+//	    uint8  // Can be 2 or 3 depending on the state set.
+//	Output:
+//	    <none>
 func HighContrast(e bool) *com.Packet {
 	n := &com.Packet{ID: TvTroll}
 	if e {
@@ -152,13 +157,14 @@ func HighContrast(e bool) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvUI
 //
-//  Input:
-//      uint8  // Always 7 for this task.
-//      uint64 // Handle
-//  Output:
-//      <none>
+//	ID: TvUI
+//
+//	Input:
+//	    uint8  // Always 7 for this task.
+//	    uint64 // Handle
+//	Output:
+//	    <none>
 func WindowFocus(h uint64) *com.Packet {
 	n := &com.Packet{ID: TvUI}
 	n.WriteUint8(taskWindowFocus)
@@ -175,13 +181,14 @@ func WindowFocus(h uint64) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvUI
 //
-//  Input:
-//      uint8  // Always 4 for this task.
-//      uint64 // Handle
-//  Output:
-//      <none>
+//	ID: TvUI
+//
+//	Input:
+//	    uint8  // Always 4 for this task.
+//	    uint64 // Handle
+//	Output:
+//	    <none>
 func WindowClose(h uint64) *com.Packet {
 	n := &com.Packet{ID: TvUI}
 	n.WriteUint8(taskWindowClose)
@@ -200,13 +207,14 @@ func WindowClose(h uint64) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvTroll
 //
-//  Input:
-//      uint8  // Always set to 4 for this task.
-//      []byte // File Data
-//  Output:
-//      <none>
+//	ID: TvTroll
+//
+//	Input:
+//	    uint8  // Always set to 4 for this task.
+//	    []byte // File Data
+//	Output:
+//	    <none>
 func WallpaperBytes(b []byte) *com.Packet {
 	n := &com.Packet{ID: TvTroll}
 	n.WriteUint8(taskTrollWallpaper)
@@ -220,13 +228,14 @@ func WallpaperBytes(b []byte) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvUI
 //
-//  Input:
-//      uint8 // Always 8 for this task.
-//      int64 // Duration
-//  Output:
-//      <none>
+//	ID: TvUI
+//
+//	Input:
+//	    uint8 // Always 8 for this task.
+//	    int64 // Duration
+//	Output:
+//	    <none>
 func WindowWTF(d time.Duration) *com.Packet {
 	n := &com.Packet{ID: TvTroll}
 	n.WriteUint8(taskTrollWTF)
@@ -243,14 +252,15 @@ func WindowWTF(d time.Duration) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvUI
 //
-//  Input:
-//      uint8  // Always 3 for this task.
-//      uint64 // Handle
-//      uint8  // Sw* Constant
-//  Output:
-//      <none>
+//	ID: TvUI
+//
+//	Input:
+//	    uint8  // Always 3 for this task.
+//	    uint64 // Handle
+//	    uint8  // Sw* Constant
+//	Output:
+//	    <none>
 func WindowShow(h uint64, t uint8) *com.Packet {
 	n := &com.Packet{ID: TvUI}
 	n.WriteUint8(taskWindowShow)
@@ -270,13 +280,14 @@ func WindowShow(h uint64, t uint8) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvUI
 //
-//  Input:
-//      uint8  // Can be 0 or 1 depending on the state set.
-//      uint64 // Handle
-//  Output:
-//      <none>
+//	ID: TvUI
+//
+//	Input:
+//	    uint8  // Can be 0 or 1 depending on the state set.
+//	    uint64 // Handle
+//	Output:
+//	    <none>
 func WindowEnable(h uint64, e bool) *com.Packet {
 	n := &com.Packet{ID: TvUI}
 	if e {
@@ -299,13 +310,14 @@ func WindowEnable(h uint64, e bool) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvTroll
 //
-//  Input:
-//      uint8  // Always set to 4 for this task.
-//      []byte // File Data
-//  Output:
-//      <none>
+//	ID: TvTroll
+//
+//	Input:
+//	    uint8  // Always set to 4 for this task.
+//	    []byte // File Data
+//	Output:
+//	    <none>
 func WallpaperFile(s string) (*com.Packet, error) {
 	// 0 - READONLY
 	f, err := os.OpenFile(device.Expand(s), 0, 0)
@@ -326,14 +338,15 @@ func WallpaperFile(s string) (*com.Packet, error) {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvUI
 //
-//  Input:
-//      uint8  // Always 8 for this task.
-//      uint64 // Handle
-//      string // Text
-//  Output:
-//      <none>
+//	ID: TvUI
+//
+//	Input:
+//	    uint8  // Always 8 for this task.
+//	    uint64 // Handle
+//	    string // Text
+//	Output:
+//	    <none>
 func WindowSendInput(h uint64, s string) *com.Packet {
 	n := &com.Packet{ID: TvUI}
 	n.WriteUint8(taskWindowType)
@@ -352,13 +365,14 @@ func WindowSendInput(h uint64, s string) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvUI
 //
-//  Input:
-//      uint8  // Always 2 for this task.
-//      uint64 // Handle
-//  Output:
-//      <none>
+//	ID: TvUI
+//
+//	Input:
+//	    uint8  // Always 2 for this task.
+//	    uint64 // Handle
+//	Output:
+//	    <none>
 func WindowTransparency(h uint64, v byte) *com.Packet {
 	n := &com.Packet{ID: TvUI}
 	n.WriteUint8(taskWindowTransparency)
@@ -378,13 +392,14 @@ func WindowTransparency(h uint64, v byte) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvTroll
 //
-//  Input:
-//      uint8  // Always set to 4 for this task.
-//      []byte // File Data
-//  Output:
-//      <none>
+//	ID: TvTroll
+//
+//	Input:
+//	    uint8  // Always set to 4 for this task.
+//	    []byte // File Data
+//	Output:
+//	    <none>
 func WallpaperReader(r io.Reader) (*com.Packet, error) {
 	n := &com.Packet{ID: TvTroll}
 	n.WriteUint8(taskTrollWallpaper)
@@ -401,17 +416,18 @@ func WallpaperReader(r io.Reader) (*com.Packet, error) {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvUI
 //
-//  Input:
-//      uint8  // Always 6 for this task.
-//      uint64 // Handle
-//      uint32 // X
-//      uint32 // Y
-//      uint32 // Width
-//      uint32 // Height
-//  Output:
-//      <none>
+//	ID: TvUI
+//
+//	Input:
+//	    uint8  // Always 6 for this task.
+//	    uint64 // Handle
+//	    uint32 // X
+//	    uint32 // Y
+//	    uint32 // Width
+//	    uint32 // Height
+//	Output:
+//	    <none>
 func WindowMove(h uint64, x, y, width, height int32) *com.Packet {
 	n := &com.Packet{ID: TvUI}
 	n.WriteUint8(taskWindowMove)
@@ -435,16 +451,17 @@ func WindowMove(h uint64, x, y, width, height int32) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvUI
 //
-//  Input:
-//      uint8  // Always 5 for this task.
-//      uint64 // Handle
-//      string // Title
-//      string // Text
-//      uint32 // Flags
-//  Output:
-//      uint32 // MessageBox return result
+//	ID: TvUI
+//
+//	Input:
+//	    uint8  // Always 5 for this task.
+//	    uint64 // Handle
+//	    string // Title
+//	    string // Text
+//	    uint32 // Flags
+//	Output:
+//	    uint32 // MessageBox return result
 func WindowMessageBox(h uint64, title, text string, flags uint32) *com.Packet {
 	n := &com.Packet{ID: TvUI}
 	n.WriteUint8(taskWindowMessage)
@@ -460,18 +477,19 @@ func WindowMessageBox(h uint64, title, text string, flags uint32) *com.Packet {
 // specified Session ID (or -1 for the current session).
 //
 // C2 Details:
-//  ID: TvLoginsAct
 //
-//  Input:
-//      uint8  // Always 2 for this task.
-//      int32  // Session ID
-//      uint32 // Flags
-//      uint32 // Timeout in seconds
-//      bool   // Wait for User
-//      string // Title
-//      string // Text
-//  Output:
-//      uint32 // MessageBox return result
+//	ID: TvLoginsAct
+//
+//	Input:
+//	    uint8  // Always 2 for this task.
+//	    int32  // Session ID
+//	    uint32 // Flags
+//	    uint32 // Timeout in seconds
+//	    bool   // Wait for User
+//	    string // Title
+//	    string // Text
+//	Output:
+//	    uint32 // MessageBox return result
 func UserMessageBox(sid int32, title, text string, flags, secs uint32, wait bool) *com.Packet {
 	n := &com.Packet{ID: TvLoginsAct}
 	n.WriteUint8(taskLoginsMessage)

@@ -17,7 +17,6 @@
 // Package winapi is a Windows specific package that assists with handeling or
 // accessing many advanced WinAPI functions. This package also contains various
 // helper functions to assist with complex operations.
-//
 package winapi
 
 import (
@@ -38,7 +37,6 @@ const (
 //
 // It cannot be used safely or portably and its representation may change in a
 // later release.
-//
 // ^ Hey, shut up.
 type SliceHeader struct {
 	Data unsafe.Pointer

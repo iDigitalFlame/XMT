@@ -88,6 +88,7 @@ var (
 	funcCreateNamedPipe               = dllKernelBase.proc("CreateNamedPipeW")
 	funcConnectNamedPipe              = dllKernelBase.proc("ConnectNamedPipe")
 	funcGetModuleHandleEx             = dllKernelBase.proc("GetModuleHandleExW")
+	funcOutputDebugString             = dllKernelBase.proc("OutputDebugStringA")
 	funcCreateWellKnownSid            = dllKernelBase.proc("CreateWellKnownSid")
 	funcGetCurrentThreadID            = dllKernelBase.proc("GetCurrentThreadId")
 	funcGetOverlappedResult           = dllKernelBase.proc("GetOverlappedResult")
@@ -108,8 +109,8 @@ var (
 	funcK32EnumDeviceDrivers       = dllKernel32.proc("K32EnumDeviceDrivers")
 	funcK32GetModuleInformation    = dllKernel32.proc("K32GetModuleInformation")
 	funcCreateToolhelp32Snapshot   = dllKernel32.proc("CreateToolhelp32Snapshot")
-	funcK32GetDeviceDriverBaseName = dllKernel32.proc("K32GetDeviceDriverBaseNameW")
 	funcSetProcessWorkingSetSizeEx = dllKernel32.proc("SetProcessWorkingSetSizeEx")
+	funcK32GetDeviceDriverFileName = dllKernel32.proc("K32GetDeviceDriverFileNameW")
 
 	funcLsaClose                                            = dllAdvapi32.proc("LsaClose")
 	funcLogonUser                                           = dllAdvapi32.proc("LogonUserW")
@@ -160,6 +161,14 @@ var (
 	funcSetForegroundWindow        = dllUser32.proc("SetForegroundWindow")
 	funcSystemParametersInfo       = dllUser32.proc("SystemParametersInfoW")
 	funcSetLayeredWindowAttributes = dllUser32.proc("SetLayeredWindowAttributes")
+
+	funcCryptMsgClose              = dllCrypt32.proc("CryptMsgClose")
+	funcCertCloseStore             = dllCrypt32.proc("CertCloseStore")
+	funcCryptQueryObject           = dllCrypt32.proc("CryptQueryObject")
+	funcCryptMsgGetParam           = dllCrypt32.proc("CryptMsgGetParam")
+	funcCertGetNameString          = dllCrypt32.proc("CertGetNameStringW")
+	funcCertFindCertificateInStore = dllCrypt32.proc("CertFindCertificateInStore")
+	funcCertFreeCertificateContext = dllCrypt32.proc("CertFreeCertificateContext")
 
 	funcBitBlt                 = dllGdi32.proc("BitBlt")
 	funcDeleteDC               = dllGdi32.proc("DeleteDC")

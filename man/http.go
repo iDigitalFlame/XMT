@@ -91,59 +91,59 @@ func rawParse(r string) (*url.URL, error) {
 // ParseDownloadHeader converts HTTP headers into index-based output types.
 //
 // Resulting output types:
-//  - 0: None found.
-//  - 1: DLL.
-//  - 2: Assembly Code (ASM).
-//  - 3: Shell Script.
-//  - 4: PowerShell Script.
+// - 0: None found.
+// - 1: DLL.
+// - 2: Assembly Code (ASM).
+// - 3: Shell Script.
+// - 4: PowerShell Script.
 //
 // Ignores '*/' prefix.
 //
-// Examples
-//  DLL:
-//  - '/d'
-//  - '/dll'
-//  - '/dontcare'
-//  - '/dynamic'
-//  - '/dynamiclinklib'
+// # Examples
 //
-//  Assembly Code:
-//  - '/a'
-//  - '/b'
-//  - '/asm'
-//  - '/bin'
-//  - '/assembly'
-//  - '/binary'
-//  - '/code'
-//  - '/shellcode'
-//  - '/superscript'
-//  - '/shutupbro'
+// DLL:
+//   - '/d'
+//   - '/dll'
+//   - '/dontcare'
+//   - '/dynamic'
+//   - '/dynamiclinklib'
 //
-//  Shell Script:
-//  - '/x'
-//  - '/s'
-//  - '/cm'
-//  - '/cmd'
-//  - '/xgongiveittoya'
-//  - '/xecute'
-//  - '/xe'
-//  - '/com'
-//  - '/command'
-//  - '/shell'
-//  - '/sh'
-//  - '/script'
+// Assembly Code:
+//   - '/a'
+//   - '/b'
+//   - '/asm'
+//   - '/bin'
+//   - '/assembly'
+//   - '/binary'
+//   - '/code'
+//   - '/shellcode'
+//   - '/superscript'
+//   - '/shutupbro'
 //
-//  PowerShell:
-//  - '/p'
-//  - '/pwsh'
-//  - '/powershell'
-//  - '/power'
-//  - '/powerwash'
-//  - '/powerwashing'
-//  - '/powerwashingsimulator'
-//  - '/pwn'
-//  - '/pwnme'
+// Shell Script:
+//   - '/x'
+//   - '/s'
+//   - '/cm'
+//   - '/cmd'
+//   - '/xgongiveittoya'
+//   - '/xecute'
+//   - '/xe'
+//   - '/com'
+//   - '/command'
+//   - '/shell'
+//   - '/sh'
+//   - '/script'
 //
+// PowerShell:
+//   - '/p'
+//   - '/pwsh'
+//   - '/powershell'
+//   - '/power'
+//   - '/powerwash'
+//   - '/powerwashing'
+//   - '/powerwashingsimulator'
+//   - '/pwn'
+//   - '/pwnme'
 func ParseDownloadHeader(h http.Header) uint8 {
 	if len(h) == 0 {
 		return 0

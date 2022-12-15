@@ -24,19 +24,21 @@ import (
 )
 
 // SID matches the SID struct
-//  https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-sid
+//
+//	https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-sid
 type SID struct{}
 
 // ACL matches the ACL struct
-//  https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-acl
 //
-// typedef struct _ACL {
-//   BYTE AclRevision;
-//   BYTE Sbz1;
-//   WORD AclSize;
-//   WORD AceCount;
-//   WORD Sbz2;
-// } ACL;
+//	https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-acl
+//
+//	typedef struct _ACL {
+//	  BYTE AclRevision;
+//	  BYTE Sbz1;
+//	  WORD AclSize;
+//	  WORD AceCount;
+//	  WORD Sbz2;
+//	} ACL;
 //
 // DO NOT REORDER
 type ACL struct {
@@ -45,12 +47,13 @@ type ACL struct {
 }
 
 // LUID matches the LUID struct
-//  https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-luid
 //
-// typedef struct _LUID {
-//   DWORD LowPart;
-//   LONG  HighPart;
-// } LUID, *PLUID;
+//	https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-luid
+//
+//	typedef struct _LUID {
+//	  DWORD LowPart;
+//	  LONG  HighPart;
+//	} LUID, *PLUID;
 //
 // DO NOT REORDER
 type LUID struct {
@@ -59,11 +62,12 @@ type LUID struct {
 }
 
 // TokenUser matches the TOKEN_USER struct.
-//  https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-token_user
 //
-// typedef struct _TOKEN_USER {
-//   SID_AND_ATTRIBUTES User;
-// } TOKEN_USER, *PTOKEN_USER
+//	https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-token_user
+//
+//	typedef struct _TOKEN_USER {
+//	  SID_AND_ATTRIBUTES User;
+//	} TOKEN_USER, *PTOKEN_USER
 //
 // DO NOT REORDER
 type TokenUser struct {
@@ -71,13 +75,14 @@ type TokenUser struct {
 }
 
 // ProxyInfo matches the WINHTTP_PROXY_INFO struct
-//  https://docs.microsoft.com/en-us/windows/win32/api/winhttp/ns-winhttp-winhttp_proxy_info
 //
-// typedef struct _WINHTTP_PROXY_INFO {
-//   DWORD  dwAccessType;
-//   LPWSTR lpszProxy;
-//   LPWSTR lpszProxyBypass;
-// } WINHTTP_PROXY_INFO, *LPWINHTTP_PROXY_INFO, *PWINHTTP_PROXY_INFO;
+//	https://docs.microsoft.com/en-us/windows/win32/api/winhttp/ns-winhttp-winhttp_proxy_info
+//
+//	typedef struct _WINHTTP_PROXY_INFO {
+//	  DWORD  dwAccessType;
+//	  LPWSTR lpszProxy;
+//	  LPWSTR lpszProxyBypass;
+//	} WINHTTP_PROXY_INFO, *LPWINHTTP_PROXY_INFO, *PWINHTTP_PROXY_INFO;
 //
 // DO NOT REORDER
 type ProxyInfo struct {
@@ -87,15 +92,16 @@ type ProxyInfo struct {
 }
 
 // Overlapped matches the OVERLAPPED struct
-//  https://docs.microsoft.com/en-us/windows/win32/api/minwinbase/ns-minwinbase-overlapped
 //
-// typedef struct _OVERLAPPED {
-//   ULONG_PTR Internal;
-//   ULONG_PTR InternalHigh;
-//   DWORD Offset;
-//   DWORD OffsetHigh;
-//   HANDLE    hEvent;
-// } OVERLAPPED, *LPOVERLAPPED;
+//	https://docs.microsoft.com/en-us/windows/win32/api/minwinbase/ns-minwinbase-overlapped
+//
+//	typedef struct _OVERLAPPED {
+//	  ULONG_PTR Internal;
+//	  ULONG_PTR InternalHigh;
+//	  DWORD Offset;
+//	  DWORD OffsetHigh;
+//	  HANDLE    hEvent;
+//	} OVERLAPPED, *LPOVERLAPPED;
 //
 // DO NOT REORDER
 type Overlapped struct {
@@ -107,28 +113,29 @@ type Overlapped struct {
 }
 
 // StartupInfo matches the STARTUPINFOW struct
-//  https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/ns-processthreadsapi-startupinfow
 //
-// typedef struct _STARTUPINFOW {
-//   DWORD  cb;
-//   LPWSTR lpReserved;
-//   LPWSTR lpDesktop;
-//   LPWSTR lpTitle;
-//   DWORD  dwX;
-//   DWORD  dwY;
-//   DWORD  dwXSize;
-//   DWORD  dwYSize;
-//   DWORD  dwXCountChars;
-//   DWORD  dwYCountChars;
-//   DWORD  dwFillAttribute;
-//   DWORD  dwFlags;
-//   WORD   wShowWindow;
-//   WORD   cbReserved2;
-//   LPBYTE lpReserved2;
-//   HANDLE hStdInput;
-//   HANDLE hStdOutput;
-//   HANDLE hStdError;
-// } STARTUPINFOW, *LPSTARTUPINFOW;
+//	https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/ns-processthreadsapi-startupinfow
+//
+//	typedef struct _STARTUPINFOW {
+//	  DWORD  cb;
+//	  LPWSTR lpReserved;
+//	  LPWSTR lpDesktop;
+//	  LPWSTR lpTitle;
+//	  DWORD  dwX;
+//	  DWORD  dwY;
+//	  DWORD  dwXSize;
+//	  DWORD  dwYSize;
+//	  DWORD  dwXCountChars;
+//	  DWORD  dwYCountChars;
+//	  DWORD  dwFillAttribute;
+//	  DWORD  dwFlags;
+//	  WORD   wShowWindow;
+//	  WORD   cbReserved2;
+//	  LPBYTE lpReserved2;
+//	  HANDLE hStdInput;
+//	  HANDLE hStdOutput;
+//	  HANDLE hStdError;
+//	} STARTUPINFOW, *LPSTARTUPINFOW;
 //
 // DO NOT REORDER
 type StartupInfo struct {
@@ -153,17 +160,18 @@ type StartupInfo struct {
 }
 
 // ThreadEntry32 matches the THREADENTRY32 struct
-//  https://docs.microsoft.com/en-us/windows/win32/api/tlhelp32/ns-tlhelp32-threadentry32
 //
-// typedef struct tagTHREADENTRY32 {
-//   DWORD dwSize;
-//   DWORD cntUsage;
-//   DWORD th32ThreadID;
-//   DWORD th32OwnerProcessID;
-//   LONG  tpBasePri;
-//   LONG  tpDeltaPri;
-//   DWORD dwFlags;
-// } THREADENTRY32;
+//	https://docs.microsoft.com/en-us/windows/win32/api/tlhelp32/ns-tlhelp32-threadentry32
+//
+//	typedef struct tagTHREADENTRY32 {
+//	  DWORD dwSize;
+//	  DWORD cntUsage;
+//	  DWORD th32ThreadID;
+//	  DWORD th32OwnerProcessID;
+//	  LONG  tpBasePri;
+//	  LONG  tpDeltaPri;
+//	  DWORD dwFlags;
+//	} THREADENTRY32;
 //
 // DO NOT REORDER
 type ThreadEntry32 struct {
@@ -177,12 +185,13 @@ type ThreadEntry32 struct {
 }
 
 // StartupInfoEx matches the STARTUPINFOEXW struct
-//  https://docs.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-startupinfoexw
 //
-// typedef struct _STARTUPINFOEXW {
-//   STARTUPINFOW                 StartupInfo;
-//   LPPROC_THREAD_ATTRIBUTE_LIST lpAttributeList;
-// } STARTUPINFOEXW, *LPSTARTUPINFOEXW;
+//	https://docs.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-startupinfoexw
+//
+//	typedef struct _STARTUPINFOEXW {
+//	  STARTUPINFOW                 StartupInfo;
+//	  LPPROC_THREAD_ATTRIBUTE_LIST lpAttributeList;
+//	} STARTUPINFOEXW, *LPSTARTUPINFOEXW;
 //
 // DO NOT REORDER
 type StartupInfoEx struct {
@@ -191,17 +200,18 @@ type StartupInfoEx struct {
 }
 
 // ServiceStatus matches the SERVICE_STATUS struct
-//  https://docs.microsoft.com/en-us/windows/win32/api/winsvc/ns-winsvc-service_status
 //
-// typedef struct _SERVICE_STATUS {
-//  DWORD dwServiceType;
-//  DWORD dwCurrentState;
-//  DWORD dwControlsAccepted;
-//  DWORD dwWin32ExitCode;
-//  DWORD dwServiceSpecificExitCode;
-//  DWORD dwCheckPoint;
-//  DWORD dwWaitHint;
-// } SERVICE_STATUS, *LPSERVICE_STATUS;
+//	https://docs.microsoft.com/en-us/windows/win32/api/winsvc/ns-winsvc-service_status
+//
+//	typedef struct _SERVICE_STATUS {
+//	 DWORD dwServiceType;
+//	 DWORD dwCurrentState;
+//	 DWORD dwControlsAccepted;
+//	 DWORD dwWin32ExitCode;
+//	 DWORD dwServiceSpecificExitCode;
+//	 DWORD dwCheckPoint;
+//	 DWORD dwWaitHint;
+//	} SERVICE_STATUS, *LPSERVICE_STATUS;
 type ServiceStatus struct {
 	ServiceType             uint32
 	CurrentState            uint32
@@ -213,20 +223,21 @@ type ServiceStatus struct {
 }
 
 // ProcessEntry32 matches the PROCESSENTRY32 struct
-//  https://docs.microsoft.com/en-us/windows/win32/api/tlhelp32/ns-tlhelp32-processentry32
 //
-// typedef struct tagPROCESSENTRY32 {
-//   DWORD     dwSize;
-//   DWORD     cntUsage;
-//   DWORD     th32ProcessID;
-//   ULONG_PTR th32DefaultHeapID;
-//   DWORD     th32ModuleID;
-//   DWORD     cntThreads;
-//   DWORD     th32ParentProcessID;
-//   LONG      pcPriClassBase;
-//   DWORD     dwFlags;
-//   CHAR      szExeFile[MAX_PATH];
-// } PROCESSENTRY32;
+//	https://docs.microsoft.com/en-us/windows/win32/api/tlhelp32/ns-tlhelp32-processentry32
+//
+//	typedef struct tagPROCESSENTRY32 {
+//	  DWORD     dwSize;
+//	  DWORD     cntUsage;
+//	  DWORD     th32ProcessID;
+//	  ULONG_PTR th32DefaultHeapID;
+//	  DWORD     th32ModuleID;
+//	  DWORD     cntThreads;
+//	  DWORD     th32ParentProcessID;
+//	  LONG      pcPriClassBase;
+//	  DWORD     dwFlags;
+//	  CHAR      szExeFile[MAX_PATH];
+//	} PROCESSENTRY32;
 //
 // DO NOT REORDER
 type ProcessEntry32 struct {
@@ -243,12 +254,13 @@ type ProcessEntry32 struct {
 }
 
 // SIDAndAttributes matches the SID_AND_ATTRIBUTES struct
-//  https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-sid_and_attributes
 //
-// typedef struct _SID_AND_ATTRIBUTES {
-//   PSID  Sid;
-//   DWORD Attributes;
-// } SID_AND_ATTRIBUTES, *PSID_AND_ATTRIBUTES;
+//	https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-sid_and_attributes
+//
+//	typedef struct _SID_AND_ATTRIBUTES {
+//	  PSID  Sid;
+//	  DWORD Attributes;
+//	} SID_AND_ATTRIBUTES, *PSID_AND_ATTRIBUTES;
 //
 // DO NOT REORDER
 type SIDAndAttributes struct {
@@ -257,19 +269,21 @@ type SIDAndAttributes struct {
 }
 
 // ServiceTableEntry matches the SERVICE_TABLE_ENTRYW struct
-//  https://docs.microsoft.com/en-us/windows/win32/api/winsvc/ns-winsvc-service_table_entryw
 //
-// typedef struct _SERVICE_TABLE_ENTRYW {
-//  LPWSTR                   lpServiceName;
-//  LPSERVICE_MAIN_FUNCTIONW lpServiceProc;
-// } SERVICE_TABLE_ENTRYW, *LPSERVICE_TABLE_ENTRYW;
+//	https://docs.microsoft.com/en-us/windows/win32/api/winsvc/ns-winsvc-service_table_entryw
+//
+//	typedef struct _SERVICE_TABLE_ENTRYW {
+//	 LPWSTR                   lpServiceName;
+//	 LPSERVICE_MAIN_FUNCTIONW lpServiceProc;
+//	} SERVICE_TABLE_ENTRYW, *LPSERVICE_TABLE_ENTRYW;
 type ServiceTableEntry struct {
 	Name *uint16
 	Proc uintptr
 }
 
 // StartupAttributes matches the LPPROC_THREAD_ATTRIBUTE_LIST opaque struct
-//  https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-initializeprocthreadattributelist
+//
+//	https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-initializeprocthreadattributelist
 //
 // There's not much documentation for this *shrug*
 type StartupAttributes struct {
@@ -279,12 +293,13 @@ type StartupAttributes struct {
 }
 
 // LUIDAndAttributes matches the LUIDAndAttributes struct
-//  https://docs.microsoft.com/en-us/previous-versions/windows/desktop/wmipjobobjprov/win32-luidandattributes
 //
-// typedef struct LUIDAndAttributes {
-//   LUID  Luid;
-//   DWORD dwSize;
-// } PLUIDANDATTRIBUTES;
+//	https://docs.microsoft.com/en-us/previous-versions/windows/desktop/wmipjobobjprov/win32-luidandattributes
+//
+//	typedef struct LUIDAndAttributes {
+//	  LUID  Luid;
+//	  DWORD dwSize;
+//	} PLUIDANDATTRIBUTES;
 //
 // DO NOT REORDER
 type LUIDAndAttributes struct {
@@ -293,14 +308,15 @@ type LUIDAndAttributes struct {
 }
 
 // ProcessInformation matches the PROCESS_INFORMATION struct
-//  https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/ns-processthreadsapi-process_information
 //
-// typedef struct _PROCESS_INFORMATION {
-//   HANDLE hProcess;
-//   HANDLE hThread;
-//   DWORD  dwProcessId;
-//   DWORD  dwThreadId;
-// } PROCESS_INFORMATION, *PPROCESS_INFORMATION, *LPPROCESS_INFORMATION;
+//	https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/ns-processthreadsapi-process_information
+//
+//	typedef struct _PROCESS_INFORMATION {
+//	  HANDLE hProcess;
+//	  HANDLE hThread;
+//	  DWORD  dwProcessId;
+//	  DWORD  dwThreadId;
+//	} PROCESS_INFORMATION, *PPROCESS_INFORMATION, *LPPROCESS_INFORMATION;
 //
 // DO NOT REORDER
 type ProcessInformation struct {
@@ -311,17 +327,18 @@ type ProcessInformation struct {
 }
 
 // SecurityDescriptor matches the SECURITY_DESCRIPTOR struct
-//  https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-security_descriptor
 //
-// typedef struct _SECURITY_DESCRIPTOR {
-//   BYTE                        Revision;
-//   BYTE                        Sbz1;
-//   SECURITY_DESCRIPTOR_CONTROL Control;
-//   PSID                        Owner;
-//   PSID                        Group;
-//   PACL                        Sacl;
-//   PACL                        Dacl;
-// } SECURITY_DESCRIPTOR, *PISECURITY_DESCRIPTOR;
+//	https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-security_descriptor
+//
+//	typedef struct _SECURITY_DESCRIPTOR {
+//	  BYTE                        Revision;
+//	  BYTE                        Sbz1;
+//	  SECURITY_DESCRIPTOR_CONTROL Control;
+//	  PSID                        Owner;
+//	  PSID                        Group;
+//	  PACL                        Sacl;
+//	  PACL                        Dacl;
+//	} SECURITY_DESCRIPTOR, *PISECURITY_DESCRIPTOR;
 //
 // DO NOT REORDER
 type SecurityDescriptor struct {
@@ -332,13 +349,14 @@ type SecurityDescriptor struct {
 }
 
 // SecurityAttributes matches the SECURITY_ATTRIBUTES struct
-//  https://docs.microsoft.com/en-us/windows/win32/api/wtypesbase/ns-wtypesbase-security_attributes
 //
-// typedef struct _SECURITY_ATTRIBUTES {
-//   DWORD  nLength;
-//   LPVOID lpSecurityDescriptor;
-//   BOOL   bInheritHandle;
-// } SECURITY_ATTRIBUTES, *PSECURITY_ATTRIBUTES, *LPSECURITY_ATTRIBUTES;
+//	https://docs.microsoft.com/en-us/windows/win32/api/wtypesbase/ns-wtypesbase-security_attributes
+//
+//	typedef struct _SECURITY_ATTRIBUTES {
+//	  DWORD  nLength;
+//	  LPVOID lpSecurityDescriptor;
+//	  BOOL   bInheritHandle;
+//	} SECURITY_ATTRIBUTES, *PSECURITY_ATTRIBUTES, *LPSECURITY_ATTRIBUTES;
 //
 // DO NOT REORDER
 type SecurityAttributes struct {
@@ -348,15 +366,15 @@ type SecurityAttributes struct {
 }
 
 // SecurityQualityOfService matches the SECURITY_QUALITY_OF_SERVICE struct
-//  https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-security_quality_of_service
 //
-// typedef struct _SECURITY_QUALITY_OF_SERVICE {
-//   DWORD                          Length;
-//   SECURITY_IMPERSONATION_LEVEL   ImpersonationLevel;
-//   SECURITY_CONTEXT_TRACKING_MODE ContextTrackingMode;
-//   BOOLEAN                        EffectiveOnly;
-// } SECURITY_QUALITY_OF_SERVICE, *PSECURITY_QUALITY_OF_SERVICE;
+//	https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-security_quality_of_service
 //
+//	typedef struct _SECURITY_QUALITY_OF_SERVICE {
+//	  DWORD                          Length;
+//	  SECURITY_IMPERSONATION_LEVEL   ImpersonationLevel;
+//	  SECURITY_CONTEXT_TRACKING_MODE ContextTrackingMode;
+//	  BOOLEAN                        EffectiveOnly;
+//	} SECURITY_QUALITY_OF_SERVICE, *PSECURITY_QUALITY_OF_SERVICE;
 type SecurityQualityOfService struct {
 	Length              uint32
 	ImpersonationLevel  uint32
@@ -365,7 +383,8 @@ type SecurityQualityOfService struct {
 }
 
 // SecurityDescriptorControl matches the SECURITY_DESCRIPTOR_CONTROL bitflag.
-//  https://docs.microsoft.com/en-us/windows/win32/secauthz/security-descriptor-control
+//
+//	https://docs.microsoft.com/en-us/windows/win32/secauthz/security-descriptor-control
 //
 // typedef WORD SECURITY_DESCRIPTOR_CONTROL, *PSECURITY_DESCRIPTOR_CONTROL;
 type SecurityDescriptorControl uint16

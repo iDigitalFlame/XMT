@@ -35,36 +35,37 @@ import (
 // process.
 //
 // C2 Details:
-//  ID: WvZombie
 //
-//  Input:
-//      Zombie struct {
-//          []byte          // Data
-//          []string        // Args
-//          string          // Dir
-//          []string        // Environment
-//          uint32          // Flags
-//          bool            // Wait
-//          int64           // Timeout
-//          bool            // Hide
-//          string          // Username
-//          string          // Domain
-//          string          // Password
-//          Filter struct { // Filter
-//              bool        // Filter Status
-//              uint32      // PID
-//              bool        // Fallback
-//              uint8       // Session
-//              uint8       // Elevated
-//              []string    // Exclude
-//              []string    // Include
-//          }
-//          []byte          // Stdin Data
-//      }
-//  Output:
-//      uint32              // PID
-//      int32               // Exit Code
-//      []byte              // Output (Stdout and Stderr)
+//	ID: WvZombie
+//
+//	Input:
+//	    Zombie struct {
+//	        []byte          // Data
+//	        []string        // Args
+//	        string          // Dir
+//	        []string        // Environment
+//	        uint32          // Flags
+//	        bool            // Wait
+//	        int64           // Timeout
+//	        bool            // Hide
+//	        string          // Username
+//	        string          // Domain
+//	        string          // Password
+//	        Filter struct { // Filter
+//	            bool        // Filter Status
+//	            uint32      // PID
+//	            bool        // Fallback
+//	            uint8       // Session
+//	            uint8       // Elevated
+//	            []string    // Exclude
+//	            []string    // Include
+//	        }
+//	        []byte          // Stdin Data
+//	    }
+//	Output:
+//	    uint32              // PID
+//	    int32               // Exit Code
+//	    []byte              // Output (Stdout and Stderr)
 type Zombie struct {
 	Filter *filter.Filter
 
@@ -86,36 +87,37 @@ type Zombie struct {
 // This allows Zombie to fulfil the 'Tasklet' interface.
 //
 // C2 Details:
-//  ID: WvZombie
 //
-//  Input:
-//      Process struct {
-//          []byte          // Data
-//          []string        // Args
-//          string          // Dir
-//          []string        // Environment
-//          uint32          // Flags
-//          bool            // Wait
-//          int64           // Timeout
-//          bool            // Hide
-//          string          // Username
-//          string          // Domain
-//          string          // Password
-//          Filter struct { // Filter
-//              bool        // Filter Status
-//              uint32      // PID
-//              bool        // Fallback
-//              uint8       // Session
-//              uint8       // Elevated
-//              []string    // Exclude
-//              []string    // Include
-//          }
-//          []byte          // Stdin Data
-//      }
-//  Output:
-//      uint32              // PID
-//      int32               // Exit Code
-//      []byte              // Output (Stdout and Stderr)
+//	ID: WvZombie
+//
+//	Input:
+//	    Process struct {
+//	        []byte          // Data
+//	        []string        // Args
+//	        string          // Dir
+//	        []string        // Environment
+//	        uint32          // Flags
+//	        bool            // Wait
+//	        int64           // Timeout
+//	        bool            // Hide
+//	        string          // Username
+//	        string          // Domain
+//	        string          // Password
+//	        Filter struct { // Filter
+//	            bool        // Filter Status
+//	            uint32      // PID
+//	            bool        // Fallback
+//	            uint8       // Session
+//	            uint8       // Elevated
+//	            []string    // Exclude
+//	            []string    // Include
+//	        }
+//	        []byte          // Stdin Data
+//	    }
+//	Output:
+//	    uint32              // PID
+//	    int32               // Exit Code
+//	    []byte              // Output (Stdout and Stderr)
 func (z Zombie) Packet() (*com.Packet, error) {
 	n := &com.Packet{ID: TvZombie}
 	z.MarshalStream(n)

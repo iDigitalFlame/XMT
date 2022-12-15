@@ -21,7 +21,6 @@
 // containerization of Tasks.
 //
 // Basic internal Tasks are still help in the c2 package.
-//
 package task
 
 import (

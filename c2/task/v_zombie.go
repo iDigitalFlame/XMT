@@ -43,33 +43,34 @@ func (z *Zombie) SetStdin(r io.Reader) error {
 // process.
 //
 // C2 Details:
-//  ID: WvZombie
 //
-//  Input:
-//      Zombie struct {
-//          []byte          // Data
-//          []string        // Args
-//          string          // Dir
-//          []string        // Environment
-//          uint32          // Flags
-//          bool            // Wait
-//          int64           // Timeout
-//          bool            // Filter Status
-//          Filter struct { // Filter
-//              bool        // Filter Status
-//              uint32      // PID
-//              bool        // Fallback
-//              uint8       // Session
-//              uint8       // Elevated
-//              []string    // Exclude
-//              []string    // Include
-//          }
-//          []byte          // Stdin Data
-//      }
-//  Output:
-//      uint32              // PID
-//      int32               // Exit Code
-//      []byte              // Output (Stdout and Stderr)
+//	ID: WvZombie
+//
+//	Input:
+//	    Zombie struct {
+//	        []byte          // Data
+//	        []string        // Args
+//	        string          // Dir
+//	        []string        // Environment
+//	        uint32          // Flags
+//	        bool            // Wait
+//	        int64           // Timeout
+//	        bool            // Filter Status
+//	        Filter struct { // Filter
+//	            bool        // Filter Status
+//	            uint32      // PID
+//	            bool        // Fallback
+//	            uint8       // Session
+//	            uint8       // Elevated
+//	            []string    // Exclude
+//	            []string    // Include
+//	        }
+//	        []byte          // Stdin Data
+//	    }
+//	Output:
+//	    uint32              // PID
+//	    int32               // Exit Code
+//	    []byte              // Output (Stdout and Stderr)
 func ZombieAsm(b []byte, args ...string) *Zombie {
 	return &Zombie{Data: b, Args: args}
 }
@@ -83,33 +84,34 @@ func ZombieAsm(b []byte, args ...string) *Zombie {
 // process.
 //
 // C2 Details:
-//  ID: WvZombie
 //
-//  Input:
-//      Zombie struct {
-//          []byte          // Data
-//          []string        // Args
-//          string          // Dir
-//          []string        // Environment
-//          uint32          // Flags
-//          bool            // Wait
-//          int64           // Timeout
-//          bool            // Filter Status
-//          Filter struct { // Filter
-//              bool        // Filter Status
-//              uint32      // PID
-//              bool        // Fallback
-//              uint8       // Session
-//              uint8       // Elevated
-//              []string    // Exclude
-//              []string    // Include
-//          }
-//          []byte          // Stdin Data
-//      }
-//  Output:
-//      uint32              // PID
-//      int32               // Exit Code
-//      []byte              // Output (Stdout and Stderr)
+//	ID: WvZombie
+//
+//	Input:
+//	    Zombie struct {
+//	        []byte          // Data
+//	        []string        // Args
+//	        string          // Dir
+//	        []string        // Environment
+//	        uint32          // Flags
+//	        bool            // Wait
+//	        int64           // Timeout
+//	        bool            // Filter Status
+//	        Filter struct { // Filter
+//	            bool        // Filter Status
+//	            uint32      // PID
+//	            bool        // Fallback
+//	            uint8       // Session
+//	            uint8       // Elevated
+//	            []string    // Exclude
+//	            []string    // Include
+//	        }
+//	        []byte          // Stdin Data
+//	    }
+//	Output:
+//	    uint32              // PID
+//	    int32               // Exit Code
+//	    []byte              // Output (Stdout and Stderr)
 func ZombieAsmFile(s string, args ...string) (*Zombie, error) {
 	b, err := os.ReadFile(s)
 	if err != nil {
@@ -129,33 +131,34 @@ func ZombieAsmFile(s string, args ...string) (*Zombie, error) {
 // NOTE: This converts the DLL to Assembly.
 //
 // C2 Details:
-//  ID: WvZombie
 //
-//  Input:
-//      Zombie struct {
-//          []byte          // Data
-//          []string        // Args
-//          string          // Dir
-//          []string        // Environment
-//          uint32          // Flags
-//          bool            // Wait
-//          int64           // Timeout
-//          bool            // Filter Status
-//          Filter struct { // Filter
-//              bool        // Filter Status
-//              uint32      // PID
-//              bool        // Fallback
-//              uint8       // Session
-//              uint8       // Elevated
-//              []string    // Exclude
-//              []string    // Include
-//          }
-//          []byte          // Stdin Data
-//      }
-//  Output:
-//      uint32              // PID
-//      int32               // Exit Code
-//      []byte              // Output (Stdout and Stderr)
+//	ID: WvZombie
+//
+//	Input:
+//	    Zombie struct {
+//	        []byte          // Data
+//	        []string        // Args
+//	        string          // Dir
+//	        []string        // Environment
+//	        uint32          // Flags
+//	        bool            // Wait
+//	        int64           // Timeout
+//	        bool            // Filter Status
+//	        Filter struct { // Filter
+//	            bool        // Filter Status
+//	            uint32      // PID
+//	            bool        // Fallback
+//	            uint8       // Session
+//	            uint8       // Elevated
+//	            []string    // Exclude
+//	            []string    // Include
+//	        }
+//	        []byte          // Stdin Data
+//	    }
+//	Output:
+//	    uint32              // PID
+//	    int32               // Exit Code
+//	    []byte              // Output (Stdout and Stderr)
 func ZombieDLLFile(s string, args ...string) (*Zombie, error) {
 	b, err := os.ReadFile(s)
 	if err != nil {
@@ -175,32 +178,33 @@ func ZombieDLLFile(s string, args ...string) (*Zombie, error) {
 // NOTE: This converts the DLL to Assembly.
 //
 // C2 Details:
-//  ID: WvZombie
 //
-//  Input:
-//      Zombie struct {
-//          []byte          // Data
-//          []string        // Args
-//          string          // Dir
-//          []string        // Environment
-//          uint32          // Flags
-//          bool            // Wait
-//          int64           // Timeout
-//          Filter struct { // Filter
-//              bool        // Filter Status
-//              uint32      // PID
-//              bool        // Fallback
-//              uint8       // Session
-//              uint8       // Elevated
-//              []string    // Exclude
-//              []string    // Include
-//          }
-//          []byte          // Stdin Data
-//      }
-//  Output:
-//      uint32              // PID
-//      int32               // Exit Code
-//      []byte              // Output (Stdout and Stderr)
+//	ID: WvZombie
+//
+//	Input:
+//	    Zombie struct {
+//	        []byte          // Data
+//	        []string        // Args
+//	        string          // Dir
+//	        []string        // Environment
+//	        uint32          // Flags
+//	        bool            // Wait
+//	        int64           // Timeout
+//	        Filter struct { // Filter
+//	            bool        // Filter Status
+//	            uint32      // PID
+//	            bool        // Fallback
+//	            uint8       // Session
+//	            uint8       // Elevated
+//	            []string    // Exclude
+//	            []string    // Include
+//	        }
+//	        []byte          // Stdin Data
+//	    }
+//	Output:
+//	    uint32              // PID
+//	    int32               // Exit Code
+//	    []byte              // Output (Stdout and Stderr)
 func ZombieDLLReader(r io.Reader, args ...string) (*Zombie, error) {
 	b, err := io.ReadAll(r)
 	if err != nil {
@@ -218,33 +222,34 @@ func ZombieDLLReader(r io.Reader, args ...string) (*Zombie, error) {
 // process.
 //
 // C2 Details:
-//  ID: WvZombie
 //
-//  Input:
-//      Zombie struct {
-//          []byte          // Data
-//          []string        // Args
-//          string          // Dir
-//          []string        // Environment
-//          uint32          // Flags
-//          bool            // Wait
-//          int64           // Timeout
-//          bool            // Filter Status
-//          Filter struct { // Filter
-//              bool        // Filter Status
-//              uint32      // PID
-//              bool        // Fallback
-//              uint8       // Session
-//              uint8       // Elevated
-//              []string    // Exclude
-//              []string    // Include
-//          }
-//          []byte          // Stdin Data
-//      }
-//  Output:
-//      uint32              // PID
-//      int32               // Exit Code
-//      []byte              // Output (Stdout and Stderr)
+//	ID: WvZombie
+//
+//	Input:
+//	    Zombie struct {
+//	        []byte          // Data
+//	        []string        // Args
+//	        string          // Dir
+//	        []string        // Environment
+//	        uint32          // Flags
+//	        bool            // Wait
+//	        int64           // Timeout
+//	        bool            // Filter Status
+//	        Filter struct { // Filter
+//	            bool        // Filter Status
+//	            uint32      // PID
+//	            bool        // Fallback
+//	            uint8       // Session
+//	            uint8       // Elevated
+//	            []string    // Exclude
+//	            []string    // Include
+//	        }
+//	        []byte          // Stdin Data
+//	    }
+//	Output:
+//	    uint32              // PID
+//	    int32               // Exit Code
+//	    []byte              // Output (Stdout and Stderr)
 func ZombieAsmReader(r io.Reader, args ...string) (*Zombie, error) {
 	b, err := io.ReadAll(r)
 	if err != nil {

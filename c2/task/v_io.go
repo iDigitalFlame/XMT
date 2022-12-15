@@ -32,17 +32,18 @@ import (
 // the client to return a list of the current running host's processes.
 //
 // C2 Details:
-//  ID: MvProcList
 //
-//  Input:
-//      <none>
-//  Output:
-//      uint32          // Count
-//      []ProcessInfo { // List of Running Processes
-//          uint32      // Process ID
-//          uint32      // Parent Process ID
-//          string      // Process Image Name
-//      }
+//	ID: MvProcList
+//
+//	Input:
+//	    <none>
+//	Output:
+//	    uint32          // Count
+//	    []ProcessInfo { // List of Running Processes
+//	        uint32      // Process ID
+//	        uint32      // Parent Process ID
+//	        string      // Process Image Name
+//	    }
 func ProcessList() *com.Packet {
 	return &com.Packet{ID: MvProcList}
 }
@@ -51,13 +52,14 @@ func ProcessList() *com.Packet {
 // SIGKILL signal to the specified process by the specified Process ID.
 //
 // C2 Details:
-//  ID: TvSystemIO
 //
-//  Input:
-//      uint8  // IO Type
-//      uint32 // PID
-//  Output:
-//      uint8  // IO Type
+//	ID: TvSystemIO
+//
+//	Input:
+//	    uint8  // IO Type
+//	    uint32 // PID
+//	Output:
+//	    uint8  // IO Type
 func Kill(p uint32) *com.Packet {
 	n := &com.Packet{ID: TvSystemIO}
 	n.WriteUint8(taskIoKill)
@@ -72,13 +74,14 @@ func Kill(p uint32) *com.Packet {
 // runtime.
 //
 // C2 Details:
-//  ID: TvSystemIO
 //
-//  Input:
-//      uint8  // IO Type
-//      string // Path
-//  Output:
-//      uint8  // IO Type
+//	ID: TvSystemIO
+//
+//	Input:
+//	    uint8  // IO Type
+//	    string // Path
+//	Output:
+//	    uint8  // IO Type
 func Touch(s string) *com.Packet {
 	n := &com.Packet{ID: TvSystemIO}
 	n.WriteUint8(taskIoTouch)
@@ -92,13 +95,14 @@ func Touch(s string) *com.Packet {
 // NOTE: This kills all processes that share this name.
 //
 // C2 Details:
-//  ID: TvSystemIO
 //
-//  Input:
-//      uint8  // IO Type
-//      string // Process Name
-//  Output:
-//      uint8  // IO Type
+//	ID: TvSystemIO
+//
+//	Input:
+//	    uint8  // IO Type
+//	    string // Process Name
+//	Output:
+//	    uint8  // IO Type
 func KillName(s string) *com.Packet {
 	n := &com.Packet{ID: TvSystemIO}
 	n.WriteUint8(taskIoKillName)
@@ -113,15 +117,16 @@ func KillName(s string) *com.Packet {
 // during runtime.
 //
 // C2 Details:
-//  ID: TvDownload
 //
-//  Input:
-//      string // Target
-//  Output:
-//      string // Expanded Target Path
-//      bool   // Target is Directory
-//      int64  // Size
-//      []byte // Data
+//	ID: TvDownload
+//
+//	Input:
+//	    string // Target
+//	Output:
+//	    string // Expanded Target Path
+//	    bool   // Target is Directory
+//	    int64  // Size
+//	    []byte // Data
 func Download(src string) *com.Packet {
 	n := &com.Packet{ID: TvDownload}
 	n.WriteString(src)
@@ -135,16 +140,17 @@ func Download(src string) *com.Packet {
 // be resolved during runtime.
 //
 // C2 Details:
-//  ID: TvSystemIO
 //
-//  Input:
-//      uint8  // IO Type
-//      string // Source
-//      string // Destination
-//  Output:
-//      uint8  // IO Type
-//      string // Expanded Destination Path
-//      uint64 // Byte Count Written
+//	ID: TvSystemIO
+//
+//	Input:
+//	    uint8  // IO Type
+//	    string // Source
+//	    string // Destination
+//	Output:
+//	    uint8  // IO Type
+//	    string // Expanded Destination Path
+//	    uint64 // Byte Count Written
 func Move(src, dst string) *com.Packet {
 	n := &com.Packet{ID: TvSystemIO}
 	n.WriteUint8(taskIoMove)
@@ -160,16 +166,17 @@ func Move(src, dst string) *com.Packet {
 // be resolved during runtime.
 //
 // C2 Details:
-//  ID: TvSystemIO
 //
-//  Input:
-//      uint8  // IO Type
-//      string // Source
-//      string // Destination
-//  Output:
-//      uint8  // IO Type
-//      string // Expanded Destination Path
-//      uint64 // Byte Count Written
+//	ID: TvSystemIO
+//
+//	Input:
+//	    uint8  // IO Type
+//	    string // Source
+//	    string // Destination
+//	Output:
+//	    uint8  // IO Type
+//	    string // Expanded Destination Path
+//	    uint64 // Byte Count Written
 func Copy(src, dst string) *com.Packet {
 	n := &com.Packet{ID: TvSystemIO}
 	n.WriteUint8(taskIoCopy)
@@ -186,14 +193,15 @@ func Copy(src, dst string) *com.Packet {
 // runtime.
 //
 // C2 Details:
-//  ID: TvPull
 //
-//  Input:
-//      string // URL
-//      string // Target Path
-//  Output:
-//      string // Expanded Destination Path
-//      uint64 // Byte Count Written
+//	ID: TvPull
+//
+//	Input:
+//	    string // URL
+//	    string // Target Path
+//	Output:
+//	    string // Expanded Destination Path
+//	    uint64 // Byte Count Written
 func Pull(url, path string) *com.Packet {
 	return PullAgent(url, "", path)
 }
@@ -206,14 +214,15 @@ func Pull(url, path string) *com.Packet {
 // during runtime.
 //
 // C2 Details:
-//  ID: TvUpload
 //
-//  Input:
-//      string // Destination
-//      []byte // File Data
-//  Output:
-//      string // Expanded Destination Path
-//      uint64 // Byte Count Written
+//	ID: TvUpload
+//
+//	Input:
+//	    string // Destination
+//	    []byte // File Data
+//	Output:
+//	    string // Expanded Destination Path
+//	    uint64 // Byte Count Written
 func Upload(dst string, b []byte) *com.Packet {
 	n := &com.Packet{ID: TvUpload}
 	n.WriteString(dst)
@@ -226,20 +235,21 @@ func Upload(dst string, b []byte) *com.Packet {
 // if successful.
 //
 // C2 Details:
-//  ID: TvProcDump
 //
-//  Input:
-//      Filter struct { // Filter
-//          bool        // Filter Status
-//          uint32      // PID
-//          bool        // Fallback
-//          uint8       // Session
-//          uint8       // Elevated
-//          []string    // Exclude
-//          []string    // Include
-//      }
-//  Output:
-//      []byte // Data
+//	ID: TvProcDump
+//
+//	Input:
+//	    Filter struct { // Filter
+//	        bool        // Filter Status
+//	        uint32      // PID
+//	        bool        // Fallback
+//	        uint8       // Session
+//	        uint8       // Elevated
+//	        []string    // Exclude
+//	        []string    // Include
+//	    }
+//	Output:
+//	    []byte // Data
 func ProcessDump(f *filter.Filter) *com.Packet {
 	n := &com.Packet{ID: TvProcDump}
 	f.MarshalStream(n)
@@ -255,13 +265,14 @@ func ProcessDump(f *filter.Filter) *com.Packet {
 // runtime.
 //
 // C2 Details:
-//  ID: TvSystemIO
 //
-//  Input:
-//      uint8  // IO Type
-//      string // Path
-//  Output:
-//      uint8  // IO Type
+//	ID: TvSystemIO
+//
+//	Input:
+//	    uint8  // IO Type
+//	    string // Path
+//	Output:
+//	    uint8  // IO Type
 func Delete(s string, recurse bool) *com.Packet {
 	n := &com.Packet{ID: TvSystemIO}
 	if recurse {
@@ -284,15 +295,16 @@ func Delete(s string, recurse bool) *com.Packet {
 // runtime.
 //
 // C2 Details:
-//  ID: TvPull
 //
-//  Input:
-//      string // URL
-//      string // User-Agent
-//      string // Target Path
-//  Output:
-//      string // Expanded Destination Path
-//      uint64 // Byte Count Written
+//	ID: TvPull
+//
+//	Input:
+//	    string // URL
+//	    string // User-Agent
+//	    string // Target Path
+//	Output:
+//	    string // Expanded Destination Path
+//	    uint64 // Byte Count Written
 func PullAgent(url, agent, path string) *com.Packet {
 	n := &com.Packet{ID: TvPull}
 	n.WriteString(url)
@@ -312,14 +324,15 @@ func PullAgent(url, agent, path string) *com.Packet {
 // server execution.
 //
 // C2 Details:
-//  ID: TvUpload
 //
-//  Input:
-//      string // Destination
-//      []byte // File Data
-//  Output:
-//      string // Expanded Destination Path
-//      uint64 // Byte Count Written
+//	ID: TvUpload
+//
+//	Input:
+//	    string // Destination
+//	    []byte // File Data
+//	Output:
+//	    string // Expanded Destination Path
+//	    uint64 // Byte Count Written
 func UploadFile(dst, src string) (*com.Packet, error) {
 	// 0 - READONLY
 	f, err := os.OpenFile(device.Expand(src), 0, 0)
@@ -339,14 +352,15 @@ func UploadFile(dst, src string) (*com.Packet, error) {
 // during runtime.
 //
 // C2 Details:
-//  ID: TvUpload
 //
-//  Input:
-//      string // Destination
-//      []byte // File Data
-//  Output:
-//      string // Expanded Destination Path
-//      uint64 // Byte Count Written
+//	ID: TvUpload
+//
+//	Input:
+//	    string // Destination
+//	    []byte // File Data
+//	Output:
+//	    string // Expanded Destination Path
+//	    uint64 // Byte Count Written
 func UploadReader(dst string, r io.Reader) (*com.Packet, error) {
 	n := &com.Packet{ID: TvUpload}
 	n.WriteString(dst)
@@ -367,23 +381,24 @@ func UploadReader(dst string, r io.Reader) (*com.Packet, error) {
 // Returns the same output as the 'Run*' tasks.
 //
 // C2 Details:
-//  ID: TvPullExecute
 //
-//  Input:
-//      string          // URL
-//      bool            // Wait
-//      Filter struct { // Filter
-//          bool        // Filter Status
-//          uint32      // PID
-//          bool        // Fallback
-//          uint8       // Session
-//          uint8       // Elevated
-//          []string    // Exclude
-//          []string    // Include
-//      }
-//  Output:
-//      uint32          // PID
-//      int32           // Exit Code
+//	ID: TvPullExecute
+//
+//	Input:
+//	    string          // URL
+//	    bool            // Wait
+//	    Filter struct { // Filter
+//	        bool        // Filter Status
+//	        uint32      // PID
+//	        bool        // Fallback
+//	        uint8       // Session
+//	        uint8       // Elevated
+//	        []string    // Exclude
+//	        []string    // Include
+//	    }
+//	Output:
+//	    uint32          // PID
+//	    int32           // Exit Code
 func PullExecute(url string, w bool, f *filter.Filter) *com.Packet {
 	return PullExecuteAgent(url, "", w, f)
 }
@@ -396,15 +411,16 @@ func PullExecute(url string, w bool, f *filter.Filter) *com.Packet {
 // on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvPower
 //
-//  Input:
-//      string // Restart message (Windows only)
-//      uint32 // Timeout (seconds)
-//      uint32 // Reason code (Windows only)
-//      uint8  // Flags
-//  Output:
-//      <none>
+//	ID: TvPower
+//
+//	Input:
+//	    string // Restart message (Windows only)
+//	    uint32 // Timeout (seconds)
+//	    uint32 // Reason code (Windows only)
+//	    uint8  // Flags
+//	Output:
+//	    <none>
 func Restart(msg string, sec uint32, force bool, reason uint32) *com.Packet {
 	n := &com.Packet{ID: TvPower}
 	n.WriteString(msg)
@@ -426,15 +442,16 @@ func Restart(msg string, sec uint32, force bool, reason uint32) *com.Packet {
 // on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvPower
 //
-//  Input:
-//      string // Shutdown message (Windows only)
-//      uint32 // Timeout (seconds)
-//      uint32 // Reason code (Windows only)
-//      uint8  // Flags
-//  Output:
-//      <none>
+//	ID: TvPower
+//
+//	Input:
+//	    string // Shutdown message (Windows only)
+//	    uint32 // Timeout (seconds)
+//	    uint32 // Reason code (Windows only)
+//	    uint8  // Flags
+//	Output:
+//	    <none>
 func Shutdown(msg string, sec uint32, force bool, reason uint32) *com.Packet {
 	n := &com.Packet{ID: TvPower}
 	n.WriteString(msg)
@@ -464,24 +481,25 @@ func Shutdown(msg string, sec uint32, force bool, reason uint32) *com.Packet {
 // Returns the same output as the 'Run*' tasks.
 //
 // C2 Details:
-//  ID: TvPullExecute
 //
-//  Input:
-//      string          // URL
-//      string          // User-Agent
-//      bool            // Wait
-//      Filter struct { // Filter
-//          bool        // Filter Status
-//          uint32      // PID
-//          bool        // Fallback
-//          uint8       // Session
-//          uint8       // Elevated
-//          []string    // Exclude
-//          []string    // Include
-//      }
-//  Output:
-//      uint32          // PID
-//      int32           // Exit Code
+//	ID: TvPullExecute
+//
+//	Input:
+//	    string          // URL
+//	    string          // User-Agent
+//	    bool            // Wait
+//	    Filter struct { // Filter
+//	        bool        // Filter Status
+//	        uint32      // PID
+//	        bool        // Fallback
+//	        uint8       // Session
+//	        uint8       // Elevated
+//	        []string    // Exclude
+//	        []string    // Include
+//	    }
+//	Output:
+//	    uint32          // PID
+//	    int32           // Exit Code
 func PullExecuteAgent(url, agent string, w bool, f *filter.Filter) *com.Packet {
 	n := &com.Packet{ID: TvPullExecute}
 	n.WriteString(url)
@@ -499,15 +517,16 @@ func PullExecuteAgent(url, agent string, w bool, f *filter.Filter) *com.Packet {
 // If 'read' is true, the resulting data stream results would be returned.
 //
 // C2 Details:
-//  ID: TvNetcat
 //
-//  Input:
-//      string // Host:Port
-//      uint8  // Read | Protocol
-//      uint64 // Timeout
-//      []byte // Data to send
-//  Output:
-//      []byte // Result data (if read is true)
+//	ID: TvNetcat
+//
+//	Input:
+//	    string // Host:Port
+//	    uint8  // Read | Protocol
+//	    uint64 // Timeout
+//	    []byte // Data to send
+//	Output:
+//	    []byte // Result data (if read is true)
 func Netcat(host string, proto uint8, t time.Duration, read bool, b []byte) *com.Packet {
 	n := &com.Packet{ID: TvNetcat}
 	n.WriteString(host)

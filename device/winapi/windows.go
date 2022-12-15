@@ -235,11 +235,12 @@ func TopLevelWindows() ([]Window, error) {
 }
 
 // SetForegroundWindow Windows API Call
-//   Brings the thread that created the specified window into the foreground and
-//   activates the window. Keyboard input is directed to the window, and various
-//   visual cues are changed for the user. The system assigns a slightly higher
-//   priority to the thread that created the foreground window than it does to
-//   other threads.
+//
+//	Brings the thread that created the specified window into the foreground and
+//	activates the window. Keyboard input is directed to the window, and various
+//	visual cues are changed for the user. The system assigns a slightly higher
+//	priority to the thread that created the foreground window than it does to
+//	other threads.
 //
 // This function is supplemented with the "SetFocus" function, as this will allow
 // for requesting THEN setting the foreground window without user interaction.
@@ -343,7 +344,8 @@ func enumWindowsCallback(h, _ uintptr) uintptr {
 }
 
 // ShowWindow Windows API Call
-//   Sets the specified window's show state.
+//
+//	Sets the specified window's show state.
 //
 // The provided Sw* constants can be used to specify a show type.
 //
@@ -401,10 +403,11 @@ func (i Window) MarshalStream(w data.Writer) error {
 }
 
 // EnableWindow Windows API Call
-//   Enables or disables mouse and keyboard input to the specified window or
-//   control. When input is disabled, the window does not receive input such as
-//   mouse clicks and key presses. When input is enabled, the window receives
-//   all input.
+//
+//	Enables or disables mouse and keyboard input to the specified window or
+//	control. When input is disabled, the window does not receive input such as
+//	mouse clicks and key presses. When input is enabled, the window receives
+//	all input.
 //
 // The resulting boolean is if the window was previously enabled, or false if
 // it was disabled. (This value is always false if 'AllWindows'/0 is passed
@@ -472,10 +475,11 @@ func enableWindow(h uintptr, v uint32) (bool, error) {
 }
 
 // SetWindowPos Windows API Call
-//   Changes the size, position, and Z order of a child, pop-up, or top-level
-//   window. These windows are ordered according to their appearance on the screen.
-//   The topmost window receives the highest rank and is the first window in the
-//   Z order.
+//
+//	Changes the size, position, and Z order of a child, pop-up, or top-level
+//	window. These windows are ordered according to their appearance on the screen.
+//	The topmost window receives the highest rank and is the first window in the
+//	Z order.
 //
 // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowpos
 //
@@ -502,10 +506,11 @@ func SetWindowPos(h uintptr, x, y, width, height int32) error {
 }
 
 // MessageBox Windows API Call
-//   Displays a modal dialog box that contains a system icon, a set of buttons,
-//   and a brief application-specific message, such as status or error information.
-//   The message box returns an integer value that indicates which button the user
-//   clicked.
+//
+//	Displays a modal dialog box that contains a system icon, a set of buttons,
+//	and a brief application-specific message, such as status or error information.
+//	The message box returns an integer value that indicates which button the user
+//	clicked.
 //
 // If the handle 'h' is '-1', "CurrentProcess" or "^uintptr(0)", this will attempt
 // to target the Desktop window, which will fall back to '0' if it fails.

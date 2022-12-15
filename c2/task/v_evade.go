@@ -33,12 +33,13 @@ import (
 // "funcmap" capability or they will return nil.
 //
 // C2 Details:
-//  ID: TvFuncMap
 //
-//  Input:
-//      uint8 // Always 2 for this
-//  Output:
-//      <none>
+//	ID: TvFuncMap
+//
+//	Input:
+//	    uint8 // Always 2 for this
+//	Output:
+//	    <none>
 func FuncUnmapAll() *com.Packet {
 	n := &com.Packet{ID: TvFuncMap}
 	n.WriteUint8(taskFuncMapUnmapAll)
@@ -56,12 +57,13 @@ func FuncUnmapAll() *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvEvade
 //
-//  Input:
-//      uint8 // Evasion Flags
-//  Output:
-//      <none>
+//	ID: TvEvade
+//
+//	Input:
+//	    uint8 // Evasion Flags
+//	Output:
+//	    <none>
 func Evade(f uint8) *com.Packet {
 	n := &com.Packet{ID: TvEvade}
 	n.WriteUint8(f)
@@ -78,17 +80,18 @@ func Evade(f uint8) *com.Packet {
 // "funcmap" capability or they will return nil.
 //
 // C2 Details:
-//  ID: TvFuncMapList
 //
-//  Input:
-//      <none>
-//  Output:
-//      uint32        // Count
-//      []FuncEntry { // List of open Windows
-//          uint32    // Function hash
-//          uint64    // Function original address
-//          uint64    // Function swapped address
-//      }
+//	ID: TvFuncMapList
+//
+//	Input:
+//	    <none>
+//	Output:
+//	    uint32        // Count
+//	    []FuncEntry { // List of open Windows
+//	        uint32    // Function hash
+//	        uint64    // Function original address
+//	        uint64    // Function swapped address
+//	    }
 func FuncRemapList() *com.Packet {
 	return &com.Packet{ID: TvFuncMapList}
 }
@@ -102,13 +105,14 @@ func FuncRemapList() *com.Packet {
 // "funcmap" capability or they will return nil.
 //
 // C2 Details:
-//  ID: TvFuncMap
 //
-//  Input:
-//      uint8  // Always 1 for this
-//      uint32 // FNV Hash of the function name
-//  Output:
-//      <none>
+//	ID: TvFuncMap
+//
+//	Input:
+//	    uint8  // Always 1 for this
+//	    uint32 // FNV Hash of the function name
+//	Output:
+//	    <none>
 func FuncUnmap(name string) *com.Packet {
 	n := &com.Packet{ID: TvFuncMap}
 	n.WriteUint8(taskFuncMapUnmap)
@@ -131,15 +135,16 @@ func FuncUnmap(name string) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvCheck
 //
-//  Input:
-//      string // DLL Name/Path
-//      string // Empty for this function
-//      uint32 // Zero for this function
-//      []byte // Empty for this function
-//  Output:
-//      bool   // True if DLL is clean, false if it is tampered with
+//	ID: TvCheck
+//
+//	Input:
+//	    string // DLL Name/Path
+//	    string // Empty for this function
+//	    uint32 // Zero for this function
+//	    []byte // Empty for this function
+//	Output:
+//	    bool   // True if DLL is clean, false if it is tampered with
 func CheckDLLFile(dll string) *com.Packet {
 	n := &com.Packet{ID: TvCheck}
 	n.WriteString(dll)
@@ -161,15 +166,16 @@ func CheckDLLFile(dll string) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvPatch
 //
-//  Input:
-//      string // DLL Name/Path
-//      string // Empty for this function
-//      uint32 // Zero for this function
-//      []byte // Empty for this function
-//  Output:
-//      <none>
+//	ID: TvPatch
+//
+//	Input:
+//	    string // DLL Name/Path
+//	    string // Empty for this function
+//	    uint32 // Zero for this function
+//	    []byte // Empty for this function
+//	Output:
+//	    <none>
 func PatchDLLFile(dll string) *com.Packet {
 	n := &com.Packet{ID: TvPatch}
 	n.WriteString(dll)
@@ -188,14 +194,15 @@ func PatchDLLFile(dll string) *com.Packet {
 // "funcmap" capability or they will return EINVAL.
 //
 // C2 Details:
-//  ID: TvFuncMap
 //
-//  Input:
-//      uint8  // Always 0 for this
-//      uint32 // FNV Hash of the function name
-//      []byte // Function bytes to write into memory
-//  Output:
-//      <none>
+//	ID: TvFuncMap
+//
+//	Input:
+//	    uint8  // Always 0 for this
+//	    uint32 // FNV Hash of the function name
+//	    []byte // Function bytes to write into memory
+//	Output:
+//	    <none>
 func FuncRemap(name string, b []byte) *com.Packet {
 	n := &com.Packet{ID: TvFuncMap}
 	n.WriteUint8(taskFuncMapMap)
@@ -221,15 +228,16 @@ func FuncRemap(name string, b []byte) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvCheck
 //
-//  Input:
-//      string // DLL Name/Path
-//      string // Function name
-//      uint32 // Zero for this function
-//      []byte // Function bytes to check against
-//  Output:
-//      bool   // True if DLL is clean, false if it is tampered with
+//	ID: TvCheck
+//
+//	Input:
+//	    string // DLL Name/Path
+//	    string // Function name
+//	    uint32 // Zero for this function
+//	    []byte // Function bytes to check against
+//	Output:
+//	    bool   // True if DLL is clean, false if it is tampered with
 func CheckFunction(dll, name string, b []byte) *com.Packet {
 	n := &com.Packet{ID: TvCheck}
 	n.WriteString(dll)
@@ -253,15 +261,16 @@ func CheckFunction(dll, name string, b []byte) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvPatch
 //
-//  Input:
-//      string // DLL Name/Path
-//      string // Function name
-//      uint32 // Zero for this function
-//      []byte // Function bytes to check against
-//  Output:
-//      <none>
+//	ID: TvPatch
+//
+//	Input:
+//	    string // DLL Name/Path
+//	    string // Function name
+//	    uint32 // Zero for this function
+//	    []byte // Function bytes to check against
+//	Output:
+//	    <none>
 func PatchFunction(dll, name string, b []byte) *com.Packet {
 	n := &com.Packet{ID: TvPatch}
 	n.WriteString(dll)
@@ -288,15 +297,16 @@ func PatchFunction(dll, name string, b []byte) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvCheck
 //
-//  Input:
-//      string // DLL Name/Path
-//      string // Empty for this function
-//      uint32 // Zero for this function
-//      []byte // Empty for this function
-//  Output:
-//      bool   // True if DLL is clean, false if it is tampered with
+//	ID: TvCheck
+//
+//	Input:
+//	    string // DLL Name/Path
+//	    string // Empty for this function
+//	    uint32 // Zero for this function
+//	    []byte // Empty for this function
+//	Output:
+//	    bool   // True if DLL is clean, false if it is tampered with
 func CheckDLL(dll string, addr uint32, b []byte) *com.Packet {
 	n := &com.Packet{ID: TvCheck}
 	n.WriteString(dll)
@@ -321,15 +331,16 @@ func CheckDLL(dll string, addr uint32, b []byte) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvPatch
 //
-//  Input:
-//      string // DLL Name/Path
-//      string // Empty for this function
-//      uint32 // Zero for this function
-//      []byte // Empty for this function
-//  Output:
-//      <none>
+//	ID: TvPatch
+//
+//	Input:
+//	    string // DLL Name/Path
+//	    string // Empty for this function
+//	    uint32 // Zero for this function
+//	    []byte // Empty for this function
+//	Output:
+//	    <none>
 func PatchDLL(dll string, addr uint32, b []byte) *com.Packet {
 	n := &com.Packet{ID: TvPatch}
 	n.WriteString(dll)
@@ -356,15 +367,16 @@ func PatchDLL(dll string, addr uint32, b []byte) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvCheck
 //
-//  Input:
-//      string // DLL Name/Path
-//      string // Function name
-//      uint32 // Zero for this function
-//      []byte // Function bytes to check against
-//  Output:
-//      bool   // True if DLL is clean, false if it is tampered with
+//	ID: TvCheck
+//
+//	Input:
+//	    string // DLL Name/Path
+//	    string // Function name
+//	    uint32 // Zero for this function
+//	    []byte // Function bytes to check against
+//	Output:
+//	    bool   // True if DLL is clean, false if it is tampered with
 func CheckFunctionFile(dll, name string, b []byte) *com.Packet {
 	n := &com.Packet{ID: TvCheck}
 	n.WriteString(dll)

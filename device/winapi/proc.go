@@ -78,6 +78,7 @@ func (t ThreadEntry) IsSuspended() (bool, error) {
 	if t.sus > 0 {
 		return t.sus == 2, nil
 	}
+	// 0x42 - THREAD_QUERY_INFORMATION | THREAD_SUSPEND_RESUME
 	h, err := OpenThread(0x42, false, t.TID)
 	if err != nil {
 		return false, err

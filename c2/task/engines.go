@@ -49,12 +49,13 @@ type Engine interface {
 // See the 'cmd/script' package for scripting engines.
 //
 // C2 Details:
-//  ID: <Supplied>
 //
-//  Input:
-//      string (script)
-//  Output:
-//      string (output)
+//	ID: <Supplied>
+//
+//	Input:
+//	    string (script)
+//	Output:
+//	    string (output)
 func RegisterEngine(i uint8, s Engine) error {
 	if i < 21 {
 		return xerr.Sub("mapping ID is invalid", 0x63)

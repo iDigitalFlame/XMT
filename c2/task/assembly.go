@@ -38,27 +38,28 @@ import (
 // client process.
 //
 // C2 Details:
-//  ID: TvAssembly
 //
-//  Input:
-//      Assembly struct {
-//          bool            // Wait
-//          int64           // Timeout
-//          bool            // Filter Status
-//          Filter struct { // Filter
-//              uint32      // PID
-//              bool        // Fallback
-//              uint8       // Session
-//              uint8       // Elevated
-//              []string    // Exclude
-//              []string    // Include
-//          }
-//          []byte          // Assembly Data
-//      }
-//  Output:
-//      uint64              // Handle
-//      uint32              // PID
-//      int32               // Exit Code
+//	ID: TvAssembly
+//
+//	Input:
+//	    Assembly struct {
+//	        bool            // Wait
+//	        int64           // Timeout
+//	        bool            // Filter Status
+//	        Filter struct { // Filter
+//	            uint32      // PID
+//	            bool        // Fallback
+//	            uint8       // Session
+//	            uint8       // Elevated
+//	            []string    // Exclude
+//	            []string    // Include
+//	        }
+//	        []byte          // Assembly Data
+//	    }
+//	Output:
+//	    uint64              // Handle
+//	    uint32              // PID
+//	    int32               // Exit Code
 type Assembly struct {
 	Filter  *filter.Filter
 	Data    []byte

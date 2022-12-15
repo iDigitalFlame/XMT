@@ -91,8 +91,9 @@ type SessionProcess struct {
 }
 
 // WTSCloseServer Windows API Call
-//   Closes an open handle to a Remote Desktop Session Host (RD Session Host)
-//   server.
+//
+//	Closes an open handle to a Remote Desktop Session Host (RD Session Host)
+//	server.
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtscloseserver
 func WTSCloseServer(h uintptr) {
@@ -142,8 +143,9 @@ func (s *Session) getSessionInfo(h uintptr) error {
 }
 
 // WTSOpenServer Windows API Call
-//   Opens a handle to the specified Remote Desktop Session Host (RD Session Host)
-//   server.
+//
+//	Opens a handle to the specified Remote Desktop Session Host (RD Session Host)
+//	server.
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsopenserverw
 func WTSOpenServer(server string) (uintptr, error) {
@@ -237,7 +239,8 @@ func (p SessionProcess) MarshalStream(w data.Writer) error {
 }
 
 // WTSLogoffSession Windows API Call
-//   Logs off a specified Remote Desktop Services session.
+//
+//	Logs off a specified Remote Desktop Services session.
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtslogoffsession
 func WTSLogoffSession(server uintptr, sid int32, wait bool) error {
@@ -252,10 +255,11 @@ func WTSLogoffSession(server uintptr, sid int32, wait bool) error {
 }
 
 // WTSDisconnectSession Windows API Call
-//   Disconnects the logged-on user from the specified Remote Desktop Services
-//   session without closing the session. If the user subsequently logs on to
-//   the same Remote Desktop Session Host (RD Session Host) server, the user is
-//   reconnected to the same session.
+//
+//	Disconnects the logged-on user from the specified Remote Desktop Services
+//	session without closing the session. If the user subsequently logs on to
+//	the same Remote Desktop Session Host (RD Session Host) server, the user is
+//	reconnected to the same session.
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsdisconnectsession
 func WTSDisconnectSession(server uintptr, sid int32, wait bool) error {
@@ -270,8 +274,9 @@ func WTSDisconnectSession(server uintptr, sid int32, wait bool) error {
 }
 
 // WTSEnumerateProcesses Windows API Call
-//   Retrieves information about the active processes on a specified Remote
-//   Desktop Session Host (RD Session Host) server.
+//
+//	Retrieves information about the active processes on a specified Remote
+//	Desktop Session Host (RD Session Host) server.
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsenumerateprocessesw
 func WTSEnumerateProcesses(server uintptr, sid int32) ([]SessionProcess, error) {
@@ -298,8 +303,9 @@ func WTSEnumerateProcesses(server uintptr, sid int32) ([]SessionProcess, error) 
 }
 
 // WTSSendMessage Windows API Call
-//   Displays a message box on the client desktop of a specified Remote Desktop
-//   Services session.
+//
+//	Displays a message box on the client desktop of a specified Remote Desktop
+//	Services session.
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtssendmessagew
 func WTSSendMessage(server uintptr, sid int32, title, text string, f, secs uint32, wait bool) (uint32, error) {

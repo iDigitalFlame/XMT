@@ -25,7 +25,7 @@ const LoaderEnabled = false
 // DLLToASM will patch the DLL raw bytes and convert it into shellcode
 // using the SRDi launcher.
 //
-//   SRDi GitHub: https://github.com/monoxgas/sRDI
+//	SRDi GitHub: https://github.com/monoxgas/sRDI
 //
 // The first string param is the function name which can be empty if not
 // needed.

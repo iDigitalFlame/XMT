@@ -99,6 +99,7 @@ var (
 	funcCreateNamedPipe               = dllKernelBase.proc(0xF05E3B8B)
 	funcConnectNamedPipe              = dllKernelBase.proc(0xEE1FF6A8)
 	funcGetModuleHandleEx             = dllKernelBase.proc(0x2FFDCF65)
+	funcOutputDebugString             = dllKernelBase.proc(0x58448029)
 	funcCreateWellKnownSid            = dllKernelBase.proc(0x25F61A8E)
 	funcGetCurrentThreadID            = dllKernelBase.proc(0x3C31D725)
 	funcGetOverlappedResult           = dllKernelBase.proc(0x1C7ADC04)
@@ -119,8 +120,8 @@ var (
 	funcK32EnumDeviceDrivers       = dllKernel32.proc(0x779D5EFF)
 	funcK32GetModuleInformation    = dllKernel32.proc(0xFD5B63D5)
 	funcCreateToolhelp32Snapshot   = dllKernel32.proc(0xBAA64095)
-	funcK32GetDeviceDriverBaseName = dllKernel32.proc(0xB376188E)
 	funcSetProcessWorkingSetSizeEx = dllKernel32.proc(0xAB634AE1)
+	funcK32GetDeviceDriverFileName = dllKernel32.proc(0x9EF6FF6D)
 
 	funcLsaClose                                            = dllAdvapi32.proc(0xB9C1C829)
 	funcLogonUser                                           = dllAdvapi32.proc(0x5BAC4A5A)
@@ -171,6 +172,14 @@ var (
 	funcSetForegroundWindow        = dllUser32.proc(0x52EF9094)
 	funcSystemParametersInfo       = dllUser32.proc(0xF1855EA9)
 	funcSetLayeredWindowAttributes = dllUser32.proc(0x950A5A2E)
+
+	funcCryptMsgClose              = dllCrypt32.proc(0x9B5720EA)
+	funcCertCloseStore             = dllCrypt32.proc(0xF614DAC4)
+	funcCryptQueryObject           = dllCrypt32.proc(0xEAEDD248)
+	funcCryptMsgGetParam           = dllCrypt32.proc(0xEE8C1C55)
+	funcCertGetNameString          = dllCrypt32.proc(0x3F6B7692)
+	funcCertFindCertificateInStore = dllCrypt32.proc(0x38707435)
+	funcCertFreeCertificateContext = dllCrypt32.proc(0x6F27DE27)
 
 	funcBitBlt                 = dllGdi32.proc(0x4C7E7258)
 	funcDeleteDC               = dllGdi32.proc(0x3C53364B)

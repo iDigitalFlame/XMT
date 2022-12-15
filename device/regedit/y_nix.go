@@ -214,13 +214,10 @@ func Set(_, _ string, _ uint32, _ []byte) error {
 // path to the supplied value type indicated with the type flag and will interpret
 // the supplied string using the type value to properly set the value data.
 //
-// - Dword or Qword values will attempt to parse the string as a base10 integer
-//   that may be negative.
+// - Dword or Qword values will attempt to parse the string as a base10 integer that may be negative.
 // - String and ExpandString values will be interrupted as is.
-// - Binary will attempt to decode the value using the StdEncoding base64
-//   decoder.
-// - StringLists will be split using the NEWLINE ("\n") character into an array
-//   to be used.
+// - Binary will attempt to decode the value using the StdEncoding base64 decoder.
+// - StringLists will be split using the NEWLINE ("\n") character into an array to be used.
 //
 // This will create the key/value if it does not exist.
 //

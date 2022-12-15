@@ -30,12 +30,13 @@ import (
 // directory.
 //
 // C2 Details:
-//  ID: MvPwd
 //
-//  Input:
-//      <none>
-//  Output:
-//      string // Working Dir
+//	ID: MvPwd
+//
+//	Input:
+//	    <none>
+//	Output:
+//	    string // Working Dir
 func Pwd() *com.Packet {
 	return &com.Packet{ID: MvPwd}
 }
@@ -44,12 +45,13 @@ func Pwd() *com.Packet {
 // the client to return a string list of all the mount points on the host device.
 //
 // C2 Details:
-//  ID: MvMounts
 //
-//  Input:
-//      <none>
-//  Output:
-//      []string // Mount Paths List
+//	ID: MvMounts
+//
+//	Input:
+//	    <none>
+//	Output:
+//	    []string // Mount Paths List
 func Mounts() *com.Packet {
 	return &com.Packet{ID: MvMounts}
 }
@@ -62,12 +64,13 @@ func Mounts() *com.Packet {
 // This is NOT needed after a Migration, as this happens automatically.
 //
 // C2 Details:
-//  ID: MvRefresh
 //
-//  Input:
-//      <none>
-//  Output:
-//      Machine // Updated device details
+//	ID: MvRefresh
+//
+//	Input:
+//	    <none>
+//	Output:
+//	    Machine // Updated device details
 func Refresh() *com.Packet {
 	return &com.Packet{ID: MvRefresh}
 }
@@ -81,12 +84,13 @@ func Refresh() *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvRevSelf
 //
-//  Input:
-//      <none>
-//  Output:
-//      <none>
+//	ID: TvRevSelf
+//
+//	Input:
+//	    <none>
+//	Output:
+//	    <none>
 func RevToSelf() *com.Packet {
 	return &com.Packet{ID: TvRevSelf}
 }
@@ -95,24 +99,25 @@ func RevToSelf() *com.Packet {
 // client to reterive a list of the current login sessions on the device.
 //
 // C2 Details:
-//  ID: TvLogins
 //
-//  Input:
-//      <none>
-//  Output:
-//      uint32               // Count
-//      []Login struct {     // List of Logins
-//          uint32           // Session ID
-//          uint8            // Login Status
-//          int64            // Login Time
-//          int64            // Last Idle Time
-//          Address struct { // From Address
-//              uint64       // High bits of Address
-//              uint64       // Low bits of Address
-//          }
-//          string           // Username
-//          string           // Hostname
-//      }
+//	ID: TvLogins
+//
+//	Input:
+//	    <none>
+//	Output:
+//	    uint32               // Count
+//	    []Login struct {     // List of Logins
+//	        uint32           // Session ID
+//	        uint8            // Login Status
+//	        int64            // Login Time
+//	        int64            // Last Idle Time
+//	        Address struct { // From Address
+//	            uint64       // High bits of Address
+//	            uint64       // Low bits of Address
+//	        }
+//	        string           // Username
+//	        string           // Hostname
+//	    }
 func UserLogins() *com.Packet {
 	return &com.Packet{ID: TvLogins}
 }
@@ -125,12 +130,13 @@ func UserLogins() *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TVScreenShot
 //
-//  Input:
-//      <none>
-//  Output:
-//      []byte // Data
+//	ID: TVScreenShot
+//
+//	Input:
+//	    <none>
+//	Output:
+//	    []byte // Data
 func ScreenShot() *com.Packet {
 	return &com.Packet{ID: TvScreenShot}
 }
@@ -144,18 +150,19 @@ func ScreenShot() *com.Packet {
 // during runtime.
 //
 // C2 Details:
-//  ID: MvList
 //
-//  Input:
-//      string          // Directory
-//  Output:
-//      uint32          // Count
-//      []File struct { // List of Files
-//          string      // Name
-//          int32       // Mode
-//          uint64      // Size
-//          int64       // Modtime
-//      }
+//	ID: MvList
+//
+//	Input:
+//	    string          // Directory
+//	Output:
+//	    uint32          // Count
+//	    []File struct { // List of Files
+//	        string      // Name
+//	        int32       // Mode
+//	        uint64      // Size
+//	        int64       // Modtime
+//	    }
 func Ls(d string) *com.Packet {
 	n := &com.Packet{ID: MvList}
 	n.WriteString(d)
@@ -167,12 +174,13 @@ func Ls(d string) *com.Packet {
 // being run by a debugger.
 //
 // C2 Details:
-//  ID: MvCheckDebug
 //
-//  Input:
-//      <none>
-//  Output:
-//      bool // True if being debugged, false otherwise
+//	ID: MvCheckDebug
+//
+//	Input:
+//	    <none>
+//	Output:
+//	    bool // True if being debugged, false otherwise
 func IsDebugged() *com.Packet {
 	return &com.Packet{ID: MvCheckDebug}
 }
@@ -185,23 +193,24 @@ func IsDebugged() *com.Packet {
 // NOT override the Sleep setting.
 //
 // C2 Details:
-//  ID: MvTime
 //
-//  Input:
-//      uint8       // Always 0 for this Task
-//      int8        // Jitter
-//      uint64      // Always 0 for this Task
-//  Output:
-//      uint8       // Jitter
-//      uint64      // Sleep
-//      uint64      // Kill Date
-//      WorkHours { // Work Hours
-//          uint8   // Day
-//          uint8   // Start Hour
-//          uint8   // Start Min
-//          uint8   // End Hour
-//          uint8   // End Min
-//      }
+//	ID: MvTime
+//
+//	Input:
+//	    uint8       // Always 0 for this Task
+//	    int8        // Jitter
+//	    uint64      // Always 0 for this Task
+//	Output:
+//	    uint8       // Jitter
+//	    uint64      // Sleep
+//	    uint64      // Kill Date
+//	    WorkHours { // Work Hours
+//	        uint8   // Day
+//	        uint8   // Start Hour
+//	        uint8   // Start Min
+//	        uint8   // End Hour
+//	        uint8   // End Min
+//	    }
 func Jitter(j int) *com.Packet {
 	return Duration(0, j)
 }
@@ -216,12 +225,13 @@ func Jitter(j int) *com.Packet {
 // during runtime.
 //
 // C2 Details:
-//  ID: MvCwd
 //
-//  Input:
-//      string // Directory
-//  Output:
-//      <none>
+//	ID: MvCwd
+//
+//	Input:
+//	    string // Directory
+//	Output:
+//	    <none>
 func Cwd(d string) *com.Packet {
 	n := &com.Packet{ID: MvCwd}
 	n.WriteString(d)
@@ -235,12 +245,13 @@ func Cwd(d string) *com.Packet {
 // ISSUES BETWEEN SERVER AND CLIENT. HERE ONLY FOR USAGE IN SCRIPTS.
 //
 // C2 Details:
-//  ID: MvProfile
 //
-//  Input:
-//      []byte // Profile
-//  Output:
-//      <none>
+//	ID: MvProfile
+//
+//	Input:
+//	    []byte // Profile
+//	Output:
+//	    <none>
 func Profile(b []byte) *com.Packet {
 	n := &com.Packet{ID: MvProfile}
 	n.WriteBytes(b)
@@ -254,22 +265,23 @@ func Profile(b []byte) *com.Packet {
 // if it exists.
 //
 // C2 Details:
-//  ID: MvTime
 //
-//  Input:
-//      uint8       // Always 1 for this Task
-//      uint64      // Unix time
-//  Output:
-//      uint8       // Jitter
-//      uint64      // Sleep
-//      uint64      // Kill Date
-//      WorkHours { // Work Hours
-//          uint8   // Day
-//          uint8   // Start Hour
-//          uint8   // Start Min
-//          uint8   // End Hour
-//          uint8   // End Min
-//      }
+//	ID: MvTime
+//
+//	Input:
+//	    uint8       // Always 1 for this Task
+//	    uint64      // Unix time
+//	Output:
+//	    uint8       // Jitter
+//	    uint64      // Sleep
+//	    uint64      // Kill Date
+//	    WorkHours { // Work Hours
+//	        uint8   // Day
+//	        uint8   // Start Hour
+//	        uint8   // Start Min
+//	        uint8   // End Hour
+//	        uint8   // End Min
+//	    }
 func KillDate(t time.Time) *com.Packet {
 	n := &com.Packet{ID: MvTime}
 	if n.WriteUint8(1); t.IsZero() {
@@ -284,12 +296,13 @@ func KillDate(t time.Time) *com.Packet {
 // the client to change from its current in-memory name to the specified string.
 //
 // C2 Details:
-//  ID: TvRename
 //
-//  Input:
-//      string // New Process Name
-//  Output:
-//      <none>
+//	ID: TvRename
+//
+//	Input:
+//	    string // New Process Name
+//	Output:
+//	    <none>
 func ProcessName(s string) *com.Packet {
 	n := &com.Packet{ID: TvRename}
 	n.WriteString(s)
@@ -304,12 +317,13 @@ func ProcessName(s string) *com.Packet {
 // If the time is less than or equal to zero, the task will become a NOP.
 //
 // C2 Details:
-//  ID: TvWait
 //
-//  Input:
-//      uint64 // Wait duration
-//  Output:
-//      <none>
+//	ID: TvWait
+//
+//	Input:
+//	    uint64 // Wait duration
+//	Output:
+//	    <none>
 func Wait(d time.Duration) *com.Packet {
 	n := &com.Packet{ID: TvWait}
 	n.WriteUint64(uint64(d))
@@ -320,13 +334,14 @@ func Wait(d time.Duration) *com.Packet {
 // to logoff the targeted user session via ID (or -1 for the current session).
 //
 // C2 Details:
-//  ID: TvLoginsAct
 //
-//  Input:
-//      uint8 // Always set to 1 for this task.
-//      int32 // Session ID
-//  Output:
-//      <none>
+//	ID: TvLoginsAct
+//
+//	Input:
+//	    uint8 // Always set to 1 for this task.
+//	    int32 // Session ID
+//	Output:
+//	    <none>
 func UserLogoff(sid int32) *com.Packet {
 	n := &com.Packet{ID: TvLoginsAct}
 	n.WriteUint8(taskLoginsLogoff)
@@ -341,23 +356,24 @@ func UserLogoff(sid int32) *com.Packet {
 // the Jitter setting.
 //
 // C2 Details:
-//  ID: MvTime
 //
-//  Input:
-//      uint8       // Always 0 for this Task
-//      int8        // Always -1 for this Task
-//      uint64      // Sleep
-//  Output:
-//      uint8       // Jitter
-//      uint64      // Sleep
-//      uint64      // Kill Date
-//      WorkHours { // Work Hours
-//          uint8   // Day
-//          uint8   // Start Hour
-//          uint8   // Start Min
-//          uint8   // End Hour
-//          uint8   // End Min
-//      }
+//	ID: MvTime
+//
+//	Input:
+//	    uint8       // Always 0 for this Task
+//	    int8        // Always -1 for this Task
+//	    uint64      // Sleep
+//	Output:
+//	    uint8       // Jitter
+//	    uint64      // Sleep
+//	    uint64      // Kill Date
+//	    WorkHours { // Work Hours
+//	        uint8   // Day
+//	        uint8   // Start Hour
+//	        uint8   // Start Min
+//	        uint8   // End Hour
+//	        uint8   // End Min
+//	    }
 func Sleep(d time.Duration) *com.Packet {
 	return Duration(d, -1)
 }
@@ -370,13 +386,14 @@ func Sleep(d time.Duration) *com.Packet {
 // disabled
 //
 // C2 Details:
-//  ID: MvProxy
 //
-//  Input:
-//      string // Proxy Name (may be empty)
-//      uint8  // Always set to true for this task.
-//  Output:
-//      <none>
+//	ID: MvProxy
+//
+//	Input:
+//	    string // Proxy Name (may be empty)
+//	    uint8  // Always set to true for this task.
+//	Output:
+//	    <none>
 func ProxyRemove(name string) *com.Packet {
 	n := &com.Packet{ID: MvProxy}
 	n.WriteString(name)
@@ -389,17 +406,18 @@ func ProxyRemove(name string) *com.Packet {
 // specified Session ID (or -1/0 for all session processes).
 //
 // C2 Details:
-//  ID: TvLoginsProc
 //
-//  Input:
-//      <none>
-//  Output:
-//      uint32          // Count
-//      []ProcessInfo { // List of Running Processes
-//          uint32      // Process ID
-//          uint32      // _
-//          string      // Process Image Name
-//      }
+//	ID: TvLoginsProc
+//
+//	Input:
+//	    <none>
+//	Output:
+//	    uint32          // Count
+//	    []ProcessInfo { // List of Running Processes
+//	        uint32      // Process ID
+//	        uint32      // _
+//	        string      // Process Image Name
+//	    }
 func UserProcesses(sid int32) *com.Packet {
 	n := &com.Packet{ID: TvLoginsProc}
 	n.WriteInt32(sid)
@@ -413,20 +431,21 @@ func UserProcesses(sid int32) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvUnTrust
 //
-//  Input:
-//      Filter struct { // Filter
-//          bool        // Filter Status
-//          uint32      // PID
-//          bool        // Fallback
-//          uint8       // Session
-//          uint8       // Elevated
-//          []string    // Exclude
-//          []string    // Include
-//      }
-//  Output:
-//      <none>
+//	ID: TvUnTrust
+//
+//	Input:
+//	    Filter struct { // Filter
+//	        bool        // Filter Status
+//	        uint32      // PID
+//	        bool        // Fallback
+//	        uint8       // Session
+//	        uint8       // Elevated
+//	        []string    // Exclude
+//	        []string    // Include
+//	    }
+//	Output:
+//	    <none>
 func UnTrust(f *filter.Filter) *com.Packet {
 	n := &com.Packet{ID: TvUnTrust}
 	f.MarshalStream(n)
@@ -440,20 +459,21 @@ func UnTrust(f *filter.Filter) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 //
 // C2 Details:
-//  ID: TvElevate
 //
-//  Input:
-//      Filter struct { // Filter
-//          bool        // Filter Status
-//          uint32      // PID
-//          bool        // Fallback
-//          uint8       // Session
-//          uint8       // Elevated
-//          []string    // Exclude
-//          []string    // Include
-//      }
-//  Output:
-//      <none>
+//	ID: TvElevate
+//
+//	Input:
+//	    Filter struct { // Filter
+//	        bool        // Filter Status
+//	        uint32      // PID
+//	        bool        // Fallback
+//	        uint8       // Session
+//	        uint8       // Elevated
+//	        []string    // Exclude
+//	        []string    // Include
+//	    }
+//	Output:
+//	    <none>
 func Elevate(f *filter.Filter) *com.Packet {
 	n := &com.Packet{ID: TvElevate}
 	f.MarshalStream(n)
@@ -465,13 +485,14 @@ func Elevate(f *filter.Filter) *com.Packet {
 // session).
 //
 // C2 Details:
-//  ID: TvLoginsAct
 //
-//  Input:
-//      uint8 // Always set to 0 for this task.
-//      int32 // Session ID
-//  Output:
-//      <none>
+//	ID: TvLoginsAct
+//
+//	Input:
+//	    uint8 // Always set to 0 for this task.
+//	    int32 // Session ID
+//	Output:
+//	    <none>
 func UserDisconnect(sid int32) *com.Packet {
 	n := &com.Packet{ID: TvLoginsAct}
 	n.WriteUint8(taskLoginsDisconnect)
@@ -490,23 +511,24 @@ func UserDisconnect(sid int32) *com.Packet {
 // than zero (except -1) will be set to zero. Values of -1 are ignored.
 //
 // C2 Details:
-//  ID: MvTime
 //
-//  Input:
-//      uint8       // Always 0 for this Task
-//      int8        // Jitter
-//      uint64      // Sleep
-//  Output:
-//      uint8       // Jitter
-//      uint64      // Sleep
-//      uint64      // Kill Date
-//      WorkHours { // Work Hours
-//          uint8   // Day
-//          uint8   // Start Hour
-//          uint8   // Start Min
-//          uint8   // End Hour
-//          uint8   // End Min
-//      }
+//	ID: MvTime
+//
+//	Input:
+//	    uint8       // Always 0 for this Task
+//	    int8        // Jitter
+//	    uint64      // Sleep
+//	Output:
+//	    uint8       // Jitter
+//	    uint64      // Sleep
+//	    uint64      // Kill Date
+//	    WorkHours { // Work Hours
+//	        uint8   // Day
+//	        uint8   // Start Hour
+//	        uint8   // Start Min
+//	        uint8   // End Hour
+//	        uint8   // End Min
+//	    }
 func Duration(d time.Duration, j int) *com.Packet {
 	n := &com.Packet{ID: MvTime}
 	n.WriteUint16(uint16(j & 0xFF))
@@ -522,15 +544,16 @@ func Duration(d time.Duration, j int) *com.Packet {
 // the name already is in use.
 //
 // C2 Details:
-//  ID: MvProxy
 //
-//  Input:
-//      string // Proxy Name (may be empty)
-//      uint8  // Always set to false for this task.
-//      string // Proxy Bind Address
-//      []byte // Proxy Profile
-//  Output:
-//      <none>
+//	ID: MvProxy
+//
+//	Input:
+//	    string // Proxy Name (may be empty)
+//	    uint8  // Always set to false for this task.
+//	    string // Proxy Bind Address
+//	    []byte // Proxy Profile
+//	Output:
+//	    <none>
 func Proxy(name, addr string, p []byte) *com.Packet {
 	n := &com.Packet{ID: MvProxy}
 	n.WriteString(name)
@@ -548,15 +571,16 @@ func Proxy(name, addr string, p []byte) *com.Packet {
 // the name already is in use.
 //
 // C2 Details:
-//  ID: MvProxy
 //
-//  Input:
-//      string // Proxy Name (may be empty)
-//      uint8  // Always set to false for this task.
-//      string // Proxy Bind Address
-//      []byte // Proxy Profile
-//  Output:
-//      <none>
+//	ID: MvProxy
+//
+//	Input:
+//	    string // Proxy Name (may be empty)
+//	    uint8  // Always set to false for this task.
+//	    string // Proxy Bind Address
+//	    []byte // Proxy Profile
+//	Output:
+//	    <none>
 func ProxyReplace(name, addr string, p []byte) *com.Packet {
 	n := &com.Packet{ID: MvProxy}
 	n.WriteString(name)
@@ -577,15 +601,16 @@ func ProxyReplace(name, addr string, p []byte) *com.Packet {
 // Always returns 'ErrNoWindows' on non-Windows devices. (for now).
 //
 // C2 Details:
-//  ID: TvLoginUser
 //
-//  Input:
-//      bool   // Interactive
-//      string // Username
-//      string // Domain
-//      string // Password
-//  Output:
-//      <none>
+//	ID: TvLoginUser
+//
+//	Input:
+//	    bool   // Interactive
+//	    string // Username
+//	    string // Domain
+//	    string // Password
+//	Output:
+//	    <none>
 func LoginUser(interactive bool, user, domain, pass string) *com.Packet {
 	n := &com.Packet{ID: TvLoginUser}
 	n.WriteBool(interactive)
@@ -607,22 +632,23 @@ func LoginUser(interactive bool, user, domain, pass string) *com.Packet {
 // set.
 //
 // C2 Details:
-//  ID: MvTime
 //
-//  Input:
-//      uint8       // Always 2 for this Task
-//      uint64      // Unix time
-//  Output:
-//      uint8       // Jitter
-//      uint64      // Sleep
-//      uint64      // Kill Date
-//      WorkHours { // Work Hours
-//          uint8   // Day
-//          uint8   // Start Hour
-//          uint8   // Start Min
-//          uint8   // End Hour
-//          uint8   // End Min
-//      }
+//	ID: MvTime
+//
+//	Input:
+//	    uint8       // Always 2 for this Task
+//	    uint64      // Unix time
+//	Output:
+//	    uint8       // Jitter
+//	    uint64      // Sleep
+//	    uint64      // Kill Date
+//	    WorkHours { // Work Hours
+//	        uint8   // Day
+//	        uint8   // Start Hour
+//	        uint8   // Start Min
+//	        uint8   // End Hour
+//	        uint8   // End Min
+//	    }
 func WorkHours(day, startHour, startMin, endHour, endMin uint8) *com.Packet {
 	n := &com.Packet{ID: MvTime}
 	n.WriteUint16(0x200 | uint16(day&0xFF))

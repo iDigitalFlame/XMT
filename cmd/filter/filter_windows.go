@@ -279,9 +279,9 @@ func (f Filter) open(a uint32, r bool, x filter) (winapi.ProcessEntry, error) {
 			//            a random process and grabs the first one instead, but
 			//            also produces fewer handles opened. YMMV
 			//
-			// if len(f.Include) == 1 {
-			//     return false
-			// }
+			//	if len(f.Include) == 1 {
+			//	    return false
+			//	}
 			//
 			return nil
 		}

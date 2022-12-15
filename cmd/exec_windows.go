@@ -40,10 +40,10 @@ import (
 const modernGo = true
 
 // NOTE(dij): This needs to be a var as if it's a const 'UpdateProcThreadAttribute'
-//            will throw an access violation.
+// will throw an access violation.
 //
 // 0x100100000000 - PROCESS_CREATION_MITIGATION_POLICY_EXTENSION_POINT_DISABLE_ALWAYS_ON |
-//                  PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON
+// PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON
 var secProtect uint64 = 0x100100000000
 var envOnce struct {
 	sync.Once

@@ -22,7 +22,6 @@
 // "bugtrack-<PID>.log".
 //
 // To enable bug tracking, use the "bugs" build tag.
-//
 package bugtrack
 
 // Enabled is the stats of the bugtrack package.
@@ -35,9 +34,9 @@ const Enabled = false
 //
 // Can be en enabled by using:
 //
-//   if bugtrack.Enabled {
-//       defer bugtrack.Recover("thread-name")
-//   }
+//	if bugtrack.Enabled {
+//	    defer bugtrack.Recover("thread-name")
+//	}
 //
 // The specified name will be entered into the bugtrack log and a stack trace
 // will be generated before gracefully execution to the program.

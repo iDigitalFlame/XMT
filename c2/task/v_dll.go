@@ -38,28 +38,29 @@ import (
 // If none are specified, the Process will be ran under the client process.
 //
 // C2 Details:
-//  ID: WvInjectDLL
 //
-//  Input:
-//      DLL struct {
-//          string          // Path
-//          bool            // Wait
-//          int64           // Timeout
-//          bool            // Filter Status
-//          Filter struct { // Filter
-//              uint32      // PID
-//              bool        // Fallback
-//              uint8       // Session
-//              uint8       // Elevated
-//              []string    // Exclude
-//              []string    // Include
-//          }
-//          []byte          // Raw DLL Data
-//      }
-//  Output:
-//      uint64              // Handle
-//      uint32              // PID
-//      int32               // Exit Code
+//	ID: WvInjectDLL
+//
+//	Input:
+//	    DLL struct {
+//	        string          // Path
+//	        bool            // Wait
+//	        int64           // Timeout
+//	        bool            // Filter Status
+//	        Filter struct { // Filter
+//	            uint32      // PID
+//	            bool        // Fallback
+//	            uint8       // Session
+//	            uint8       // Elevated
+//	            []string    // Exclude
+//	            []string    // Include
+//	        }
+//	        []byte          // Raw DLL Data
+//	    }
+//	Output:
+//	    uint64              // Handle
+//	    uint32              // PID
+//	    int32               // Exit Code
 func DLLFile(s string) (*DLL, error) {
 	b, err := os.ReadFile(s)
 	if err != nil {
@@ -79,28 +80,29 @@ func DLLFile(s string) (*DLL, error) {
 // If none are specified, the Process will be ran under the client process.
 //
 // C2 Details:
-//  ID: WvInjectDLL
 //
-//  Input:
-//      DLL struct {
-//          string          // Path
-//          bool            // Wait
-//          int64           // Timeout
-//          bool            // Filter Status
-//          Filter struct { // Filter
-//              uint32      // PID
-//              bool        // Fallback
-//              uint8       // Session
-//              uint8       // Elevated
-//              []string    // Exclude
-//              []string    // Include
-//          }
-//          []byte          // Raw DLL Data
-//      }
-//  Output:
-//      uint64              // Handle
-//      uint32              // PID
-//      int32               // Exit Code
+//	ID: WvInjectDLL
+//
+//	Input:
+//	    DLL struct {
+//	        string          // Path
+//	        bool            // Wait
+//	        int64           // Timeout
+//	        bool            // Filter Status
+//	        Filter struct { // Filter
+//	            uint32      // PID
+//	            bool        // Fallback
+//	            uint8       // Session
+//	            uint8       // Elevated
+//	            []string    // Exclude
+//	            []string    // Include
+//	        }
+//	        []byte          // Raw DLL Data
+//	    }
+//	Output:
+//	    uint64              // Handle
+//	    uint32              // PID
+//	    int32               // Exit Code
 func DLLReader(r io.Reader) (*DLL, error) {
 	b, err := io.ReadAll(r)
 	if err != nil {
@@ -115,28 +117,29 @@ func DLLReader(r io.Reader) (*DLL, error) {
 // This allows the DLL struct to fulfil the 'Tasklet' interface.
 //
 // C2 Details:
-//  ID: TvDLL
 //
-//  Input:
-//      DLL struct {
-//          string          // Path
-//          bool            // Wait
-//          int64           // Timeout
-//          bool            // Filter Status
-//          Filter struct { // Filter
-//              uint32      // PID
-//              bool        // Fallback
-//              uint8       // Session
-//              uint8       // Elevated
-//              []string    // Exclude
-//              []string    // Include
-//          }
-//          []byte          // Raw DLL Data
-//      }
-//  Output:
-//      uint64              // Handle
-//      uint32              // PID
-//      int32               // Exit Code
+//	ID: TvDLL
+//
+//	Input:
+//	    DLL struct {
+//	        string          // Path
+//	        bool            // Wait
+//	        int64           // Timeout
+//	        bool            // Filter Status
+//	        Filter struct { // Filter
+//	            uint32      // PID
+//	            bool        // Fallback
+//	            uint8       // Session
+//	            uint8       // Elevated
+//	            []string    // Exclude
+//	            []string    // Include
+//	        }
+//	        []byte          // Raw DLL Data
+//	    }
+//	Output:
+//	    uint64              // Handle
+//	    uint32              // PID
+//	    int32               // Exit Code
 func (d DLL) Packet() (*com.Packet, error) {
 	n := &com.Packet{ID: TvDLL}
 	d.MarshalStream(n)

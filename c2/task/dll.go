@@ -41,28 +41,29 @@ import (
 // If none are specified, the Process will be ran under the client process.
 //
 // C2 Details:
-//  ID: TvDLL
 //
-//  Input:
-//      DLL struct {
-//          string          // Path
-//          bool            // Wait
-//          int64           // Timeout
-//          bool            // Filter Status
-//          Filter struct { // Filter
-//              uint32      // PID
-//              bool        // Fallback
-//              uint8       // Session
-//              uint8       // Elevated
-//              []string    // Exclude
-//              []string    // Include
-//          }
-//          []byte          // Raw DLL Data
-//      }
-//  Output:
-//      uint64              // Handle
-//      uint32              // PID
-//      int32               // Exit Code
+//	ID: TvDLL
+//
+//	Input:
+//	    DLL struct {
+//	        string          // Path
+//	        bool            // Wait
+//	        int64           // Timeout
+//	        bool            // Filter Status
+//	        Filter struct { // Filter
+//	            uint32      // PID
+//	            bool        // Fallback
+//	            uint8       // Session
+//	            uint8       // Elevated
+//	            []string    // Exclude
+//	            []string    // Include
+//	        }
+//	        []byte          // Raw DLL Data
+//	    }
+//	Output:
+//	    uint64              // Handle
+//	    uint32              // PID
+//	    int32               // Exit Code
 type DLL struct {
 	Filter  *filter.Filter
 	Path    string

@@ -29,9 +29,9 @@ import (
 // PatchAmsi will attempt to zero out the following function calls with a
 // ASM patch that returns with zero (Primary AMSI/PowerShell calls).
 //
-//  - AmsiInitialize
-//  - AmsiScanBuffer
-//  - AmsiScanString
+// - AmsiInitialize
+// - AmsiScanBuffer
+// - AmsiScanString
 //
 // This will return an error if any of the patches fail.
 func PatchAmsi() error {
@@ -50,13 +50,13 @@ func PatchAmsi() error {
 // PatchTracing will attempt to zero out the following function calls with a
 // ASM patch that returns with zero:
 //
-//  - NtTraceEvent
-//  - DebugBreak
-//  - DbgBreakPoint
-//  - EtwEventWrite
-//  - EtwEventRegister
-//  - EtwEventWriteFull
-//  - EtwNotificationRegister
+// - NtTraceEvent
+// - DebugBreak
+// - DbgBreakPoint
+// - EtwEventWrite
+// - EtwEventRegister
+// - EtwEventWriteFull
+// - EtwNotificationRegister
 //
 // This will return an error if any of the patches fail.
 func PatchTracing() error {

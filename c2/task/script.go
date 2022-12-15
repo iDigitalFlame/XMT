@@ -207,17 +207,18 @@ func (s *Script) AddTasklet(t Tasklet) error {
 // This allows the Script struct to fulfil the 'Tasklet' interface.
 //
 // C2 Details:
-//  ID: MvScript
 //
-//  Input:
-//      bool      // Option 'output'
-//      bool      // Option 'stop on error'
-//      ...uint8  // Packet ID
-//      ...[]byte // Packet Data
-//  Output:
-//      ...uint8  // Result Packet ID
-//      ...bool   // Result is not error
-//      ...[]byte // Result Data
+//	ID: MvScript
+//
+//	Input:
+//	    bool      // Option 'output'
+//	    bool      // Option 'stop on error'
+//	    ...uint8  // Packet ID
+//	    ...[]byte // Packet Data
+//	Output:
+//	    ...uint8  // Result Packet ID
+//	    ...bool   // Result is not error
+//	    ...[]byte // Result Data
 func (s *Script) Packet() (*com.Packet, error) {
 	if s.d.Empty() {
 		return nil, xerr.Sub("script is empty", 0x6B)

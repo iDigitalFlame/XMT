@@ -18,7 +18,6 @@
 
 // Package result contains many helper functions to gather matching output
 // from Job result packets.
-//
 package result
 
 import (

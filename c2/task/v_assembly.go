@@ -33,27 +33,28 @@ import (
 // This will attempt to read the file and will return an error if it fails.
 //
 // C2 Details:
-//  ID: TvAssembly
 //
-//  Input:
-//      Assembly struct {
-//          bool            // Wait
-//          int64           // Timeout
-//          bool            // Filter Status
-//          Filter struct { // Filter
-//              uint32      // PID
-//              bool        // Fallback
-//              uint8       // Session
-//              uint8       // Elevated
-//              []string    // Exclude
-//              []string    // Include
-//          }
-//          []byte          // Assembly Data
-//      }
-//  Output:
-//      uint64              // Handle
-//      uint32              // PID
-//      int32               // Exit Code
+//	ID: TvAssembly
+//
+//	Input:
+//	    Assembly struct {
+//	        bool            // Wait
+//	        int64           // Timeout
+//	        bool            // Filter Status
+//	        Filter struct { // Filter
+//	            uint32      // PID
+//	            bool        // Fallback
+//	            uint8       // Session
+//	            uint8       // Elevated
+//	            []string    // Exclude
+//	            []string    // Include
+//	        }
+//	        []byte          // Assembly Data
+//	    }
+//	Output:
+//	    uint64              // Handle
+//	    uint32              // PID
+//	    int32               // Exit Code
 func AssemblyFile(s string) (*Assembly, error) {
 	b, err := os.ReadFile(s)
 	if err != nil {
@@ -68,27 +69,28 @@ func AssemblyFile(s string) (*Assembly, error) {
 // This allows the Assembly struct to fulfil the 'Tasklet' interface.
 //
 // C2 Details:
-//  ID: TvAssembly
 //
-//  Input:
-//      Assembly struct {
-//          bool            // Wait
-//          int64           // Timeout
-//          bool            // Filter Status
-//          Filter struct { // Filter
-//              uint32      // PID
-//              bool        // Fallback
-//              uint8       // Session
-//              uint8       // Elevated
-//              []string    // Exclude
-//              []string    // Include
-//          }
-//          []byte          // Assembly Data
-//      }
-//  Output:
-//      uint64              // Handle
-//      uint32              // PID
-//      int32               // Exit Code
+//	ID: TvAssembly
+//
+//	Input:
+//	    Assembly struct {
+//	        bool            // Wait
+//	        int64           // Timeout
+//	        bool            // Filter Status
+//	        Filter struct { // Filter
+//	            uint32      // PID
+//	            bool        // Fallback
+//	            uint8       // Session
+//	            uint8       // Elevated
+//	            []string    // Exclude
+//	            []string    // Include
+//	        }
+//	        []byte          // Assembly Data
+//	    }
+//	Output:
+//	    uint64              // Handle
+//	    uint32              // PID
+//	    int32               // Exit Code
 func (a Assembly) Packet() (*com.Packet, error) {
 	n := &com.Packet{ID: TvAssembly}
 	a.MarshalStream(n)
@@ -102,27 +104,28 @@ func (a Assembly) Packet() (*com.Packet, error) {
 // fails.
 //
 // C2 Details:
-//  ID: TvAssembly
 //
-//  Input:
-//      Assembly struct {
-//          bool            // Wait
-//          int64           // Timeout
-//          bool            // Filter Status
-//          Filter struct { // Filter
-//              uint32      // PID
-//              bool        // Fallback
-//              uint8       // Session
-//              uint8       // Elevated
-//              []string    // Exclude
-//              []string    // Include
-//          }
-//          []byte          // Assembly Data
-//      }
-//  Output:
-//      uint64              // Handle
-//      uint32              // PID
-//      int32               // Exit Code
+//	ID: TvAssembly
+//
+//	Input:
+//	    Assembly struct {
+//	        bool            // Wait
+//	        int64           // Timeout
+//	        bool            // Filter Status
+//	        Filter struct { // Filter
+//	            uint32      // PID
+//	            bool        // Fallback
+//	            uint8       // Session
+//	            uint8       // Elevated
+//	            []string    // Exclude
+//	            []string    // Include
+//	        }
+//	        []byte          // Assembly Data
+//	    }
+//	Output:
+//	    uint64              // Handle
+//	    uint32              // PID
+//	    int32               // Exit Code
 func AssemblyReader(r io.Reader) (*Assembly, error) {
 	b, err := io.ReadAll(r)
 	if err != nil {

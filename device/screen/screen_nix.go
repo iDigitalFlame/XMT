@@ -18,7 +18,6 @@
 
 // Package screen is a helper package that contains generic functions that allow
 // for taking ScreenShots of the current display (if supported).
-//
 package screen
 
 import (

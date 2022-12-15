@@ -29,7 +29,7 @@ The pkg.go.dev site has some of the framework documentation and definitions
 
 ## Roadmap
 
-_Updated 11/12/22_
+_Updated 12/14/22_
 
 - Reflective DLL Injection (Windows)
 - Linux mem_fd loader
@@ -47,7 +47,7 @@ above list:
 - Linux shellcode support
 - More thread injection options (Windows)
 
-## TODOs
+## TODO
 
 These are some things I need to work on.
 

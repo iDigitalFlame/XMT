@@ -21,7 +21,6 @@
 //
 // It is recommended to use the 'device.Daemon*' functions instead of this package
 // as they are easier to use.
-//
 package svc
 
 import (
@@ -193,8 +192,9 @@ func (s *Service) Update(v Status) {
 // Attempts to call this multiple times will return 'os.ErrInvalid'.
 //
 // NOTE: This function acts differently depending on the buildtags added.
-//   The "svcdll" tag can be used to call this from 'ServiceMain' as a CGO dll,
-//   which requires no service wiring.
+//
+//	The "svcdll" tag can be used to call this from 'ServiceMain' as a CGO dll,
+//	which requires no service wiring.
 func Run(name string, f Handler) error {
 	if service.f != nil {
 		return os.ErrInvalid

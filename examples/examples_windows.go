@@ -30,4 +30,5 @@ func main() {
 	exampleShellcode()
 	exampleWC2()
 	exampleZombie()
+	exampleSignedDrivers()
 }

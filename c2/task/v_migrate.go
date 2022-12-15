@@ -65,24 +65,25 @@ func (Assembly) task() uint8 {
 // 'SpawnProfile' function to change this behavior.
 //
 // C2 Details:
-//  ID: MvSpawn
 //
-//  Input:
-//      string          // Pipe Name
-//      []byte          // Profile Bytes
-//      Filter struct { // Filter
-//          bool        // Filter Status
-//          uint32      // PID
-//          bool        // Fallback
-//          uint8       // Session
-//          uint8       // Elevated
-//          []string    // Exclude
-//          []string    // Include
-//      }
-//      uint8           // Callable Type
-//      <...>           // Callable Data
-//  Output:
-//      uint32          // New PID
+//	ID: MvSpawn
+//
+//	Input:
+//	    string          // Pipe Name
+//	    []byte          // Profile Bytes
+//	    Filter struct { // Filter
+//	        bool        // Filter Status
+//	        uint32      // PID
+//	        bool        // Fallback
+//	        uint8       // Session
+//	        uint8       // Elevated
+//	        []string    // Exclude
+//	        []string    // Include
+//	    }
+//	    uint8           // Callable Type
+//	    <...>           // Callable Data
+//	Output:
+//	    uint32          // New PID
 func Spawn(f *filter.Filter, s string, c Callable) *com.Packet {
 	return SpawnProfile(f, s, nil, c)
 }
@@ -100,25 +101,26 @@ func Spawn(f *filter.Filter, s string, c Callable) *com.Packet {
 // 'MigrateProfileEx' function to change this behavior.
 //
 // C2 Details:
-//  ID: MvMigrate
 //
-//  Input:
-//      bool            // Wait for Jobs
-//      string          // Pipe Name
-//      []byte          // Profile Bytes
-//      Filter struct { // Filter
-//          bool        // Filter Status
-//          uint32      // PID
-//          bool        // Fallback
-//          uint8       // Session
-//          uint8       // Elevated
-//          []string    // Exclude
-//          []string    // Include
-//      }
-//      uint8           // Callable Type
-//      <...>           // Callable Data
-//  Output:
-//      <none>          // RvResult packet sent separately
+//	ID: MvMigrate
+//
+//	Input:
+//	    bool            // Wait for Jobs
+//	    string          // Pipe Name
+//	    []byte          // Profile Bytes
+//	    Filter struct { // Filter
+//	        bool        // Filter Status
+//	        uint32      // PID
+//	        bool        // Fallback
+//	        uint8       // Session
+//	        uint8       // Elevated
+//	        []string    // Exclude
+//	        []string    // Include
+//	    }
+//	    uint8           // Callable Type
+//	    <...>           // Callable Data
+//	Output:
+//	    <none>          // RvResult packet sent separately
 func Migrate(f *filter.Filter, s string, c Callable) *com.Packet {
 	return MigrateProfileEx(f, true, s, nil, c)
 }
@@ -141,25 +143,26 @@ func Migrate(f *filter.Filter, s string, c Callable) *com.Packet {
 // resulting data type is or file extension. (see 'man.ParseDownloadHeader')
 //
 // C2 Details:
-//  ID: MvSpawn
 //
-//  Input:
-//      string          // Pipe Name
-//      []byte          // Profile Bytes
-//      Filter struct { // Filter
-//          bool        // Filter Status
-//          uint32      // PID
-//          bool        // Fallback
-//          uint8       // Session
-//          uint8       // Elevated
-//          []string    // Exclude
-//          []string    // Include
-//      }
-//      uint8           // Callable Type (always TvPullExecute)
-//      string          // URL
-//      string          // User-Agent
-//  Output:
-//      uint32          // New PID
+//	ID: MvSpawn
+//
+//	Input:
+//	    string          // Pipe Name
+//	    []byte          // Profile Bytes
+//	    Filter struct { // Filter
+//	        bool        // Filter Status
+//	        uint32      // PID
+//	        bool        // Fallback
+//	        uint8       // Session
+//	        uint8       // Elevated
+//	        []string    // Exclude
+//	        []string    // Include
+//	    }
+//	    uint8           // Callable Type (always TvPullExecute)
+//	    string          // URL
+//	    string          // User-Agent
+//	Output:
+//	    uint32          // New PID
 func SpawnPull(f *filter.Filter, s, url, agent string) *com.Packet {
 	return SpawnPullProfile(f, s, nil, url, agent)
 }
@@ -183,26 +186,27 @@ func SpawnPull(f *filter.Filter, s, url, agent string) *com.Packet {
 // resulting data type is or file extension. (see 'man.ParseDownloadHeader')
 //
 // C2 Details:
-//  ID: MvMigrate
 //
-//  Input:
-//      bool            // Wait for Jobs
-//      string          // Pipe Name
-//      []byte          // Profile Bytes
-//      Filter struct { // Filter
-//          bool        // Filter Status
-//          uint32      // PID
-//          bool        // Fallback
-//          uint8       // Session
-//          uint8       // Elevated
-//          []string    // Exclude
-//          []string    // Include
-//      }
-//      uint8           // Callable Type (always TvPullExecute)
-//      string          // URL
-//      string          // User-Agent
-//  Output:
-//      <none>          // RvResult packet sent separately
+//	ID: MvMigrate
+//
+//	Input:
+//	    bool            // Wait for Jobs
+//	    string          // Pipe Name
+//	    []byte          // Profile Bytes
+//	    Filter struct { // Filter
+//	        bool        // Filter Status
+//	        uint32      // PID
+//	        bool        // Fallback
+//	        uint8       // Session
+//	        uint8       // Elevated
+//	        []string    // Exclude
+//	        []string    // Include
+//	    }
+//	    uint8           // Callable Type (always TvPullExecute)
+//	    string          // URL
+//	    string          // User-Agent
+//	Output:
+//	    <none>          // RvResult packet sent separately
 func MigratePull(f *filter.Filter, s, url, agent string) *com.Packet {
 	return MigratePullProfileEx(f, true, s, nil, url, agent)
 }
@@ -219,24 +223,25 @@ func MigratePull(f *filter.Filter, s, url, agent string) *com.Packet {
 // will be used.
 //
 // C2 Details:
-//  ID: MvSpawn
 //
-//  Input:
-//      string          // Pipe Name
-//      []byte          // Profile Bytes
-//      Filter struct { // Filter
-//          bool        // Filter Status
-//          uint32      // PID
-//          bool        // Fallback
-//          uint8       // Session
-//          uint8       // Elevated
-//          []string    // Exclude
-//          []string    // Include
-//      }
-//      uint8           // Callable Type
-//      <...>           // Callable Data
-//  Output:
-//      uint32          // New PID
+//	ID: MvSpawn
+//
+//	Input:
+//	    string          // Pipe Name
+//	    []byte          // Profile Bytes
+//	    Filter struct { // Filter
+//	        bool        // Filter Status
+//	        uint32      // PID
+//	        bool        // Fallback
+//	        uint8       // Session
+//	        uint8       // Elevated
+//	        []string    // Exclude
+//	        []string    // Include
+//	    }
+//	    uint8           // Callable Type
+//	    <...>           // Callable Data
+//	Output:
+//	    uint32          // New PID
 func SpawnProfile(f *filter.Filter, s string, b []byte, c Callable) *com.Packet {
 	n := &com.Packet{ID: MvSpawn}
 	n.WriteString(s)
@@ -263,25 +268,26 @@ func SpawnProfile(f *filter.Filter, s string, b []byte, c Callable) *com.Packet 
 // 'MigrateProfileEx' function to change this behavior.
 //
 // C2 Details:
-//  ID: MvMigrate
 //
-//  Input:
-//      bool            // Wait for Jobs
-//      string          // Pipe Name
-//      []byte          // Profile Bytes
-//      Filter struct { // Filter
-//          bool        // Filter Status
-//          uint32      // PID
-//          bool        // Fallback
-//          uint8       // Session
-//          uint8       // Elevated
-//          []string    // Exclude
-//          []string    // Include
-//      }
-//      uint8           // Callable Type
-//      <...>           // Callable Data
-//  Output:
-//      <none>          // RvResult packet sent separately
+//	ID: MvMigrate
+//
+//	Input:
+//	    bool            // Wait for Jobs
+//	    string          // Pipe Name
+//	    []byte          // Profile Bytes
+//	    Filter struct { // Filter
+//	        bool        // Filter Status
+//	        uint32      // PID
+//	        bool        // Fallback
+//	        uint8       // Session
+//	        uint8       // Elevated
+//	        []string    // Exclude
+//	        []string    // Include
+//	    }
+//	    uint8           // Callable Type
+//	    <...>           // Callable Data
+//	Output:
+//	    <none>          // RvResult packet sent separately
 func MigrateProfile(f *filter.Filter, s string, b []byte, c Callable) *com.Packet {
 	return MigrateProfileEx(f, true, s, b, c)
 }
@@ -304,25 +310,26 @@ func MigrateProfile(f *filter.Filter, s string, b []byte, c Callable) *com.Packe
 // resulting data type is or file extension. (see 'man.ParseDownloadHeader')
 //
 // C2 Details:
-//  ID: MvSpawn
 //
-//  Input:
-//      string          // Pipe Name
-//      []byte          // Profile Bytes
-//      Filter struct { // Filter
-//          bool        // Filter Status
-//          uint32      // PID
-//          bool        // Fallback
-//          uint8       // Session
-//          uint8       // Elevated
-//          []string    // Exclude
-//          []string    // Include
-//      }
-//      uint8           // Callable Type (always TvPullExecute)
-//      string          // URL
-//      string          // User-Agent
-//  Output:
-//      uint32          // New PID
+//	ID: MvSpawn
+//
+//	Input:
+//	    string          // Pipe Name
+//	    []byte          // Profile Bytes
+//	    Filter struct { // Filter
+//	        bool        // Filter Status
+//	        uint32      // PID
+//	        bool        // Fallback
+//	        uint8       // Session
+//	        uint8       // Elevated
+//	        []string    // Exclude
+//	        []string    // Include
+//	    }
+//	    uint8           // Callable Type (always TvPullExecute)
+//	    string          // URL
+//	    string          // User-Agent
+//	Output:
+//	    uint32          // New PID
 func SpawnPullProfile(f *filter.Filter, s string, b []byte, url, agent string) *com.Packet {
 	n := &com.Packet{ID: MvSpawn}
 	n.WriteString(s)
@@ -345,25 +352,26 @@ func SpawnPullProfile(f *filter.Filter, s string, b []byte, url, agent string) *
 // will be used.
 //
 // C2 Details:
-//  ID: MvMigrate
 //
-//  Input:
-//      bool            // Wait for Jobs
-//      string          // Pipe Name
-//      []byte          // Profile Bytes
-//      Filter struct { // Filter
-//          bool        // Filter Status
-//          uint32      // PID
-//          bool        // Fallback
-//          uint8       // Session
-//          uint8       // Elevated
-//          []string    // Exclude
-//          []string    // Include
-//      }
-//      uint8           // Callable Type
-//      <...>           // Callable Data
-//  Output:
-//      <none>          // RvResult packet sent separately
+//	ID: MvMigrate
+//
+//	Input:
+//	    bool            // Wait for Jobs
+//	    string          // Pipe Name
+//	    []byte          // Profile Bytes
+//	    Filter struct { // Filter
+//	        bool        // Filter Status
+//	        uint32      // PID
+//	        bool        // Fallback
+//	        uint8       // Session
+//	        uint8       // Elevated
+//	        []string    // Exclude
+//	        []string    // Include
+//	    }
+//	    uint8           // Callable Type
+//	    <...>           // Callable Data
+//	Output:
+//	    <none>          // RvResult packet sent separately
 func MigrateProfileEx(f *filter.Filter, w bool, s string, b []byte, c Callable) *com.Packet {
 	n := &com.Packet{ID: MvMigrate}
 	n.WriteBool(w)
@@ -397,26 +405,27 @@ func MigrateProfileEx(f *filter.Filter, w bool, s string, b []byte, c Callable) 
 // resulting data type is or file extension. (see 'man.ParseDownloadHeader')
 //
 // C2 Details:
-//  ID: MvMigrate
 //
-//  Input:
-//      bool            // Wait for Jobs
-//      string          // Pipe Name
-//      []byte          // Profile Bytes
-//      Filter struct { // Filter
-//          bool        // Filter Status
-//          uint32      // PID
-//          bool        // Fallback
-//          uint8       // Session
-//          uint8       // Elevated
-//          []string    // Exclude
-//          []string    // Include
-//      }
-//      uint8           // Callable Type (always TvPullExecute)
-//      string          // URL
-//      string          // User-Agent
-//  Output:
-//      <none>          // RvResult packet sent separately
+//	ID: MvMigrate
+//
+//	Input:
+//	    bool            // Wait for Jobs
+//	    string          // Pipe Name
+//	    []byte          // Profile Bytes
+//	    Filter struct { // Filter
+//	        bool        // Filter Status
+//	        uint32      // PID
+//	        bool        // Fallback
+//	        uint8       // Session
+//	        uint8       // Elevated
+//	        []string    // Exclude
+//	        []string    // Include
+//	    }
+//	    uint8           // Callable Type (always TvPullExecute)
+//	    string          // URL
+//	    string          // User-Agent
+//	Output:
+//	    <none>          // RvResult packet sent separately
 func MigratePullProfile(f *filter.Filter, s string, b []byte, url, agent string) *com.Packet {
 	return MigratePullProfileEx(f, true, s, b, url, agent)
 }
@@ -438,26 +447,27 @@ func MigratePullProfile(f *filter.Filter, s string, b []byte, url, agent string)
 // resulting data type is or file extension. (see 'man.ParseDownloadHeader')
 //
 // C2 Details:
-//  ID: MvMigrate
 //
-//  Input:
-//      bool            // Wait for Jobs
-//      string          // Pipe Name
-//      []byte          // Profile Bytes
-//      Filter struct { // Filter
-//          bool        // Filter Status
-//          uint32      // PID
-//          bool        // Fallback
-//          uint8       // Session
-//          uint8       // Elevated
-//          []string    // Exclude
-//          []string    // Include
-//      }
-//      uint8           // Callable Type (always TvPullExecute)
-//      string          // URL
-//      string          // User-Agent
-//  Output:
-//      <none>          // RvResult packet sent separately
+//	ID: MvMigrate
+//
+//	Input:
+//	    bool            // Wait for Jobs
+//	    string          // Pipe Name
+//	    []byte          // Profile Bytes
+//	    Filter struct { // Filter
+//	        bool        // Filter Status
+//	        uint32      // PID
+//	        bool        // Fallback
+//	        uint8       // Session
+//	        uint8       // Elevated
+//	        []string    // Exclude
+//	        []string    // Include
+//	    }
+//	    uint8           // Callable Type (always TvPullExecute)
+//	    string          // URL
+//	    string          // User-Agent
+//	Output:
+//	    <none>          // RvResult packet sent separately
 func MigratePullProfileEx(f *filter.Filter, w bool, s string, b []byte, url, agent string) *com.Packet {
 	n := &com.Packet{ID: MvMigrate}
 	n.WriteBool(w)

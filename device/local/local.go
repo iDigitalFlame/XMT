@@ -16,7 +16,6 @@
 
 // Package local contains many functions and variables that contain information
 // about the local device.
-//
 package local
 
 import (
@@ -72,14 +71,7 @@ func getID() device.ID {
 	} else {
 		rand.Read(i[:])
 	}
-	// NOTE(dij): ID changes from v3 => v4
-	//             - Dropped the "machineid" library
-	//             - Windows now uses the system SID instead
-	//               - Falls back to machine GUID if that fails
-	//             - Fixes for AIX and BSD UUID grab
-	//             - Fixed an iOS/macOS ID pickup bug
-	//
-	//            This code below changes how IDs are generated
+	// NOTE(dij): This code below changes how IDs are generated
 	//            An extra bit is taken away from the random address space
 	//            (8 => 7), thus short IDs from the same machine will ALWAYS
 	//            have the same two first bits for easy identification.
