@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -104,7 +105,7 @@ func initCallbacks() {
 	screenFunctions.b = syscall.NewCallback(monitorBoundsCallback)
 }
 func releaseDC(w, h uintptr) error {
-	r, _, err := syscall.SyscallN(funcReleaseDC.address(), w, h)
+	r, _, err := syscallN(funcReleaseDC.address(), w, h)
 	if r == 0 {
 		return unboxError(err)
 	}
@@ -125,7 +126,7 @@ func ActiveDisplays() (uint32, error) {
 	return c, err
 }
 func getDC(w uintptr) (uintptr, error) {
-	r, _, err := syscall.SyscallN(funcGetDC.address(), w)
+	r, _, err := syscallN(funcGetDC.address(), w)
 	if r == 0 {
 		return 0, unboxError(err)
 	}
@@ -135,20 +136,19 @@ func (imagePtr) ColorModel() color.Model {
 	return color.RGBAModel
 }
 func getDesktopWindow() (uintptr, error) {
-	r, _, err := syscall.SyscallN(funcGetDesktopWindow.address())
+	r, _, err := syscallN(funcGetDesktopWindow.address())
 	if r == 0 {
 		return 0, unboxError(err)
 	}
 	return r, nil
 }
 func getMonitorRealSize(h uintptr) *rect {
-	i := monitorInfoEx{}
-	i.Size = uint32(unsafe.Sizeof(i))
+	var i monitorInfoEx
+	i.Size = 104
 	if err := getMonitorInfo(h, &i); err != nil {
 		return nil
 	}
-	d := devMode{}
-	d.Size = uint16(unsafe.Sizeof(d))
+	d := devMode{Size: 220}
 	if err := enumDisplaySettings(i.Name, true, &d); err != nil {
 		return nil
 	}
@@ -160,7 +160,7 @@ func getMonitorRealSize(h uintptr) *rect {
 	}
 }
 func deleteDC(h uintptr) (uintptr, error) {
-	r, _, err := syscall.SyscallN(funcDeleteDC.address(), h)
+	r, _, err := syscallN(funcDeleteDC.address(), h)
 	if r == 0 {
 		return 0, unboxError(err)
 	}
@@ -188,21 +188,21 @@ func (i imagePtr) Bounds() image.Rectangle {
 	return i.b
 }
 func deleteObject(h uintptr) (uintptr, error) {
-	r, _, err := syscall.SyscallN(funcDeleteObject.address(), h)
+	r, _, err := syscallN(funcDeleteObject.address(), h)
 	if r == 0 {
 		return 0, unboxError(err)
 	}
 	return r, nil
 }
 func selectObject(h, sel uintptr) (uintptr, error) {
-	r, _, err := syscall.SyscallN(funcSelectObject.address(), h, sel)
+	r, _, err := syscallN(funcSelectObject.address(), h, sel)
 	if r == 0 {
 		return 0, unboxError(err)
 	}
 	return r, nil
 }
 func createCompatibleDC(m uintptr) (uintptr, error) {
-	r, _, err := syscall.SyscallN(funcCreateCompatibleDC.address(), m)
+	r, _, err := syscallN(funcCreateCompatibleDC.address(), m)
 	if r == 0 {
 		return 0, unboxError(err)
 	}
@@ -220,7 +220,7 @@ func DisplayBounds(i uint32) (image.Rectangle, error) {
 	return image.Rect(int(v.Rect.Left), int(v.Rect.Top), int(v.Rect.Right), int(v.Rect.Bottom)), nil
 }
 func getMonitorInfo(h uintptr, m *monitorInfoEx) error {
-	r, _, err := syscall.SyscallN(funcGetMonitorInfo.address(), h, uintptr(unsafe.Pointer(m)))
+	r, _, err := syscallN(funcGetMonitorInfo.address(), h, uintptr(unsafe.Pointer(m)))
 	if r == 0 {
 		return unboxError(err)
 	}
@@ -252,16 +252,18 @@ func ScreenShot(x, y, width, height uint32, w io.Writer) error {
 	}
 	var b uintptr
 	if b, err = createCompatibleBitmap(m, width, height); err == nil {
-		h := bitmapInfoHeader{
-			Width:       int32(width),
-			Planes:      1,
-			Height:      -int32(height),
-			BitCount:    32,
-			SizeImage:   0,
-			Compression: 0,
-		}
-		h.Size = uint32(unsafe.Sizeof(h))
-		var l, o uintptr
+		var (
+			h = bitmapInfoHeader{
+				Size:        40,
+				Width:       int32(width),
+				Planes:      1,
+				Height:      -int32(height),
+				BitCount:    32,
+				SizeImage:   0,
+				Compression: 0,
+			}
+			l, o uintptr
+		)
 		if l, err = heapAlloc(p, uint64(((int64(width)*32+31)/32)*4*int64(height)), false); err == nil {
 			if o, err = selectObject(d, b); err == nil {
 				if err = bitBlt(d, 0, 0, width, height, m, x, y, 0xCC0020); err == nil {
@@ -301,7 +303,7 @@ func monitorBoundsCallback(h, _ uintptr, p *rect, d uintptr) uintptr {
 	return 0
 }
 func createCompatibleBitmap(m uintptr, x, y uint32) (uintptr, error) {
-	r, _, err := syscall.SyscallN(funcCreateCompatibleBitmap.address(), m, uintptr(x), uintptr(y))
+	r, _, err := syscallN(funcCreateCompatibleBitmap.address(), m, uintptr(x), uintptr(y))
 	if r == 0 {
 		return 0, unboxError(err)
 	}
@@ -312,7 +314,7 @@ func enumDisplaySettings(n [32]uint16, current bool, d *devMode) error {
 	if current {
 		m = 0xFFFFFFFF
 	}
-	r, _, err := syscall.SyscallN(
+	r, _, err := syscallN(
 		funcEnumDisplaySettings.address(), uintptr(unsafe.Pointer(&n[0])), uintptr(m), uintptr(unsafe.Pointer(d)),
 	)
 	if r == 0 {
@@ -321,14 +323,14 @@ func enumDisplaySettings(n [32]uint16, current bool, d *devMode) error {
 	return nil
 }
 func enumDisplayMonitors(h uintptr, p *rect, f uintptr, d uintptr) error {
-	r, _, err := syscall.SyscallN(funcEnumDisplayMonitors.address(), h, uintptr(unsafe.Pointer(p)), f, d)
+	r, _, err := syscallN(funcEnumDisplayMonitors.address(), h, uintptr(unsafe.Pointer(p)), f, d)
 	if r == 0 {
 		return unboxError(err)
 	}
 	return nil
 }
 func bitBlt(h uintptr, x, y, w, g uint32, s uintptr, x1, y1, f uint32) error {
-	r, _, err := syscall.SyscallN(
+	r, _, err := syscallN(
 		funcBitBlt.address(), h, uintptr(x), uintptr(y), uintptr(w), uintptr(g), s, uintptr(x1), uintptr(y1), uintptr(f),
 	)
 	if r == 0 {
@@ -337,7 +339,7 @@ func bitBlt(h uintptr, x, y, w, g uint32, s uintptr, x1, y1, f uint32) error {
 	return nil
 }
 func getDIBits(h, b uintptr, s, l uint32, m *uint8, i *bitmapInfo, f uint32) (uint32, error) {
-	r, _, err := syscall.SyscallN(
+	r, _, err := syscallN(
 		funcGetDIBits.address(), h, b, uintptr(s), uintptr(l), uintptr(unsafe.Pointer(m)), uintptr(unsafe.Pointer(i)),
 		uintptr(f),
 	)

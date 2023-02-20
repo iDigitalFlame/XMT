@@ -1,4 +1,5 @@
 //go:build tiny
+// +build tiny
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

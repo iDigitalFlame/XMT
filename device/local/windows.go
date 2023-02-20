@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -56,20 +57,22 @@ func getUsername() string {
 	return "?"
 }
 func checkElevatedToken() bool {
-	var (
-		t   uintptr
-		err = winapi.OpenProcessToken(winapi.CurrentProcess, 0x8, &t)
-		// 0x8 - TOKEN_QUERY
-	)
-	if err != nil {
-		return false
+	if !winapi.IsWindowsVista() {
+		return winapi.UserInAdminGroup()
+	}
+	var t uintptr
+	// 0x8 - TOKEN_QUERY
+	if err := winapi.OpenThreadToken(winapi.CurrentThread, 0x8, true, &t); err != nil {
+		if err = winapi.OpenProcessToken(winapi.CurrentProcess, 0x8, &t); err != nil {
+			return false
+		}
 	}
 	var (
 		n uint32 = 32
 		b [32]byte
 	)
 	// 0x19 - TokenIntegrityLevel
-	if err = winapi.GetTokenInformation(t, 0x19, &b[0], n, &n); err != nil {
+	if err := winapi.GetTokenInformation(t, 0x19, &b[0], n, &n); err != nil {
 		winapi.CloseHandle(t)
 		return false
 	}

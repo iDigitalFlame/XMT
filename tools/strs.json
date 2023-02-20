@@ -242,7 +242,7 @@
         ]
     },
     "45": {
-        "value": "hal.dll\nwmi.dll\nwpx.dll\nwdc.dll\nzipfldr.dll",
+        "value": "hal.dll\nwmi.dll\nwpx.dll\nwdc.dll\nzipfldr.dll\ninput.dll\nspp.dll",
         "tags": [
             "windows"
         ]
@@ -495,7 +495,7 @@
         ]
     },
     "80": {
-        "value": "*release*",
+        "value": "release",
         "tags": [
             "!darwin",
             "!ios",
@@ -604,6 +604,18 @@
     },
     "100": {
         "value": "crypt32.dll",
+        "tags": [
+            "windows"
+        ]
+    },
+    "101": {
+        "value": "psapi.dll",
+        "tags": [
+            "windows"
+        ]
+    },
+    "102": {
+        "value": "\\SystemRoot",
         "tags": [
             "windows"
         ]

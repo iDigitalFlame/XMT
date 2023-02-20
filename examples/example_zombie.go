@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -20,14 +21,14 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/iDigitalFlame/xmt/cmd"
 	"github.com/iDigitalFlame/xmt/cmd/filter"
+	"github.com/iDigitalFlame/xmt/data"
 )
 
 func exampleZombie() {
-	b, err := os.ReadFile(`my.dll`)
+	b, err := data.ReadFile(`my.dll`)
 	if err != nil {
 		panic(err)
 	}

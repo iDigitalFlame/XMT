@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -26,7 +27,10 @@ import (
 	"github.com/iDigitalFlame/xmt/data"
 )
 
-var winCb windowSearcher
+var winCb struct {
+	sync.Mutex
+	e []Window
+}
 var enumWindowsOnce struct {
 	_ [0]func()
 	sync.Once
@@ -39,7 +43,7 @@ type key struct {
 	_     uint16
 	Flags uint32
 	_     uint32
-	_     uint64
+	_     uintptr
 }
 type input struct {
 	// DO NOT REORDER
@@ -68,10 +72,6 @@ type windowInfo struct {
 	Status  uint32
 	_, _    uint32
 	_, _    uint16
-}
-type windowSearcher struct {
-	sync.Mutex
-	e []Window
 }
 
 func initWindowsEnumFunc() {
@@ -113,7 +113,7 @@ func CloseWindow(h uintptr) error {
 	return err
 }
 func closeWindow(h uintptr) error {
-	r, _, err := syscall.SyscallN(funcSendNotifyMessage.address(), h, 0x0002, 0, 0)
+	r, _, err := syscallN(funcSendNotifyMessage.address(), h, 0x0002, 0, 0)
 	if r == 0 {
 		return unboxError(err)
 	}
@@ -225,7 +225,7 @@ func TopLevelWindows() ([]Window, error) {
 	enumWindowsOnce.Do(initWindowsEnumFunc)
 	var (
 		e         []Window
-		r, _, err = syscall.SyscallN(funcEnumWindows.address(), enumWindowsOnce.f, 0)
+		r, _, err = syscallN(funcEnumWindows.address(), enumWindowsOnce.f, 0)
 	)
 	e, winCb.e = winCb.e, nil
 	if winCb.Unlock(); r == 0 {
@@ -248,8 +248,8 @@ func TopLevelWindows() ([]Window, error) {
 // https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setforegroundwindow
 func SetForegroundWindow(h uintptr) error {
 	// Set it first before asking, that way the function below doesn't fail.
-	syscall.SyscallN(funcSetFocus.address(), h)
-	r, _, err := syscall.SyscallN(funcSetForegroundWindow.address(), h)
+	syscallN(funcSetFocus.address(), h)
+	r, _, err := syscallN(funcSetForegroundWindow.address(), h)
 	if r == 0 {
 		return unboxError(err)
 	}
@@ -289,47 +289,43 @@ func sendKeys(b *[256]input, s string) error {
 			n++
 		}
 	}
-	if r, _, err := syscall.SyscallN(funcSendInput.address(), uintptr(n), uintptr(unsafe.Pointer(b)), unsafe.Sizeof((*b)[0])); int(r) != n {
+	if r, _, err := syscallN(funcSendInput.address(), uintptr(n), uintptr(unsafe.Pointer(b)), unsafe.Sizeof(b[0])); int(r) != n {
 		return unboxError(err)
 	}
 	return nil
 }
 func enumWindowsCallback(h, _ uintptr) uintptr {
-	n, _, _ := syscall.SyscallN(funcGetWindowTextLength.address(), h)
+	n, _, _ := syscallN(funcGetWindowTextLength.address(), h)
 	if n == 0 {
 		return 1
 	}
-	var i windowInfo
-	i.Size = uint32(unsafe.Sizeof(i))
-	if r, _, _ := syscall.SyscallN(funcGetWindowInfo.address(), h, uintptr(unsafe.Pointer(&i))); r == 0 {
+	i := windowInfo{Size: 60}
+	if r, _, _ := syscallN(funcGetWindowInfo.address(), h, uintptr(unsafe.Pointer(&i))); r == 0 {
 		return 1
 	}
 	// 0x80000000 - WS_POPUP
 	// 0x20000000 - WS_MINIMIZE
 	// 0x10000000 - WS_VISIBLE
+	// 0x00000400 - WS_EX_CONTEXTHELP
 	//
 	// Removes popup windows that were created hidden or minimized. Most of them
 	// are built-in system dialogs.
-	if i.Style&0x80000000 != 0 && (i.Style&0x20000000 != 0 || i.Style&0x10000000 == 0) {
-		return 1
-	}
-	// Remove non-painted windows
-	if r, _, _ := syscall.SyscallN(funcIsWindowVisible.address(), h); r == 0 {
+	if (i.Style&0x80000000 != 0 && i.Style&0x10000000 == 0) || i.Style&0x10000000 == 0 || i.Style&0x00000400 != 0 {
 		return 1
 	}
 	v := make([]uint16, n+1)
-	if n, _, _ = syscall.SyscallN(funcGetWindowText.address(), h, uintptr(unsafe.Pointer(&v[0])), n+1); n == 0 {
+	if n, _, _ = syscallN(funcGetWindowText.address(), h, uintptr(unsafe.Pointer(&v[0])), n+1); n == 0 {
 		return 1
 	}
 	var t uint8
-	if r, _, _ := syscall.SyscallN(funcIsZoomed.address(), h); r > 0 {
+	if i.Style&0x1000000 == 0 {
 		t |= 0x1
 	}
-	if r, _, _ := syscall.SyscallN(funcIsIconic.address(), h); r > 0 {
+	if i.Style&0x20000000 == 0 {
 		t |= 0x2
 	}
 	if i.Style&0x1E000000 == 0x1E000000 {
-		t |= 128
+		t |= 0x80
 	}
 	winCb.e = append(winCb.e, Window{
 		X:      i.Window.Left,
@@ -371,7 +367,7 @@ func ShowWindow(h uintptr, t uint8) (bool, error) {
 	return false, err
 }
 func showWindow(h uintptr, v uint32) (bool, error) {
-	r, _, err := syscall.SyscallN(funcShowWindow.address(), h, uintptr(v))
+	r, _, err := syscallN(funcShowWindow.address(), h, uintptr(v))
 	if err > 0 {
 		return r > 0, unboxError(err)
 	}
@@ -455,19 +451,19 @@ func SetWindowTransparency(h uintptr, t uint8) error {
 }
 func setWindowTransparency(h uintptr, t uint8) error {
 	// layeredPtr (-20) - GWL_EXSTYLE
-	r, _, err := syscall.SyscallN(funcGetWindowLongW.address(), h, layeredPtr)
+	r, _, err := syscallN(funcGetWindowLongW.address(), h, layeredPtr)
 	if r == 0 && err > 0 {
 		return unboxError(err)
 	}
 	// 0x80000 - WS_EX_LAYERED
-	syscall.SyscallN(funcSetWindowLongW.address(), h, layeredPtr, r|0x80000)
-	if r, _, err = syscall.SyscallN(funcSetLayeredWindowAttributes.address(), h, 0, uintptr(t), 3); r == 0 {
+	syscallN(funcSetWindowLongW.address(), h, layeredPtr, r|0x80000)
+	if r, _, err = syscallN(funcSetLayeredWindowAttributes.address(), h, 0, uintptr(t), 3); r == 0 {
 		return unboxError(err)
 	}
 	return nil
 }
 func enableWindow(h uintptr, v uint32) (bool, error) {
-	r, _, err := syscall.SyscallN(funcEnableWindow.address(), h, uintptr(v))
+	r, _, err := syscallN(funcEnableWindow.address(), h, uintptr(v))
 	if err > 0 {
 		return r > 0, unboxError(err)
 	}
@@ -498,7 +494,7 @@ func SetWindowPos(h uintptr, x, y, width, height int32) error {
 		// 0x2 - SWP_NOMOVE
 		f |= 0x2
 	}
-	r, _, err := syscall.SyscallN(funcSetWindowPos.address(), h, 0, uintptr(x), uintptr(y), uintptr(width), uintptr(height), uintptr(f))
+	r, _, err := syscallN(funcSetWindowPos.address(), h, 0, uintptr(x), uintptr(y), uintptr(width), uintptr(height), uintptr(f))
 	if r == 0 {
 		return unboxError(err)
 	}
@@ -534,7 +530,7 @@ func MessageBox(h uintptr, text, title string, f uint32) (uint32, error) {
 	if h == invalid { // If handle is '-1', target the Desktop window.
 		if w, err := TopLevelWindows(); err == nil {
 			for i := range w {
-				if w[i].Flags&128 != 0 {
+				if w[i].Flags&0x80 != 0 {
 					h = w[i].Handle
 					break
 				}
@@ -544,7 +540,7 @@ func MessageBox(h uintptr, text, title string, f uint32) (uint32, error) {
 			h = 0 // Fallback
 		}
 	}
-	r, _, err1 := syscall.SyscallN(funcMessageBox.address(), h, uintptr(unsafe.Pointer(d)), uintptr(unsafe.Pointer(t)), uintptr(f))
+	r, _, err1 := syscallN(funcMessageBox.address(), h, uintptr(unsafe.Pointer(d)), uintptr(unsafe.Pointer(t)), uintptr(f))
 	if r == 0 {
 		return 0, unboxError(err1)
 	}

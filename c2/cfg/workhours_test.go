@@ -24,7 +24,7 @@ import (
 func TestWorkhours(t *testing.T) {
 	var (
 		w = time.Now().Weekday()
-		h = &WorkHours{Days: (127) &^ (1 << w)}
+		h = &WorkHours{Days: (127) &^ (1 << uint(w))}
 	)
 	if d := h.Work(); d == 0 {
 		t.Fatalf("TestWorkhours(): Work time should not be zero!")

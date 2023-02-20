@@ -18,6 +18,8 @@ package cfg
 
 import (
 	"time"
+
+	"github.com/iDigitalFlame/xmt/data"
 )
 
 const (
@@ -33,6 +35,7 @@ const (
 	valSleep     = cBit(0xA1)
 	valJitter    = cBit(0xA2)
 	valWeight    = cBit(0xA3)
+	valKeyPin    = cBit(0xA6)
 	valKillDate  = cBit(0xA4)
 	valWorkHours = cBit(0xA5)
 )
@@ -73,7 +76,7 @@ func Weight(w uint) Setting {
 	if w == 0 {
 		return nil
 	}
-	return cBytes{byte(valWeight), byte(w)}
+	return &cBytes{byte(valWeight), byte(w)}
 }
 
 // Jitter returns a Setting that will specify the Jitter setting of the generated
@@ -81,7 +84,7 @@ func Weight(w uint) Setting {
 //
 // Other values are ignored and replaced with the default.
 func Jitter(n uint) Setting {
-	return cBytes{byte(valJitter), byte(n)}
+	return &cBytes{byte(valJitter), byte(n)}
 }
 
 // Host will return a Setting that will specify a host setting to the profile.
@@ -97,7 +100,8 @@ func Host(s string) Setting {
 	if n > 0xFFFF {
 		n = 0xFFFF
 	}
-	return append(cBytes{byte(valHost), byte(n >> 8), byte(n)}, s[:n]...)
+	c := append(cBytes{byte(valHost), byte(n >> 8), byte(n)}, s[:n]...)
+	return &c
 }
 func (c cBytes) args() []byte {
 	return c
@@ -107,10 +111,10 @@ func (c cBytes) args() []byte {
 // generated Profile. Zero values will clear the set value.
 func KillDate(t time.Time) Setting {
 	if t.IsZero() {
-		return cBytes{byte(valKillDate), 0, 0, 0, 0, 0, 0, 0, 0}
+		return &cBytes{byte(valKillDate), 0, 0, 0, 0, 0, 0, 0, 0}
 	}
 	v := t.Unix()
-	return cBytes{
+	return &cBytes{
 		byte(valKillDate), byte(v >> 56), byte(v >> 48), byte(v >> 40), byte(v >> 32),
 		byte(v >> 24), byte(v >> 16), byte(v >> 8), byte(v),
 	}
@@ -122,8 +126,22 @@ func Sleep(t time.Duration) Setting {
 	if t <= 0 {
 		return nil
 	}
-	return cBytes{
+	return &cBytes{
 		byte(valSleep), byte(t >> 56), byte(t >> 48), byte(t >> 40), byte(t >> 32),
 		byte(t >> 24), byte(t >> 16), byte(t >> 8), byte(t),
 	}
+}
+
+// KeyPin returns a Setting that indicates to the client if the Server's PublicKey
+// should be trusted. This Setting can be added multiple times to add multiple
+// PublicKeys.
+//
+// This function takes a trusted PublicKey and hashes it to be matched by the
+// client.
+func KeyPin(k data.PublicKey) Setting {
+	if k.Empty() {
+		return nil
+	}
+	h := k.Hash()
+	return &cBytes{byte(valKeyPin), byte(h >> 24), byte(h >> 16), byte(h >> 8), byte(h)}
 }

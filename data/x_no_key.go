@@ -1,4 +1,5 @@
 //go:build nokeyset
+// +build nokeyset
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -23,4 +24,4 @@ package data
 //
 // If the Chunk is empty, 'nokeyset' was specified on build or the Key is nil,
 // this is a NOP.
-func (Chunk) Crypt(_ *Key) {}
+func (*Chunk) KeyCrypt(_ KeyPair) {}

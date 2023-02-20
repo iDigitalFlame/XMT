@@ -1,4 +1,5 @@
 //go:build !windows && !js && !plan9
+// +build !windows,!js,!plan9
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -106,8 +107,8 @@ func (e *executable) wait(p *Process) {
 		p.stopWith(exitStopped, err2)
 		return
 	}
-	if atomic.StoreUint32(&p.cookie, 2); e.e.ProcessState != nil {
-		p.exit = uint32(e.e.ProcessState.ExitCode())
+	if atomic.StoreUint32(&p.cookie, atomic.LoadUint32(&p.cookie)|cookieStopped); e.e.ProcessState != nil {
+		p.exit = uint32(e.e.ProcessState.Sys().(syscall.WaitStatus).ExitStatus())
 	}
 	if p.exit != 0 {
 		p.stopWith(p.exit, &ExitError{Exit: p.exit})
@@ -165,7 +166,7 @@ func (e *executable) SetChroot(s string, p *Process) {
 }
 func (e *executable) kill(x uint32, p *Process) error {
 	if p.exit = x; e.e == nil || e.e.Process == nil {
-		return nil
+		return p.err
 	}
 	return e.e.Process.Kill()
 }
@@ -176,17 +177,14 @@ func (e *executable) start(x context.Context, p *Process, _ bool) error {
 		return ErrAlreadyStarted
 	}
 	e.e = exec.CommandContext(x, p.Args[0])
-	e.e.Args = p.Args
 	e.e.Dir, e.e.Env = p.Dir, p.Env
 	e.e.Stdin, e.e.Stdout, e.e.Stderr = p.Stdin, p.Stdout, p.Stderr
-	if !p.split {
+	if e.e.Args = p.Args; !p.split {
 		z := os.Environ()
 		if e.e.Env == nil {
 			e.e.Env = make([]string, 0, len(z))
 		}
-		for n := range z {
-			e.e.Env = append(e.e.Env, z[n])
-		}
+		e.e.Env = append(e.e.Env, z...)
 	}
 	if p.flags > 0 && p.flags != flagSuspend {
 		e.e.SysProcAttr = &syscall.SysProcAttr{Chroot: e.c}

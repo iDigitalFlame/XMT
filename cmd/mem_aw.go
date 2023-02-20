@@ -1,4 +1,5 @@
 //go:build windows && !map
+// +build windows,!map
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

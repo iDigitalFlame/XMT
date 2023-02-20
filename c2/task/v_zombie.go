@@ -1,4 +1,5 @@
 //go:build !implant
+// +build !implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -20,9 +21,9 @@ package task
 
 import (
 	"io"
-	"os"
 
 	"github.com/iDigitalFlame/xmt/cmd"
+	"github.com/iDigitalFlame/xmt/data"
 )
 
 // SetStdin wil attempt to read all the data from the supplied reader to fill
@@ -31,7 +32,7 @@ import (
 // This function will return an error if any errors occurs during reading.
 func (z *Zombie) SetStdin(r io.Reader) error {
 	var err error
-	z.Stdin, err = io.ReadAll(r)
+	z.Stdin, err = data.ReadAll(r)
 	return err
 }
 
@@ -71,8 +72,8 @@ func (z *Zombie) SetStdin(r io.Reader) error {
 //	    uint32              // PID
 //	    int32               // Exit Code
 //	    []byte              // Output (Stdout and Stderr)
-func ZombieAsm(b []byte, args ...string) *Zombie {
-	return &Zombie{Data: b, Args: args}
+func ZombieAsm(b []byte, args ...string) Zombie {
+	return Zombie{Data: b, Args: args}
 }
 
 // ZombieAsmFile will create a Zombie Tasklet that can be used to run the
@@ -112,12 +113,12 @@ func ZombieAsm(b []byte, args ...string) *Zombie {
 //	    uint32              // PID
 //	    int32               // Exit Code
 //	    []byte              // Output (Stdout and Stderr)
-func ZombieAsmFile(s string, args ...string) (*Zombie, error) {
-	b, err := os.ReadFile(s)
+func ZombieAsmFile(s string, args ...string) (Zombie, error) {
+	b, err := data.ReadFile(s)
 	if err != nil {
-		return nil, err
+		return Zombie{}, err
 	}
-	return &Zombie{Data: b, Args: args}, nil
+	return Zombie{Data: b, Args: args}, nil
 }
 
 // ZombieDLLFile will create a Zombie Tasklet that can be used to run the
@@ -159,12 +160,12 @@ func ZombieAsmFile(s string, args ...string) (*Zombie, error) {
 //	    uint32              // PID
 //	    int32               // Exit Code
 //	    []byte              // Output (Stdout and Stderr)
-func ZombieDLLFile(s string, args ...string) (*Zombie, error) {
-	b, err := os.ReadFile(s)
+func ZombieDLLFile(s string, args ...string) (Zombie, error) {
+	b, err := data.ReadFile(s)
 	if err != nil {
-		return nil, err
+		return Zombie{}, err
 	}
-	return &Zombie{Data: cmd.DLLToASM("", b), Args: args}, nil
+	return Zombie{Data: cmd.DLLToASM("", b), Args: args}, nil
 }
 
 // ZombieDLLReader will create a Zombie Tasklet that can be used to run the
@@ -205,12 +206,12 @@ func ZombieDLLFile(s string, args ...string) (*Zombie, error) {
 //	    uint32              // PID
 //	    int32               // Exit Code
 //	    []byte              // Output (Stdout and Stderr)
-func ZombieDLLReader(r io.Reader, args ...string) (*Zombie, error) {
-	b, err := io.ReadAll(r)
+func ZombieDLLReader(r io.Reader, args ...string) (Zombie, error) {
+	b, err := data.ReadAll(r)
 	if err != nil {
-		return nil, err
+		return Zombie{}, err
 	}
-	return &Zombie{Data: cmd.DLLToASM("", b), Args: args}, nil
+	return Zombie{Data: cmd.DLLToASM("", b), Args: args}, nil
 }
 
 // ZombieAsmReader will create a Zombie Tasklet that can be used to run the
@@ -251,7 +252,7 @@ func ZombieDLLReader(r io.Reader, args ...string) (*Zombie, error) {
 //	    int32               // Exit Code
 //	    []byte              // Output (Stdout and Stderr)
 func ZombieAsmReader(r io.Reader, args ...string) (*Zombie, error) {
-	b, err := io.ReadAll(r)
+	b, err := data.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}

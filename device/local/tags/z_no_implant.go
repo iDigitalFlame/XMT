@@ -24,6 +24,9 @@ func Capabilities() string {
 	return ParseCapabilities(setCapWindows, Enabled)
 }
 
+// ParseCapabilities returns a string representation of the numerical capabilities
+// tag value. The provided boolean will determine if Windows specific capabilities
+// are shown. Use false to disable Windows specific capabilities.
 func ParseCapabilities(windows bool, v uint32) string {
 	var b util.Builder
 	if v&CapBugs != 0 {
@@ -84,6 +87,9 @@ func ParseCapabilities(windows bool, v uint32) string {
 		}
 		if v&(CapAltLoad|CapCrypt) != 0 {
 			b.WriteString("alt_loader;")
+		}
+		if v&CapChunkHeap != 0 {
+			b.WriteString("chunk_heap;")
 		}
 	}
 	if b.Len() == 0 {

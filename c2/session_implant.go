@@ -1,4 +1,5 @@
 //go:build implant
+// +build implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -44,8 +45,7 @@ type Job struct{}
 // This struct does some automatic handling and acts as the communication
 // channel between the client and server.
 type Session struct {
-	lock   sync.RWMutex
-	keyNew *data.Key
+	lock sync.RWMutex
 
 	Last    time.Time
 	Created time.Time
@@ -60,16 +60,17 @@ type Session struct {
 	Shutdown func(*Session)
 	Receive  func(*Session, *com.Packet)
 	proxy    *proxyBase
-	tick     *time.Ticker
+	tick     *sleeper
 	peek     *com.Packet
 	host     container
-	kill     *time.Time
+	kill     time.Time
 	work     *cfg.WorkHours
 
-	Device device.Machine
-	sleep  time.Duration
-	state  state
-	key    data.Key
+	Device   device.Machine
+	sleep    time.Duration
+	state    state
+	keysNext *data.KeyPair
+	keys     data.KeyPair
 
 	ID             device.ID
 	jitter, errors uint8
@@ -121,11 +122,7 @@ func (s *Session) SetJitter(j int) (*Job, error) {
 // If this is a Server-side Session, the new value will be sent to the Client in
 // a MvTime Packet.
 func (s *Session) SetKillDate(t time.Time) (*Job, error) {
-	if t.IsZero() {
-		s.kill = nil
-	} else {
-		s.kill = &t
-	}
+	s.kill = t
 	return nil, nil
 }
 

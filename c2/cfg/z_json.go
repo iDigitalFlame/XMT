@@ -1,4 +1,5 @@
 //go:build !nojson && !implant
+// +build !nojson,!implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -26,7 +27,6 @@ import (
 	"time"
 
 	"github.com/PurpleSec/escape"
-
 	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
@@ -49,6 +49,8 @@ func (c cBit) String() string {
 		return "jitter"
 	case valWeight:
 		return "weight"
+	case valKeyPin:
+		return "keypin"
 	case valKillDate:
 		return "killdate"
 	case valWorkHours:
@@ -118,6 +120,8 @@ func bitFromName(s string) cBit {
 		return valSleep
 	case "jitter":
 		return valJitter
+	case "keypin":
+		return valKeyPin
 	case "weight":
 		return valWeight
 	case "killdate":
@@ -307,6 +311,11 @@ func (c Config) MarshalJSON() ([]byte, error) {
 				uint64(c[i+8]) | uint64(c[i+7])<<8 | uint64(c[i+6])<<16 | uint64(c[i+5])<<24 |
 					uint64(c[i+4])<<32 | uint64(c[i+3])<<40 | uint64(c[i+2])<<48 | uint64(c[i+1])<<56,
 			).String()))
+		case valKeyPin:
+			if i+4 >= n {
+				return nil, xerr.Wrap("keypin", ErrInvalidSetting)
+			}
+			b.WriteString(`"` + util.Uitoa16(uint64(c[i+4])|uint64(c[i+3])<<8|uint64(c[i+2])<<16|uint64(c[i+1])<<24) + `"`)
 		case valKillDate:
 			if i+8 >= n {
 				return nil, xerr.Wrap("killdate", ErrInvalidSetting)
@@ -324,10 +333,10 @@ func (c Config) MarshalJSON() ([]byte, error) {
 			}
 			if b.WriteByte('{'); c[i+1] > 0 || c[i+2] > 0 || c[i+3] > 0 || c[i+4] > 0 || c[i+5] > 0 {
 				b.WriteString(
-					`"start_hour":` + strconv.FormatUint(uint64(c[i+2]), 10) + `,` +
-						`"start_min":` + strconv.FormatUint(uint64(c[i+3]), 10) + `,` +
-						`"end_hour":` + strconv.FormatUint(uint64(c[i+4]), 10) + `,` +
-						`"end_min":` + strconv.FormatUint(uint64(c[i+5]), 10) + `,` +
+					`"start_hour":` + util.Uitoa(uint64(c[i+2])) + `,` +
+						`"start_min":` + util.Uitoa(uint64(c[i+3])) + `,` +
+						`"end_hour":` + util.Uitoa(uint64(c[i+4])) + `,` +
+						`"end_min":` + util.Uitoa(uint64(c[i+5])) + `,` +
 						`"days":"` + dayNumToString(c[i+1]) + `"`,
 				)
 			}
@@ -336,7 +345,7 @@ func (c Config) MarshalJSON() ([]byte, error) {
 			if i+1 >= n {
 				return nil, ErrInvalidSetting
 			}
-			b.WriteString(strconv.FormatUint(uint64(c[i+1]), 10))
+			b.WriteString(util.Uitoa(uint64(c[i+1])))
 		case valWC2:
 			if i+7 >= n {
 				return nil, xerr.Wrap("wc2", ErrInvalidSetting)
@@ -409,7 +418,7 @@ func (c Config) MarshalJSON() ([]byte, error) {
 			if a > n || p > n || k > n || p < a || k < p || a < i || p < i || k < i {
 				return nil, xerr.Wrap("mtls", ErrInvalidSetting)
 			}
-			b.WriteString(`{"version":` + strconv.FormatUint(uint64(c[i+1]), 10))
+			b.WriteString(`{"version":` + util.Uitoa(uint64(c[i+1])))
 			b.WriteString(`,"ca":"`)
 			e := base64.NewEncoder(base64.StdEncoding, &b)
 			e.Write(c[i+8 : a])
@@ -431,7 +440,7 @@ func (c Config) MarshalJSON() ([]byte, error) {
 			if a > n || a < i {
 				return nil, xerr.Wrap("tls-ca", ErrInvalidSetting)
 			}
-			b.WriteString(`{"version":` + strconv.FormatUint(uint64(c[i+1]), 10))
+			b.WriteString(`{"version":` + util.Uitoa(uint64(c[i+1])))
 			b.WriteString(`,"ca":"`)
 			e := base64.NewEncoder(base64.StdEncoding, &b)
 			e.Write(c[i+4 : a])
@@ -448,7 +457,7 @@ func (c Config) MarshalJSON() ([]byte, error) {
 			if p > n || k > n || p < i || k < i || k < p {
 				return nil, xerr.Wrap("tls-cert", ErrInvalidSetting)
 			}
-			b.WriteString(`{"version":` + strconv.FormatUint(uint64(c[i+1]), 10))
+			b.WriteString(`{"version":` + util.Uitoa(uint64(c[i+1])))
 			b.WriteString(`,"pem":"`)
 			e := base64.NewEncoder(base64.StdEncoding, &b)
 			e.Write(c[i+6 : p])
@@ -478,15 +487,15 @@ func (c Config) MarshalJSON() ([]byte, error) {
 				return nil, xerr.Wrap("cbk", ErrInvalidSetting)
 			}
 			b.WriteString(`{"size":`)
-			b.WriteString(strconv.FormatUint(uint64(c[i+1]), 10))
+			b.WriteString(util.Uitoa(uint64(c[i+1])))
 			b.WriteString(`,"A":`)
-			b.WriteString(strconv.FormatUint(uint64(c[i+2]), 10))
+			b.WriteString(util.Uitoa(uint64(c[i+2])))
 			b.WriteString(`,"B":`)
-			b.WriteString(strconv.FormatUint(uint64(c[i+3]), 10))
+			b.WriteString(util.Uitoa(uint64(c[i+3])))
 			b.WriteString(`,"C":`)
-			b.WriteString(strconv.FormatUint(uint64(c[i+4]), 10))
+			b.WriteString(util.Uitoa(uint64(c[i+4])))
 			b.WriteString(`,"D":`)
-			b.WriteString(strconv.FormatUint(uint64(c[i+5]), 10))
+			b.WriteString(util.Uitoa(uint64(c[i+5])))
 			b.WriteByte('}')
 		case valAES:
 			if i+3 >= n {
@@ -595,6 +604,16 @@ func (c *Config) UnmarshalJSON(b []byte) error {
 					return xerr.Wrap("weight", err)
 				}
 				r = append(r, cBytes{byte(valWeight), v})
+			case valKeyPin:
+				var s string
+				if err := json.Unmarshal(m[i].Args, &s); err != nil {
+					return xerr.Wrap("keypin", err)
+				}
+				v, err := strconv.ParseUint(s, 16, 32)
+				if err != nil {
+					return xerr.Wrap("keypin", err)
+				}
+				r = append(r, cBytes{byte(valKeyPin), byte(v >> 24), byte(v >> 16), byte(v >> 8), byte(v)})
 			case valKillDate:
 				var s string
 				if err := json.Unmarshal(m[i].Args, &s); err != nil {
@@ -835,7 +854,7 @@ func (c *config) UnmarshalJSON(b []byte) error {
 	}
 	return nil
 }
-func (m mapper) Unmarshal(s string, r bool, v any) error {
+func (m mapper) Unmarshal(s string, r bool, v interface{}) error {
 	d, ok := m[s]
 	if !ok {
 		if !r {

@@ -1,4 +1,5 @@
 //go:build windows && nopanic
+// +build windows,nopanic
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

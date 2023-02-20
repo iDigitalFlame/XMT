@@ -19,5 +19,4 @@
 //
 // It is recommended to use the 'device.Daemon*' functions instead of this package
 // as they are easier to use.
-//
 package svc

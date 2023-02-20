@@ -29,6 +29,8 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
+const fragMaxMisses = 5
+
 var wake struct{}
 
 type event struct {
@@ -45,6 +47,7 @@ type cluster struct {
 	data []*com.Packet
 	max  uint16
 	e    uint16
+	c    uint8
 }
 type proxyData struct {
 	n, b string
@@ -59,7 +62,7 @@ type connection struct {
 	m   messager
 	p   cfg.Profile
 	ctx context.Context
-	log *cout.Log
+	log cout.Log
 }
 type messager interface {
 	close()
@@ -117,7 +120,7 @@ func (e eventer) listen(s *Session) {
 		}
 	}
 }
-func (e event) process(l *cout.Log) {
+func (e event) process(l cout.Log) {
 	defer func() {
 		if err := recover(); err != nil {
 			if cout.Enabled {
@@ -195,11 +198,13 @@ func (c *cluster) Less(i, j int) bool {
 }
 func (c *cluster) add(p *com.Packet) error {
 	if p == nil {
+		c.c = fragMaxMisses
 		return nil
 	}
 	if len(c.data) > 0 && !c.data[0].Belongs(p) {
 		return xerr.Sub("packet ID does not match the supplied ID", 0x52)
 	}
+	c.c = fragMaxMisses
 	if c.max = p.Flags.Len() - 1; p.Empty() {
 		c.e++
 		return nil

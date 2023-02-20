@@ -30,9 +30,6 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-/*func init() {
-	c2.ProfileParser = Raw
-}*/
 func (c Config) next(i int) int {
 	if i > len(c) || i < 0 {
 		return -1
@@ -50,6 +47,8 @@ func (c Config) next(i int) int {
 		return i + 6
 	case valSleep, valKillDate:
 		return i + 9
+	case valKeyPin:
+		return i + 5
 	case valWC2:
 		if i+7 >= len(c) {
 			return -1
@@ -222,6 +221,10 @@ loop:
 			if i+8 >= n {
 				return -1, xerr.Wrap("sleep", ErrInvalidSetting)
 			}
+		case valKeyPin:
+			if i+4 >= n {
+				return -1, xerr.Wrap("keypin", ErrInvalidSetting)
+			}
 		case valJitter:
 			if i+1 >= n {
 				return -1, xerr.Wrap("jitter", ErrInvalidSetting)
@@ -393,9 +396,9 @@ loop:
 func (c Config) build(x int) (*profile, int, int8, error) {
 	var (
 		p profile
-		w []Wrapper
 		n int
 		z int8 = -1
+		w      = make([]Wrapper, 0, 4)
 	)
 loop:
 	for i := x; n >= 0 && n < len(c); i = n {
@@ -436,6 +439,11 @@ loop:
 			} else if p.jitter < -1 {
 				p.jitter = 0
 			}
+		case valKeyPin:
+			if i+4 >= n {
+				return nil, -1, -1, xerr.Wrap("keypin", ErrInvalidSetting)
+			}
+			p.keys = append(p.keys, uint32(c[i+4])|uint32(c[i+3])<<8|uint32(c[i+2])<<16|uint32(c[i+1])<<24)
 		case valWeight:
 			if i+1 >= n {
 				return nil, -1, -1, xerr.Wrap("weight", ErrInvalidSetting)
@@ -450,10 +458,9 @@ loop:
 			u := uint64(c[i+8]) | uint64(c[i+7])<<8 | uint64(c[i+6])<<16 | uint64(c[i+5])<<24 |
 				uint64(c[i+4])<<32 | uint64(c[i+3])<<40 | uint64(c[i+2])<<48 | uint64(c[i+1])<<56
 			if u == 0 {
-				p.kill = &time.Time{}
+				p.kds, p.kill = true, time.Time{}
 			} else {
-				d := time.Unix(int64(u), 0)
-				p.kill = &d
+				p.kds, p.kill = true, time.Unix(int64(u), 0)
 			}
 		case valWorkHours:
 			if i+5 >= n {

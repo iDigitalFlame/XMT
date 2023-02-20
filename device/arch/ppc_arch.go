@@ -1,4 +1,5 @@
 //go:build ppc || ppc64 || ppc64le
+// +build ppc ppc64 ppc64le
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

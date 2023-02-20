@@ -20,6 +20,7 @@ import (
 	"net"
 
 	"github.com/iDigitalFlame/xmt/data"
+	"github.com/iDigitalFlame/xmt/util"
 )
 
 const maxNetworks = 255
@@ -49,8 +50,8 @@ func (h hardware) String() string {
 			b[v] = ':'
 			v++
 		}
-		b[v] = table[n>>4]
-		b[v+1] = table[n&0x0F]
+		b[v] = util.HexTable[n>>4]
+		b[v+1] = util.HexTable[n&0x0F]
 		v += 2
 	}
 	return string(b[:v])

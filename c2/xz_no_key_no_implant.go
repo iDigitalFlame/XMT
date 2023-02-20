@@ -1,4 +1,5 @@
 //go:build !implant && nokeyset
+// +build !implant,nokeyset
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -20,5 +21,12 @@ package c2
 
 import "github.com/iDigitalFlame/xmt/com"
 
-func (*Session) sessionKeyInit(_ string, _ *com.Packet)           {}
-func (*Session) sessionKeyUpdate(_ string, _ *com.Packet, _ bool) {}
+func (*Session) keyListenerRegenerate(_ string, _ *com.Packet) error {
+	return nil
+}
+func (*Session) keyCryptAndUpdate(_ string, _ *com.Packet, _ bool) error {
+	return nil
+}
+func (*Session) keyListenerInit(_ data.PrivateKey, _ string, _ *com.Packet) error {
+	return nil
+}

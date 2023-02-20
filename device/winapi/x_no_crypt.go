@@ -1,4 +1,5 @@
 //go:build windows && !crypt
+// +build windows,!crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -20,6 +21,7 @@ package winapi
 
 const (
 	dllExt    = ".dll"
+	sysRoot   = `\SystemRoot`
 	debugPriv = "SeDebugPrivilege"
 )
 

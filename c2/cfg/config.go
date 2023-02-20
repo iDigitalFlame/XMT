@@ -17,13 +17,13 @@
 // Package cfg is used to generate Binary versions of C2 Profiles and can be
 // used to create automatic Profile 'Groups' with multiple communication and
 // encoding types to be used by a Single session.
-//
 package cfg
 
 import (
 	"io"
 	"os"
 
+	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -215,7 +215,7 @@ func Write(w io.Writer, s ...Setting) error {
 // Validation or setting errors will be returned if they occur or if any
 // I/O errors occur.
 func Reader(r io.Reader) (Profile, error) {
-	b, err := io.ReadAll(r)
+	b, err := data.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}

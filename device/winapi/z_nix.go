@@ -1,4 +1,5 @@
 //go:build !windows && !implant
+// +build !windows,!implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

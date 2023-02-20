@@ -1,4 +1,6 @@
 //go:build !(windows && (386 || arm)) && !(!js && !plan9 && (386 || arm))
+// +build !windows !386,!arm
+// +build js plan9 !386,!arm
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

@@ -1,4 +1,5 @@
 //go:build !implant
+// +build !implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -33,7 +34,7 @@ func TestMarshal(t *testing.T) {
 	if len(b) == 0 {
 		t.Fatalf(`TestMarshal(): Job.MarshalJSON() returned an empty byte slice!`)
 	}
-	var v any
+	var v interface{}
 	if err = json.Unmarshal(b, &v); err != nil {
 		t.Fatalf(`TestMarshal(): Unmarshal() Job returned an error: %s!`, err.Error())
 	}

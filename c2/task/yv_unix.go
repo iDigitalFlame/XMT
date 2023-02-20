@@ -1,4 +1,5 @@
 //go:build !windows && !plan9 && !js && !linux && !android && !aix && !illumos && !solaris
+// +build !windows,!plan9,!js,!linux,!android,!aix,!illumos,!solaris
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

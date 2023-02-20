@@ -1,4 +1,5 @@
 //go:build !windows && crypt
+// +build !windows,crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -23,12 +24,17 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/util/crypt"
 )
 
 func Processes() ([]ProcessInfo, error) {
-	l, err := os.ReadDir(crypt.Get(12)) // /proc/
+	f, err := os.Open(crypt.Get(12)) // /proc/
 	if err != nil {
+		return nil, err
+	}
+	l, err := f.Readdir(-1)
+	if f.Close(); err != nil {
 		return nil, err
 	}
 	if len(l) == 0 {
@@ -51,7 +57,7 @@ func Processes() ([]ProcessInfo, error) {
 		if v, err = strconv.ParseUint(n, 10, 32); err != nil {
 			continue
 		}
-		b, err = os.ReadFile(
+		b, err = data.ReadFile(
 			crypt.Get(12) + // /proc/
 				n +
 				crypt.Get(13), // /status

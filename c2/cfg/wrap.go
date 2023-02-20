@@ -43,7 +43,8 @@ func WrapXOR(k []byte) Setting {
 	if n > 0xFFFF {
 		n = 0xFFFF
 	}
-	return append(cBytes{byte(valXOR), byte(n >> 8), byte(n)}, k[:n]...)
+	c := append(cBytes{byte(valXOR), byte(n >> 8), byte(n)}, k[:n]...)
+	return &c
 }
 
 // WrapAES returns a Setting that will apply the AES Wrapper to the generated
@@ -63,7 +64,7 @@ func WrapAES(k, iv []byte) Setting {
 	c[1], c[2] = byte(n), byte(v)
 	n = copy(c[3:], k) + 3
 	copy(c[n:], i)
-	return c
+	return &c
 }
 
 // WrapCBK returns a Setting that will apply the CBK Wrapper to the generated
@@ -71,12 +72,12 @@ func WrapAES(k, iv []byte) Setting {
 //
 // To specify the CBK buffer size, use the 'WrapCBKSize' function instead.
 func WrapCBK(a, b, c, d byte) Setting {
-	return cBytes{byte(valCBK), 128, a, b, c, d}
+	return &cBytes{byte(valCBK), 128, a, b, c, d}
 }
 
 // WrapCBKSize returns a Setting that will apply the CBK Wrapper to the generated
 // Profile. The specified Size, ABC and Type values and the CBK size and letters
 // used.
 func WrapCBKSize(s, a, b, c, d byte) Setting {
-	return cBytes{byte(valCBK), s, a, b, c, d}
+	return &cBytes{byte(valCBK), s, a, b, c, d}
 }

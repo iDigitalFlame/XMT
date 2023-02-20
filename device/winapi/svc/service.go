@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -170,7 +171,7 @@ type Service struct {
 //
 // You can provide service exit code in the return parameter, with 0 being
 // "no error".
-type Handler func(context.Context, *Service, []string) uint32
+type Handler func(context.Context, Service, []string) uint32
 
 // Handle returns a pointer to the current Service. This handle is only valid in
 // the context of the running service.
@@ -251,12 +252,12 @@ func serviceMain(argc uint32, argv **uint16) uintptr {
 			a[i] = winapi.UTF16PtrToString(v)
 		}
 	}
-	if err := service.update(&Status{State: StartPending}, false, 0); err != nil {
+	if err := service.update(Status{State: StartPending}, false, 0); err != nil {
 		if e, ok := err.(syscall.Errno); ok {
-			service.update(&Status{State: Stopped}, false, uint32(e))
+			service.update(Status{State: Stopped}, false, uint32(e))
 			return uintptr(e)
 		}
-		service.update(&Status{State: Stopped}, false, 0xE0000239)
+		service.update(Status{State: Stopped}, false, 0xE0000239)
 		return 0xE0000239
 	}
 	var (
@@ -275,7 +276,7 @@ func serviceMain(argc uint32, argv **uint16) uintptr {
 				close(x)
 			}
 		}()
-		x <- service.f(b, &service, a)
+		x <- service.f(b, service, a)
 		close(x)
 	}()
 loop:
@@ -295,11 +296,11 @@ loop:
 			switch v.Status = c; v.Command {
 			case Stop, Shutdown:
 				y()
-				service.update(&Status{State: StopPending}, false, 0)
+				service.update(Status{State: StopPending}, false, 0)
 			}
 			service.in <- v
 		case v := <-service.out:
-			if err := service.update(&v, false, v.ExitCode); err != nil {
+			if err := service.update(v, false, v.ExitCode); err != nil {
 				if e, ok := err.(syscall.Errno); ok {
 					f = uint32(e)
 				} else {
@@ -310,11 +311,11 @@ loop:
 			c = v
 		}
 	}
-	service.update(&Status{State: StopPending}, f > 0, f)
+	service.update(Status{State: StopPending}, f > 0, f)
 	y()
 	close(service.in)
 	close(service.out)
-	service.update(&Status{State: Stopped}, f > 0, f)
+	service.update(Status{State: Stopped}, f > 0, f)
 	close(service.e)
 	service.h = 0
 	return 0
@@ -350,7 +351,7 @@ func (s *Service) DynamicStartReason() (Reason, error) {
 	}
 	return Reason(r), nil
 }
-func (s *Service) update(u *Status, r bool, e uint32) error {
+func (s *Service) update(u Status, r bool, e uint32) error {
 	if s.h == 0 {
 		return xerr.Sub("update without a Service status handle", 0x14)
 	}

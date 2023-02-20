@@ -1,4 +1,5 @@
 //go:build !implant
+// +build !implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -59,10 +60,7 @@ type status uint8
 
 // Wait will block until the Job is completed or the parent Server is shutdown.
 func (j *Job) Wait() {
-	if j == nil {
-		return
-	}
-	if j.done == nil {
+	if j == nil || j.done == nil {
 		return
 	}
 	<-j.done

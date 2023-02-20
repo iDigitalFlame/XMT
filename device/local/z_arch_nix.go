@@ -1,4 +1,8 @@
 //go:build !windows && !js && !plan9 && (386 || arm)
+// +build !windows
+// +build !js
+// +build !plan9
+// +build 386 arm
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -21,27 +25,20 @@ package local
 import (
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/device/arch"
-	"golang.org/x/sys/unix"
+	"github.com/iDigitalFlame/xmt/device/unix"
 )
 
 func systemType() uint8 {
-	// NOTE(dij): Check if we're running under a 64bit kernel and report the /actual/
-	//            system arch, since we only know what we've been built as.
-	var (
-		u   unix.Utsname
-		err = unix.Uname(&u)
-	)
-	if err != nil {
+	if arch.Current != arch.ARM && arch.Current != arch.X86 {
 		return uint8(uint8(device.OS)<<4 | uint8(arch.Current))
 	}
+	// NOTE(dij): Check if we're running under a 64bit kernel and report the /actual/
+	//            system arch, since we only know what we've been built as.
 	switch {
-	case device.Arch == arch.ARM && (u.Machine[10] == 0 && u.Machine[0] == 'a' && u.Machine[6] == '4' && u.Machine[5] == '6' && u.Machine[9] == 'e'): // Match aarch64_be
-		fallthrough
-	case device.Arch == arch.ARM && (u.Machine[7] == 0 && u.Machine[0] == 'a' && u.Machine[6] == '4' && u.Machine[5] == '6'): // Match aarch64
-		fallthrough
-	case device.Arch == arch.ARM && (u.Machine[6] == 0 && u.Machine[0] == 'a' && u.Machine[4] == '8' && u.Machine[3] == 'v'): // Match armv8l and armv8b
+	case !unix.IsMachine64():
+	case arch.Current == arch.ARM:
 		return uint8(uint8(device.OS)<<4 | uint8(arch.ARMOnARM64))
-	case device.Arch == arch.X86 && (u.Machine[6] == 0 && u.Machine[0] == 'x' && u.Machine[5] == '4' && u.Machine[4] == '6'): // Match x86_64
+	case arch.Current == arch.X86:
 		return uint8(uint8(device.OS)<<4 | uint8(arch.X86OnX64))
 	}
 	return uint8(uint8(device.OS)<<4 | uint8(arch.Current))

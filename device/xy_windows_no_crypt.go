@@ -1,4 +1,5 @@
 //go:build windows && !crypt
+// +build windows,!crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -28,7 +29,7 @@ const (
 	// underlying OS type.
 	PowerShell = "powershell.exe"
 	home       = "%USERPROFILE%"
-	debugDlls  = "hal.dll\nwmi.dll\nwpx.dll\nwdc.dll\nzipfldr.dll"
+	debugDlls  = "hal.dll\nwmi.dll\nwpx.dll\nwdc.dll\nzipfldr.dll\ninput.dll\nspp.dll"
 )
 
 func shell() string {

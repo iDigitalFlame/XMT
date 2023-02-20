@@ -1,4 +1,5 @@
 //go:build windows && crypt
+// +build windows,crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -22,6 +23,7 @@ import "github.com/iDigitalFlame/xmt/util/crypt"
 
 var (
 	dllExt    = crypt.Get(0)[1:] // *.dll
+	sysRoot   = crypt.Get(102)   // \SystemRoot
 	debugPriv = crypt.Get(81)    // SeDebugPrivilege
 
 	dllAmsi       = &lazyDLL{name: crypt.Get(82)}  // amsi.dll
@@ -31,8 +33,8 @@ var (
 	dllWinhttp    = &lazyDLL{name: crypt.Get(86)}  // winhttp.dll
 	dllDbgHelp    = &lazyDLL{name: crypt.Get(87)}  // DbgHelp.dll
 	dllCrypt32    = &lazyDLL{name: crypt.Get(100)} // crypt32.dll
+	dllKernel32   = &lazyDLL{name: crypt.Get(90)}  // kernel32.dll
 	dllAdvapi32   = &lazyDLL{name: crypt.Get(88)}  // advapi32.dll
 	dllWtsapi32   = &lazyDLL{name: crypt.Get(89)}  // wtsapi32.dll
-	dllKernel32   = &lazyDLL{name: crypt.Get(90)}  // kernel32.dll
 	dllKernelBase = &lazyDLL{name: crypt.Get(91)}  // kernelbase.dll
 )

@@ -1,4 +1,5 @@
 //go:build !regexp
+// +build !regexp
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -261,17 +262,17 @@ func writeToken(b *util.Builder, c byte, f bool, n int) {
 	case c == 's' && f && n > 0:
 		b.WriteString(Rand.String(n))
 	case c == 'd' && !f && n == 0:
-		b.WriteString(strconv.FormatUint(uint64(util.FastRand()), 10))
+		b.WriteString(util.Uitoa(uint64(util.FastRand())))
 	case c == 'd' && !f && n > 0:
-		b.WriteString(strconv.FormatUint(uint64(util.FastRandN(n)), 10))
+		b.WriteString(util.Uitoa(uint64(util.FastRandN(n))))
 	case c == 'd' && f:
-		b.WriteString(strconv.FormatUint(uint64(n), 10))
+		b.WriteString(util.Uitoa(uint64(n)))
 	case c == 'h' && !f && n == 0:
-		b.WriteString(strconv.FormatUint(uint64(util.FastRand()), 16))
+		b.WriteString(util.Uitoa16(uint64(util.FastRand())))
 	case c == 'h' && !f && n > 0:
-		b.WriteString(strconv.FormatUint(uint64(util.FastRandN(n)), 16))
+		b.WriteString(util.Uitoa16(uint64(util.FastRandN(n))))
 	case c == 'h' && f:
-		b.WriteString(strconv.FormatUint(uint64(n), 16))
+		b.WriteString(util.Uitoa16(uint64(n)))
 	case c == 'n' && !f:
 		b.WriteString(Rand.StringNumberRange(1, n))
 	case c == 'n' && f:

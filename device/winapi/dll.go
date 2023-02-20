@@ -1,4 +1,5 @@
 //go:build windows || (!windows && !implant)
+// +build windows !windows,!implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -20,10 +21,10 @@ package winapi
 
 import (
 	"io"
-	"os"
 	"strings"
 	"unsafe"
 
+	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -100,7 +101,7 @@ func byteString(b [256]byte) string {
 //
 // Non-Windows devices may use this function to extract DLL data.
 func ExtractDLLBase(dll string) (uint32, []byte, error) {
-	b, err := os.ReadFile(fullPath(dll))
+	b, err := data.ReadFile(fullPath(dll))
 	if err != nil {
 		return 0, nil, err
 	}
@@ -129,7 +130,7 @@ func ExtractDLLBaseRaw(v []byte) (uint32, []byte, error) {
 //
 // Non-Windows devices may use this function to extract DLL data.
 func ExtractDLLFunction(dll string, name string, count uint32) ([]byte, error) {
-	b, err := os.ReadFile(fullPath(dll))
+	b, err := data.ReadFile(fullPath(dll))
 	if err != nil {
 		return nil, err
 	}

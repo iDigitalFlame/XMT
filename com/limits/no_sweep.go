@@ -1,4 +1,5 @@
 //go:build nosweep
+// +build nosweep
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

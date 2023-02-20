@@ -31,8 +31,9 @@ const Base64 = B64(0)
 const bufMax = 2 << 14
 
 var bufs = sync.Pool{
-	New: func() any {
+	New: func() interface{} {
 		b := make([]byte, 512, bufMax)
+		_ = b[511] // BCE
 		return &b
 	},
 }

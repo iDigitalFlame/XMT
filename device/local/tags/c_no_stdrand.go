@@ -1,4 +1,5 @@
 //go:build !stdrand
+// +build !stdrand
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

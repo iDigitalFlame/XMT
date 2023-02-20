@@ -19,6 +19,7 @@ package data
 import (
 	"context"
 	"io"
+	"os"
 	"unsafe"
 )
 
@@ -40,10 +41,7 @@ func (r *ctxReader) Close() error {
 	r.cancel()
 	return r.ReadCloser.Close()
 }
-func (nopReadCloser) Close() error {
-	return nil
-}
-func (nopWriteCloser) Close() error {
+func (*nopReadCloser) Close() error {
 	return nil
 }
 func float32ToInt(f float32) uint32 {
@@ -52,11 +50,83 @@ func float32ToInt(f float32) uint32 {
 func float64ToInt(f float64) uint64 {
 	return *(*uint64)(unsafe.Pointer(&f))
 }
+func (*nopWriteCloser) Close() error {
+	return nil
+}
 func float32FromInt(i uint32) float32 {
 	return *(*float32)(unsafe.Pointer(&i))
 }
 func float64FromInt(i uint64) float64 {
 	return *(*float64)(unsafe.Pointer(&i))
+}
+
+// ReadFile reads the named file and returns the contents. A successful call
+// returns err == nil, not err == EOF.
+//
+// Because ReadFile reads the whole file, it does not treat an EOF from Read as
+// an error to be reported.
+//
+// This is a pre go1.16 compatibility helper.
+func ReadFile(n string) ([]byte, error) {
+	f, err := os.Open(n)
+	if err != nil {
+		return nil, err
+	}
+	var s int
+	if i, err := f.Stat(); err == nil {
+		if x := i.Size(); int64(int(x)) == x {
+			s = int(x)
+		}
+	}
+	if s++; s < 512 {
+		s = 512
+	}
+	var (
+		d = make([]byte, 0, s)
+		c int
+	)
+	for {
+		if len(d) >= cap(d) {
+			q := append(d[:cap(d)], 0)
+			d = q[:len(d)]
+		}
+		c, err = f.Read(d[len(d):cap(d)])
+		if d = d[:len(d)+c]; err != nil {
+			if err == io.EOF {
+				err = nil
+			}
+			break
+		}
+	}
+	f.Close()
+	return d, err
+}
+
+// ReadAll reads from r until an error or EOF and returns the data it read. A
+// successful call returns err == nil, not err == EOF.
+//
+// Because ReadAll is defined to read from src until EOF, it does not treat an
+// EOF from Read as an error to be reported.
+//
+// This is a pre go1.16 compatibility helper.
+func ReadAll(r io.Reader) ([]byte, error) {
+	var (
+		b   = make([]byte, 0, 512)
+		n   int
+		err error
+	)
+	for {
+		if len(b) == cap(b) {
+			b = append(b, 0)[:len(b)]
+		}
+		n, err = r.Read(b[len(b):cap(b)])
+		if b = b[:len(b)+n]; err != nil {
+			if err == io.EOF {
+				return b, nil
+			}
+			return b, err
+		}
+	}
 }
 
 // ReadCloser is a function that will wrap the supplied Reader in a NopReadCloser.
@@ -188,12 +258,12 @@ func WriteStringList(w Writer, s []string) error {
 // useful in situations when direct copies using 'io.Copy' on threads or timed
 // operations are required.
 func NewCtxReader(x context.Context, r io.Reader) io.ReadCloser {
-	i := new(ctxReader)
+	var i ctxReader
 	if c, ok := r.(io.ReadCloser); ok {
 		i.ReadCloser = c
 	} else {
 		i.ReadCloser = &nopReadCloser{Reader: r}
 	}
 	i.ctx, i.cancel = context.WithCancel(x)
-	return i
+	return &i
 }

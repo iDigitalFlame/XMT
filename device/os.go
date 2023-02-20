@@ -17,7 +17,6 @@
 // Package device contains many function that provide access to Operating System
 // functions and resources. Many of these are OS agnostic and might not work
 // as intended on some systems.
-//
 package device
 
 import (
@@ -57,7 +56,7 @@ const (
 )
 
 var builders = sync.Pool{
-	New: func() any {
+	New: func() interface{} {
 		return new(util.Builder)
 	},
 }

@@ -1,4 +1,5 @@
 //go:build implant && !noproxy
+// +build implant,!noproxy
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -18,7 +19,7 @@
 
 package c2
 
-func (Proxy) prefix() string {
+func (*Proxy) prefix() string {
 	return ""
 }
 func (*Session) name() string {

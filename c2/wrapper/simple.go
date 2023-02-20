@@ -17,7 +17,6 @@
 // Package wrapper contains built-in implementations of the 'c2.Wrapper'
 // interface, which can be used to wrap or encode data that is passed between
 // Sessions and C2 Servers.
-//
 package wrapper
 
 import (

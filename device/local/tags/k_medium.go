@@ -1,4 +1,5 @@
 //go:build medium
+// +build medium
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

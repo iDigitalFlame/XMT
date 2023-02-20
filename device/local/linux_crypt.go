@@ -1,4 +1,6 @@
 //go:build (android || linux) && crypt
+// +build android linux
+// +build crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -19,17 +21,17 @@
 package local
 
 import (
-	"os"
-
+	"github.com/iDigitalFlame/xmt/data"
+	"github.com/iDigitalFlame/xmt/device/unix"
 	"github.com/iDigitalFlame/xmt/util/crypt"
 )
 
 func sysID() []byte {
-	b, err := os.ReadFile(crypt.Get(63)) // /var/lib/dbus/machine-id
+	b, err := data.ReadFile(crypt.Get(63)) // /var/lib/dbus/machine-id
 	if err == nil {
 		return b
 	}
-	b, _ = os.ReadFile(crypt.Get(64)) // /etc/machine-id
+	b, _ = data.ReadFile(crypt.Get(64)) // /etc/machine-id
 	return b
 }
 func version() string {
@@ -47,7 +49,7 @@ func version() string {
 		}
 	}
 	if len(v) == 0 {
-		v = uname()
+		v = unix.Release()
 	}
 	switch {
 	case len(n) == 0 && len(b) == 0 && len(v) == 0:

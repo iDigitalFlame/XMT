@@ -1,4 +1,5 @@
 //go:build amd64
+// +build amd64
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

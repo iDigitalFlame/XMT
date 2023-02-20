@@ -1,4 +1,5 @@
 //go:build !windows && !plan9
+// +build !windows,!plan9
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -21,8 +22,9 @@ package cmd
 import (
 	"os"
 	"os/user"
-	"strconv"
 	"syscall"
+
+	"github.com/iDigitalFlame/xmt/util"
 )
 
 func getProcUser(p string) string {
@@ -34,7 +36,7 @@ func getProcUser(p string) string {
 	if !ok {
 		return ""
 	}
-	u, err := user.LookupId(strconv.FormatUint(uint64(s.Uid), 10))
+	u, err := user.LookupId(util.Uitoa(uint64(s.Uid)))
 	if err != nil {
 		return ""
 	}

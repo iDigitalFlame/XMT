@@ -1,4 +1,5 @@
 //go:build !windows && !js && !ios && !darwin && !crypt
+// +build !windows,!js,!ios,!darwin,!crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -19,27 +20,31 @@
 package local
 
 import (
-	"io"
-	"io/fs"
 	"os"
 	"strings"
+
+	"github.com/iDigitalFlame/xmt/data"
 )
 
 func release() map[string]string {
-	var (
-		f      = os.DirFS("/etc")
-		e, err = fs.Glob(f, "*release*")
-	)
-	if err != nil || len(e) == 0 {
+	f, err := os.Open("/etc")
+	if err != nil {
+		return nil
+	}
+	e, err := f.Readdirnames(0)
+	if f.Close(); err != nil || len(e) == 0 {
 		return nil
 	}
 	m := make(map[string]string)
 	for i := range e {
-		d, err := f.Open(e[i])
+		if e[i] != "release" && !strings.Contains(e[i], "release") {
+			continue
+		}
+		d, err := os.Open("/etc/" + e[i])
 		if err != nil {
 			continue
 		}
-		b, err := io.ReadAll(d)
+		b, err := data.ReadAll(d)
 		if d.Close(); err != nil || len(b) == 0 {
 			continue
 		}

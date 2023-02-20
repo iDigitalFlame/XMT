@@ -1,4 +1,5 @@
 //go:build !stdrand
+// +build !stdrand
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -20,9 +21,6 @@ package util
 
 type random struct{}
 
-func getRandom() *random {
-	return new(random)
-}
 func (r random) Int() int {
 	return int(abs64(r.Uint64()))
 }

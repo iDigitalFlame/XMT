@@ -1,4 +1,5 @@
 //go:build !implant
+// +build !implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -54,6 +55,26 @@ func Pwd() *com.Packet {
 //	    []string // Mount Paths List
 func Mounts() *com.Packet {
 	return &com.Packet{ID: MvMounts}
+}
+
+// Whoami returns a user discovery Packet. This will instruct the client to query
+// it's current token/access and determine a non-cached username/user ID. This
+// Task also returns the current Process path the client is in.
+//
+// The result is NOT cached, so it may be different depending on the client and
+// any operations in-between calls.
+//
+// C2 Details:
+//
+//	ID: MvWhoami
+//
+//	Input:
+//	    <none>
+//	Output:
+//	    string // Username
+//	    string // Process Path
+func Whoami() *com.Packet {
+	return &com.Packet{ID: MvWhoami}
 }
 
 // Refresh returns a refresh Packet. This will instruct the client to re-update

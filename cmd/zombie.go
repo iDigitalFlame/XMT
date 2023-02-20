@@ -94,6 +94,19 @@ func (z *Zombie) Suspend() error {
 	return z.t.Suspend()
 }
 
+// Release will attempt to release the resources for this Zombie, including
+// handles.
+//
+// After the first call to this function, all other function calls will fail
+// with errors. Repeated calls to this function return nil and are a NOP.
+func (z *Zombie) Release() error {
+	if !z.x.isStarted() {
+		return ErrNotStarted
+	}
+	z.x.close()
+	return z.t.Release()
+}
+
 // SetSuspended will delay the execution of this thread and will put the
 // thread in a suspended state until it is resumed using a Resume call.
 //

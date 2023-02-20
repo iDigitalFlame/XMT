@@ -1,4 +1,6 @@
 //go:build windows && (altload || crypt)
+// +build windows
+// +build altload crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -52,11 +54,20 @@ func (d *lazyDLL) load() error {
 		err error
 	)
 	if (len(d.name) == 12 || len(d.name) == 14) && d.name[0] == 'k' && d.name[2] == 'r' && d.name[3] == 'n' {
-		h, err = loadDLL(d.name)
+		if h, err = loadDLL(d.name); fallbackLoad {
+			if h == 0 && len(d.name) == 14 {
+				// NOTE(dij): The "kernelbase.dll" file was not avaliable before
+				//            Windows 7 so we'll redirect all KernelBase calls to
+				//            Kernel32. We can tell this is "kernelbase.dll" fails
+				//            to load.
+				d.name = dllKernel32.name
+				h, err = loadDLL(dllKernel32.name)
+			}
+		}
 	} else {
 		h, err = loadLibraryEx(d.name)
 	}
-	if err != nil {
+	if h == 0 {
 		d.Unlock()
 		return err
 	}

@@ -30,7 +30,7 @@ var (
 	MatchNone falseRegexp
 
 	builders = sync.Pool{
-		New: func() any {
+		New: func() interface{} {
 			return new(util.Builder)
 		},
 	}

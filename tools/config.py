@@ -27,7 +27,7 @@ from argparse import ArgumentParser
 from base64 import b64decode, b64encode
 from sys import argv, exit, stderr, stdin, stdout
 
-HELP_TEXT = """XMT cfg.Config Builder v1 Release
+HELP_TEXT = """XMT cfg.Config Builder v1.5 Release
 
 Usage: {binary} [add|append] <options>
 
@@ -242,6 +242,7 @@ class Cfg:
         SLEEP = 0xA1
         JITTER = 0xA2
         WEIGHT = 0xA3
+        KEYPIN = 0xA6
         KILLDATE = 0xA4
         WORKHOURS = 0xA5
         SEPARATOR = 0xFA
@@ -283,6 +284,7 @@ class Cfg:
             SLEEP: "sleep",
             JITTER: "jitter",
             WEIGHT: "weight",
+            KEYPIN: "keypin",
             KILLDATE: "killdate",
             WORKHOURS: "workhours",
             SEPARATOR: "|",
@@ -319,6 +321,7 @@ class Cfg:
             "sleep": SLEEP,
             "jitter": JITTER,
             "weight": WEIGHT,
+            "keypin": KEYPIN,
             "killdate": KILLDATE,
             "workhours": WORKHOURS,
             "|": SEPARATOR,
@@ -432,6 +435,20 @@ class Cfg:
     @staticmethod
     def wrap_b64():
         return Cfg.Const.as_single(Cfg.Const.B64)
+
+    @staticmethod
+    def key_pin(v):
+        if Utils.nes(v):
+            v = Utils.public_key_hash(v)
+        if not isinstance(v, int):
+            raise ValueError("key_pin: invalid hash")
+        s = Setting(5)
+        s[0] = Cfg.Const.KEYPIN
+        s[1] = (v >> 24) & 0xFF
+        s[2] = (v >> 16) & 0xFF
+        s[3] = (v >> 8) & 0xFF
+        s[4] = v & 0xFF
+        return s
 
     @staticmethod
     def wrap_zlib():
@@ -1114,6 +1131,25 @@ class Utils:
         return Config(b)
 
     @staticmethod
+    def public_key_hash(s):
+        if ":" not in s:
+            return int(s, 16)
+        if (len(s) + 1) % 3 != 0:
+            raise ValueError("public_key_hash: invalid padded key length")
+        v, h = s.split(":"), 2166136261
+        for i in v:
+            if len(i) != 2:
+                raise ValueError(f'public_key_hash: invalid key entry "{i}"')
+            x = int(i, 16)
+            h *= 16777619
+            h = h & 0xFFFFFFFF
+            h ^= x
+            h = h & 0xFFFFFFFF
+            del x
+        del v
+        return h
+
+    @staticmethod
     def _leading_fraction(s):
         i = 0
         x = 0
@@ -1315,6 +1351,14 @@ class Config(bytearray):
                     o = ""
                 else:
                     o = datetime.fromtimestamp(u).isoformat()
+            elif self[i] == Cfg.Const.KEYPIN:
+                u = (
+                    int(self[i + 4])
+                    | int(self[i + 3]) << 8
+                    | int(self[i + 2]) << 16
+                    | int(self[i + 1]) << 24
+                )
+                o = hex(u)[2:].upper()
             elif self[i] == Cfg.Const.WORKHOURS:
                 if i + 5 >= n:
                     raise ValueError("workhours: invalid setting")
@@ -1534,6 +1578,8 @@ class Config(bytearray):
             return i + 6
         if self[i] == Cfg.Const.SLEEP or self[i] == Cfg.Const.KILLDATE:
             return i + 9
+        if self[i] == Cfg.Const.KEYPIN:
+            return i + 5
         if self[i] == Cfg.Const.WC2:
             if i + 7 >= len(self):
                 return -1
@@ -1648,6 +1694,10 @@ class Config(bytearray):
             if not Utils.nes(p):
                 raise ValueError("killdate: invalid JSON value")
             return self.add(Cfg.killdate(p))
+        if m == Cfg.Const.KEYPIN:
+            if not Utils.nes(p):
+                raise ValueError("keypin: invalid JSON value")
+            return self.add(Cfg.key_pin(int(p, 16)))
         if m == Cfg.Const.WORKHOURS:
             if not isinstance(p, dict):
                 raise ValueError("workhours: invalid JSON value")
@@ -1886,6 +1936,15 @@ class _Builder(ArgumentParser):
         self.add_argument("--wh-days", type=str, dest="workhours_days")
         self.add_argument("--wh-start", type=str, dest="workhours_start")
         self.add_argument("--wh-end", type=str, dest="workhours_end")
+        self.add_argument(
+            "-P",
+            "--keypin",
+            nargs="+",
+            type=str,
+            dest="key_pin",
+            action="append",
+            default=None,
+        )
 
         c = self.add_mutually_exclusive_group(required=False)
         c.add_argument("--tcp", dest="tcp", action="store_true")
@@ -2029,6 +2088,14 @@ class _Builder(ArgumentParser):
                     args.workhours_days, args.workhours_start, args.workhours_end
                 )
             )
+        if args.key_pin and len(args.key_pin) > 0:
+            for i in args.key_pin:
+                if isinstance(i, str):
+                    config.add(Cfg.key_pin(i))
+                if not isinstance(i, list):
+                    continue
+                for x in i:
+                    config.add(Cfg.key_pin(x))
         if args.selector:
             if args.selector == "last":
                 config.add(Cfg.selector_last_valid())

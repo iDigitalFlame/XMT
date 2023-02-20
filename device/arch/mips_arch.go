@@ -1,4 +1,5 @@
 //go:build mips || mipsle || mips64 || mips64le
+// +build mips mipsle mips64 mips64le
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

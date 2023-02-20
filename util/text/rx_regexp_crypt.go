@@ -1,4 +1,5 @@
 //go:build regexp && crypt
+// +build regexp,crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

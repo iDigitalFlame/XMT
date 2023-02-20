@@ -1,4 +1,5 @@
 //go:build !implant
+// +build !implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -29,6 +30,7 @@ import (
 	"github.com/iDigitalFlame/xmt/c2/cfg"
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/com"
+	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
@@ -37,12 +39,13 @@ import (
 // Server is the manager for all C2 Listener and Sessions connection and states.
 // This struct also manages all events and connection changes.
 type Server struct {
+	Keys     data.KeyPair
 	New      func(*Session)
 	Oneshot  func(*com.Packet)
 	Shutdown func(*Session)
 
 	ch   chan struct{}
-	log  *cout.Log
+	log  cout.Log
 	ctx  context.Context
 	new  chan *Listener
 	lock sync.RWMutex
@@ -71,6 +74,17 @@ func (s *Server) listen() {
 	}
 	if cout.Enabled {
 		s.log.Info("Server-side event processing thread started!")
+	}
+	if s.Keys.Empty() {
+		if s.Keys.Fill(); cout.Enabled {
+			s.log.Info("Generating new server KeyPair..")
+		}
+	}
+	if cout.Enabled {
+		s.log.Trace("Server loaded keys! PublicKey: %s", s.Keys.Public)
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track("c2.(*Server).listen(): Server KeyPair loaded! PublicKey: %s", s.Keys.Public)
 	}
 	for {
 		select {

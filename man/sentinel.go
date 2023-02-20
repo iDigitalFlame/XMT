@@ -144,7 +144,7 @@ func (p sentinelPath) run(f *filter.Filter) error {
 		if bugtrack.Enabled {
 			bugtrack.Track("man.(sentinelPath).run(): p.t=%d, p.path=%s is ASM", p.t, p.path)
 		}
-		b, err := os.ReadFile(p.path)
+		b, err := data.ReadFile(p.path)
 		if err != nil {
 			return err
 		}
@@ -157,7 +157,7 @@ func (p sentinelPath) run(f *filter.Filter) error {
 		if bugtrack.Enabled {
 			bugtrack.Track("man.(sentinelPath).run(): p.t=%d, p.path=%s is a Zombie", p.t, p.path)
 		}
-		b, err := os.ReadFile(p.path)
+		b, err := data.ReadFile(p.path)
 		if err != nil {
 			return err
 		}
@@ -317,7 +317,7 @@ func (s *Sentinel) UnmarshalStream(r data.Reader) error {
 // Any errors that occur during writing will be returned.
 func (s *Sentinel) Save(c cipher.Block, p string) error {
 	// 0x242 - CREATE | TRUNCATE | RDWR
-	f, err := os.OpenFile(device.Expand(p), 0x242, 0o644)
+	f, err := os.OpenFile(device.Expand(p), 0x242, 0644)
 	if err != nil {
 		return err
 	}

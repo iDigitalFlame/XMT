@@ -19,59 +19,22 @@ package wc2
 import (
 	"context"
 	"crypto/tls"
-	"io"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
-	"reflect"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/com"
-	"github.com/iDigitalFlame/xmt/device"
-	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-var (
-	// NOTE(dij): This is fucking annoying.. why? The error is ALWAYS nil!
-	jar, _ = cookiejar.New(nil)
-
-	// Default is the default web c2 client that can be used to create client
-	// connections.
-	Default = &Client{Client: DefaultHTTP}
-
-	// DefaultHTTP is the HTTP Client struct that is used when the provided
-	// client is nil.
-	DefaultHTTP = &http.Client{Jar: jar, Transport: DefaultTransport}
-
-	// DefaultTransport is the default HTTP transport struct that contains the
-	// default settings and timeout values used in DefaultHTTP. This struct uses
-	// any set proxy settings contained in the execution environment.
-	DefaultTransport = &http.Transport{
-		Proxy:                 device.Proxy,
-		DialContext:           (&net.Dialer{Timeout: com.DefaultTimeout, KeepAlive: com.DefaultTimeout}).DialContext,
-		MaxIdleConns:          64,
-		IdleConnTimeout:       com.DefaultTimeout,
-		ForceAttemptHTTP2:     false,
-		TLSHandshakeTimeout:   com.DefaultTimeout,
-		ExpectContinueTimeout: com.DefaultTimeout,
-		ResponseHeaderTimeout: com.DefaultTimeout,
-		// Setting these values low to fix a bug where the HTTP Transport
-		// creates a BuffIO writer/reader pair with 4096 unused bytes. Why?!
-		ReadBufferSize:  1,
-		WriteBufferSize: 1,
-		// This setting allows us to override 'errCallerOwnsConn' in transport.go
-		// which allows for the 'writeLoopClosed' chan to be closed.
-		// Setting this to true, overrides the 'err' value and prevents keeping
-		// the 'persistConn` struct sticking around on the heap.
-		// Otherwise ^THIS CAUSES A _SLOW_ MEMORY LEAK!!!
-		//
-		// Is this a Golang bug? or intended behavior?
-		DisableKeepAlives: true,
-	}
-)
+// Default is the default web c2 client that can be used to create client
+// connections. This has the default configuration and may be used "out-of-the-box".
+var Default = new(Client)
 
 // Client is a simple struct that supports the C2 client connector interface.
 // This can be used by clients to connect to a Web instance.
@@ -81,16 +44,37 @@ var (
 // The initial unspecified Target state will be empty and will use the default
 // (Golang) values.
 type Client struct {
-	_      [0]func()
-	Target *Target
-	*http.Client
+	_       [0]func()
+	Target  Target
+	Timeout time.Duration
+
+	t transport
+	c *http.Client
 }
 type client struct {
 	_ [0]func()
 	r *http.Response
 	net.Conn
 }
+type transport struct {
+	next   net.Conn // Protected by Mutex
+	lock   sync.Mutex
+	search uint32
+	*http.Transport
+}
 
+func (c *Client) setup() {
+	if c.Timeout <= 0 {
+		c.Timeout = com.DefaultTimeout
+	}
+	var (
+		j, _ = cookiejar.New(nil)
+		t    = newTransport(c.Timeout)
+	)
+	c.t.hook(t)
+	c.t.Transport = t
+	c.c = &http.Client{Jar: j, Transport: t}
+}
 func (c *client) Close() error {
 	if c.r == nil {
 		return nil
@@ -101,17 +85,27 @@ func (c *client) Close() error {
 	return err
 }
 
+// Client returns the internal 'http.Client' struct to allow for extra configuration.
+// To prevent any issues, it is recommended to NOT overrite or change the Transport
+// of this Client.
+//
+// The return value will ALWAYS be non-nil.
+func (c *Client) Client() *http.Client {
+	if c.c == nil {
+		c.setup()
+	}
+	return c.c
+}
+
 // Insecure will set the TLS verification status of the Client to the specified
 // boolean value and return itself.
+//
+// The returned result is NOT a copy.
 func (c *Client) Insecure(i bool) *Client {
-	t, ok := c.Transport.(*http.Transport)
-	if !ok {
-		return c
-	}
-	if t.TLSClientConfig == nil {
-		t.TLSClientConfig = &tls.Config{InsecureSkipVerify: i}
+	if c.t.TLSClientConfig == nil {
+		c.t.TLSClientConfig = &tls.Config{InsecureSkipVerify: i}
 	} else {
-		t.TLSClientConfig.InsecureSkipVerify = i
+		c.t.TLSClientConfig.InsecureSkipVerify = i
 	}
 	return c
 }
@@ -143,81 +137,136 @@ func rawParse(r string) (*url.URL, error) {
 	return u, nil
 }
 
-// NewClient returns a new WC2 client instance with the supplied timeout and
-// Target options.
+// Transport returns the internal 'http.Transport' struct to allow for extra
+// configuration. To prevent any issues, it is recommended to NOT overrite or
+// change any of the 'Dial*' functions of this Transoport.
 //
-// If the duration is less than one or equals 'com.DefaultTimeout' than this
-// function will use the cached 'DefaultTransport' variable instead.
+// The return value will ALWAYS be non-nil.
+func (c *Client) Transport() *http.Transport {
+	if c.c == nil {
+		c.setup()
+	}
+	return c.t.Transport
+}
+
+// SetTLS will set the TLS configuration of the Client to the specified value
+// and returns itself.
+//
+// The returned result is NOT a copy.
+func (c *Client) SetTLS(t *tls.Config) *Client {
+	c.t.TLSClientConfig = t
+	return c
+}
+
+// NewClient creates a new WC2 Client with the supplied Timeout.
+//
+// This can be passed to the Connect function in the 'c2' package to connect to
+// a web server that acts as a C2 server.
 func NewClient(d time.Duration, t *Target) *Client {
-	j, _ := cookiejar.New(nil)
-	if d <= 0 || d == com.DefaultTimeout {
-		return &Client{Target: t, Client: &http.Client{Jar: j, Transport: DefaultTransport}}
+	return NewClientTLS(d, nil, t)
+}
+func (t *transport) dial(_, a string) (net.Conn, error) {
+	return t.dialContext(context.Background(), "", a)
+}
+func (t *transport) dialTLS(_, a string) (net.Conn, error) {
+	return t.dialTLSContext(context.Background(), "", a)
+}
+
+// NewClientTLS creates a new WC2 Client with the supplied Timeout and TLS
+// configuration.
+//
+// This can be passed to the Connect function in the 'c2' package to connect to
+// a web server that acts as a C2 server.
+func NewClientTLS(d time.Duration, c *tls.Config, t *Target) *Client {
+	x := &Client{Timeout: d}
+	if x.setup(); t != nil {
+		x.Target = *t
 	}
-	return &Client{
-		Target: t,
-		Client: &http.Client{
-			Jar: j,
-			Transport: &http.Transport{
-				Proxy:                 device.Proxy,
-				DialContext:           (&net.Dialer{Timeout: d, KeepAlive: d}).DialContext,
-				MaxIdleConns:          64,
-				IdleConnTimeout:       d,
-				ForceAttemptHTTP2:     false,
-				TLSHandshakeTimeout:   d,
-				ExpectContinueTimeout: d,
-				ResponseHeaderTimeout: d,
-				ReadBufferSize:        1,
-				WriteBufferSize:       1,
-				DisableKeepAlives:     true,
-			},
-		},
-	}
+	x.t.TLSClientConfig = c
+	return x
+}
+func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
+	return t.Transport.RoundTrip(r)
 }
 
 // Connect creates a C2 client connector that uses the same properties of the
 // Client and Target instance parents.
 func (c *Client) Connect(x context.Context, a string) (net.Conn, error) {
-	return connect(x, c.Target, c.Client, a)
+	if c.c == nil {
+		c.setup()
+	}
+	return c.t.connect(x, &c.Target, c.c, a)
 }
-func connect(x context.Context, t *Target, c *http.Client, a string) (net.Conn, error) {
-	// NOTE(dij): URL is empty we will parse it and mutate it with our Target.
+func (t *transport) request(h *http.Client, r *http.Request) (*client, error) {
+	t.lock.Lock()
+	atomic.StoreUint32(&t.search, 1)
+	var (
+		d, err = h.Do(r)
+		c      = t.next
+	)
+	t.next = nil
+	atomic.StoreUint32(&t.search, 0)
+	if t.lock.Unlock(); err != nil {
+		if c != nil { // A masked Conn may still exist.
+			c.Close()
+		}
+		return nil, err
+	}
+	if d.StatusCode != http.StatusSwitchingProtocols {
+		if d.Body.Close(); c != nil {
+			c.Close()
+		}
+		return nil, xerr.Sub("invalid HTTP response", 0x32)
+	}
+	if c == nil {
+		d.Body.Close()
+		return nil, xerr.Sub("could not get underlying net.Conn", 0x34)
+	}
+	return &client{r: d, Conn: c}, nil
+}
+func (t *transport) dialContext(x context.Context, _, a string) (net.Conn, error) {
+	c, err := com.TCP.Connect(x, a)
+	if err != nil {
+		return nil, err
+	}
+	if atomic.LoadUint32(&t.search) == 1 {
+		t.next = nil // Remove references.
+		t.next = c
+	}
+	// Only mask Conns returned to the Client
+	return maskConn(c), nil
+}
+func (t *transport) dialTLSContext(x context.Context, _, a string) (net.Conn, error) {
+	var (
+		c   net.Conn
+		err error
+	)
+	if t.TLSClientConfig != nil {
+		c, err = com.TLS.ConnectConfig(x, t.TLSClientConfig, a)
+	} else {
+		c, err = com.TLS.Connect(x, a)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if atomic.LoadUint32(&t.search) == 1 {
+		t.next = nil // Remove references.
+		t.next = c
+	}
+	// Only mask Conns returned to the Client
+	return maskConn(c), nil
+}
+func (t *transport) connect(x context.Context, m *Target, h *http.Client, a string) (net.Conn, error) {
+	// URL is empty we will parse it and mutate it with our Target.
 	u, err := rawParse(a)
 	if err != nil {
 		return nil, err
 	}
-	r, _ := http.NewRequestWithContext(x, http.MethodGet, "", nil)
-	if r.URL = u; t != nil && !t.empty() {
-		t.mutate(r)
+	r := newRequest(x)
+	if r.URL = u; m != nil && !m.empty() {
+		m.mutate(r)
 	}
-	d, err := c.Do(r)
-	if r = nil; err != nil {
-		return nil, err
-	}
-	if d.StatusCode != http.StatusSwitchingProtocols {
-		return nil, xerr.Sub("invalid HTTP response", 0x32)
-	}
-	if _, ok := d.Body.(io.ReadWriteCloser); !ok {
-		d.Body.Close()
-		return nil, xerr.Sub("body is not writable", 0x33)
-	}
-	// NOTE(dij): I really don't like using reflect, but it's the only
-	//            way to grab the 'net.Conn' inside the private struct that the http
-	//            library uses.
-	//            It's needed for 'SetDeadline*'.
-	if xb := reflect.ValueOf(d.Body); xb.IsValid() && xb.Kind() == reflect.Ptr {
-		if xe := xb.Elem(); xe.IsValid() && xe.Kind() == reflect.Struct {
-			for xi := 0; xi < xe.NumField(); xi++ {
-				if xv := xe.Field(xi); xv.IsValid() && !xv.IsZero() && xv.CanInterface() {
-					if x, ok := xv.Interface().(net.Conn); ok {
-						return &client{r: d, Conn: x}, nil
-					}
-				}
-			}
-		}
-	}
-	if bugtrack.Enabled {
-		bugtrack.Track("wc2.connect(): Struct type (%T) could not grab net.Conn!", d.Body)
-	}
-	d.Body.Close()
-	return nil, xerr.Sub("could not get underlying net.Conn", 0x34)
+	c, err := t.request(h, r)
+	r = nil
+	return c, err
 }

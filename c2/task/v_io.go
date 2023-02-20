@@ -1,4 +1,5 @@
 //go:build !implant
+// +build !implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -192,6 +193,9 @@ func Copy(src, dst string) *com.Packet {
 // The path may contain environment variables that will be resolved during
 // runtime.
 //
+// If the destination path is empty, the download results were be returned in the
+// results instead.
+//
 // C2 Details:
 //
 //	ID: TvPull
@@ -202,6 +206,7 @@ func Copy(src, dst string) *com.Packet {
 //	Output:
 //	    string // Expanded Destination Path
 //	    uint64 // Byte Count Written
+//	    []byte // Data
 func Pull(url, path string) *com.Packet {
 	return PullAgent(url, "", path)
 }
@@ -294,6 +299,9 @@ func Delete(s string, recurse bool) *com.Packet {
 // The path may contain environment variables that will be resolved during
 // runtime.
 //
+// If the destination path is empty, the download results were be returned in the
+// results instead.
+//
 // C2 Details:
 //
 //	ID: TvPull
@@ -305,6 +313,7 @@ func Delete(s string, recurse bool) *com.Packet {
 //	Output:
 //	    string // Expanded Destination Path
 //	    uint64 // Byte Count Written
+//	    []byte // Data
 func PullAgent(url, agent, path string) *com.Packet {
 	n := &com.Packet{ID: TvPull}
 	n.WriteString(url)
@@ -532,7 +541,7 @@ func Netcat(host string, proto uint8, t time.Duration, read bool, b []byte) *com
 	n.WriteString(host)
 	p := proto
 	if read {
-		p |= 128
+		p |= 0x80
 	}
 	n.WriteUint8(p)
 	n.WriteUint64(uint64(t))

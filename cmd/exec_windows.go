@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -36,9 +37,6 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-// modernGo is a backwards compatibility flag used to disable post-WinVista features.
-const modernGo = true
-
 // NOTE(dij): This needs to be a var as if it's a const 'UpdateProcThreadAttribute'
 // will throw an access violation.
 //
@@ -50,10 +48,10 @@ var envOnce struct {
 	r string
 	e []string
 }
-var secOnce struct {
+var verOnce struct {
 	_ [0]func()
 	sync.Once
-	e bool
+	e, a bool
 }
 
 type closer uintptr
@@ -82,16 +80,20 @@ func envOnceFunc() {
 		envOnce.r = sysRootVar
 	}
 }
-func secOnceFunc() {
+func verOnceFunc() {
 	if m, x, _ := winapi.GetVersionNumbers(); m > 6 {
-		secOnce.e = true
+		verOnce.e, verOnce.a = true, true
 	} else {
-		secOnce.e = m >= 6 && x >= 3
+		verOnce.e, verOnce.a = m >= 6 && x >= 3, m >= 6
 	}
 }
+func checkVersion() bool {
+	verOnce.Do(verOnceFunc)
+	return verOnce.a
+}
 func checkVersionSec() bool {
-	secOnce.Do(secOnceFunc)
-	return secOnce.e
+	verOnce.Do(verOnceFunc)
+	return verOnce.e
 }
 func (e *executable) close() {
 	if atomic.LoadUintptr(&e.i.Process) == 0 {
@@ -174,6 +176,19 @@ func (e *executable) Handle() uintptr {
 func (e *executable) SetToken(t uintptr) {
 	e.token = t
 }
+func writerCopy(w io.Writer, x *os.File) {
+	if bugtrack.Enabled {
+		defer bugtrack.Recover("cmd.writerCopy()")
+	}
+	io.Copy(w, x)
+}
+func readerCopy(y *os.File, r io.Reader) {
+	if bugtrack.Enabled {
+		defer bugtrack.Recover("cmd.readerCopy()")
+	}
+	io.Copy(y, r)
+	y.Close()
+}
 func (e *executable) SetFullscreen(f bool) {
 	// 0x20 - STARTF_RUNFULLSCREEN
 	if f {
@@ -181,6 +196,15 @@ func (e *executable) SetFullscreen(f bool) {
 	} else {
 		e.sf = e.sf &^ 0x20
 	}
+}
+func waitInner(w chan<- error, h, m uintptr) {
+	if atomic.LoadUintptr(&h) > 0 {
+		if bugtrack.Enabled {
+			defer bugtrack.Recover("cmd.waitInner()")
+		}
+		w <- wait(h, m)
+	}
+	close(w)
 }
 func (e *executable) SetWindowDisplay(m int) {
 	// 0x1 - STARTF_USESHOWWINDOW
@@ -252,7 +276,9 @@ func (*executable) SetNewConsole(c bool, p *Process) {
 	}
 }
 func (e *executable) kill(x uint32, p *Process) error {
-	p.exit = x
+	if p.exit = x; e.i.Process == 0 {
+		return p.err
+	}
 	return winapi.TerminateProcess(e.i.Process, x)
 }
 func createEnvBlock(env []string, split bool) []string {
@@ -291,15 +317,7 @@ func (e *executable) wait(x context.Context, p *Process) {
 		}
 		err = nil
 	}
-	go func() {
-		if atomic.LoadUintptr(&e.i.Process) > 0 {
-			if bugtrack.Enabled {
-				defer bugtrack.Recover("cmd.(*executable).wait():func1()")
-			}
-			w <- wait(e.i.Process, e.m)
-		}
-		close(w)
-	}()
+	go waitInner(w, e.i.Process, e.m)
 	select {
 	case err = <-w:
 	case <-x.Done():
@@ -316,7 +334,7 @@ func (e *executable) wait(x context.Context, p *Process) {
 		p.stopWith(exitStopped, err2)
 		return
 	}
-	if atomic.SwapUint32(&p.cookie, 2) == 2 || atomic.LoadUintptr(&e.i.Process) == 0 {
+	if atomic.SwapUint32(&p.cookie, atomic.LoadUint32(&p.cookie)|cookieStopped)&cookieStopped != 0 || atomic.LoadUintptr(&e.i.Process) == 0 {
 		p.stopWith(0, nil)
 		return
 	}
@@ -397,19 +415,12 @@ func (e *executable) readerToHandle(r io.Reader) (uintptr, bool, error) {
 	case fileFd:
 		return i.Fd(), false, nil
 	}
-	x, y, err := os.Pipe()
+	x, y, err := pipe()
 	if err != nil {
 		return 0, false, xerr.Wrap("cannot create Pipe", err)
 	}
 	e.closers = append(e.closers, x)
-	// e.closers = append(e.closers, y)
-	go func() {
-		if bugtrack.Enabled {
-			defer bugtrack.Recover("cmd.options.readerToHandle.func1()")
-		}
-		io.Copy(y, r)
-		y.Close()
-	}()
+	go readerCopy(y, r)
 	return x.Fd(), false, nil
 }
 func (e *executable) writerToHandle(w io.Writer) (uintptr, bool, error) {
@@ -440,18 +451,13 @@ func (e *executable) writerToHandle(w io.Writer) (uintptr, bool, error) {
 	case fileFd:
 		return i.Fd(), false, nil
 	}
-	x, y, err := os.Pipe()
+	x, y, err := pipe()
 	if err != nil {
 		return 0, false, xerr.Wrap("cannot create Pipe", err)
 	}
 	e.closers = append(e.closers, y)
 	e.closers = append(e.closers, x)
-	go func() {
-		if bugtrack.Enabled {
-			defer bugtrack.Recover("cmd.options.writerToHandle.func1()")
-		}
-		io.Copy(w, x)
-	}()
+	go writerCopy(w, x)
 	return y.Fd(), false, nil
 }
 func (e *executable) start(x context.Context, p *Process, sus bool) error {
@@ -506,7 +512,7 @@ func (e *executable) start(x context.Context, p *Process, sus bool) error {
 		}
 	}
 	u := e.token
-	if runtime.LockOSThread(); u == 0 && e.parent == 0 {
+	if runtime.LockOSThread(); u == 0 && e.parent == 0 && !winapi.IsWindowsXp() {
 		// NOTE(dij): Handle threads that currently have an impersonated Token
 		//            set. This will trigger this function call to use
 		//            'CreateProcessWithToken' instead of 'CreateProcess'.
@@ -598,7 +604,8 @@ func (e *executable) startInfo() (*winapi.StartupInfoEx, *winapi.StartupInfo, er
 			return nil, nil, xerr.Wrap("cannot convert title", err)
 		}
 	}
-	if x.StartupInfo.Cb = uint32(unsafe.Sizeof(x)); !modernGo {
+	// NOTE(dij): checkVersion(): Retruns false if the system is < Windows Vista
+	if x.StartupInfo.Cb = uint32(unsafe.Sizeof(x)); !checkVersion() {
 		return nil, &x.StartupInfo, nil
 	}
 	if e.filter != nil && !e.filter.Empty() {

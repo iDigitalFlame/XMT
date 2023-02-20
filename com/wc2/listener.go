@@ -16,7 +16,6 @@
 
 // Package wc2 contains a HTTP/Web based communication channel, which follows
 // the Golang 'net.Conn' interface and is very configurable.
-//
 package wc2
 
 import (

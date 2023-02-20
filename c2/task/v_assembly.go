@@ -1,4 +1,5 @@
 //go:build !implant
+// +build !implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -20,7 +21,6 @@ package task
 
 import (
 	"io"
-	"os"
 
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
@@ -55,12 +55,12 @@ import (
 //	    uint64              // Handle
 //	    uint32              // PID
 //	    int32               // Exit Code
-func AssemblyFile(s string) (*Assembly, error) {
-	b, err := os.ReadFile(s)
+func AssemblyFile(s string) (Assembly, error) {
+	b, err := data.ReadFile(s)
 	if err != nil {
-		return nil, err
+		return Assembly{}, err
 	}
-	return &Assembly{Data: b}, nil
+	return Assembly{Data: b}, nil
 }
 
 // Packet will take the configured Assembly options and will return a Packet
@@ -126,12 +126,12 @@ func (a Assembly) Packet() (*com.Packet, error) {
 //	    uint64              // Handle
 //	    uint32              // PID
 //	    int32               // Exit Code
-func AssemblyReader(r io.Reader) (*Assembly, error) {
-	b, err := io.ReadAll(r)
+func AssemblyReader(r io.Reader) (Assembly, error) {
+	b, err := data.ReadAll(r)
 	if err != nil {
-		return nil, err
+		return Assembly{}, err
 	}
-	return &Assembly{Data: b}, nil
+	return Assembly{Data: b}, nil
 }
 
 // MarshalStream writes the data for this Code thread to the supplied Writer.

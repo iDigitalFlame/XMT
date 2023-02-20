@@ -1,4 +1,5 @@
 //go:build implant
+// +build implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -18,5 +19,4 @@
 
 // Package result contains many helper functions to gather matching output
 // from Job result packets.
-//
 package result

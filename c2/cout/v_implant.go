@@ -1,4 +1,5 @@
 //go:build implant
+// +build implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -19,7 +20,6 @@
 // Package cout is a simple log handling solution for the c2 package.
 // This is used internally to create loggers and to disable logging if needed,
 // such as the "client" built tag being used.
-//
 package cout
 
 import "github.com/PurpleSec/logx"
@@ -29,13 +29,13 @@ import "github.com/PurpleSec/logx"
 // purposes
 const Enabled = false
 
-var log = new(Log)
+var log Log
 
 // Log is an interface for any type of struct that supports standard Logging functions.
 type Log struct{}
 
 // New creates a Log instance from a logx Logger.
-func New(logx.Log) *Log {
+func New(_ logx.Log) Log {
 	return log
 }
 
@@ -47,28 +47,28 @@ func (Log) Set(_ logx.Log) {}
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.
-func (Log) Info(_ string, _ ...any) {}
+func (Log) Info(_ string, _ ...interface{}) {}
 
 // Error writes an error message to the logger.
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.
-func (Log) Error(_ string, _ ...any) {}
+func (Log) Error(_ string, _ ...interface{}) {}
 
 // Trace writes a tracing message to the logger.
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.
-func (Log) Trace(_ string, _ ...any) {}
+func (Log) Trace(_ string, _ ...interface{}) {}
 
 // Debug writes a debugging message to the logger.
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.
-func (Log) Debug(_ string, _ ...any) {}
+func (Log) Debug(_ string, _ ...interface{}) {}
 
 // Warning writes a warning message to the logger.
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.
-func (Log) Warning(_ string, _ ...any) {}
+func (Log) Warning(_ string, _ ...interface{}) {}

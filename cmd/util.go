@@ -17,9 +17,8 @@
 package cmd
 
 import (
-	"strconv"
-
 	"github.com/iDigitalFlame/xmt/cmd/filter"
+	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -93,5 +92,5 @@ func Split(v string) []string {
 // Error fulfills the error interface and returns a formatted string that
 // specifies the Process Exit Code.
 func (e ExitError) Error() string {
-	return "exit " + strconv.Itoa(int(e.Exit))
+	return "exit " + util.Itoa(int64(e.Exit))
 }

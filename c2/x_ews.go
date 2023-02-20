@@ -1,4 +1,5 @@
 //go:build ews && implant
+// +build ews,implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -26,7 +27,7 @@ import (
 )
 
 type header struct {
-	Data uintptr
+	Data unsafe.Pointer
 	Len  int
 	Cap  int
 }

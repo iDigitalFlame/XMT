@@ -1,4 +1,5 @@
 //go:build !windows && !js
+// +build !windows,!js
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

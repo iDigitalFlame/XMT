@@ -1,4 +1,5 @@
 //go:build windows && svcdll
+// +build windows,svcdll
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

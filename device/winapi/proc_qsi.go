@@ -1,4 +1,5 @@
 //go:build windows && !snap
+// +build windows,!snap
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -19,7 +20,6 @@
 package winapi
 
 import (
-	"syscall"
 	"unsafe"
 )
 
@@ -39,17 +39,17 @@ type procInfo struct {
 	InheritedFromUniqueProcessID uintptr
 	_                            uint32
 	SessionID                    uint32
-	_                            [148]byte
+	_                            [(ptrSize * 13) + 48]byte
 }
 type threadInfo struct {
 	// DO NOT REORDER
-	_, _, _      int64
-	_            int32
+	_            [28]byte
 	StartAddress uintptr
 	ClientID     clientID
-	_, _, _      uint32
+	_            [12]byte
 	ThreadState  uint32
 	WaitReason   uint32
+	_            uint32
 }
 
 // EnumProcesses attempts to reterive the list of currently running Processes
@@ -68,14 +68,14 @@ type threadInfo struct {
 func EnumProcesses(f func(ProcessEntry) error) error {
 	var (
 		s       uint64
-		r, _, _ = syscall.SyscallN(funcNtQuerySystemInformation.address(), 0x5, 0, 0, uintptr(unsafe.Pointer(&s)))
+		r, _, _ = syscallN(funcNtQuerySystemInformation.address(), 0x5, 0, 0, uintptr(unsafe.Pointer(&s)))
 	)
 	if s == 0 {
 		return formatNtError(r)
 	}
 	// NOTE(dij): Doubling this to ensure we get the correct amount.
 	b := make([]byte, s*2)
-	if r, _, _ = syscall.SyscallN(funcNtQuerySystemInformation.address(), 0x5, uintptr(unsafe.Pointer(&b[0])), uintptr(s), uintptr(unsafe.Pointer(&s))); r > 0 {
+	if r, _, _ = syscallN(funcNtQuerySystemInformation.address(), 0x5, uintptr(unsafe.Pointer(&b[0])), uintptr(s), uintptr(unsafe.Pointer(&s))); r > 0 {
 		return formatNtError(r)
 	}
 	var err error
@@ -121,14 +121,14 @@ func EnumProcesses(f func(ProcessEntry) error) error {
 func EnumThreads(pid uint32, f func(ThreadEntry) error) error {
 	var (
 		s       uint64
-		r, _, _ = syscall.SyscallN(funcNtQuerySystemInformation.address(), 0x5, 0, 0, uintptr(unsafe.Pointer(&s)))
+		r, _, _ = syscallN(funcNtQuerySystemInformation.address(), 0x5, 0, 0, uintptr(unsafe.Pointer(&s)))
 	)
 	if s == 0 {
 		return formatNtError(r)
 	}
 	// NOTE(dij): Doubling this to ensure we get the correct amount.
 	b := make([]byte, s*2)
-	if r, _, _ = syscall.SyscallN(funcNtQuerySystemInformation.address(), 0x5, uintptr(unsafe.Pointer(&b[0])), uintptr(s), uintptr(unsafe.Pointer(&s))); r > 0 {
+	if r, _, _ = syscallN(funcNtQuerySystemInformation.address(), 0x5, uintptr(unsafe.Pointer(&b[0])), uintptr(s), uintptr(unsafe.Pointer(&s))); r > 0 {
 		return formatNtError(r)
 	}
 	var err error

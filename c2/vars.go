@@ -43,7 +43,7 @@ const (
 	RvResult uint8 = 0x14
 
 	fragMax     = 0xFFFF
-	readTimeout = time.Millisecond * 250
+	readTimeout = time.Millisecond * 350
 )
 
 // ID entries that start with 'Sv*' will be handed directly by the underlying
@@ -69,7 +69,7 @@ var (
 	empty time.Time
 
 	buffers = sync.Pool{
-		New: func() any {
+		New: func() interface{} {
 			return new(data.Chunk)
 		},
 	}
@@ -119,6 +119,12 @@ func receiveSingle(s *Session, n *com.Packet) {
 		)
 	}
 	switch n.ID {
+	case SvComplete:
+		if !n.Empty() && n.Flags&com.FlagCrypt != 0 {
+			s.keySessionSync(n)
+			n.Clear()
+			return
+		}
 	case SvResync:
 		if !s.hasJob(n.Job) {
 			if cout.Enabled {
@@ -176,15 +182,7 @@ func receiveSingle(s *Session, n *com.Packet) {
 		}
 		v := &com.Packet{ID: SvHello, Job: uint16(util.FastRand()), Device: s.ID}
 		s.writeDeviceInfo(infoHello, v)
-		for i := range s.key {
-			s.key[i] = 0
-		}
-		if s.generateSessionKey(v); cout.Enabled {
-			s.log.Debug("[%s] Generated KeyCrypt key set!", s.ID)
-		}
-		if bugtrack.Enabled {
-			bugtrack.Track("c2.receiveSingle(): %s KeyCrypt details %v.", s.ID, s.key)
-		}
+		s.keySessionGenerate(v)
 		if s.queue(v); len(s.send) <= 1 {
 			s.Wake()
 		}
@@ -223,7 +221,7 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 		if s.proxy != nil && s.proxy.IsActive() && s.proxy.accept(n) {
 			return nil
 		}
-		if xerr.ExtendedInfo {
+		if n.Clear(); xerr.ExtendedInfo {
 			return xerr.Sub(`received Packet for "`+n.Device.String()+`" that does not match our own device ID "`+s.ID.String()+`"`, 0x57)
 		}
 		return xerr.Sub("received Packet that does not match our own device ID", 0x57)
@@ -232,7 +230,8 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 		l.oneshot(n)
 		return nil
 	}
-	if s == nil || n.ID == SvComplete {
+	if s == nil || (n.ID == SvComplete && n.Flags&com.FlagCrypt == 0) {
+		n.Clear()
 		return nil
 	}
 	switch {
@@ -242,15 +241,16 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 			return ErrInvalidPacketCount
 		}
 		for ; x > 0; x-- {
-			v := new(com.Packet)
+			var v com.Packet
 			if err := v.UnmarshalStream(n); err != nil {
 				n.Clear()
+				v.Clear()
 				return err
 			}
 			if cout.Enabled {
 				s.log.Trace(`[%s] Unpacked Packet "%s"..`, s.ID, v)
 			}
-			if err := receive(s, l, v); err != nil {
+			if err := receive(s, l, &v); err != nil {
 				n.Clear()
 				v.Clear()
 				return err
@@ -264,11 +264,13 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 				s.log.Warning("[%s] Indicated to clear Frag Group 0x%X!", s.ID, n.Flags.Group())
 			}
 			if s.state.SetLast(n.Flags.Group()); n.ID != SvRegister {
+				n.Clear()
 				return nil
 			}
 			break
 		}
 		if n.Flags.Len() == 0 {
+			n.Clear()
 			return ErrInvalidPacketCount
 		}
 		if n.Flags.Len() == 1 {
@@ -533,12 +535,12 @@ func nextPacket(a notifier, q <-chan *com.Packet, n *com.Packet, i device.ID, t 
 	// I don't think there's a super good way to do this, as we clear most of the
 	// data during write. IE: we have >1 NOPs and just a single data Packet.
 	if o.Flags.Len() == 1 && o.Flags&com.FlagMultiDevice == 0 && o.ID == 0 {
-		v := new(com.Packet)
+		var v com.Packet
 		v.UnmarshalStream(o)
 		o.Clear()
 		// Remove reference
 		o = nil
-		o = v
+		o = &v
 	}
 	return o, k
 }

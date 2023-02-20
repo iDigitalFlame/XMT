@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -58,6 +59,7 @@ func (d *DLL) Start() error {
 	if err := d.t.Start(0, d.Timeout, winapi.LoadLibraryAddress(), b); err != nil {
 		return err
 	}
+	b = nil
 	go d.t.wait(0, 0)
 	return nil
 }

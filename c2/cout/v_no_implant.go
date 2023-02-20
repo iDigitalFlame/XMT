@@ -1,4 +1,5 @@
 //go:build !implant
+// +build !implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -19,7 +20,6 @@
 // Package cout is a simple log handling solution for the c2 package.
 // This is used internally to create loggers and to disable logging if needed,
 // such as the "client" built tag being used.
-//
 package cout
 
 import "github.com/PurpleSec/logx"
@@ -39,8 +39,8 @@ type Log struct {
 }
 
 // New creates a Log instance from a logx Logger.
-func New(l logx.Log) *Log {
-	return &Log{Log: l}
+func New(l logx.Log) Log {
+	return Log{Log: l}
 }
 
 // Set updates the internal logger. This function is a NOP if the logger is nil
@@ -56,8 +56,8 @@ func (l *Log) Set(v logx.Log) {
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.
-func (l *Log) Info(s string, v ...any) {
-	if l == nil || l.Log == nil {
+func (l Log) Info(s string, v ...interface{}) {
+	if l.Log == nil {
 		return
 	}
 	l.Log.Info(s, v...)
@@ -67,8 +67,8 @@ func (l *Log) Info(s string, v ...any) {
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.
-func (l *Log) Error(s string, v ...any) {
-	if l == nil || l.Log == nil {
+func (l Log) Error(s string, v ...interface{}) {
+	if l.Log == nil {
 		return
 	}
 	l.Log.Error(s, v...)
@@ -78,8 +78,8 @@ func (l *Log) Error(s string, v ...any) {
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.
-func (l *Log) Trace(s string, v ...any) {
-	if l == nil || l.Log == nil {
+func (l Log) Trace(s string, v ...interface{}) {
+	if l.Log == nil {
 		return
 	}
 	l.Log.Trace(s, v...)
@@ -89,8 +89,8 @@ func (l *Log) Trace(s string, v ...any) {
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.
-func (l *Log) Debug(s string, v ...any) {
-	if l == nil || l.Log == nil {
+func (l Log) Debug(s string, v ...interface{}) {
+	if l.Log == nil {
 		return
 	}
 	l.Log.Debug(s, v...)
@@ -100,8 +100,8 @@ func (l *Log) Debug(s string, v ...any) {
 // The function arguments are similar to fmt.Sprintf and fmt.Printf. The first argument is
 // a string that can contain formatting characters. The second argument is a vardict of
 // interfaces that can be omitted or used in the supplied format string.
-func (l *Log) Warning(s string, v ...any) {
-	if l == nil || l.Log == nil {
+func (l Log) Warning(s string, v ...interface{}) {
+	if l.Log == nil {
 		return
 	}
 	l.Log.Warning(s, v...)

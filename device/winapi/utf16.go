@@ -133,8 +133,8 @@ func UTF16PtrToString(p *uint16) string {
 		return ""
 	}
 	n := 0
-	for ptr := unsafe.Pointer(p); *(*uint16)(ptr) != 0; n++ {
-		ptr = unsafe.Pointer(uintptr(ptr) + unsafe.Sizeof(*p))
+	for v := unsafe.Pointer(p); *(*uint16)(v) != 0; n++ {
+		v = unsafe.Pointer(uintptr(v) + unsafe.Sizeof(*p))
 	}
 	var s []uint16
 	h := (*SliceHeader)(unsafe.Pointer(&s))

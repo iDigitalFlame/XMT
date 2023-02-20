@@ -1,4 +1,5 @@
 //go:build js && crypt
+// +build js,crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

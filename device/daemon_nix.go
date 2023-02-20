@@ -1,4 +1,5 @@
 //go:build !windows || noservice
+// +build !windows noservice
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

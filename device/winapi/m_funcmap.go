@@ -1,4 +1,5 @@
 //go:build windows && funcmap
+// +build windows,funcmap
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -19,7 +20,7 @@
 package winapi
 
 import (
-	"io/fs"
+	"os"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -79,7 +80,7 @@ func FuncUnmapAll() error {
 // to behave normally.
 func FuncUnmap(f string) error {
 	if len(f) == 0 {
-		return fs.ErrNotExist
+		return os.ErrNotExist
 	}
 	return FuncUnmapHash(FnvHash(f))
 }
@@ -126,12 +127,12 @@ func FuncRemapList() []FuncEntry {
 // to behave normally.
 func FuncUnmapHash(h uint32) error {
 	if h == 0 {
-		return fs.ErrNotExist
+		return os.ErrNotExist
 	}
 	funcLock.Lock()
 	v, ok := funcMapper[h]
 	if funcLock.Unlock(); !ok {
-		return fs.ErrNotExist
+		return os.ErrNotExist
 	}
 	return v.unmap()
 }
@@ -151,7 +152,7 @@ func FuncUnmapHash(h uint32) error {
 // buildtime, otherwise these functions return EINVAL.
 func FuncRemap(f string, b []byte) error {
 	if len(f) == 0 {
-		return fs.ErrNotExist
+		return os.ErrNotExist
 	}
 	return FuncRemapHash(FnvHash(f), b)
 }
@@ -171,7 +172,7 @@ func FuncRemap(f string, b []byte) error {
 // buildtime, otherwise these functions return EINVAL.
 func FuncRemapHash(h uint32, b []byte) error {
 	if h == 0 {
-		return fs.ErrNotExist
+		return os.ErrNotExist
 	}
 	if len(b) == 0 {
 		return syscall.EINVAL
@@ -179,7 +180,7 @@ func FuncRemapHash(h uint32, b []byte) error {
 	funcLock.Lock()
 	v, ok := funcMapper[h]
 	if funcLock.Unlock(); !ok {
-		return fs.ErrNotExist
+		return os.ErrNotExist
 	}
 	if err := v.proc.find(); err != nil {
 		return err

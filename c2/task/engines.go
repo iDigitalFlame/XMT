@@ -1,4 +1,5 @@
-//go:build scripts
+//go:build scripts && go1.18
+// +build scripts,go1.18
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

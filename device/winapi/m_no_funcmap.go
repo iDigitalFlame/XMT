@@ -1,4 +1,5 @@
 //go:build windows && !funcmap
+// +build windows,!funcmap
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

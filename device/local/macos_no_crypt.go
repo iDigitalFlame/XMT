@@ -1,4 +1,6 @@
 //go:build (darwin || ios) && !crypt
+// +build darwin ios
+// +build !crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -21,6 +23,8 @@ package local
 import (
 	"os/exec"
 	"strings"
+
+	"github.com/iDigitalFlame/xmt/device/unix"
 )
 
 func sysID() []byte {
@@ -69,7 +73,7 @@ func version() string {
 		v = m["PRODUCTVERSION"]
 	}
 	if len(v) == 0 {
-		v = uname()
+		v = unix.Release()
 	}
 	switch {
 	case len(n) == 0 && len(b) == 0 && len(v) == 0:

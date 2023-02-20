@@ -1,4 +1,5 @@
 //go:build plan9 && crypt
+// +build plan9,crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -19,13 +20,12 @@
 package local
 
 import (
-	"os"
-
+	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/util/crypt"
 )
 
 func sysID() []byte {
-	if b, err := os.ReadFile(crypt.Get(72)); err == nil { // /etc/hostid
+	if b, err := data.ReadFile(crypt.Get(72)); err == nil { // /etc/hostid
 		return b
 	}
 	o, _ := output(crypt.Get(73)) // kenv -q smbios.system.uuid

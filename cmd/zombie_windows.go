@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -22,6 +23,14 @@ import (
 	"context"
 	"sync/atomic"
 )
+
+func (z *Zombie) wait() {
+	z.t.callback = z.callback
+	z.t.wait(z.x.i.ProcessID, z.x.i.ThreadID)
+}
+func (z *Zombie) callback() {
+	z.stopWith(z.t.exit, z.t.err)
+}
 
 // Start will attempt to start the Zombie and will return an errors that occur
 // while starting the Process.
@@ -49,9 +58,6 @@ func (z *Zombie) Start() error {
 	if err := z.t.Start(z.x.i.Process, z.Timeout, 0, z.Data); err != nil {
 		return z.stopWith(exitStopped, z.t.stopWith(exitStopped, err))
 	}
-	go func() {
-		z.t.callback = func() { z.stopWith(z.t.exit, z.t.err) }
-		z.t.wait(z.x.i.ProcessID, z.x.i.ThreadID)
-	}()
+	go z.wait()
 	return nil
 }

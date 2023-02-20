@@ -1,4 +1,5 @@
 //go:build crypt
+// +build crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -21,7 +22,6 @@
 //
 // This package should only be used with the "crypt" tag, which is auto compiled
 // during build.
-//
 package crypt
 
 import (

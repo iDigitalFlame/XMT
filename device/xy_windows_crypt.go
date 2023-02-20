@@ -1,4 +1,5 @@
 //go:build windows && crypt
+// +build windows,crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -32,7 +33,7 @@ var (
 	// underlying OS type.
 	PowerShell = crypt.Get(43) // powershell.exe
 	home       = crypt.Get(44) // %USERPROFILE%
-	debugDlls  = crypt.Get(45) // hal.dll\nwmi.dll\nwpx.dll\nwdc.dll\nzipfldr.dll
+	debugDlls  = crypt.Get(45) // hal.dll\nwmi.dll\nwpx.dll\nwdc.dll\nzipfldr.dll\ninput.dll\nspp.dll
 
 )
 

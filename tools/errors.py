@@ -164,6 +164,12 @@ add(0x70, "invalid StartHour value", "c2")
 add(0x71, "invalid StartMin value", "c2")
 add(0x72, "invalid EndHour value", "c2")
 add(0x73, "invalid EndMin value", "c2")
+add(0x74, "invalid hex string length", "data")
+add(0x75, "invalid non-colon character", "data")
+add(0x76, "invalid non-hex byte", "data")
+add(0x77, "cannot parse curve PublicKey", "data")
+add(0x78, "cannot multiply PrivateKey with PublicKey", "data")
+add(0x79, "non-trusted server PublicKey", "c2")
 
 
 if __name__ == "__main__":

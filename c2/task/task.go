@@ -47,6 +47,7 @@ const (
 	MvMounts     uint8 = 0x10
 	MvProcList   uint8 = 0x11 // MvRevSelf uint8 = 0x11
 	MvProfile    uint8 = 0x12
+	MvWhoami     uint8 = 0x13
 	MvScript     uint8 = 0xF0
 
 	// Built in Task Message ID Values

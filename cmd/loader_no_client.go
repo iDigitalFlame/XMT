@@ -1,4 +1,5 @@
 //go:build !implant || loader
+// +build !implant loader
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -336,7 +337,7 @@ func rot(v, r, m uint32) uint32 {
 // DLLToASM will patch the DLL raw bytes and convert it into shellcode using
 // the SRDi launcher.
 //
-//   SRDi GitHub: https://github.com/monoxgas/sRDI
+//	SRDi GitHub: https://github.com/monoxgas/sRDI
 //
 // The first string param is the function name which can be empty if not needed.
 //

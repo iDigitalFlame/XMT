@@ -1,4 +1,5 @@
 //go:build nokeyset
+// +build nokeyset
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -20,11 +21,14 @@ package c2
 
 import "github.com/iDigitalFlame/xmt/com"
 
-func (s *Session) keyCheck()  {}
-func (s *Session) keyRevert() {}
-func (s *Session) doNextKeySwap() bool {
-	return false
+func (*Session) keyCheckRevert() {
 }
-func (s *Session) generateSessionKey(n *com.Packet) {
-	n.Write(s.key[:])
+func (*Session) keyCheckSync() error {
+}
+func (*Session) keyNextSync() *com.Packet {
+}
+func (*Session) keySessionGenerate(_ *com.Packet) {
+}
+func (*Session) keySessionSync(_ *com.Packet) error {
+	return nil
 }

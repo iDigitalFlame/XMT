@@ -21,6 +21,7 @@ import (
 	"os"
 
 	"github.com/iDigitalFlame/xmt/data"
+	"github.com/iDigitalFlame/xmt/util"
 )
 
 const (
@@ -30,8 +31,6 @@ const (
 	// MachineIDSize is the amount of bytes that is used as the Host
 	// specific ID value that does not change when on the same host.
 	MachineIDSize = 28
-
-	table = "0123456789ABCDEF"
 )
 
 // ID is an alias for a byte array that represents a 32 byte client
@@ -90,7 +89,7 @@ func (i ID) Signature() string {
 
 // Load will attempt to load the Session UUID from the specified file. This
 // function will return an error if the file cannot be read or not found.
-func (i ID) Load(s string) error {
+func (i *ID) Load(s string) error {
 	// 0 - READONLY
 	r, err := os.OpenFile(s, 0, 0)
 	if err != nil {
@@ -107,7 +106,7 @@ func (i ID) Load(s string) error {
 // function will return an error if the file cannot be written to or created.
 func (i ID) Save(s string) error {
 	// 0x242 - CREATE | TRUNCATE | RDWR
-	w, err := os.OpenFile(s, 0x242, 0o644)
+	w, err := os.OpenFile(s, 0x242, 0644)
 	if err != nil {
 		return err
 	}
@@ -146,8 +145,8 @@ func (i ID) string(start, end int) string {
 		n int
 	)
 	for x := start; x < end; x++ {
-		b[n] = table[i[x]>>4]
-		b[n+1] = table[i[x]&0x0F]
+		b[n] = util.HexTable[i[x]>>4]
+		b[n+1] = util.HexTable[i[x]&0x0F]
 		n += 2
 	}
 	return string(b[:n])

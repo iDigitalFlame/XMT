@@ -22,6 +22,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -76,6 +77,8 @@ type Static struct {
 	S time.Duration
 	// J is the Jitter percentage
 	J int8
+	// P is the valid Server PublicKeys that can be used as FNV-32 hashes
+	P []uint32
 }
 
 // Profile is an interface that defines a C2 connection.
@@ -85,9 +88,10 @@ type Static struct {
 type Profile interface {
 	Jitter() int8
 	Switch(bool) bool
-	KillDate() *time.Time
 	Sleep() time.Duration
 	WorkHours() *WorkHours
+	KillDate() (time.Time, bool)
+	TrustedKey(data.PublicKey) bool
 	Next() (string, Wrapper, Transform)
 	Connect(context.Context, string) (net.Conn, error)
 	Listen(context.Context, string) (net.Listener, error)
@@ -175,13 +179,6 @@ func (s *stackCloser) Close() error {
 	return s.s.Close()
 }
 
-// KillDate fulfils the Profile interface. A valid or empty time.Time value will
-// indicate that this Profile has a KillDate set. Nil values indicate that no
-// KilDate is specified in this Profile.
-func (s Static) KillDate() *time.Time {
-	return s.K
-}
-
 // Sleep returns a value that indicates the amount of time a Session should wait
 // before attempting communication again, modified by Jitter (if enabled).
 //
@@ -200,6 +197,39 @@ func (s Static) Sleep() time.Duration {
 // in this Profile.
 func (s Static) WorkHours() *WorkHours {
 	return s.A
+}
+
+// KillDate fulfils the Profile interface.
+//
+// A valid or empty time.Time value along with a True will indicate that this
+// Profile has a KillDate set. If the boolean is false, this indicates that no
+// KilDate is specified in this Profile and the 'time.Time' will be ignored.
+func (s Static) KillDate() (time.Time, bool) {
+	if s.K == nil {
+		return time.Time{}, false
+	}
+	return *s.K, true
+}
+
+// TrustedKey returns true if the supplied Server PublicKey is trusted.
+// Empty PublicKeys will always return false.
+//
+// This function returns true if no trusted PublicKey hashes are configured or
+// the hash was found.
+func (s Static) TrustedKey(k data.PublicKey) bool {
+	if k.Empty() {
+		return false
+	}
+	if len(s.P) == 0 {
+		return true
+	}
+	h := k.Hash()
+	for i := range s.P {
+		if s.P[i] == h {
+			return true
+		}
+	}
+	return false
 }
 
 // Next is a function call that can be used to grab the Profile's current target

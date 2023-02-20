@@ -50,87 +50,87 @@ func (s *state) Tag() bool {
 	s.Unset(stateSeen)
 	return true
 }
-func (s state) Seen() bool {
-	return atomic.LoadUint32((*uint32)(&s))&stateSeen != 0
+func (s *state) Seen() bool {
+	return atomic.LoadUint32((*uint32)(s))&stateSeen != 0
 }
-func (s state) Ready() bool {
+func (s *state) Ready() bool {
 	if s.Closed() {
 		return false
 	}
-	return atomic.LoadUint32((*uint32)(&s))&stateReady != 0
+	return atomic.LoadUint32((*uint32)(s))&stateReady != 0
 }
-func (s state) Last() uint16 {
-	return uint16(atomic.LoadUint32((*uint32)(&s)) >> 16)
+func (s *state) Last() uint16 {
+	return uint16(atomic.LoadUint32((*uint32)(s)) >> 16)
 }
-func (s state) Moving() bool {
-	return atomic.LoadUint32((*uint32)(&s))&stateMoving != 0
+func (s *state) Moving() bool {
+	return atomic.LoadUint32((*uint32)(s))&stateMoving != 0
 }
-func (s state) Closed() bool {
-	return atomic.LoadUint32((*uint32)(&s))&stateClosed != 0
+func (s *state) Closed() bool {
+	return atomic.LoadUint32((*uint32)(s))&stateClosed != 0
 }
 func (s *state) Set(v uint32) {
 	atomic.StoreUint32((*uint32)(s), atomic.LoadUint32((*uint32)(s))|v)
 }
-func (s state) CanRecv() bool {
+func (s *state) CanRecv() bool {
 	if s.Closed() || s.RecvClosed() {
 		return false
 	}
-	return atomic.LoadUint32((*uint32)(&s))&stateCanRecv != 0
+	return atomic.LoadUint32((*uint32)(s))&stateCanRecv != 0
 }
-func (s state) Closing() bool {
+func (s *state) Closing() bool {
 	if s.Closed() {
 		return true
 	}
-	return atomic.LoadUint32((*uint32)(&s))&stateClosing != 0
+	return atomic.LoadUint32((*uint32)(s))&stateClosing != 0
 }
-func (s state) Channel() bool {
-	return atomic.LoadUint32((*uint32)(&s))&stateChannel != 0
+func (s *state) Channel() bool {
+	return atomic.LoadUint32((*uint32)(s))&stateChannel != 0
 }
-func (s state) Shutdown() bool {
+func (s *state) Shutdown() bool {
 	if s.Closed() {
 		return true
 	}
-	return atomic.LoadUint32((*uint32)(&s))&stateShutdown != 0
-}
-func (s state) Replacing() bool {
-	return atomic.LoadUint32((*uint32)(&s))&stateReplacing != 0
+	return atomic.LoadUint32((*uint32)(s))&stateShutdown != 0
 }
 func (s *state) Unset(v uint32) {
 	d := atomic.LoadUint32((*uint32)(s)) &^ v
 	atomic.StoreUint32((*uint32)(s), d)
 }
-func (s state) RecvClosed() bool {
-	if s.Closed() {
-		return true
-	}
-	return atomic.LoadUint32((*uint32)(&s))&stateRecvClose != 0
+func (s *state) Replacing() bool {
+	return atomic.LoadUint32((*uint32)(s))&stateReplacing != 0
 }
-func (s state) SendClosed() bool {
+func (s *state) RecvClosed() bool {
 	if s.Closed() {
 		return true
 	}
-	return atomic.LoadUint32((*uint32)(&s))&stateSendClose != 0
+	return atomic.LoadUint32((*uint32)(s))&stateRecvClose != 0
 }
-func (s state) WakeClosed() bool {
+func (s *state) SendClosed() bool {
 	if s.Closed() {
 		return true
 	}
-	return atomic.LoadUint32((*uint32)(&s))&stateWakeClose != 0
+	return atomic.LoadUint32((*uint32)(s))&stateSendClose != 0
+}
+func (s *state) WakeClosed() bool {
+	if s.Closed() {
+		return true
+	}
+	return atomic.LoadUint32((*uint32)(s))&stateWakeClose != 0
 }
 func (s *state) SetLast(v uint16) {
 	atomic.StoreUint32((*uint32)(s), (uint32(v)<<16)|uint32(uint16(atomic.LoadUint32((*uint32)(s)))))
 }
-func (s state) ShutdownWait() bool {
-	return atomic.LoadUint32((*uint32)(&s))&stateShutdownWait != 0
+func (s *state) ShutdownWait() bool {
+	return atomic.LoadUint32((*uint32)(s))&stateShutdownWait != 0
 }
-func (s state) ChannelValue() bool {
-	return atomic.LoadUint32((*uint32)(&s))&stateChannelValue != 0
+func (s *state) ChannelValue() bool {
+	return atomic.LoadUint32((*uint32)(s))&stateChannelValue != 0
 }
-func (s state) ChannelProxy() bool {
-	return atomic.LoadUint32((*uint32)(&s))&stateChannelProxy != 0
+func (s *state) ChannelProxy() bool {
+	return atomic.LoadUint32((*uint32)(s))&stateChannelProxy != 0
 }
-func (s state) ChannelUpdated() bool {
-	return atomic.LoadUint32((*uint32)(&s))&stateChannelUpdated != 0
+func (s *state) ChannelUpdated() bool {
+	return atomic.LoadUint32((*uint32)(s))&stateChannelUpdated != 0
 }
 func (s *state) ChannelCanStop() bool {
 	if s.Closing() || !s.Channel() {
@@ -142,7 +142,7 @@ func (s *state) ChannelCanStop() bool {
 	}
 	return !s.Channel()
 }
-func (s state) ChannelCanStart() bool {
+func (s *state) ChannelCanStart() bool {
 	if s.Closed() {
 		return false
 	}

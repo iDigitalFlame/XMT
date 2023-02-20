@@ -1,4 +1,5 @@
 //go:build plan9
+// +build plan9
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

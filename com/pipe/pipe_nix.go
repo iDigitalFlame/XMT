@@ -1,4 +1,5 @@
 //go:build !windows
+// +build !windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -27,6 +28,7 @@ import (
 	"time"
 
 	"github.com/iDigitalFlame/xmt/com"
+	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -78,23 +80,23 @@ func stringToDec(s string) (os.FileMode, error) {
 		case i == 0 && (c == 't' || c == 'T'):
 			p |= os.ModeSticky
 		case i < 3 && (c == 'r' || c == 'R'):
-			p |= 0o400
+			p |= 0400
 		case i < 3 && (c == 'w' || c == 'W'):
-			p |= 0o200
+			p |= 0200
 		case i < 3 && (c == 'x' || c == 'X'):
-			p |= 0o100
+			p |= 0100
 		case i >= 3 && i < 6 && (c == 'r' || c == 'R'):
-			p |= 0o040
+			p |= 0040
 		case i >= 3 && i < 6 && (c == 'w' || c == 'W'):
-			p |= 0o020
+			p |= 0020
 		case i >= 3 && i < 6 && (c == 'x' || c == 'X'):
-			p |= 0o010
+			p |= 0010
 		case i >= 6 && (c == 'r' || c == 'R'):
-			p |= 0o004
+			p |= 0004
 		case i >= 6 && (c == 'w' || c == 'W'):
-			p |= 0o002
+			p |= 0002
 		case i >= 6 && (c == 'x' || c == 'X'):
-			p |= 0o001
+			p |= 0001
 		case c == '-' || c == ' ':
 		case c != 'r' && c != 'R' && c != 'x' && c != 'X' && c != 'w' && c != 'W':
 			if xerr.ExtendedInfo {
@@ -113,7 +115,7 @@ func getPerms(s string) (os.FileMode, int, int, error) {
 	v := strings.Split(s, ";")
 	if len(v) > 3 {
 		if xerr.ExtendedInfo {
-			return 0, -1, -1, xerr.Sub(`invalid permission "`+s+`" size `+strconv.FormatUint(uint64(len(v)), 10), 0x2F)
+			return 0, -1, -1, xerr.Sub(`invalid permission "`+s+`" size `+util.Uitoa(uint64(len(v))), 0x2F)
 		}
 		return 0, -1, -1, xerr.Sub("invalid permission size", 0x2F)
 	}

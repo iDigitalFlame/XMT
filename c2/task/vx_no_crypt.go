@@ -1,4 +1,5 @@
-//go:build !crypt
+//go:build !crypt && !implant
+// +build !crypt,!implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

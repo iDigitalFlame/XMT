@@ -42,7 +42,7 @@ var (
 	DNS = DNSTransform{}
 
 	packets = sync.Pool{
-		New: func() any {
+		New: func() interface{} {
 			return new(dnsPacket)
 		},
 	}

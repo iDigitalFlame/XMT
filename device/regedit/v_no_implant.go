@@ -1,4 +1,5 @@
 //go:build !implant
+// +build !implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -20,7 +21,6 @@ package regedit
 
 import (
 	"encoding/hex"
-	"strconv"
 	"unsafe"
 
 	"github.com/iDigitalFlame/xmt/device/winapi"
@@ -43,15 +43,15 @@ func (e Entry) String() string {
 			return ""
 		}
 		_ = e.Data[3]
-		return strconv.FormatUint(uint64(e.Data[0])|uint64(e.Data[1])<<8|uint64(e.Data[2])<<16|uint64(e.Data[3])<<24, 10)
+		return util.Uitoa(uint64(e.Data[0]) | uint64(e.Data[1])<<8 | uint64(e.Data[2])<<16 | uint64(e.Data[3])<<24)
 	case registry.TypeQword:
 		if len(e.Data) != 8 {
 			return ""
 		}
 		_ = e.Data[7]
-		return strconv.FormatUint(
-			uint64(e.Data[0])|uint64(e.Data[1])<<8|uint64(e.Data[2])<<16|uint64(e.Data[3])<<24|
-				uint64(e.Data[4])<<32|uint64(e.Data[5])<<40|uint64(e.Data[6])<<48|uint64(e.Data[7])<<56, 10,
+		return util.Uitoa(
+			uint64(e.Data[0]) | uint64(e.Data[1])<<8 | uint64(e.Data[2])<<16 | uint64(e.Data[3])<<24 |
+				uint64(e.Data[4])<<32 | uint64(e.Data[5])<<40 | uint64(e.Data[6])<<48 | uint64(e.Data[7])<<56,
 		)
 	case registry.TypeBinary:
 		return hex.EncodeToString(e.Data)

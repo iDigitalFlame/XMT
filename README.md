@@ -23,16 +23,19 @@ This framework also contains many utility functions, including:
 - Efficient Data Marshaling interfaces
 - Easy Network communication resources
 - Super low file size! ~5mb completely using [JetStream](https://github.com/iDigitalFlame/ThunderStorm)
+- Backwards compatibility with systems as old as Windows Xp!
 
 The pkg.go.dev site has some of the framework documentation and definitions
 [here](https://pkg.go.dev/github.com/iDigitalFlame/xmt).
 
 ## Roadmap
 
-_Updated 12/14/22_
+_Updated 02/17/23_
 
 - Reflective DLL Injection (Windows)
+- Updates to handeling x86 PEB (Windows)
 - Linux mem_fd loader
+- Thread Injection improvements
 - "Device Check" package
   - Detect VM
   - Anti-VM checks
@@ -46,6 +49,79 @@ above list:
 - EDR Detection
 - Linux shellcode support
 - More thread injection options (Windows)
+
+## Compatibility
+
+This project is compatable with **ALL** Golang versions starting from **go1.10**!
+You can download the older versions of Golang from [the Golang website](https://go.dev/dl/).
+
+Unless convined otherwise, I plan to keep the compatibility down to Go1.10.
+**Since I don't control the Script engines, Scripts are bound to >= go1.18**
+
+**The following depreciated build types will NOT be supported**
+
+- nacl/386
+- nacl/amd64p32
+- nacl/arm
+
+**The following depreciated build types WORK but are specific**
+
+- darwin/386 (<= go1.14)
+- darwin/arm (<= go1.14, needs CGO)
+
+### Older OS Support Issues
+
+So far the only issues I've seen are:
+
+- Xp
+  - Lacks the "CreateProcessWithTokenW" so any processes created while impersonating
+    a user will fail. _(This does NOT affect Server 2003 WTF)_
+- Xp < SP3
+  - Lacks the "WinHttpGetDefaultProxyConfiguration" function, which disables
+    automatic HTTP Proxy detection.
+- Xp and Server 2003
+  - Lacks the "RegDeleteTree" function so deleting non-empty Keys may fail.
+  - The concept of Token "Integrity" does not exist and users that are in the
+    "Administrators" group are considered elevated.
+  - Per the previous entry, the "Untrust" helper will NOT set the Token Integrity
+    _(since it doesn't exist!)_, but it will STILL remove Token permissions.
+  - Setting the parent process does **NOT** work.
+- Vista, Server 2008 and older
+  - Cannot evade ETW logs as the function calls do not exist.
+- Windows 8.1, Server 2012 and older
+  - Cannot evade ASMI as it is only present in Windows 10 and newer.
+
+### Compiling for Go1.10 (pre-modules)
+
+Golang version 1.11 introduced the concept of Golang Modules and made dependency
+management simple. Unfortunately, Go1.10 (the last to support Xp, 2003, 2008
+and Vista) does **not**.
+
+To work around this, we can just _vendor_ the packages, since the only dependencies,
+are the following PurpleSec modules:
+
+- [LogX: github.com/PurpleSec/logx](https://github.com/PurpleSec/logx)
+- [Escape: github.com/PurpleSec/escape](https://github.com/PurpleSec/escape)
+
+Which we already make backwards compatible :D
+
+These dependencies can be downloaded and used with the following commands:
+
+```bash
+go mod vendor
+mkdir "deps"
+mv "vendor" "deps/src"
+mkdir "deps/src/github.com/iDigitalFlame"
+ln -s "$(pwd)" "deps/src/github.com/iDigitalFlame/xmt"
+export GOPATH="$(pwd)/deps"
+export GOROOT="<path to downloaded Go1.10 folder>"
+```
+
+_(Yes, I know you CAN use "-o" to specific the vendor directory, but that isn't_
+_supported until go1.18!)_
+
+This should allow you to compile using the fullpath of the Go1.10 Golang binary.
+_(As long as you set your `GOROOT` and `GOPATH` correctly)_
 
 ## TODO
 
@@ -63,7 +139,7 @@ BSides Las Vegas 2022: So you Wanta Build a C2?
 
 ## Bugs
 
-_Updated 11/12/22_
+_Updated 02/17/23_
 
 Feel free to submit issue tickets or pull requests if something is broken or
 doesn't act right. (I don't bite, mostly owo)
@@ -84,8 +160,12 @@ doesn't act right. (I don't bite, mostly owo)
 
 XMT is covered by the GNU GPLv3 License
 
+Third-party Licenses:
+
 - [sRDI](https://raw.githubusercontent.com/monoxgas/sRDI/master/LICENSE) (GPLv3)
 - [Monkey](https://raw.githubusercontent.com/skx/monkey/master/LICENSE) (MIT)
+  - Only if [Monkey](https://github.com/skx/monkey) support is compiled in and enabled.
 - [Otto](https://raw.githubusercontent.com/robertkrimen/otto/master/LICENSE) (MIT)
+  - Only if [Otto](https://github.com/robertkrimen/otto) support is compiled in and enabled.
 - [LogX](https://raw.githubusercontent.com/PurpleSec/LogX/main/LICENSE) (Apache v2)
 - [Escape](https://raw.githubusercontent.com/PurpleSec/Escape/main/LICENSE) (Apache v2)

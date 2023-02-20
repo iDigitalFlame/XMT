@@ -151,7 +151,7 @@ func formatTCPName(s string) string {
 	if v < 1024 {
 		v += 1024
 	}
-	return local + strconv.FormatUint(uint64(v), 10)
+	return local + util.Uitoa(uint64(v))
 }
 
 // LinkerFromName will attempt to map the name provided to an appropriate Linker

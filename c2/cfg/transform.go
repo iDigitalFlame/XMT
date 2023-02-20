@@ -51,7 +51,7 @@ func TransformDNS(n ...string) Setting {
 		s[c] = byte(len(v))
 		c += copy(s[c+1:], v) + 1
 	}
-	return s
+	return &s
 }
 
 // TransformB64Shift returns a Setting that will apply the Base64 Shift Transform
@@ -62,5 +62,5 @@ func TransformDNS(n ...string) Setting {
 // 'ErrMultipleTransforms' error will be returned when the 'Profile' function is
 // called.
 func TransformB64Shift(s int) Setting {
-	return cBytes{byte(valB64Shift), byte(s)}
+	return &cBytes{byte(valB64Shift), byte(s)}
 }

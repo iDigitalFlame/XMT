@@ -1,4 +1,5 @@
 //go:build !windows && !plan9 && !js && !darwin && !linux && !android && !crypt
+// +build !windows,!plan9,!js,!darwin,!linux,!android,!crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -20,10 +21,12 @@ package local
 
 import (
 	"bytes"
-	"os"
 	"os/exec"
 	"runtime"
 	"strings"
+
+	"github.com/iDigitalFlame/xmt/data"
+	"github.com/iDigitalFlame/xmt/device/unix"
 )
 
 func sysID() []byte {
@@ -42,7 +45,7 @@ func sysID() []byte {
 			return b
 		}
 	}
-	if b, err := os.ReadFile("/etc/hostid"); err == nil {
+	if b, err := data.ReadFile("/etc/hostid"); err == nil {
 		return b
 	}
 	o, _ := exec.Command("kenv", "-q", "smbios.system.uuid").CombinedOutput()
@@ -64,11 +67,11 @@ func version() string {
 	}
 	if len(b) == 0 && strings.Contains(runtime.GOOS, "bsd") {
 		if o, err := exec.Command("freebsd-version", "-k").CombinedOutput(); err == nil {
-			b = strings.ReplaceAll(string(o), "\n", "")
+			b = strings.Replace(string(o), "\n", "", -1)
 		}
 	}
 	if len(v) == 0 {
-		v = uname()
+		v = unix.Release()
 	}
 	switch {
 	case len(n) == 0 && len(b) == 0 && len(v) == 0:

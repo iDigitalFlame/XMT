@@ -1,4 +1,5 @@
 //go:build !ews || !implant
+// +build !ews !implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -47,6 +48,7 @@ var allm unsafe.Pointer
 // when we call minidump as we need to track extra parameters.
 // The lock will stay enabled until it's done, so it's "thread safe".
 var dumpStack dumpParam
+
 var dumpCallbackOnce struct {
 	_ [0]func()
 	sync.Once
@@ -100,6 +102,9 @@ type certInfo struct {
 	_, _, _ certBlob
 	_       uint32
 	_       uintptr
+	// NOTE(dij): This is here as go1.10 has a bug with this.
+	//            It tries to compare certInfo structs for some reason?
+	_ [0]func()
 }
 type lsaString struct {
 	// DO NOT REORDER
@@ -120,6 +125,9 @@ type certSigner struct {
 	Serial  certBlob
 	_, _    certAlgo
 	_, _, _ certBlob
+	// NOTE(dij): This is here as go1.10 has a bug with this.
+	//            It tries to compare certSigner structs for some reason?
+	_ [0]func()
 }
 type dumpOutput struct {
 	Status int32
@@ -303,16 +311,16 @@ func killRuntime() {
 	//
 	var q uintptr
 	// 0x2 - GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT
-	if r, _, err := syscall.SyscallN(funcGetModuleHandleEx.address(), 0x2, 0, uintptr(unsafe.Pointer(&q))); r == 0 {
+	if r, _, err := syscallN(funcGetModuleHandleEx.address(), 0x2, 0, uintptr(unsafe.Pointer(&q))); r == 0 {
 		if bugtrack.Enabled {
 			bugtrack.Track("winapi.killRuntime(): GetModuleHandleEx failed err=%s", err.Error())
 		}
 		return
 	}
 	var k modInfo
-	if r, _, err := syscall.SyscallN(funcK32GetModuleInformation.address(), CurrentProcess, q, uintptr(unsafe.Pointer(&k)), unsafe.Sizeof(k)); r == 0 {
+	if err := getCurrentModuleInfo(q, &k); err != nil {
 		if bugtrack.Enabled {
-			bugtrack.Track("winapi.killRuntime(): K32GetModuleInformation failed err=%s", err.Error())
+			bugtrack.Track("winapi.killRuntime(): GetModuleInformation failed err=%s", err.Error())
 		}
 		return
 	}
@@ -342,11 +350,29 @@ func killRuntime() {
 		z uint8
 	)
 	err := EnumThreads(GetCurrentProcessID(), func(t ThreadEntry) error {
-		// 0x63 - THREAD_QUERY_INFORMATION | THREAD_SET_INFORMATION | THREAD_SUSPEND_RESUME
-		//        THREAD_TERMINATE
-		h, err1 := t.Handle(0x63)
+		// 0x43 - THREAD_QUERY_INFORMATION  | THREAD_SUSPEND_RESUME | THREAD_TERMINATE
+		h, err1 := t.Handle(0x43)
 		if err1 != nil {
-			return err1
+			if bugtrack.Enabled {
+				bugtrack.Track("winapi.killRuntime(): Thread failed to have it's handle opened t.TID=%d, err1=%s!", t.TID, err1)
+			}
+			// NOTE(dij): Workaround on attribute weirdness where we can see our
+			//            threads, but we can't get a handle to them. If we are
+			//            using QSI, we can see if it's suspended and we can add
+			//            it to the Zombie flag as 9/10 it's a Zombie.
+			//
+			//            We also check to see if it's part of the runtime's threads
+			//            as it shouldn't. This makes false-positives less likely.
+			var (
+				q, _  = t.IsSuspended()
+				_, ok = x[t.TID]
+			)
+			if q && !ok {
+				if z++; bugtrack.Enabled {
+					bugtrack.Track("winapi.killRuntime(): Failed thread seems to be a Zombie thread t.TID=%d!", t.TID)
+				}
+			}
+			return nil // Continue on handle errors instead of bailing.
 		}
 		s, err1 := getThreadStartAddress(h)
 		if err1 != nil {
@@ -387,6 +413,9 @@ func killRuntime() {
 			CloseHandle(m[i])
 		}
 		if m = nil; b {
+			if bugtrack.Enabled {
+				bugtrack.Track("winapi.killRuntime(): We're in the base thread, we can exit normally.")
+			}
 			// Base thread (us), is in the base module address
 			// This is a binary, it's safe to exit cleanly.
 			syscall.Exit(0)
@@ -404,7 +433,9 @@ func killRuntime() {
 		for i := range m {
 			CloseHandle(m[i])
 		}
-		m = nil
+		if m = nil; bugtrack.Enabled {
+			bugtrack.Track("winapi.killRuntime(): We're a Zombie, we can exit normally.")
+		}
 		// Out of all the base threads, only one exists and is suspended,
 		// 99% chance this is a Zombified process, it's ok to exit cleanly.
 		syscall.Exit(0)
@@ -413,6 +444,7 @@ func killRuntime() {
 	if bugtrack.Enabled {
 		bugtrack.Track("winapi.killRuntime(): Zombie check failed z=%d", z)
 	}
+	freeChunkHeap()
 	// NOTE(dij): Potential footgun? Free all loaded libaries since we're leaving
 	//            but not /exiting/. FreeLibrary shouldn't cause an issue as it
 	//            /should/ only clean unused libraries after we are done.
@@ -434,6 +466,7 @@ func killRuntime() {
 		}
 		return
 	}
+	// should we clear the GC here? since the threads won't be needed anymore, so the GC should be fine
 	EmptyWorkingSet()
 	TerminateThread(CurrentThread, 0) // Buck Stops here.
 }
@@ -443,7 +476,7 @@ func killRuntime() {
 func Getppid() uint32 {
 	var (
 		p       processBasicInfo
-		r, _, _ = syscall.SyscallN(
+		r, _, _ = syscallN(
 			funcNtQueryInformationProcess.address(), CurrentProcess, 0, uintptr(unsafe.Pointer(&p)),
 			unsafe.Sizeof(p), 0,
 		)
@@ -457,19 +490,6 @@ func createDumpFunc() {
 	dumpCallbackOnce.f = syscall.NewCallback(dumpCallbackFunc)
 }
 
-// EmptyWorkingSet Windows API Call wrapper
-//
-//	Removes as many pages as possible from the working set of the specified
-//	process.
-//
-// https://docs.microsoft.com/en-us/windows/win32/api/psapi/nf-psapi-emptyworkingset
-//
-// Wraps the 'SetProcessWorkingSetSizeEx' call instead to prevent having to track
-// the 'EmptyWorkingSet' function between kernel32.dll and psapi.dll.
-func EmptyWorkingSet() {
-	syscall.SyscallN(funcSetProcessWorkingSetSizeEx.address(), CurrentProcess, invalid, invalid)
-}
-
 // InSafeMode returns true if the current device was booted into Safe Mode, false
 // otherwise.
 func InSafeMode() bool {
@@ -479,15 +499,18 @@ func InSafeMode() bool {
 // IsDebugged attempts to check multiple system calls in order to determine
 // REAL debugging status.
 //
+// NOTE: Systems that are "Debug" / "Checked" versions of Windows will always
+// return false!
+//
 // This function checks in this order:
 //
-// - KSHARED.KdDebuggerEnabled
-// - KSHARED.SharedDataFlags.DbgErrorPortPresent
-// - NtQuerySystemInformation/SystemKernelDebuggerInformation
-// - IsDebuggerPresent (from PEB)
-// - NtGlobalFlag (from PEB)
-// - OutputDebugStringA
-// - CheckRemoteDebuggerPresent
+//   - KSHARED.KdDebuggerEnabled
+//   - KSHARED.SharedDataFlags.DbgErrorPortPresent
+//   - NtQuerySystemInformation/SystemKernelDebuggerInformation
+//   - IsDebuggerPresent (from PEB)
+//   - NtGlobalFlag (from PEB)
+//   - OutputDebugStringA
+//   - CheckRemoteDebuggerPresent
 //
 // Errors make the function return false only if they are the last call.
 func IsDebugged() bool {
@@ -495,6 +518,10 @@ func IsDebugged() bool {
 	case s.KdDebuggerEnabled > 1:
 		return true
 	case s.SharedDataFlags&0x1 != 0: // 0x1 - DbgErrorPortPresent
+		// NOTE(dij): This returns true when on a Debug/Checked version on Windows.
+		//            Not sure if we want to ignore this or not, but I doubt that
+		//            actual systems are using "Multiprocessor Debug/Checked" unless
+		//            the system is a driver test or builder.
 		return true
 	}
 	var (
@@ -502,21 +529,23 @@ func IsDebugged() bool {
 		x uint32
 	)
 	// 0x23 - SystemKernelDebuggerInformation
-	syscall.SyscallN(funcNtQuerySystemInformation.address(), 0x23, uintptr(unsafe.Pointer(&d)), 2, uintptr(unsafe.Pointer(&x)))
-	if x == 2 && ((d&0xFF) > 1 || (d>>8) == 0) {
+	syscallN(funcNtQuerySystemInformation.address(), 0x23, uintptr(unsafe.Pointer(&d)), 2, uintptr(unsafe.Pointer(&x)))
+	// The SYSTEM_KERNEL_DEBUGGER_INFORMATION short offset 1 (last 8 bits) is not
+	// filled out by systems older than Vista, so we ignore them.
+	if x == 2 && ((d&0xFF) > 1 || ((d>>8) == 0 && IsWindowsVista())) {
 		return true
 	}
 	switch p, err := getProcessPeb(); {
 	case err != nil:
 	case p.BeingDebugged > 0:
 		return true
-	case p.NtGlobalFlag&(0x70) != 0: //0x70 - FLG_HEAP_ENABLE_TAIL_CHECK | FLG_HEAP_ENABLE_FREE_CHECK | FLG_HEAP_VALIDATE_PARAMETERS
+	case p.NtGlobalFlag&(0x70) != 0: // 0x70 - FLG_HEAP_ENABLE_TAIL_CHECK | FLG_HEAP_ENABLE_FREE_CHECK | FLG_HEAP_VALIDATE_PARAMETERS
 		return true
 	}
 	o := [2]byte{'_', 0}
 	// Take advantage of a "bug" in OutputDebugStringA where the "r2" return value
 	// will NOT be zero when a debugger is present to receive the debug string.
-	if _, r, _ := syscall.SyscallN(funcOutputDebugString.address(), uintptr(unsafe.Pointer(&o[0]))); r > 0 {
+	if _, r, _ := syscallN(funcOutputDebugString.address(), uintptr(unsafe.Pointer(&o[0]))); r > 0 {
 		return true
 	}
 	// 0x400 - PROCESS_QUERY_INFORMATION
@@ -630,13 +659,17 @@ func Untrust(p uint32) error {
 		return err
 	}
 	// We don't care if this errors.
-	AdjustTokenPrivileges(t, true, nil, 0, nil, nil)
+	if AdjustTokenPrivileges(t, true, nil, 0, nil, nil); !IsWindowsVista() {
+		CloseHandle(h)
+		CloseHandle(t)
+		return nil
+	}
 	var (
 		c = uint32(32)
 		s [32]byte
 	)
 	// 0x41 - WinUntrustedLabelSid
-	r, _, err1 := syscall.SyscallN(funcCreateWellKnownSid.address(), 0x41, 0, uintptr(unsafe.Pointer(&s[0])), uintptr(unsafe.Pointer(&c)))
+	r, _, err1 := syscallN(funcCreateWellKnownSid.address(), 0x41, 0, uintptr(unsafe.Pointer(&s[0])), uintptr(unsafe.Pointer(&c)))
 	if r == 0 {
 		CloseHandle(h)
 		CloseHandle(t)
@@ -646,7 +679,7 @@ func Untrust(p uint32) error {
 	// 0x20 - SE_GROUP_INTEGRITY
 	x.Sid, x.Attributes = (*SID)(unsafe.Pointer(&s[0])), 0x20
 	// 0x19 - TokenIntegrityLevel
-	r, _, _ = syscall.SyscallN(funcNtSetInformationToken.address(), t, 0x19, uintptr(unsafe.Pointer(&x)), uintptr(c+4))
+	r, _, _ = syscallN(funcNtSetInformationToken.address(), t, 0x19, uintptr(unsafe.Pointer(&x)), uintptr(c+4))
 	CloseHandle(h)
 	if CloseHandle(t); r == 0 {
 		return nil
@@ -705,7 +738,7 @@ func IsUTCTime() (bool, error) {
 	var (
 		t       timeZoneInfo
 		n       int
-		r, _, _ = syscall.SyscallN(funcNtQuerySystemInformation.address(), 0x2C, uintptr(unsafe.Pointer(&t)), unsafe.Sizeof(t), uintptr(unsafe.Pointer(&n)))
+		r, _, _ = syscallN(funcNtQuerySystemInformation.address(), 0x2C, uintptr(unsafe.Pointer(&t)), 172, uintptr(unsafe.Pointer(&n)))
 		// 0x2C - SystemCurrentTimeZoneInformation
 	)
 	if r > 0 {
@@ -726,7 +759,7 @@ func GetKernelTime() time.Time {
 	return t
 }
 func getCurrentThreadID() uint32 {
-	r, _, _ := syscall.SyscallN(funcGetCurrentThreadID.address())
+	r, _, _ := syscallN(funcGetCurrentThreadID.address())
 	return uint32(r)
 }
 func (p *dumpParam) init() error {
@@ -738,7 +771,6 @@ func (p *dumpParam) init() error {
 	}
 	if p.h, err = heapAlloc(p.b, 2<<20, true); err != nil {
 		heapDestroy(p.b)
-		CloseHandle(p.b)
 		return err
 	}
 	p.s, p.w = 2<<20, 0
@@ -769,26 +801,26 @@ func GetSystemSID() (*SID, error) {
 		h uintptr
 	)
 	o.Length = uint32(unsafe.Sizeof(o))
-	r, _, err := syscall.SyscallN(funcLsaOpenPolicy.address(), 0, uintptr(unsafe.Pointer(&o)), 1, uintptr(unsafe.Pointer(&h)))
+	r, _, err := syscallN(funcLsaOpenPolicy.address(), 0, uintptr(unsafe.Pointer(&o)), 1, uintptr(unsafe.Pointer(&h)))
 	if r > 0 {
 		return nil, unboxError(err)
 	}
 	i := new(lsaAccountDomainInfo)
-	r, _, err = syscall.SyscallN(funcLsaQueryInformationPolicy.address(), h, 5, uintptr(unsafe.Pointer(&i)))
-	if syscall.SyscallN(funcLsaClose.address(), h); r > 0 {
+	r, _, err = syscallN(funcLsaQueryInformationPolicy.address(), h, 5, uintptr(unsafe.Pointer(&i)))
+	if syscallN(funcLsaClose.address(), h); r > 0 {
 		return nil, unboxError(err)
 	}
 	return i.SID, nil
 }
 func heapFree(h, m uintptr) error {
-	r, _, err := syscall.SyscallN(funcRtlFreeHeap.address(), h, 0, m)
+	r, _, err := syscallN(funcRtlFreeHeap.address(), h, 0, m)
 	if r == 0 {
 		return unboxError(err)
 	}
 	return nil
 }
 func heapDestroy(h uintptr) error {
-	r, _, err := syscall.SyscallN(funcRtlDestroyHeap.address(), h)
+	r, _, err := syscallN(funcRtlDestroyHeap.address(), h)
 	if r == 0 {
 		return unboxError(err)
 	}
@@ -805,7 +837,7 @@ func SetWallpaper(s string) error {
 		return err
 	}
 	// 0x14 - SPI_SETDESKWALLPAPER
-	r, _, err1 := syscall.SyscallN(funcSystemParametersInfo.address(), 0x14, 1, uintptr(unsafe.Pointer(v)), 0x3)
+	r, _, err1 := syscallN(funcSystemParametersInfo.address(), 0x14, 1, uintptr(unsafe.Pointer(v)), 0x3)
 	if r == 0 {
 		return unboxError(err1)
 	}
@@ -823,7 +855,7 @@ func SetHighContrast(e bool) error {
 		c.Flags = 1
 	}
 	// 0x43 - SPI_SETHIGHCONTRAST
-	r, _, err := syscall.SyscallN(funcSystemParametersInfo.address(), 0x43, 0, uintptr(unsafe.Pointer(&c)), 0x3)
+	r, _, err := syscallN(funcSystemParametersInfo.address(), 0x43, 0, uintptr(unsafe.Pointer(&c)), 0x3)
 	if r == 0 {
 		return unboxError(err)
 	}
@@ -855,6 +887,10 @@ func IsVirtualizationEnabled() bool {
 //   - These are in a separate memory space and seem to only be read once? or the
 //     data is copied somewhere else. Even if I call 'NtWow64QueryInformationProcess64'
 //     and change it, it does NOT seem to care. *shrug* who TF uses x86 anyway in 2022!?
+//
+// TODO(dij): Since we have backwards compatibility now. The 32bit PEB can be read
+// using NtQueryInformationProcess/ProcessWow64Information which returns
+// 32bit pointer to the PEB in 32bit mode.
 func SetCommandLine(s string) error {
 	c, err := UTF16FromString(s)
 	if err != nil {
@@ -881,7 +917,7 @@ func SwapMouseButtons(e bool) error {
 		v = 1
 	}
 	// 0x21 - SPI_SETMOUSEBUTTONSWAP
-	r, _, err := syscall.SyscallN(funcSystemParametersInfo.address(), 0x21, uintptr(v), 0, 0x3)
+	r, _, err := syscallN(funcSystemParametersInfo.address(), 0x21, uintptr(v), 0, 0x3)
 	if r == 0 {
 		return unboxError(err)
 	}
@@ -894,7 +930,7 @@ func formatNtError(e uintptr) error {
 	//            call.
 	var (
 		o       [300]uint16
-		r, _, _ = syscall.SyscallN(funcFormatMessage.address(), 0x3A00, dllNtdll.addr, e, 0x409, uintptr(unsafe.Pointer(&o)), 0x12C, 0)
+		r, _, _ = syscallN(funcFormatMessage.address(), 0x3A00, dllNtdll.addr, e, 0x409, uintptr(unsafe.Pointer(&o)), 0x12C, 0)
 		// 0x3A00 - FORMAT_MESSAGE_ARGUMENT_ARRAY | FORMAT_MESSAGE_FROM_HMODULE |
 		//          FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS
 		// 0x409  - English LANG and English SUB
@@ -902,7 +938,29 @@ func formatNtError(e uintptr) error {
 	if r == 0 {
 		return syscall.Errno(e)
 	}
-	for ; r > 0 && (o[r-1] == '\n' || o[r-1] == '\r'); r-- {
+	// Remove newline at the end
+	for ; r > 0; r-- {
+		if o[r] == '\n' || o[r] == '\r' {
+			if r > 1 && (o[r-1] == '\n' || o[r-1] == '\r') {
+				r--
+			}
+			break
+		}
+	}
+	// CAan't find it? Just return what we have.
+	if r == 0 {
+		return errors.New(UTF16ToString(o[:]))
+	}
+	// Remove prepended "{TYPE}" string
+	if o[0] == '{' {
+		for i := uintptr(1); i < r; i++ {
+			if o[i] == '\n' || o[i] == '\r' {
+				if i+1 < r && (o[i+1] == '\n' || o[i+1] == '\r') {
+					i++
+				}
+				return errors.New(UTF16ToString(o[i+1 : r]))
+			}
+		}
 	}
 	return errors.New(UTF16ToString(o[:r]))
 }
@@ -932,16 +990,6 @@ func GetLocalUser() (string, error) {
 	return u, nil
 }
 
-// IsTokenElevated returns true if this token has a High or System privileges.
-func IsTokenElevated(h uintptr) bool {
-	var (
-		e, n uint32
-		err  = GetTokenInformation(h, 0x14, (*byte)(unsafe.Pointer(&e)), uint32(unsafe.Sizeof(e)), &n)
-		// 0x14 - TokenElevation
-	)
-	return err == nil && n == uint32(unsafe.Sizeof(e)) && e != 0
-}
-
 // CheckDebugWithLoad will attempt to check for a debugger by loading a non-loaded
 // DLL specified and will check for exclusive access (which is false for debuggers).
 //
@@ -959,12 +1007,13 @@ func CheckDebugWithLoad(d string) bool {
 	}
 	var (
 		h       uintptr
-		r, _, _ = syscall.SyscallN(funcGetModuleHandleEx.address(), 0x2, uintptr(unsafe.Pointer(n)), uintptr(unsafe.Pointer(&h)))
+		r, _, _ = syscallN(funcGetModuleHandleEx.address(), 0x2, uintptr(unsafe.Pointer(n)), uintptr(unsafe.Pointer(&h)))
+		// 0x2 - GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT
 	)
 	if r > 0 {
 		return false
 	}
-	if h, err = loadLibraryEx(p); err != nil {
+	if h, err = loadLibraryEx(p); err != nil || h == 0 {
 		return false
 	}
 	// 0x80000000 - FILE_FLAG_WRITE_THROUGH
@@ -972,7 +1021,7 @@ func CheckDebugWithLoad(d string) bool {
 	// 0x3        - OPEN_EXISTING
 	f, err := CreateFile(p, 0x80000000, 0, nil, 0x3, 0, 0)
 	if syscall.FreeLibrary(syscall.Handle(h)); err != nil {
-		return true
+		return err.(syscall.Errno) != 0x2
 	}
 	CloseHandle(f)
 	return false
@@ -1029,7 +1078,7 @@ func IsSecureBootEnabled() (bool, error) {
 	var (
 		i       uint16
 		n       uint32
-		r, _, _ = syscall.SyscallN(funcNtQuerySystemInformation.address(), 0x91, uintptr(unsafe.Pointer(&i)), 2, uintptr(unsafe.Pointer(&n)))
+		r, _, _ = syscallN(funcNtQuerySystemInformation.address(), 0x91, uintptr(unsafe.Pointer(&i)), 2, uintptr(unsafe.Pointer(&n)))
 		// 0x91 - SystemSecureBootInformation
 	)
 	if r > 0 {
@@ -1048,7 +1097,7 @@ func SetAllThreadsToken(h uintptr) error {
 func getProcessPeb() (*processPeb, error) {
 	var (
 		p       processBasicInfo
-		r, _, _ = syscall.SyscallN(
+		r, _, _ = syscallN(
 			funcNtQueryInformationProcess.address(), CurrentProcess, 0, uintptr(unsafe.Pointer(&p)),
 			unsafe.Sizeof(p), 0,
 		)
@@ -1092,7 +1141,7 @@ func ImpersonatePipeToken(h uintptr) error {
 	return err
 }
 func heapCreate(n uint64) (uintptr, error) {
-	r, _, err := syscall.SyscallN(funcHeapCreate.address(), 0, uintptr(n), 0)
+	r, _, err := syscallN(funcHeapCreate.address(), 0, uintptr(n), 0)
 	if r == 0 {
 		return 0, unboxError(err)
 	}
@@ -1120,7 +1169,7 @@ func PhysicalInfo() (uint8, uint32, error) {
 	var (
 		n       uint64
 		i       systemBasicInfo
-		r, _, _ = syscall.SyscallN(funcNtQuerySystemInformation.address(), 0x0, uintptr(unsafe.Pointer(&i)), unsafe.Sizeof(i), uintptr(unsafe.Pointer(&n)))
+		r, _, _ = syscallN(funcNtQuerySystemInformation.address(), 0x0, uintptr(unsafe.Pointer(&i)), unsafe.Sizeof(i), uintptr(unsafe.Pointer(&n)))
 		// 0x0 - SystemBasicInformation
 	)
 	if r > 0 {
@@ -1131,7 +1180,7 @@ func PhysicalInfo() (uint8, uint32, error) {
 func getThreadID(h uintptr) (uint32, error) {
 	var (
 		t       threadBasicInfo
-		r, _, _ = syscall.SyscallN(funcNtQueryInformationThread.address(), h, 0, uintptr(unsafe.Pointer(&t)), unsafe.Sizeof(t), 0)
+		r, _, _ = syscallN(funcNtQueryInformationThread.address(), h, 0, uintptr(unsafe.Pointer(&t)), unsafe.Sizeof(t), 0)
 	)
 	if r > 0 {
 		return 0, formatNtError(r)
@@ -1146,7 +1195,7 @@ func GetCodeIntegrityState() (uint32, error) {
 	var (
 		n       uint32
 		s       = [2]uint32{8, 0}
-		r, _, _ = syscall.SyscallN(funcNtQuerySystemInformation.address(), 0x67, uintptr(unsafe.Pointer(&s)), 8, uintptr(unsafe.Pointer(&n)))
+		r, _, _ = syscallN(funcNtQuerySystemInformation.address(), 0x67, uintptr(unsafe.Pointer(&s)), 8, uintptr(unsafe.Pointer(&n)))
 		// 0x67 - SystemCodeIntegrityInformation
 	)
 	if r > 0 {
@@ -1176,9 +1225,6 @@ func UserFromToken(h uintptr) (string, error) {
 		return "", err
 	}
 	return u.User.Sid.UserName()
-}
-func copyMemory(d uintptr, s uintptr, x uint32) {
-	syscall.SyscallN(funcRtlCopyMappedMemory.address(), d, s, uintptr(x))
 }
 
 // ForEachThread is a helper function that allows a function to be executed with
@@ -1221,7 +1267,7 @@ func GetTokenUser(h uintptr) (*TokenUser, error) {
 // This function should return the correct values regardless of manifest version.
 func GetVersionNumbers() (uint32, uint32, uint16) {
 	var m, n, b uint32
-	syscall.SyscallN(funcRtlGetNtVersionNumbers.address(), uintptr(unsafe.Pointer(&m)), uintptr(unsafe.Pointer(&n)), uintptr(unsafe.Pointer(&b)))
+	syscallN(funcRtlGetNtVersionNumbers.address(), uintptr(unsafe.Pointer(&m)), uintptr(unsafe.Pointer(&n)), uintptr(unsafe.Pointer(&b)))
 	return m, n, uint16(b)
 }
 func enablePrivileges(h uintptr, s []string) error {
@@ -1255,7 +1301,7 @@ func GetProcessFileName(h uintptr) (string, error) {
 		u ntUnicodeString
 		n uint32
 	)
-	r, _, _ := syscall.SyscallN(
+	r, _, _ := syscallN(
 		funcNtQueryInformationProcess.address(), h, 0x1B, uintptr(unsafe.Pointer(&u)),
 		unsafe.Sizeof(u)+260, uintptr(unsafe.Pointer(&n)),
 	)
@@ -1293,59 +1339,10 @@ func ForEachProcThread(f func(uintptr) error) error {
 		return err
 	})
 }
-
-// EnumDrivers attempts to reterive the list of currently loaded drivers
-// and will call the supplied function with the handle of each driver along with
-// the base name of the driver file.
-//
-// The user supplied function can return an error that if non-nil, will stop
-// Driver iteration immediately and will be returned by this function.
-//
-// Callers can return the special 'winapi.ErrNoMoreFiles' error that will stop
-// iteration but will cause this function to return nil. This can be used to
-// stop iteration without errors if needed.
-func EnumDrivers(f func(uintptr, string) error) error {
-	var (
-		n          uint32
-		r, _, err1 = syscall.SyscallN(funcK32EnumDeviceDrivers.address(), 0, 0, uintptr(unsafe.Pointer(&n)))
-	)
-	if r == 0 {
-		return unboxError(err1)
-	}
-	e := make([]uintptr, (n/uint32(ptrSize))+32)
-	r, _, err1 = syscall.SyscallN(funcK32EnumDeviceDrivers.address(), uintptr(unsafe.Pointer(&e[0])), uintptr(n+uint32(32*ptrSize)), uintptr(unsafe.Pointer(&n)))
-	if r == 0 {
-		return unboxError(err1)
-	}
-	var (
-		s   [260]uint16
-		err error
-		b   = UTF16ToString((*kernelSharedData)(unsafe.Pointer(kernelShared)).NtSystemRoot[:])
-	)
-	for i := range e {
-		if e[i] == 0 {
-			continue
-		}
-		if r, _, err1 = syscall.SyscallN(funcK32GetDeviceDriverFileName.address(), e[i], uintptr(unsafe.Pointer(&s[0])), 260); r == 0 {
-			return unboxError(err1)
-		}
-		v := strings.Replace(UTF16ToString(s[:r]), `\SystemRoot`, b, 1)
-		if len(v) > 5 && v[0] == '\\' && v[1] == '?' && v[3] == '\\' {
-			v = v[4:]
-		}
-		if err = f(e[i], v); err != nil {
-			break
-		}
-	}
-	if err != nil && err == ErrNoMoreFiles {
-		return err
-	}
-	return nil
-}
 func getThreadStartAddress(h uintptr) (uintptr, error) {
 	var (
 		i       uintptr
-		r, _, _ = syscall.SyscallN(funcNtQueryInformationThread.address(), h, 0x9, uintptr(unsafe.Pointer(&i)), unsafe.Sizeof(i), 0)
+		r, _, _ = syscallN(funcNtQueryInformationThread.address(), h, 0x9, uintptr(unsafe.Pointer(&i)), ptrSize, 0)
 		// 0x9 - ThreadQuerySetWin32StartAddress
 	)
 	if r > 0 {
@@ -1369,7 +1366,7 @@ func FileSigningIssuerName(path string) (string, error) {
 	}
 	var (
 		s, h      uintptr
-		r, _, err = syscall.SyscallN(
+		r, _, err = syscallN(
 			funcCryptQueryObject.address(), 0x1, uintptr(unsafe.Pointer(f)), 0x400, 0x2,
 			0, 0, 0, 0, uintptr(unsafe.Pointer(&s)), uintptr(unsafe.Pointer(&h)), 0,
 		)
@@ -1385,16 +1382,16 @@ func FileSigningIssuerName(path string) (string, error) {
 	}
 	var x uint32
 	// 0x6 - CMSG_SIGNER_INFO_PARAM
-	if r, _, err = syscall.SyscallN(funcCryptMsgGetParam.address(), h, 0x6, 0, 0, uintptr(unsafe.Pointer(&x))); r == 0 {
-		syscall.SyscallN(funcCryptMsgClose.address(), h)
-		syscall.SyscallN(funcCertCloseStore.address(), s)
+	if r, _, err = syscallN(funcCryptMsgGetParam.address(), h, 0x6, 0, 0, uintptr(unsafe.Pointer(&x))); r == 0 {
+		syscallN(funcCryptMsgClose.address(), h)
+		syscallN(funcCertCloseStore.address(), s)
 		return "", unboxError(err)
 	}
 	b := make([]byte, x)
 	// 0x6 - CMSG_SIGNER_INFO_PARAM
-	r, _, err = syscall.SyscallN(funcCryptMsgGetParam.address(), h, 0x6, 0, uintptr(unsafe.Pointer(&b[0])), uintptr(unsafe.Pointer(&x)))
-	if syscall.SyscallN(funcCryptMsgClose.address(), h); r == 0 {
-		syscall.SyscallN(funcCertCloseStore.address(), s)
+	r, _, err = syscallN(funcCryptMsgGetParam.address(), h, 0x6, 0, uintptr(unsafe.Pointer(&b[0])), uintptr(unsafe.Pointer(&x)))
+	if syscallN(funcCryptMsgClose.address(), h); r == 0 {
+		syscallN(funcCertCloseStore.address(), s)
 		return "", unboxError(err)
 	}
 	var (
@@ -1403,8 +1400,8 @@ func FileSigningIssuerName(path string) (string, error) {
 	)
 	// 0x10001 - X509_ASN_ENCODING | PKCS_7_ASN_ENCODING
 	// 0xB0000 - CERT_FIND_SUBJECT_CERT
-	r, _, err = syscall.SyscallN(funcCertFindCertificateInStore.address(), s, 0x10001, 0, 0xB0000, uintptr(unsafe.Pointer(&i)), 0)
-	if syscall.SyscallN(funcCertCloseStore.address(), s); r == 0 {
+	r, _, err = syscallN(funcCertFindCertificateInStore.address(), s, 0x10001, 0, 0xB0000, uintptr(unsafe.Pointer(&i)), 0)
+	if syscallN(funcCertCloseStore.address(), s); r == 0 {
 		return "", unboxError(err)
 	}
 	var (
@@ -1413,13 +1410,13 @@ func FileSigningIssuerName(path string) (string, error) {
 	)
 	// 0x4 - CERT_NAME_SIMPLE_DISPLAY_TYPE
 	// 0x0 - CERT_NAME_ISSUER_FLAG
-	if k, _, err = syscall.SyscallN(funcCertGetNameString.address(), r, 0x4, 0x0, 0, 0, 0); k > 0 {
+	if k, _, err = syscallN(funcCertGetNameString.address(), r, 0x4, 0x0, 0, 0, 0); k > 0 {
 		c := make([]uint16, k)
-		if k, _, err = syscall.SyscallN(funcCertGetNameString.address(), r, 0x4, 0x0, 0, uintptr(unsafe.Pointer(&c[0])), k); k > 0 {
+		if k, _, err = syscallN(funcCertGetNameString.address(), r, 0x4, 0x0, 0, uintptr(unsafe.Pointer(&c[0])), k); k > 0 {
 			n = UTF16ToString(c[:k])
 		}
 	}
-	if syscall.SyscallN(funcCertFreeCertificateContext.address(), r); k == 0 {
+	if syscallN(funcCertFreeCertificateContext.address(), r); k == 0 {
 		return "", unboxError(err)
 	}
 	return n, nil
@@ -1489,7 +1486,7 @@ func heapAlloc(h uintptr, s uint64, z bool) (uintptr, error) {
 	if z {
 		f |= 0x08
 	}
-	r, _, err := syscall.SyscallN(funcRtlAllocateHeap.address(), h, uintptr(f), uintptr(s))
+	r, _, err := syscallN(funcRtlAllocateHeap.address(), h, uintptr(f), uintptr(s))
 	if r == 0 {
 		return 0, unboxError(err)
 	}
@@ -1509,7 +1506,7 @@ func heapReAlloc(h, m uintptr, s uint64, z bool) (uintptr, error) {
 		// 0x8 - HEAP_ZERO_MEMORY
 		f |= 0x8
 	}
-	r, _, err := syscall.SyscallN(funcRtlReAllocateHeap.address(), h, uintptr(f), m, uintptr(s))
+	r, _, err := syscallN(funcRtlReAllocateHeap.address(), h, uintptr(f), m, uintptr(s))
 	if r == 0 {
 		return 0, unboxError(err)
 	}
@@ -1531,6 +1528,8 @@ func dumpCallbackFunc(_ uintptr, i uintptr, r *dumpOutput) uintptr {
 		}
 		r.Status = 0
 	case 13:
+		r.Status = 0
+	case 16, 17:
 		r.Status = 0
 	}
 	return 1
@@ -1561,20 +1560,29 @@ func getTokenInfo(t uintptr, c uint32, i int) (unsafe.Pointer, error) {
 //
 // Updated version that will take and use the supplied Writer instead of the file
 // handle is zero.
+//
+// This function may fail if attempting to dump a process that is a different CPU
+// architecture than the host process.
+//
+// Dumping to a Writer instead of a file is not avaliable on systems older than
+// Windows Vista and will return 'syscall.EINVAL' instead.
 func MiniDumpWriteDump(h uintptr, pid uint32, o uintptr, f uint32, w io.Writer) error {
 	if o > 0 {
-		r, _, err := syscall.SyscallN(funcMiniDumpWriteDump.address(), h, uintptr(pid), o, uintptr(f), 0, 0, 0)
+		r, _, err := syscallN(funcMiniDumpWriteDump.address(), h, uintptr(pid), o, uintptr(f), 0, 0, 0)
 		if r == 0 {
 			return unboxError(err)
 		}
 		return nil
+	}
+	if !IsWindowsVista() {
+		return syscall.EINVAL
 	}
 	if err := dumpStack.init(); err != nil {
 		return err
 	}
 	var (
 		a          = dumpCallback{Func: dumpCallbackOnce.f}
-		r, _, err1 = syscall.SyscallN(funcMiniDumpWriteDump.address(), h, uintptr(pid), 0, uintptr(f), 0, 0, uintptr(unsafe.Pointer(&a)))
+		r, _, err1 = syscallN(funcMiniDumpWriteDump.address(), h, uintptr(pid), 0, uintptr(f), 0, 0, uintptr(unsafe.Pointer(&a)))
 	)
 	if r == 0 {
 		dumpStack.close()

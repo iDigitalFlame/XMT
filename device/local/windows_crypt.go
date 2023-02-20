@@ -1,4 +1,5 @@
 //go:build windows && crypt
+// +build windows,crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -19,10 +20,9 @@
 package local
 
 import (
-	"strconv"
-
 	"github.com/iDigitalFlame/xmt/device/winapi"
 	"github.com/iDigitalFlame/xmt/device/winapi/registry"
+	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/crypt"
 )
 
@@ -50,13 +50,13 @@ func version() string {
 	}
 	var (
 		j, y, h = winapi.GetVersionNumbers()
-		b       = strconv.FormatUint(uint64(h), 10)
+		b       = util.Uitoa(uint64(h))
 		v       string
 	)
 	if y > 0 {
-		v = strconv.FormatUint(uint64(j), 10) + "." + strconv.FormatUint(uint64(y), 10)
+		v = util.Uitoa(uint64(j)) + "." + util.Uitoa(uint64(y))
 	} else {
-		v = strconv.FormatUint(uint64(j), 10)
+		v = util.Uitoa(uint64(j))
 	}
 	switch {
 	case len(n) == 0 && len(b) == 0 && len(v) == 0:

@@ -1,4 +1,5 @@
 //go:build plan9 && !crypt
+// +build plan9,!crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -19,12 +20,13 @@
 package local
 
 import (
-	"os"
 	"os/exec"
+
+	"github.com/iDigitalFlame/xmt/data"
 )
 
 func sysID() []byte {
-	if b, err := os.ReadFile("/etc/hostid"); err == nil {
+	if b, err := data.ReadFile("/etc/hostid"); err == nil {
 		return b
 	}
 	o, _ := exec.Command("kenv", "-q", "smbios.system.uuid").CombinedOutput()

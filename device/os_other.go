@@ -1,4 +1,5 @@
 //go:build js
+// +build js
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

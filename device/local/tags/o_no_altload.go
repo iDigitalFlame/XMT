@@ -1,4 +1,5 @@
 //go:build !altload
+// +build !altload
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

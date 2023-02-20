@@ -70,7 +70,7 @@ const (
 // If multiple connections are contained in the current Config Group, a
 // 'ErrMultipleConnections' error will be returned during a build.
 func ConnectIP(p uint) Setting {
-	return cBytes{byte(valIP), byte(p)}
+	return &cBytes{byte(valIP), byte(p)}
 }
 
 // ConnectTLSEx will provide a TLS connection setting to the generated Profile
@@ -82,7 +82,7 @@ func ConnectIP(p uint) Setting {
 //
 // This hint cannot be used as a Listener.
 func ConnectTLSEx(ver uint16) Setting {
-	return cBytes{byte(valTLSx), byte(ver & 0xFF)}
+	return &cBytes{byte(valTLSx), byte(ver & 0xFF)}
 }
 
 // ConnectTLSExCA will provide a TLS connection setting to the generated Profile
@@ -106,7 +106,7 @@ func ConnectTLSExCA(ver uint16, ca []byte) Setting {
 	c[0], c[1] = byte(valTLSxCA), byte(ver&0xFF)
 	c[2], c[3] = byte(a>>8), byte(a)
 	copy(c[4:], ca[:a])
-	return c
+	return &c
 }
 
 // ConnectTLSCerts will provide a TLS connection setting to the generated Profile
@@ -136,7 +136,7 @@ func ConnectTLSCerts(ver uint16, pem, key []byte) Setting {
 	c[4], c[5] = byte(k>>8), byte(k)
 	n := copy(c[6:], pem[:p]) + 6
 	copy(c[n:], key[:p])
-	return c
+	return &c
 }
 
 // ConnectMuTLS will provide a TLS connection setting to the generated Profile
@@ -171,7 +171,7 @@ func ConnectMuTLS(ver uint16, ca, pem, key []byte) Setting {
 	n := copy(c[8:], ca[:a]) + 8
 	n += copy(c[n:], pem[:p])
 	copy(c[n:], key)
-	return c
+	return &c
 }
 
 // ConnectWC2 will provide a WebC2 connection setting to the generated Profile
@@ -219,5 +219,5 @@ func ConnectWC2(url, host, agent string, headers map[string]string) Setting {
 		c = append(c, []byte(v)...)
 		i++
 	}
-	return c
+	return &c
 }

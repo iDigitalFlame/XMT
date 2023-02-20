@@ -1,4 +1,5 @@
 //go:build !nokeyset
+// +build !nokeyset
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

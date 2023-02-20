@@ -93,11 +93,11 @@ func (c *Chunk) Int64() (int64, error) {
 
 // Uint8 reads the value from the Chunk payload buffer.
 func (c *Chunk) Uint8() (uint8, error) {
-	if c.pos+1 > len(c.buf) {
+	if c.checkBounds(1) {
 		return 0, io.EOF
 	}
-	v := c.buf[c.pos]
-	c.pos++
+	v := c.buf[c.rpos]
+	c.rpos++
 	return v, nil
 }
 
@@ -149,33 +149,14 @@ func (c *Chunk) Bytes() ([]byte, error) {
 	}
 	// NOTE(dij): This looks like an awesome optimization, we reslice instead of
 	//            allocating and writing a new slice.
-	//
-	// BUG(dij): Tracking just incase something breaks horribly.
-	if n := len(c.buf); n < c.pos+int(l) {
-		o := c.buf[c.pos:]
-		c.pos = n
+	if n := c.Size(); n < c.rpos+int(l) {
+		o := c.buf[c.rpos:]
+		c.rpos = n
 		return o, io.EOF
 	}
-	o := c.buf[c.pos : uint64(c.pos)+l]
-	c.pos += int(l)
+	o := c.buf[c.rpos : uint64(c.rpos)+l]
+	c.rpos += int(l)
 	return o, nil
-
-	/*var (
-		n int
-		b = make([]byte, l)
-	)*/
-	/*if n, err = io.ReadFull(c, b); err != nil {
-		switch err {
-		case io.EOF:
-		case ErrLimit:
-		default:
-			return nil, err
-		}
-	}
-	if uint64(n) != l {
-		return b[:n], io.EOF
-	}
-	return b, nil*/
 }
 
 // ReadUint reads the value from the Chunk payload buffer into the provided pointer.
@@ -210,35 +191,35 @@ func (c *Chunk) ReadBool(p *bool) error {
 
 // Uint16 reads the value from the Chunk payload buffer.
 func (c *Chunk) Uint16() (uint16, error) {
-	if c.pos+2 > len(c.buf) {
+	if c.checkBounds(2) {
 		return 0, io.EOF
 	}
-	_ = c.buf[c.pos+1]
-	v := uint16(c.buf[c.pos+1]) | uint16(c.buf[c.pos])<<8
-	c.pos += 2
+	_ = c.buf[c.rpos+1]
+	v := uint16(c.buf[c.rpos+1]) | uint16(c.buf[c.rpos])<<8
+	c.rpos += 2
 	return v, nil
 }
 
 // Uint32 reads the value from the Chunk payload buffer.
 func (c *Chunk) Uint32() (uint32, error) {
-	if c.pos+4 > len(c.buf) {
+	if c.checkBounds(4) {
 		return 0, io.EOF
 	}
-	_ = c.buf[c.pos+3]
-	v := uint32(c.buf[c.pos+3]) | uint32(c.buf[c.pos+2])<<8 | uint32(c.buf[c.pos+1])<<16 | uint32(c.buf[c.pos])<<24
-	c.pos += 4
+	_ = c.buf[c.rpos+3]
+	v := uint32(c.buf[c.rpos+3]) | uint32(c.buf[c.rpos+2])<<8 | uint32(c.buf[c.rpos+1])<<16 | uint32(c.buf[c.rpos])<<24
+	c.rpos += 4
 	return v, nil
 }
 
 // Uint64 reads the value from the Chunk payload buffer.
 func (c *Chunk) Uint64() (uint64, error) {
-	if c.pos+8 > len(c.buf) {
+	if c.checkBounds(8) {
 		return 0, io.EOF
 	}
-	_ = c.buf[c.pos+7]
-	v := uint64(c.buf[c.pos+7]) | uint64(c.buf[c.pos+6])<<8 | uint64(c.buf[c.pos+5])<<16 | uint64(c.buf[c.pos+4])<<24 |
-		uint64(c.buf[c.pos+3])<<32 | uint64(c.buf[c.pos+2])<<40 | uint64(c.buf[c.pos+1])<<48 | uint64(c.buf[c.pos])<<56
-	c.pos += 8
+	_ = c.buf[c.rpos+7]
+	v := uint64(c.buf[c.rpos+7]) | uint64(c.buf[c.rpos+6])<<8 | uint64(c.buf[c.rpos+5])<<16 | uint64(c.buf[c.rpos+4])<<24 |
+		uint64(c.buf[c.rpos+3])<<32 | uint64(c.buf[c.rpos+2])<<40 | uint64(c.buf[c.rpos+1])<<48 | uint64(c.buf[c.rpos])<<56
+	c.rpos += 8
 	return v, nil
 }
 

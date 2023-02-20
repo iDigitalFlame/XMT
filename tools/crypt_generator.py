@@ -66,7 +66,7 @@ def _merge_tags(one, two):
     return r
 
 
-class CryptMapper(object):
+class CryptGenerator(object):
     __slots__ = ("text", "_count")
 
     def __init__(self):
@@ -165,6 +165,6 @@ if __name__ == "__main__":
     if len(argv) == 3:
         d = argv[2]
 
-    v = CryptMapper()
+    v = CryptGenerator()
     v.start(argv[1], d)
     del d, v

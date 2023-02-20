@@ -1,4 +1,5 @@
 //go:build !windows
+// +build !windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -20,6 +21,7 @@ package device
 
 import (
 	"os"
+	"os/user"
 	"runtime/debug"
 	"syscall"
 
@@ -55,8 +57,8 @@ func GoExit() {
 func FreeOSMemory() {
 	debug.FreeOSMemory()
 }
-func proxyInit() *config {
-	return &config{
+func proxyInit() config {
+	return config{
 		HTTPProxy:  dualEnv("HTTP_PROXY", "http_proxy"),
 		HTTPSProxy: dualEnv("HTTPS_PROXY", "https_proxy"),
 		NoProxy:    dualEnv("NO_PROXY", "no_proxy"),
@@ -71,6 +73,29 @@ func proxyInit() *config {
 func RevertToSelf() error {
 	// TODO(dij): *nix support?
 	return ErrNoWindows
+}
+
+// Whoami returns the current user name. This function is different than the
+// "local.Device.User" variable as this will be fresh everytime this is called,
+// but also means that any API functions called will be re-done each call and
+// are not cached.
+//
+// If caching or multiple fast calls are needed, use the "local" package instead.
+//
+// This function returns an error if determining the username results in an
+// error.
+func Whoami() (string, error) {
+	u, err := user.Current()
+	if err != nil {
+		return "", err
+	}
+	switch {
+	case len(u.Username) > 0:
+		return u.Username, nil
+	case len(u.Uid) > 0:
+		return u.Uid, nil
+	}
+	return u.Name, nil
 }
 func dualEnv(o, t string) string {
 	if v, ok := syscall.Getenv(o); ok {

@@ -1,4 +1,5 @@
 //go:build !windows && !js
+// +build !windows,!js
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -26,7 +27,7 @@ import (
 	"unsafe"
 )
 
-const userSize = int(unsafe.Sizeof(userEntry{}))
+const userSize = 384
 
 type userEntry struct {
 	Type      uint16

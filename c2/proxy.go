@@ -1,4 +1,5 @@
 //go:build !noproxy
+// +build !noproxy
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -20,7 +21,6 @@ package c2
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net"
 	"sync"
@@ -115,7 +115,7 @@ func (p *Proxy) listen() {
 			if p.state.Closing() {
 				break
 			}
-			if errors.Is(err, net.ErrClosed) {
+			if isClosedError(err) {
 				continue
 			}
 			e, ok := err.(net.Error)
@@ -195,8 +195,6 @@ func (p *Proxy) subsRegister() {
 	}
 	p.lock.RUnlock()
 }
-func (proxyClient) keyCheck()  {}
-func (proxyClient) keyRevert() {}
 
 // IsActive returns true if the Proxy is still able to send and receive Packets.
 func (p *Proxy) IsActive() bool {
@@ -232,11 +230,11 @@ func (c *proxyClient) chanWake() {
 func (p *Proxy) Address() string {
 	return p.listener.Addr().String()
 }
-
 func (c *proxyClient) name() string {
 	return c.ID.String()
 }
 func (proxyClient) accept(_ uint16) {}
+func (proxyClient) keyCheckRevert() {}
 func (p *Proxy) wrapper() cfg.Wrapper {
 	return p.w
 }
@@ -256,7 +254,6 @@ func (p *Proxy) clientClear(i uint32) {
 	v.chn = nil
 	v.state.Unset(stateChannelProxy)
 }
-
 func (c *proxyClient) chanStop() bool {
 	return c.state.ChannelCanStop()
 }
@@ -273,8 +270,11 @@ func (c *proxyClient) update(_ string) {
 func (p *Proxy) Done() <-chan struct{} {
 	return p.ch
 }
-func (proxyClient) keyValue() *data.Key {
+func (proxyClient) keyCheckSync() error {
 	return nil
+}
+func (p *Proxy) keyValue() data.KeyPair {
+	return p.parent.keys
 }
 func (c *proxyClient) chanRunning() bool {
 	return c.state.Channel()
@@ -284,6 +284,11 @@ func (c *proxyClient) stateSet(v uint32) {
 }
 func (p *Proxy) transform() cfg.Transform {
 	return p.t
+}
+func (proxyClient) keyValue() data.KeyPair {
+	// BUG(dij): Is this a leak?
+	//           I don't think so, but let's keep track of it.
+	return data.KeyPair{}
 }
 func (c *proxyClient) stateUnset(v uint32) {
 	c.state.Unset(v)
@@ -448,12 +453,11 @@ func (p *Proxy) Replace(addr string, n cfg.Profile) error {
 	if p.state.Unset(stateReplacing); cout.Enabled {
 		p.log.Info(`[%s] Replaced Proxy listener socket, now bound to "%s"!`, p.prefix(), h)
 	}
-	//p.parent.updateProxyStats() // true, p.name)
 	return nil
 }
-func (p *Proxy) talk(a string, n *com.Packet) (*conn, error) {
+func (p *Proxy) talk(a string, n *com.Packet) (*conn, bool, error) {
 	if n.Device.Empty() || p.parent.state.Closing() {
-		return nil, io.ErrShortBuffer
+		return nil, false, io.ErrShortBuffer
 	}
 	if n.Flags |= com.FlagProxy; cout.Enabled {
 		p.log.Trace(`[%s:%s] %s: Received a Packet "%s"..`, p.prefix(), n.Device, a, n)
@@ -474,7 +478,7 @@ func (p *Proxy) talk(a string, n *com.Packet) (*conn, error) {
 				f.SetLen(n.Flags.Len())
 				f.SetGroup(n.Flags.Group())
 			}
-			return &conn{next: &com.Packet{ID: SvRegister, Flags: f, Device: n.Device}}, nil
+			return &conn{next: &com.Packet{ID: SvRegister, Flags: f, Device: n.Device}}, false, nil
 		}
 		c = &proxyClient{
 			ID:    n.Device,
@@ -488,7 +492,7 @@ func (p *Proxy) talk(a string, n *com.Packet) (*conn, error) {
 			p.log.Info(`[%s:%s] %s: New client registered as "%s" hash 0x%X.`, p.prefix(), c.ID, a, c.ID, i)
 		}
 		p.parent.write(true, n)
-		c.queue(&com.Packet{ID: SvComplete, Device: n.Device, Job: n.Job})
+		c.queue(keyHostSync(p, n))
 	}
 	if c.state.Set(stateSeen); n.ID == SvShutdown {
 		select {
@@ -496,16 +500,16 @@ func (p *Proxy) talk(a string, n *com.Packet) (*conn, error) {
 		default:
 		}
 		p.parent.write(true, n)
-		return &conn{next: &com.Packet{ID: SvShutdown, Device: n.Device, Job: n.Job}}, nil
+		return &conn{next: &com.Packet{ID: SvShutdown, Device: n.Device, Job: n.Job}}, false, nil
 	}
 	v, err := p.resolve(c, a, n.Tags)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if err = v.process(p.log, p, a, n, false); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return v, nil
+	return v, ok, nil
 }
 func readProxyData(f bool, r data.Reader) ([]proxyData, error) {
 	n, err := r.Uint8()
@@ -576,7 +580,7 @@ func (p *Proxy) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *com
 		if p.lock.Unlock(); cout.Enabled {
 			p.log.Info(`[%s:%s/M] %s: New client registered as "%s" hash 0x%X.`, p.prefix(), c.ID, a, c.ID, i)
 		}
-		c.queue(&com.Packet{ID: SvComplete, Device: n.Device, Job: n.Job})
+		c.queue(keyHostSync(p, n))
 	}
 	switch c.state.Set(stateSeen); {
 	case isPacketNoP(n):

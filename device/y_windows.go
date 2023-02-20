@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -87,7 +88,7 @@ func IsDebugged() bool {
 	}
 	return winapi.IsDebugged()
 }
-func proxyInit() *config {
+func proxyInit() config {
 	var (
 		i   winapi.ProxyInfo
 		err = winapi.WinHTTPGetDefaultProxyConfiguration(&i)
@@ -96,17 +97,17 @@ func proxyInit() *config {
 		if bugtrack.Enabled {
 			bugtrack.Track("device.proxyInit(): Retrieving proxy info failed, falling back to no proxy: %s", err.Error())
 		}
-		return nil
+		return config{}
 	}
 	if i.AccessType < 3 || (i.Proxy == nil && i.ProxyBypass == nil) {
-		return nil
+		return config{}
 	}
 	var (
 		v = winapi.UTF16PtrToString(i.Proxy)
 		b = winapi.UTF16PtrToString(i.ProxyBypass)
 	)
 	if len(v) == 0 && len(b) == 0 {
-		return nil
+		return config{}
 	}
 	var c config
 	if i := split(b); len(i) > 0 {
@@ -146,7 +147,7 @@ func proxyInit() *config {
 			c.HTTPProxy, c.HTTPSProxy, c.NoProxy,
 		)
 	}
-	return &c
+	return c
 }
 
 // RevertToSelf function terminates the impersonation of a client application.
@@ -155,6 +156,19 @@ func proxyInit() *config {
 // Always returns 'ErrNoWindows' on non-Windows devices.
 func RevertToSelf() error {
 	return winapi.SetAllThreadsToken(0)
+}
+
+// Whoami returns the current user name. This function is different than the
+// "local.Device.User" variable as this will be fresh everytime this is called,
+// but also means that any API functions called will be re-done each call and
+// are not cached.
+//
+// If caching or multiple fast calls are needed, use the "local" package instead.
+//
+// This function returns an error if determining the username results in an
+// error.
+func Whoami() (string, error) {
+	return winapi.GetLocalUser()
 }
 func split(s string) []string {
 	if len(s) == 0 {
@@ -247,7 +261,7 @@ func Mounts() ([]string, error) {
 		return nil, xerr.Wrap("GetLogicalDrives", err)
 	}
 	m := make([]string, 0, 26)
-	for i := 0; i < 26; i++ {
+	for i := uint8(0); i < 26; i++ {
 		if (d & (1 << i)) == 0 {
 			continue
 		}
@@ -366,13 +380,14 @@ func ImpersonateThread(f *filter.Filter) error {
 //
 // If the Filter is nil or empty or if an error occurs during reading/writing
 // an error will be returned.
+//
+// This function may fail if attempting to dump a process that is a different CPU
+// architecture than the host process.
 func DumpProcess(f *filter.Filter, w io.Writer) error {
 	if f.Empty() {
 		return filter.ErrNoProcessFound
 	}
-	if err := winapi.GetDebugPrivilege(); err != nil {
-		return err
-	}
+	winapi.GetDebugPrivilege()
 	// 0x450 - PROCESS_QUERY_INFORMATION | PROCESS_VM_READ | PROCESS_DUP_HANDLE
 	h, err := f.HandleFunc(0x450, nil)
 	if err != nil {
@@ -395,7 +410,7 @@ func DumpProcess(f *filter.Filter, w io.Writer) error {
 	}
 	if v, ok := w.(file); ok {
 		x, err := v.File()
-		if err == nil {
+		if err != nil {
 			winapi.CloseHandle(h)
 			return err
 		}

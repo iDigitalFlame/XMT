@@ -1,4 +1,5 @@
 //go:build small
+// +build small
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

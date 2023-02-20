@@ -1,4 +1,5 @@
-//go:build scripts && crypt
+//go:build scripts && crypt && go1.18
+// +build scripts,crypt,go1.18
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

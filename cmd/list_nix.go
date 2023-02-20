@@ -1,4 +1,5 @@
 //go:build !windows
+// +build !windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -19,10 +20,14 @@
 package cmd
 
 import (
+	"os"
 	"strconv"
 	"strings"
 )
 
+func pipe() (*os.File, *os.File, error) {
+	return os.Pipe()
+}
 func readProcStats(b []byte) (string, uint32) {
 	var (
 		n string

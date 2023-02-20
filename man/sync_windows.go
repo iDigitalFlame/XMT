@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -109,7 +110,7 @@ func mutexCreate(s string) (listener, error) {
 	if v.SecurityDescriptor, err = winapi.SecurityDescriptorFromString(pipe.PermEveryone); err != nil {
 		return nil, err
 	}
-	v.Length = uint32(unsafe.Sizeof(s))
+	v.Length = uint32(unsafe.Sizeof(v))
 	m, err := winapi.CreateMutex(&v, true, s)
 	if m > 0 && err == syscall.ERROR_ALREADY_EXISTS {
 		winapi.CloseHandle(m)
@@ -134,7 +135,7 @@ func eventCreate(s string) (listener, error) {
 	if v.SecurityDescriptor, err = winapi.SecurityDescriptorFromString(pipe.PermEveryone); err != nil {
 		return nil, err
 	}
-	v.Length = uint32(unsafe.Sizeof(s))
+	v.Length = uint32(unsafe.Sizeof(v))
 	e, err := winapi.CreateEvent(&v, true, true, s)
 	if e > 0 && err == syscall.ERROR_ALREADY_EXISTS {
 		winapi.CloseHandle(e)
@@ -172,7 +173,7 @@ func mailslotCreate(s string) (listener, error) {
 	if v.SecurityDescriptor, err = winapi.SecurityDescriptorFromString(pipe.PermEveryone); err != nil {
 		return nil, err
 	}
-	v.Length = uint32(unsafe.Sizeof(s))
+	v.Length = uint32(unsafe.Sizeof(v))
 	r, err := winapi.CreateMailslot(s, 0, -1, &v)
 	if r > 0 && err == syscall.ERROR_ALREADY_EXISTS {
 		winapi.CloseHandle(r)
@@ -197,7 +198,7 @@ func semaphoreCreate(s string) (listener, error) {
 	if v.SecurityDescriptor, err = winapi.SecurityDescriptorFromString(pipe.PermEveryone); err != nil {
 		return nil, err
 	}
-	v.Length = uint32(unsafe.Sizeof(s))
+	v.Length = uint32(unsafe.Sizeof(v))
 	r, err := winapi.CreateSemaphore(&v, 0, 1, s)
 	if r > 0 && err == syscall.ERROR_ALREADY_EXISTS {
 		winapi.CloseHandle(r)

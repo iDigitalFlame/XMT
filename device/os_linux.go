@@ -1,4 +1,5 @@
 //go:build linux && !android
+// +build linux,!android
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

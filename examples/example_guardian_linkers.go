@@ -1,3 +1,6 @@
+//go:build !wasm && !js
+// +build !wasm,!js
+
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
 // This program is free software: you can redistribute it and/or modify

@@ -1,4 +1,5 @@
 //go:build implant
+// +build implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

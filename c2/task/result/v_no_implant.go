@@ -1,4 +1,5 @@
 //go:build !implant
+// +build !implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -22,7 +23,7 @@ package result
 
 import (
 	"io"
-	"io/fs"
+	"os"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/c2"
@@ -50,7 +51,7 @@ type fileInfo struct {
 	mod  time.Time
 	name string
 	size int64
-	mode fs.FileMode
+	mode os.FileMode
 }
 
 // FuncEntry is a simple struct that is used to describe the current status of
@@ -65,9 +66,6 @@ type FuncEntry struct {
 	Original uintptr
 }
 
-func (fileInfo) Sys() any {
-	return nil
-}
 func (f fileInfo) Size() int64 {
 	return f.size
 }
@@ -76,6 +74,9 @@ func (f fileInfo) IsDir() bool {
 }
 func (f fileInfo) Name() string {
 	return f.name
+}
+func (fileInfo) Sys() interface{} {
+	return nil
 }
 
 // IsMinimized returns true if the Window state was minimized at the time of
@@ -89,7 +90,7 @@ func (w Window) IsMinimized() bool {
 func (w Window) IsMaximized() bool {
 	return w.Flags&0x1 != 0
 }
-func (f fileInfo) Mode() fs.FileMode {
+func (f fileInfo) Mode() os.FileMode {
 	return f.mode
 }
 func (f fileInfo) ModTime() time.Time {
@@ -172,7 +173,7 @@ func IsDebugged(n *com.Packet) (bool, error) {
 //
 // This function returns an error if any reading errors occur, the Packet is not
 // in the expected format or the Packet is nil or empty.
-func Ls(n *com.Packet) ([]fs.FileInfo, error) {
+func Ls(n *com.Packet) ([]os.FileInfo, error) {
 	if n == nil || n.Empty() || n.Flags&com.FlagError != 0 {
 		return nil, c2.ErrMalformedPacket
 	}
@@ -180,7 +181,7 @@ func Ls(n *com.Packet) ([]fs.FileInfo, error) {
 	if err != nil || c == 0 {
 		return nil, err
 	}
-	e := make([]fs.FileInfo, c)
+	e := make([]os.FileInfo, c)
 	for i := range e {
 		var v fileInfo
 		if err = n.ReadString(&v.name); err != nil {
@@ -217,17 +218,6 @@ func Netcat(n *com.Packet) (io.Reader, error) {
 		return nil, nil
 	}
 	return n, nil
-}
-
-// Pull will parse the RvResult Packet from a TvPull task.
-//
-// The return result is the expended full file path on the host as a string, and
-// the resulting count of bytes written to disk.
-//
-// This function returns an error if any reading errors occur, the Packet is not
-// in the expected format or the Packet is nil or empty.
-func Pull(n *com.Packet) (string, uint64, error) {
-	return Upload(n)
 }
 
 // WindowList will parse the RvResult Packet from a TvWindows task.
@@ -349,6 +339,27 @@ func Upload(n *com.Packet) (string, uint64, error) {
 		return "", 0, err
 	}
 	return s, c, nil
+}
+
+// Whoami will parse the RvResult Packet from a MvWhoami task.
+//
+// The return result is the current username the client is running under and the
+// path if the current Process.
+//
+// This function returns an error if any reading errors occur, the Packet is not
+// in the expected format or the Packet is nil or empty.
+func Whoami(n *com.Packet) (string, string, error) {
+	if n == nil || n.Empty() || n.Flags&com.FlagError != 0 {
+		return "", "", c2.ErrMalformedPacket
+	}
+	var u, p string
+	if err := n.ReadString(&u); err != nil {
+		return "", "", err
+	}
+	if err := n.ReadString(&p); err != nil {
+		return "", "", err
+	}
+	return u, p, nil
 }
 
 // UnmarshalStream transforms this struct from a binary format that is read from
@@ -554,6 +565,38 @@ func Registry(n *com.Packet) ([]regedit.Entry, bool, error) {
 		}
 	}
 	return r, true, nil
+}
+
+// Pull will parse the RvResult Packet from a TvPull task.
+//
+// The return result is the expended full file path on the host as a string, and
+// the resulting count of bytes written to disk.
+//
+// If the Pull path was empty, the returned results will instead be returned
+// via the supplied Reader, which will not be nil. When this occurs the string
+// and size values will be "" and zero.
+//
+// This function returns an error if any reading errors occur, the Packet is not
+// in the expected format or the Packet is nil or empty.
+func Pull(n *com.Packet) (string, uint64, io.Reader, error) {
+	if n == nil || n.Empty() || n.Flags&com.FlagError != 0 {
+		return "", 0, nil, c2.ErrMalformedPacket
+	}
+	var (
+		s   string
+		c   uint64
+		err = n.ReadString(&s)
+	)
+	if err != nil {
+		return "", 0, nil, err
+	}
+	if err = n.ReadUint64(&c); err != nil {
+		return "", 0, nil, err
+	}
+	if len(s) == 0 && c == 0 {
+		return "", 0, n, nil
+	}
+	return s, c, nil, nil
 }
 
 // Assembly will parse the RvResult Packet from a TvAssembly task.

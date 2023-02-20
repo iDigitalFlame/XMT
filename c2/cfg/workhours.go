@@ -107,7 +107,7 @@ func (w WorkHours) Work() time.Duration {
 	n := time.Now()
 	// Bit-shit to see if we have that day enabled.
 	// Fastpath check if we need to check days at all.
-	if w.Days > 0 && w.Days < 127 && (w.Days&(1<<n.Weekday())) == 0 {
+	if w.Days > 0 && w.Days < 127 && (w.Days&(1<<uint(n.Weekday()))) == 0 {
 		// Figure out how much time until the next day.
 		y, m, d := n.Date()
 		return time.Date(y, m, d+1, 0, 0, 0, 0, n.Location()).Sub(n)

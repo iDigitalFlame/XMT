@@ -1,4 +1,5 @@
 //go:build !windows && !js && !linux && !android && crypt
+// +build !windows,!js,!linux,!android,crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

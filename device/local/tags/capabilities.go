@@ -38,6 +38,7 @@ const (
 	CapMemorySweeper
 	CapFuncmap
 	CapAltLoad
+	CapChunkHeap
 
 	// CapLimitStandard is a flagset combo that is recognized as
 	//  CapLimitLarge | CapLimitMedium
@@ -61,4 +62,4 @@ const (
 const Enabled = setCapAltLoad | setCapFuncmap | setCapMemorySweeper |
 	setCapRandomType | setCapLimit | setCapRegexp | setCapProcEnum |
 	setCapProxy | setCapKey | setCapEws | setCapCrypt | setCapImplant |
-	setCapBugs | setCapMemoryMapper
+	setCapBugs | setCapMemoryMapper | setCapChunkHeap

@@ -1,4 +1,5 @@
 //go:build !windows
+// +build !windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -22,7 +23,7 @@ import "github.com/iDigitalFlame/xmt/device"
 
 type thread struct {
 	_   [0]func()
-	ctx any
+	ctx interface{}
 }
 
 func (thread) Pid() uint32 {

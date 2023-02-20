@@ -1,4 +1,6 @@
 //go:build windows && (386 || arm)
+// +build windows
+// +build 386 arm
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -29,9 +31,9 @@ func systemType() uint8 {
 	//            system arch, since we only know what we've been built as.
 	//            Apparently applies to x86 AND ARM!
 	switch r, _ := winapi.IsWow64Process(); {
-	case r && device.Arch == arch.X86:
+	case r && arch.Current == arch.X86:
 		return uint8(uint8(device.OS)<<4 | uint8(arch.X86OnX64))
-	case r && device.Arch == arch.ARM:
+	case r && arch.Current == arch.ARM:
 		return uint8(uint8(device.OS)<<4 | uint8(arch.ARMOnARM64))
 	}
 	return uint8(uint8(device.OS)<<4 | uint8(arch.Current))

@@ -1,4 +1,5 @@
 //go:build !windows && !plan9 && !js && !darwin && !linux && !android && crypt
+// +build !windows,!plan9,!js,!darwin,!linux,!android,crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -20,10 +21,11 @@ package local
 
 import (
 	"bytes"
-	"os"
 	"runtime"
 	"strings"
 
+	"github.com/iDigitalFlame/xmt/data"
+	"github.com/iDigitalFlame/xmt/device/unix"
 	"github.com/iDigitalFlame/xmt/util/crypt"
 )
 
@@ -43,7 +45,7 @@ func sysID() []byte {
 			return b
 		}
 	}
-	if b, err := os.ReadFile(crypt.Get(72)); err == nil { // /etc/hostid
+	if b, err := data.ReadFile(crypt.Get(72)); err == nil { // /etc/hostid
 		return b
 	}
 	o, _ := output(crypt.Get(73)) // kenv -q smbios.system.uuid
@@ -67,11 +69,11 @@ func version() string {
 	//            same with "freebsd-version" so it fits nicely.
 	if len(b) == 0 && strings.Contains(runtime.GOOS, crypt.Get(74)[4:7]) { // freebsd-version -k
 		if o, err := output(crypt.Get(74)); err == nil { // freebsd-version -k
-			b = strings.ReplaceAll(string(o), "\n", "")
+			b = strings.Replace(string(o), "\n", "", -1)
 		}
 	}
 	if len(v) == 0 {
-		v = uname()
+		v = unix.Release()
 	}
 	switch {
 	case len(n) == 0 && len(b) == 0 && len(v) == 0:

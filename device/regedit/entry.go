@@ -17,7 +17,6 @@
 // Package regedit is a helper package that allows easy access to the Windows
 // registry on Windows systems and allows non-Windows systems to read data generated
 // from registry entries.
-//
 package regedit
 
 import (

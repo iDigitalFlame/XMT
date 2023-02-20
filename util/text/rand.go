@@ -23,7 +23,6 @@
 // The other exported types allow for generation of mutable expressions that can
 // be used to generate matching regular expression values. These work well with
 // any package that works with stringers, such as the "wc2" package.
-//
 package text
 
 import (
@@ -42,7 +41,7 @@ const (
 
 // Rand is the custom Random number generator, based on the 'util.Rand' choice.
 // This random can be used to create custom random string values.
-var Rand = &random{s: util.Rand}
+var Rand = random{s: util.Rand}
 
 var (
 	// All represents the string instruction set that contains all alphanumeric

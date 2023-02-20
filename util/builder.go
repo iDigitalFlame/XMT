@@ -55,7 +55,7 @@ func (b *Builder) Grow(n int) {
 	}
 	v := make([]byte, len(b.b), 2*cap(b.b)+n)
 	copy(v, b.b)
-	b.b = v
+	b.b, v = v, nil
 }
 
 // String returns the accumulated string.

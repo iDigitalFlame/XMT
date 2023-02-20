@@ -43,6 +43,9 @@ type Block struct {
 	b cipher.Block
 	v []byte
 }
+type nopCloser struct {
+	io.Reader
+}
 
 // NewXOR is a function that is an alias for 'Stream(crypto.XOR(k), crypto.XOR(k))'
 //
@@ -53,6 +56,9 @@ func NewXOR(k []byte) XOR {
 		x.iv[i] = (k[i] + byte(i)) ^ 2
 	}
 	return x
+}
+func (nopCloser) Close() error {
+	return nil
 }
 
 // NewCBK creates a special type of Wrapper for CBK-based encryptors.
@@ -76,7 +82,7 @@ func (c CBK) Unwrap(r io.Reader) (io.Reader, error) {
 
 // Unwrap fulfils the Wrapper interface.
 func (x XOR) Unwrap(r io.Reader) (io.Reader, error) {
-	return io.NopCloser(&cipher.StreamReader{R: r, S: cipher.NewCFBDecrypter(x.k, x.iv)}), nil
+	return nopCloser{&cipher.StreamReader{R: r, S: cipher.NewCFBDecrypter(x.k, x.iv)}}, nil
 }
 
 // Unwrap fulfils the Wrapper interface.

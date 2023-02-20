@@ -1,4 +1,5 @@
 //go:build !implant && !nokeyset
+// +build !implant,!nokeyset
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -25,27 +26,48 @@ import (
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 )
 
-func (s *Session) sessionKeyInit(l string, n *com.Packet) {
-	if v, err := n.Read(s.key[:]); v != data.KeySize || err != nil {
+func (s *Session) keyListenerRegenerate(l string, n *com.Packet) error {
+	if err := s.keys.Read(n); err != nil {
 		if cout.Enabled {
-			s.log.Error("[%s:%s/Crypt] Error (Re)Generating key set!", l, s.ID)
+			s.log.Error("[%s:%s/Crypt] Reading KeyPair failed: %s!", l, s.ID, err)
 		}
-		return
+		return err
 	}
-	if generateKeys(&s.key, s.ID); cout.Enabled {
-		s.log.Debug("[%s:%s/Crypt] (Re)Generated key set!", l, s.ID)
+	if err := s.keys.Sync(); err != nil {
+		if cout.Enabled {
+			s.log.Error("[%s:%s/Crypt] Syncing KeyPair failed: %s!", l, s.ID, err)
+		}
+		return err
 	}
-	if bugtrack.Enabled {
-		bugtrack.Track("c2.(*Session).sessionKeyInit(): %s Key details %v.", s.ID, s.key)
+	if cout.Enabled {
+		bugtrack.Track("c2.(*Session).keyListenerRegenerate(): %s KeyPair details updated! [Public %s, Shared: %v]", s.ID, s.keys.Public, s.keys.Shared())
 	}
+	return nil
 }
-func (s *Session) sessionKeyUpdate(l string, n *com.Packet, d bool) {
+func (s *Session) keyCryptAndUpdate(l string, n *com.Packet, d bool) error {
 	if d {
-		// KeyCrypt: Encrypt this Packet.
-		n.Crypt(&s.key)
+		n.KeyCrypt(s.keys)
 	}
 	if n.Flags&com.FlagCrypt == 0 || n.Empty() {
-		return
+		return nil
 	}
-	s.sessionKeyInit(l, n)
+	return s.keyListenerRegenerate(l, n)
+}
+func (s *Session) keyListenerInit(k data.PrivateKey, l string, n *com.Packet) error {
+	if err := s.keys.Read(n); err != nil {
+		if cout.Enabled {
+			s.log.Error("[%s:%s/Crypt] Generating KeyPair failed: %s!", l, s.ID, err)
+		}
+		return err
+	}
+	if err := s.keys.FillPrivate(k); err != nil {
+		if cout.Enabled {
+			s.log.Error("[%s:%s/Crypt] Syncing KeyPair failed: %s!", l, s.ID, err)
+		}
+		return err
+	}
+	if cout.Enabled {
+		bugtrack.Track("c2.(*Session).keyListenerInit(): %s KeyPair details updated! [Public: %s, Shared: %v]", s.ID, s.keys.Public, s.keys.Shared())
+	}
+	return nil
 }

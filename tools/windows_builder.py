@@ -14,7 +14,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-# TODO(dij): Update this
 
 from os import environ
 from random import choice
@@ -22,18 +21,18 @@ from tempfile import mkdtemp
 from sys import stderr, exit
 from shutil import which, rmtree
 from traceback import format_exc
-from string import ascii_lowercase
 from argparse import ArgumentParser
 from os.path import isdir, isfile, join
 from subprocess import SubprocessError, run
+from string import ascii_lowercase, Template
 
 C_SRC = """#define WINVER 0x0501
 #define _WIN32_WINNT 0x0501
 
+#define NOWH
 #define NOMB
 #define NOMSG
 #define NONLS
-#define NOGDI
 #define NOMCX
 #define NOIME
 #define NOHELP
@@ -45,6 +44,7 @@ C_SRC = """#define WINVER 0x0501
 #define NOCOLOR
 #define NOMENUS
 #define NOCTLMGR
+#define NOMINMAX
 #define NOSCROLL
 #define NODRAWTEXT
 #define NOMETAFILE
@@ -64,6 +64,7 @@ C_SRC = """#define WINVER 0x0501
 #define NOVIRTUALKEYCODES
 #define WIN32_LEAN_AND_MEAN
 
+#define UNICODE
 #define EXPORT __declspec(dllexport)
 
 #include <winsock.h>
@@ -72,38 +73,85 @@ C_SRC = """#define WINVER 0x0501
 #include "{name}.h"
 
 """
-C_DLL = """DWORD {thread}() {{
+C_DLL = """DWORD $thread(void) {
     Sleep(1000);
-    {export}();
+    $export();
     return 0;
-}}
-EXPORT void {func}(HWND h, HINSTANCE i, LPSTR a, int s) {{
+}
+
+EXPORT HRESULT WINAPI VoidFunc(void) {
     HANDLE c = GetConsoleWindow();
-    if (c != NULL) {{
+    if (c != NULL) {
         ShowWindow(c, 0);
-    }}
-    {export}();
-}}
-EXPORT BOOL WINAPI DllMain(HINSTANCE h, DWORD r, LPVOID args) {{
-    if (r == DLL_PROCESS_ATTACH) {{
-        CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE){thread}, NULL, 0, NULL);
-    }}
+    }
+    $export();
+}
+EXPORT HRESULT WINAPI DllCanUnloadNow(void) {
+    // Always return S_FALSE so we can stay loaded.
+    return 1;
+}
+EXPORT HRESULT WINAPI DllRegisterServer(void) {
+    HANDLE c = GetConsoleWindow();
+    if (c != NULL) {
+        ShowWindow(c, 0);
+    }
+    $export();
+}
+EXPORT HRESULT WINAPI DllUnregisterServer(void) {
+    HANDLE c = GetConsoleWindow();
+    if (c != NULL) {
+        ShowWindow(c, 0);
+    }
+    $export();
+}
+EXPORT HRESULT WINAPI DllInstall(BOOL b, PCWSTR i) {
+    HANDLE c = GetConsoleWindow();
+    if (c != NULL) {
+        ShowWindow(c, 0);
+    }
+    $export();
+}
+EXPORT HRESULT WINAPI DllGetClassObject(void* x, void *i, void* p) {
+    HANDLE c = GetConsoleWindow();
+    if (c != NULL) {
+        ShowWindow(c, 0);
+    }
+    $export();
+}
+
+EXPORT VOID WINAPI $funcname(HWND h, HINSTANCE i, LPSTR a, int s) {
+    HANDLE c = GetConsoleWindow();
+    if (c != NULL) {
+        ShowWindow(c, 0);
+    }
+    $export();
+}
+
+EXPORT BOOL WINAPI DllMain(HINSTANCE h, DWORD r, LPVOID args) {
+    if (r == DLL_PROCESS_ATTACH) {
+        DisableThreadLibraryCalls(h);
+        CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)$thread, NULL, 0, NULL);
+    }
+    if (r == DLL_PROCESS_DETACH) {
+        GenerateConsoleCtrlEvent(1, 0); // Generate a SIGTERM signal to tell Go to exit cleanly.
+    }
     return TRUE;
-}}
+}
 """
-C_BINARY = """int main(int argc, char *argv[]) {{
+C_BINARY = """int main(int argc, char *argv[]) {
     HANDLE c = GetConsoleWindow();
-    if (c != NULL) {{
+    if (c != NULL) {
         ShowWindow(c, 0);
-    }}
-    {export}();
+    }
+    $export();
     return 0;
-}}"""
+}
+"""
 C_COMPILER = "x86_64-w64-mingw32-gcc"
 
 
 def _main():
-    a = ArgumentParser(description="Golang DLL Build Helper")
+    a = ArgumentParser(description="Golang Windows DLL/EXE Build Helper")
     a.add_argument("-D", "--dll", dest="dll", action="store_true")
     a.add_argument(
         "-o", "--out", type=str, dest="output", metavar="output_file", required=True
@@ -191,17 +239,17 @@ def _main():
 
         print(f'Creating C stub "{o}.c"..')
         with open(f"{join(d, o)}.c", "w") as f:
-            f.write(C_SRC.format(name=o))
+            f.write(Template(C_SRC).substitute(name=o))
             if p.dll:
                 f.write(
-                    C_DLL.format(
+                    Template(C_DLL).substitute(
                         export=p.export,
                         thread=p.thread,
-                        func=p.func,
+                        funcname=p.func,
                     )
                 )
             else:
-                f.write(C_BINARY.format(export=p.export))
+                f.write(Template(C_BINARY).substitute(export=p.export))
         if not p.dll:
             return run(
                 [

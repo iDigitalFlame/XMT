@@ -1,4 +1,5 @@
 //go:build !tiny && !small && !medium && !large && !nofrag
+// +build !tiny,!small,!medium,!large,!nofrag
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

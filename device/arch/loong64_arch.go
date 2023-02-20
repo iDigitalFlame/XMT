@@ -1,4 +1,5 @@
 //go:build loong64
+// +build loong64
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

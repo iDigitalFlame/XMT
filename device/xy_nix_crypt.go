@@ -1,4 +1,5 @@
 //go:build !windows && !js && crypt
+// +build !windows,!js,crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -22,10 +23,11 @@ import (
 	"io"
 	"os"
 	"runtime"
-	"strconv"
 	"strings"
 
 	"github.com/iDigitalFlame/xmt/cmd/filter"
+	"github.com/iDigitalFlame/xmt/data"
+	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/crypt"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
@@ -44,7 +46,7 @@ var (
 
 // IsDebugged returns true if the current process is attached by a debugger.
 func IsDebugged() bool {
-	b, err := os.ReadFile(crypt.Get(36)) // /proc/self/status
+	b, err := data.ReadFile(crypt.Get(36)) // /proc/self/status
 	if err != nil {
 		return false
 	}
@@ -66,7 +68,7 @@ func IsDebugged() bool {
 //
 // Always returns an EINVAL on WSAM/JS.
 func Logins() ([]Login, error) {
-	b, err := os.ReadFile(crypt.Get(37)) // /var/run/utmp
+	b, err := data.ReadFile(crypt.Get(37)) // /var/run/utmp
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +91,7 @@ func Mounts() ([]string, error) {
 			return nil, xerr.Wrap("cannot find mounts", err)
 		}
 	}
-	b, err := io.ReadAll(f)
+	b, err := data.ReadAll(f)
 	if f.Close(); err != nil {
 		return nil, err
 	}
@@ -119,6 +121,9 @@ func Mounts() ([]string, error) {
 //
 // If the Filter is nil or empty or if an error occurs during reading/writing
 // an error will be returned.
+//
+// This function may fail if attempting to dump a process that is a different CPU
+// architecture that the host process.
 func DumpProcess(f *filter.Filter, w io.Writer) error {
 	if f.Empty() {
 		return filter.ErrNoProcessFound
@@ -127,8 +132,8 @@ func DumpProcess(f *filter.Filter, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	v := crypt.Get(12) + strconv.FormatUint(uint64(p), 10) // /proc/
-	b, err := os.ReadFile(v + crypt.Get(40))               // /maps
+	v := crypt.Get(12) + util.Uitoa(uint64(p)) // /proc/
+	b, err := data.ReadFile(v + crypt.Get(40)) // /maps
 	if err != nil {
 		return err
 	}

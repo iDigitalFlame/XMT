@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -45,7 +46,7 @@ func (t *thread) close() {
 	if t.hwnd == 0 || t.owner == 0 {
 		return
 	}
-	if t.loc > 0 {
+	if t.loc > 0 && atomic.LoadUint32(&t.cookie)&cookieRelease == 0 {
 		if t.owner == winapi.CurrentProcess {
 			winapi.NtFreeVirtualMemory(t.owner, t.loc)
 		} else {
@@ -54,9 +55,12 @@ func (t *thread) close() {
 	}
 	if t.callback != nil {
 		t.callback()
+	} else {
+		// NOTE(dij): We only need to close the owner if there is no callback as
+		//            it's usually a Zombie that'll handle it's own handle closure.
+		winapi.CloseHandle(t.owner)
 	}
 	winapi.CloseHandle(t.hwnd)
-	winapi.CloseHandle(t.owner)
 	t.hwnd, t.owner, t.loc = 0, 0, 0
 }
 func (t *thread) kill() error {
@@ -64,6 +68,7 @@ func (t *thread) kill() error {
 		return t.err
 	}
 	t.exit = exitStopped
+	atomic.StoreUint32(&t.cookie, atomic.LoadUint32(&t.cookie)|cookieStopped)
 	return winapi.TerminateThread(t.hwnd, exitStopped)
 }
 func (t *thread) Pid() uint32 {
@@ -105,14 +110,12 @@ func (t *thread) Resume() error {
 	return err
 }
 func (t *thread) Release() error {
-	if atomic.SwapUint32(&t.cookie, 2) == 2 {
+	if atomic.SwapUint32(&t.cookie, atomic.LoadUint32(&t.cookie)|cookieStopped|cookieRelease)&cookieStopped != 0 {
 		return nil
 	}
 	if t.m > 0 {
 		winapi.SetEvent(t.m)
 	}
-	winapi.CloseHandle(t.hwnd)
-	winapi.CloseHandle(t.owner)
 	return t.stopWith(0, nil)
 }
 func (t *thread) Suspend() error {
@@ -132,29 +135,7 @@ func (t *thread) wait(p, i uint32) {
 			bugtrack.Track("cmd.(*thread).wait(): Creating Event failed, falling back to single wait: %s", err.Error())
 		}
 	}
-	go func() {
-		if bugtrack.Enabled {
-			defer bugtrack.Recover("cmd.(*thread).wait():func1()")
-		}
-		var e error
-		if e = wait(t.hwnd, t.m); p > 0 && i > 0 {
-			// If we have more threads (that are not our zombie thread) switch
-			// to watch that one until we have none left.
-			if n := nextNonThread(p, i); n > 0 {
-				winapi.CloseHandle(t.hwnd)
-				for t.hwnd = n; t.hwnd > 0; {
-					e = wait(t.hwnd, t.m)
-					if n = nextNonThread(p, i); n == 0 {
-						break
-					}
-					winapi.CloseHandle(t.hwnd)
-					t.hwnd = n
-				}
-			}
-		}
-		x <- e
-		close(x)
-	}()
+	go t.waitInner(x, p, i)
 	select {
 	case err = <-x:
 	case <-t.ctx.Done():
@@ -171,8 +152,9 @@ func (t *thread) wait(p, i uint32) {
 		t.stopWith(exitStopped, err2)
 		return
 	}
-	if atomic.SwapUint32(&t.cookie, 2) == 2 {
+	if atomic.SwapUint32(&t.cookie, atomic.LoadUint32(&t.cookie)|cookieStopped)&cookieStopped != 0 {
 		t.stopWith(0, nil)
+		return
 	}
 	if err = winapi.GetExitCodeThread(t.hwnd, &t.exit); err != nil {
 		t.stopWith(exitStopped, err)
@@ -230,12 +212,11 @@ func (t *thread) stopWith(c uint32, e error) error {
 	if !t.Running() {
 		return e
 	}
-	if atomic.LoadUint32(&t.cookie) != 1 {
-		s := t.cookie
-		if atomic.StoreUint32(&t.cookie, 1); t.hwnd > 0 && s != 2 {
+	if atomic.LoadUint32(&t.cookie)&cookieFinal == 0 {
+		if atomic.SwapUint32(&t.cookie, t.cookie|cookieStopped|cookieFinal)&cookieStopped == 0 && t.hwnd > 0 {
 			t.kill()
 		}
-		if err := t.ctx.Err(); s != 2 && err != nil && t.exit == 0 {
+		if err := t.ctx.Err(); err != nil && t.exit == 0 {
 			t.err, t.exit = err, c
 		}
 		t.close()
@@ -249,6 +230,32 @@ func (t *thread) stopWith(c uint32, e error) error {
 		return nil
 	}
 	return t.err
+}
+func (t *thread) waitInner(x chan<- error, p, i uint32) {
+	if bugtrack.Enabled {
+		defer bugtrack.Recover("cmd.(*thread).waitInner()")
+	}
+	e := wait(t.hwnd, t.m)
+	if p == 0 || i == 0 {
+		x <- e
+		close(x)
+		return
+	}
+	// If we have more threads (that are not our zombie thread) switch
+	// to watch that one until we have none left.
+	if n := nextNonThread(p, i); n > 0 {
+		winapi.CloseHandle(t.hwnd)
+		for t.hwnd = n; t.hwnd > 0; {
+			e = wait(t.hwnd, t.m)
+			if n = nextNonThread(p, i); n == 0 {
+				break
+			}
+			winapi.CloseHandle(t.hwnd)
+			t.hwnd = n
+		}
+	}
+	x <- e
+	close(x)
 }
 func (t *thread) Start(p uintptr, d time.Duration, a uintptr, b []byte) error {
 	if t.Running() {

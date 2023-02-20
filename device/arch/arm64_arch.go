@@ -1,4 +1,5 @@
 //go:build arm64
+// +build arm64
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

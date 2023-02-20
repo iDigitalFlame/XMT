@@ -1,4 +1,5 @@
 //go:build !implant
+// +build !implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -20,7 +21,6 @@ package task
 
 import (
 	"io"
-	"os"
 
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
@@ -61,12 +61,12 @@ import (
 //	    uint64              // Handle
 //	    uint32              // PID
 //	    int32               // Exit Code
-func DLLFile(s string) (*DLL, error) {
-	b, err := os.ReadFile(s)
+func DLLFile(s string) (DLL, error) {
+	b, err := data.ReadFile(s)
 	if err != nil {
-		return nil, err
+		return DLL{}, err
 	}
-	return &DLL{Data: b}, nil
+	return DLL{Data: b}, nil
 }
 
 // DLLReader will create a Tasklet that will instruct the client to local a DLL
@@ -103,12 +103,12 @@ func DLLFile(s string) (*DLL, error) {
 //	    uint64              // Handle
 //	    uint32              // PID
 //	    int32               // Exit Code
-func DLLReader(r io.Reader) (*DLL, error) {
-	b, err := io.ReadAll(r)
+func DLLReader(r io.Reader) (DLL, error) {
+	b, err := data.ReadAll(r)
 	if err != nil {
-		return nil, err
+		return DLL{}, err
 	}
-	return &DLL{Data: b}, nil
+	return DLL{Data: b}, nil
 }
 
 // Packet will take the configured DLL options and will return a Packet and any

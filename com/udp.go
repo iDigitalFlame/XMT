@@ -20,7 +20,6 @@ import (
 	"context"
 	"io"
 	"net"
-	"net/netip"
 	"sync"
 	"time"
 
@@ -41,7 +40,7 @@ var (
 	udpDeadline = new(udpErr)
 
 	buffers = sync.Pool{
-		New: func() any {
+		New: func() interface{} {
 			var b [udpLimit]byte
 			return &b
 		},
@@ -63,15 +62,18 @@ type udpData struct {
 	b *[udpLimit]byte
 	n int
 }
+type udpCompat struct {
+	udpSock
+}
 type udpStream struct {
 	net.Conn
 	buf         []byte
 	size        int
+	fails       uint8
 	read, write time.Duration
 }
 type udpSock interface {
-	WriteToUDPAddrPort([]byte, netip.AddrPort) (int, error)
-	ReadFromUDPAddrPort([]byte) (int, netip.AddrPort, error)
+	udpSockInternal
 	net.PacketConn
 }
 type udpListener struct {
@@ -80,7 +82,7 @@ type udpListener struct {
 	ctx      context.Context
 	new      chan *udpConn
 	cons     map[udpAddr]*udpConn
-	sock     udpSock
+	sock     *udpCompat
 	lock     sync.RWMutex
 	cancel   context.CancelFunc
 	deadline time.Duration
@@ -88,7 +90,6 @@ type udpListener struct {
 type udpConnector struct {
 	net.Dialer
 }
-type udpAddr netip.AddrPort
 
 func (udpErr) Timeout() bool {
 	return true
@@ -122,7 +123,7 @@ loop:
 	for l.sock.SetReadDeadline(empty); ; l.sock.SetReadDeadline(empty) {
 		var (
 			b         = buffers.Get().(*[udpLimit]byte)
-			n, a, err = l.sock.ReadFromUDPAddrPort((*b)[:])
+			n, a, err = l.sock.ReadPacket((*b)[:])
 		)
 		if bugtrack.Enabled {
 			bugtrack.Track("com.(*udpListener).listen(): Accept n=%d, a=%s, err=%s", n, a, err)
@@ -146,9 +147,8 @@ loop:
 			buffers.Put(b)
 			continue
 		}
-		d := udpAddr(a)
 		l.lock.RLock()
-		c, ok := l.cons[d]
+		c, ok := l.cons[a]
 		if l.lock.RUnlock(); ok {
 			if c.lock.Lock(); c.bufs != nil {
 				if bugtrack.Enabled {
@@ -164,11 +164,11 @@ loop:
 		if bugtrack.Enabled {
 			bugtrack.Track("com.(*udpListener).listen(): New tracked conn a=%s", a.String())
 		}
-		c = &udpConn{dev: d, sock: l, bufs: make(chan udpData, 256), wake: make(chan struct{}, 1)}
+		c = &udpConn{dev: a, sock: l, bufs: make(chan udpData, 256), wake: make(chan struct{}, 1)}
 		c.append(n, b, false)
 		go c.receive(l.ctx)
 		l.lock.Lock()
-		l.cons[d] = c
+		l.cons[a] = c
 		l.lock.Unlock()
 		l.new <- c
 	}
@@ -197,12 +197,10 @@ func (c *udpConn) Close() error {
 func (udpAddr) Network() string {
 	return NameUDP
 }
-func (u udpAddr) String() string {
-	// NOTE(dij): This causes IPv4 addresses to weirdly be wrapped as an IPv6
-	//            address. This doesn't seem to affect how it works on IPv4, but
-	//            we'll watch it. It only makes IPv4 addresses print out as IPv6
-	//            formatted addresses.
-	return netip.AddrPort(u).String()
+func (s *udpStream) Close() error {
+	err := s.Conn.Close()
+	s.read, s.write = -1, -1
+	return err
 }
 func (l *udpListener) Close() error {
 	err := l.sock.Close()
@@ -222,6 +220,18 @@ func NewUDP(t time.Duration) Connector {
 		t = DefaultTimeout
 	}
 	return &udpConnector{Dialer: net.Dialer{Timeout: t, KeepAlive: t}}
+}
+func (s *udpStream) readEnough() error {
+	if s.read > 0 {
+		return s.readEnoughTimeout(s.read, 25)
+	}
+	if s.size > 0 {
+		if bugtrack.Enabled {
+			bugtrack.Track("com.(*udpStream).readEnough(): Implementing our own timeout for a Read operation.")
+		}
+		return s.readEnoughTimeout(time.Millisecond*500, 25)
+	}
+	return s.readEnoughTimeout(time.Second*2, 2)
 }
 func (c *udpConn) RemoteAddr() net.Addr {
 	return c.dev
@@ -325,9 +335,14 @@ loop:
 		}
 		if c.write > 0 {
 			t = time.NewTimer(c.write)
-			w = t.C
+			if w = t.C; bugtrack.Enabled {
+				bugtrack.Track("com.(*udpCon).Write(): Created timer with duration c.write=%s, n=%d, len(b)=%d.", c.write, n, len(b))
+			}
 		}
-		v, err = c.sock.sock.WriteToUDPAddrPort(b[s:x], netip.AddrPort(c.dev))
+		v, err = c.sock.sock.WritePacket(b[s:x], c.dev)
+		if bugtrack.Enabled {
+			bugtrack.Track("com.(*udpCon).Write(): Wrote bytes out n=%d, len(b)=%d, s=%d, x=%d, v=%d.", n, len(b), s, x, v)
+		}
 		s += v
 		x += v
 		if n += v; err != nil {
@@ -351,56 +366,11 @@ loop:
 }
 func (s *udpStream) Read(b []byte) (int, error) {
 	if s.size == 0 || s.size < len(b) {
-		var (
-			n, c int
-			err  error
-		)
-		for {
-			if len(s.buf) == 0 || len(s.buf)-s.size < udpLimit {
-				if bugtrack.Enabled {
-					bugtrack.Track("com.(*udpStream).Read(): Expanding socket buffer free=%d, len(s.buf)=%d, s.size=%d.", len(s.buf)-s.size, len(s.buf), s.size)
-				}
-				s.buf = append(s.buf, make([]byte, udpLimit)...)
-			}
-			if time.Sleep(readOp); s.read == 0 {
-				if n > 0 {
-					if bugtrack.Enabled {
-						bugtrack.Track("com.(*udpStream).Read(): Implementing our own timeout for a Read operation.")
-					}
-					s.Conn.SetReadDeadline(time.Now().Add(time.Millisecond * 500))
-				}
-			} else {
-				s.Conn.SetReadDeadline(time.Now().Add(s.read))
-			}
+		if err := s.readEnough(); err != nil {
 			if bugtrack.Enabled {
-				bugtrack.Track("com.(*udpStream).Read(): Pre-read s.size=%d, len(s.buf)=%d", s.size, len(s.buf))
+				bugtrack.Track("com.(*udpStream).Read(): readEnough() err=%s", err)
 			}
-			n, err = s.Conn.Read(s.buf[s.size:])
-			if s.size += n; err != nil {
-				if e, ok := err.(net.Error); ok && e.Timeout() {
-					err = nil
-					if c++; c > 1 || s.size > 0 {
-						if bugtrack.Enabled {
-							bugtrack.Track("com.(*udpStream).Read(): Pre-read timeout hit, n=%d, s.size=%d, len(s.buf)=%d", n, s.size, len(s.buf))
-						}
-						break
-					}
-					continue
-				}
-				if err == io.EOF {
-					err = nil
-				}
-				break
-			}
-		}
-		if bugtrack.Enabled {
-			bugtrack.Track("com.(*udpStream).Read(): Pre-read return n=%d, s.size=%d, len(s.buf)=%d, err=%s", n, s.size, len(s.buf), err)
-		}
-		if err != nil {
-			return n, err
-		}
-		if s.size == 0 {
-			return 0, io.EOF
+			return 0, err
 		}
 	}
 	if bugtrack.Enabled {
@@ -575,6 +545,85 @@ func (c *udpConn) append(n int, b *[udpLimit]byte, w bool) {
 		}
 	}
 }
+func (s *udpStream) readEnoughTimeout(d time.Duration, m int) error {
+	var (
+		n   int
+		err error
+		l   = d // "Canary" value for timeout.
+	)
+	for q, y, c, k := d/time.Duration(m), time.Now().Add(d), 0, 0; ; {
+		if len(s.buf) == 0 || len(s.buf)-s.size < udpLimit {
+			if bugtrack.Enabled {
+				bugtrack.Track("com.(*udpStream).readEnoughTimeout(): Expanding socket buffer free=%d, len(s.buf)=%d, s.size=%d.", len(s.buf)-s.size, len(s.buf), s.size)
+			}
+			s.buf = append(s.buf, make([]byte, udpLimit)...)
+		}
+		if time.Sleep(readOp); bugtrack.Enabled {
+			bugtrack.Track("com.(*udpStream).readEnoughTimeout(): Pre-read s.size=%d, len(s.buf)=%d, q=%s, n=%d, d=%s, c=%d, s.fails=%d", s.size, len(s.buf), q, n, d, c, s.fails)
+		}
+		if s.read > 0 && l != s.read {
+			// When in channel mode, this is set by 'SetDeadline', which allows
+			// the writer Goroutine to "bump" the timeout on the reader and allow
+			// it to NOT get caught in an infinate read Op.
+			l, c, q, y = s.read, 0, s.read/time.Duration(m), time.Now().Add(s.read)
+			if bugtrack.Enabled {
+				bugtrack.Track("com.(*udpStream).readEnoughTimeout(): ReadDeadline was bumped to %s, c=0, q=%s", l, q)
+			}
+		}
+		s.Conn.SetReadDeadline(time.Now().Add(q))
+		if n, err = s.Conn.Read(s.buf[s.size:]); bugtrack.Enabled {
+			bugtrack.Track("com.(*udpStream).readEnoughTimeout(): Post-read n=%d, err=%s", n, err)
+		}
+		if s.size += n; s.read == -1 {
+			return io.ErrClosedPipe
+		}
+		if n > 0 || err == nil {
+			if k++; k > 1 {
+				return nil
+			}
+			continue
+		}
+		if e, ok := err.(net.Error); ok && e.Timeout() {
+			if time.Now().After(y) {
+				err = nil
+				if c++; c > m || s.size > 0 {
+					if bugtrack.Enabled {
+						bugtrack.Track("com.(*udpStream).readEnoughTimeout(): Read timeout hit, n=%d, s.size=%d, len(s.buf)=%d, c=%d, s.fails=%d", n, s.size, len(s.buf), c, s.fails)
+					}
+					break
+				}
+				continue
+			}
+			if c++; c > m {
+				err = nil
+				break
+			}
+			continue
+		}
+		if err == io.EOF {
+			err = nil
+		}
+		break
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track("com.(*udpStream).readEnoughTimeout(): Read return n=%d, s.size=%d, len(s.buf)=%d, err=%s, s.fails=%d.", n, s.size, len(s.buf), err, s.fails)
+	}
+	if err != nil {
+		return err
+	}
+	if s.fails > 1 && s.size == 0 {
+		if bugtrack.Enabled {
+			bugtrack.Track("com.(*udpStream).readEnoughTimeout(): Fail count reached with no progress! s.fails=%d, s.size=%d.", s.fails, s.size)
+		}
+		return io.ErrNoProgress
+	}
+	if s.size == 0 {
+		if s.fails++; bugtrack.Enabled {
+			bugtrack.Track("com.(*udpStream).readEnoughTimeout(): Increasing fail count! s.fails=%d.", s.fails)
+		}
+	}
+	return nil
+}
 func (c *udpConnector) Connect(x context.Context, s string) (net.Conn, error) {
 	v, err := c.DialContext(x, NameUDP, s)
 	if err != nil {
@@ -591,7 +640,7 @@ func (*udpConnector) Listen(x context.Context, s string) (net.Listener, error) {
 		new:  make(chan *udpConn, 16),
 		del:  make(chan udpAddr, 16),
 		cons: make(map[udpAddr]*udpConn),
-		sock: c.(*net.UDPConn),
+		sock: &udpCompat{c.(*net.UDPConn)},
 	}
 	l.ctx, l.cancel = context.WithCancel(x)
 	go l.purge()

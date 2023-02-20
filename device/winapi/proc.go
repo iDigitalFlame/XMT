@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -189,8 +190,8 @@ func (p ProcessEntry) InfoEx(a uint32, elevated, session, handle bool) (uintptr,
 		return h, false, 0, nil
 	}
 	var t uintptr
-	// 0x20008 - TOKEN_READ
-	if err = OpenProcessToken(h, 0x20008, &t); err != nil {
+	// 0x20008 - TOKEN_READ | TOKEN_QUERY
+	if err = OpenProcessToken(h, 0x20008|tokenPerms, &t); err != nil {
 		CloseHandle(h)
 		return 0, false, 0, err
 	}

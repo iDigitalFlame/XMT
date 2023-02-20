@@ -14,9 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-
 # header_check.py <dir>
 # Checks to see if all *.go files have the correct GNU license header.
+#
 
 from glob import glob
 from os.path import join
@@ -24,6 +24,30 @@ from sys import argv, exit
 
 
 def scan_dir(path):
+    for i in glob(join(path, "**/**.go"), recursive=True):
+        if "unit_tests" in i or "src/" in i:
+            continue
+        with open(i, "r") as f:
+            b = f.read().split("\n")
+        if len(b) < 8:
+            raise ValueError(f"{i}: Empty file!")
+        n = 0
+        if b[0].startswith("//go:build"):
+            if not b[1].startswith("// +build"):
+                raise ValueError(f"{i}: No old build directive after new directive!")
+            n = 3
+            while b[n - 1].startswith("// +build"):
+                n = n + 1
+        if not b[n].startswith("// Copyright (C) 2020"):
+            raise ValueError(f"{i}: Missing copyright!")
+        if b[n + 1] != "//":
+            raise ValueError(f"{i}: Missing black space after copyright!")
+        if not b[n + 2].startswith("// This program is free software:"):
+            raise ValueError(f"{i}: Missing freedom text!")
+        del b
+
+
+def scan_dir2(path):
     for i in glob(join(path, "**/**.go"), recursive=True):
         if "unit_tests" in i:
             continue

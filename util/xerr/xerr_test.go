@@ -1,4 +1,5 @@
-//go:build !implant
+//go:build !implant && go1.13
+// +build !implant,go1.13
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

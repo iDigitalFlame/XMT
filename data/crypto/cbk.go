@@ -28,13 +28,13 @@ const size = 128
 
 var (
 	chains = sync.Pool{
-		New: func() any {
+		New: func() interface{} {
 			var b [size + 1]byte
 			return &b
 		},
 	}
 	tables = sync.Pool{
-		New: func() any {
+		New: func() interface{} {
 			var b [size + 1][256]byte
 			return &b
 		},
@@ -61,7 +61,7 @@ type source interface {
 
 // NewCBK returns a new CBK Cipher with the D value specified. The other A, B and
 // C values are randomly generated at runtime.
-func NewCBK(d int) *CBK {
+func NewCBK(d int) CBK {
 	c, _ := NewCBKEx(d, size, nil)
 	return c
 }
@@ -73,7 +73,9 @@ func (e *CBK) Reset() error {
 	}
 	_ = e.buf[2]
 	e.A, e.B, e.C = e.buf[0], e.buf[1], e.buf[2]
-	e.pos, e.index = 0, 0
+	if e.pos, e.index = 0, 0; e.A == 0 {
+		e.A = 1
+	}
 	return nil
 }
 
@@ -321,15 +323,18 @@ func (e *CBK) flushOutput(w io.Writer) (int, error) {
 
 // NewCBKSource returns a new CBK Cipher with the A, B, C, D, BlockSize values
 // specified.
-func NewCBKSource(a, b, c, d, sz byte) (*CBK, error) {
+func NewCBKSource(a, b, c, d, sz byte) (CBK, error) {
 	switch sz {
 	case 0:
 		sz = size
 	case 16, 32, 64, 128:
 	default:
-		return nil, xerr.Sub("block size must be a power of two between 16 and 128", 0x28)
+		return CBK{}, xerr.Sub("block size must be a power of two between 16 and 128", 0x28)
 	}
-	return &CBK{A: a, B: b, C: c, D: d, buf: make([]byte, sz+1), total: -1}, nil
+	if a == 0 {
+		a = 1
+	}
+	return CBK{A: a, B: b, C: c, D: d, buf: make([]byte, sz+1), total: -1}, nil
 }
 func clear(b *[size + 1]byte, z *[size + 1][256]byte) {
 	for i := range *b {
@@ -342,15 +347,15 @@ func clear(b *[size + 1]byte, z *[size + 1][256]byte) {
 
 // NewCBKEx returns a new CBK Cipher with the D value, BlockSize and Entropy source
 // specified. The other A, B and C values are randomly generated at runtime.
-func NewCBKEx(d int, sz int, src source) (*CBK, error) {
+func NewCBKEx(d int, sz int, src source) (CBK, error) {
 	switch sz {
 	case 0:
 		sz = size
 	case 16, 32, 64, 128:
 	default:
-		return nil, xerr.Sub("block size must be a power of two between 16 and 128", 0x28)
+		return CBK{}, xerr.Sub("block size must be a power of two between 16 and 128", 0x28)
 	}
-	c := &CBK{D: byte(d), buf: make([]byte, sz+1), total: -1, Source: src}
+	c := CBK{D: byte(d), buf: make([]byte, sz+1), total: -1, Source: src}
 	c.Reset()
 	return c, nil
 }

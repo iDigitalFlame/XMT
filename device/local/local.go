@@ -51,7 +51,7 @@ var Device = (&local{Machine: device.Machine{
 }}).init()
 
 type local struct {
-	/* * */ device.Machine
+	device.Machine
 }
 
 // Elevated will return true if the current process has elevated privileges,

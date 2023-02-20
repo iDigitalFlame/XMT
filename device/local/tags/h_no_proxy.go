@@ -1,4 +1,5 @@
 //go:build noproxy
+// +build noproxy
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

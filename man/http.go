@@ -19,10 +19,7 @@ package man
 import (
 	"bytes"
 	"context"
-	"io"
-	"net"
 	"net/http"
-	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"strings"
@@ -43,23 +40,6 @@ var client struct {
 	v *http.Client
 }
 
-func initDefaultClient() {
-	j, _ := cookiejar.New(nil)
-	client.v = &http.Client{
-		Jar: j,
-		Transport: &http.Transport{
-			Proxy:                 device.Proxy,
-			DialContext:           (&net.Dialer{Timeout: timeoutWeb, KeepAlive: timeoutWeb}).DialContext,
-			MaxIdleConns:          64,
-			IdleConnTimeout:       timeoutWeb * 2,
-			DisableKeepAlives:     true,
-			ForceAttemptHTTP2:     false,
-			TLSHandshakeTimeout:   timeoutWeb,
-			ExpectContinueTimeout: timeoutWeb,
-			ResponseHeaderTimeout: timeoutWeb,
-		},
-	}
-}
 func rawParse(r string) (*url.URL, error) {
 	var (
 		i   = strings.IndexRune(r, '/')
@@ -204,7 +184,7 @@ func ParseDownloadHeader(h http.Header) uint8 {
 // User-Agent strings can be supplied that use the text.Matcher format for dynamic
 // values. If empty, a default Firefox string will be used instead.
 func WebRequest(x context.Context, url, agent string) (*http.Response, error) {
-	r, _ := http.NewRequestWithContext(x, http.MethodGet, "*", nil)
+	r := newRequest(x)
 	if client.Do(initDefaultClient); len(agent) > 0 {
 		r.Header.Set(userAgent, text.Matcher(agent).String())
 	} else {
@@ -236,7 +216,7 @@ func WebExec(x context.Context, w data.Writer, url, agent string) (cmd.Runnable,
 	if err != nil {
 		return nil, "", err
 	}
-	b, err := io.ReadAll(o.Body)
+	b, err := data.ReadAll(o.Body)
 	if o.Body.Close(); err != nil {
 		return nil, "", err
 	}
@@ -277,7 +257,7 @@ func WebExec(x context.Context, w data.Writer, url, agent string) (cmd.Runnable,
 	} else {
 		n = execA
 	}
-	f, err := os.CreateTemp("", n)
+	f, err := data.CreateTemp("", n)
 	if err != nil {
 		return nil, "", err
 	}

@@ -16,7 +16,6 @@
 
 // Package arch contains platform architecture constants and a specific type
 // that correlates to the current system architecture.
-//
 package arch
 
 const (

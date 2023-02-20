@@ -43,7 +43,7 @@ var ErrInvalidTLSConfig = xerr.Sub("invalid or missing TLS certificates", 0x2D)
 //
 // mTLS insights sourced from: https://kofo.dev/how-to-mtls-in-golang
 func NewTLSConfig(mu bool, ver uint16, ca, pem, key []byte) (*tls.Config, error) {
-	c := &tls.Config{}
+	var c tls.Config
 	switch {
 	case ver > 0 && ver < 0xFF:
 		c.MinVersion = ver + tls.VersionTLS10
@@ -68,5 +68,5 @@ func NewTLSConfig(mu bool, ver uint16, ca, pem, key []byte) (*tls.Config, error)
 			c.ClientAuth = tls.RequireAndVerifyClientCert
 		}
 	}
-	return c, nil
+	return &c, nil
 }

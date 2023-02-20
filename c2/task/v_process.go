@@ -1,4 +1,5 @@
 //go:build !implant
+// +build !implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -114,7 +115,7 @@ func (p Process) Packet() (*com.Packet, error) {
 // This function will return an error if any errors occurs during reading.
 func (p *Process) SetStdin(r io.Reader) error {
 	var err error
-	p.Stdin, err = io.ReadAll(r)
+	p.Stdin, err = data.ReadAll(r)
 	return err
 }
 

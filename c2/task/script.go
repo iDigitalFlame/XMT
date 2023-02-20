@@ -149,11 +149,11 @@ func (s *Script) Truncate(n int) error {
 // Script usage.
 //
 // An invalid Script Packet is one of the following:
-// - Any fragmented Packet
-// - Any Packet with control (error/oneshot/proxy/multi/frag) Flags set
-// - Any NoP Packet
-// - Any Packet with a System ID
-// - Any Script
+//   - Any fragmented Packet
+//   - Any Packet with control (error/oneshot/proxy/multi/frag) Flags set
+//   - Any NoP Packet
+//   - Any Packet with a System ID
+//   - Any Script
 func (s *Script) Add(n *com.Packet) error {
 	if n == nil || n.ID == 0 || n.ID < MvRefresh || n.Flags > 0 || n.ID == MvScript {
 		return xerr.Sub("invalid Packet", 0x69)
@@ -168,14 +168,14 @@ func (s *Script) Add(n *com.Packet) error {
 //
 // Non initialized Scripts can be used instead of calling this function directly.
 func NewScript(errors, output bool) *Script {
-	s := new(Script)
+	var s Script
 	if errors {
 		s.f |= flagStopOnError
 	}
 	if !output {
 		s.f |= flagNoReturnOutput
 	}
-	return s
+	return &s
 }
 
 // AddTasklet will add the supplied Tasklet result, to the Script. If this Script

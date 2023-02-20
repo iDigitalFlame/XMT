@@ -1,4 +1,5 @@
 //go:build stdrand
+// +build stdrand
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -32,6 +33,3 @@ type random struct {
 
 //go:linkname cputicks runtime.cputicks
 func cputicks() int64
-func getRandom() *random {
-	return &random{Rand: rand.New(rand.NewSource(cputicks()))}
-}

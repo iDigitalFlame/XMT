@@ -16,7 +16,6 @@
 
 // Package filter is a separate container for the 'Filter' struct that can be used
 // to target a specific process or one that matches an attribute set.
-//
 package filter
 
 import (
@@ -150,34 +149,6 @@ func (f *Filter) SetFallback(i bool) *Filter {
 	f.Fallback = i
 	return f
 }
-func (b *boolean) UnmarshalJSON(d []byte) error {
-	if len(d) == 0 {
-		*b = Empty
-		return nil
-	}
-	if d[0] == '"' && len(d) >= 1 {
-		switch d[1] {
-		case '1', 'T', 't':
-			*b = True
-			return nil
-		case '0', 'F', 'f':
-			*b = False
-			return nil
-		}
-		*b = Empty
-		return nil
-	}
-	switch d[0] {
-	case '1', 'T', 't':
-		*b = True
-		return nil
-	case '0', 'F', 'f':
-		*b = False
-		return nil
-	}
-	*b = Empty
-	return nil
-}
 
 // SetInclude sets the Inclusion list and returns itself.
 func (f *Filter) SetInclude(n ...string) *Filter {
@@ -270,45 +241,3 @@ func UnmarshalStream(r data.Reader, f **Filter) error {
 	}
 	return (*f).unmarshalStream(r)
 }
-
-/*
-// MarshalStreamBool will attempt to write the Filter data to the supplied Writer
-// and return any errors that may occur.
-//
-// This function will first write a boolean to determine if the Filter is nil or
-// empty.
-//
-// Reading from this MUST be done with 'UnmarshalStreamBool' or this function
-// will fail.
-func (f *Filter) MarshalStreamBool(w data.Writer) error {
-	if f == nil || f.isEmpty() {
-		return w.WriteBool(false)
-	}
-	if err := w.WriteBool(true); err != nil {
-		return err
-	}
-	return f.MarshalStream(w)
-}
-
-// UnmarshalStreamBool will attempt to read the Filter data from the supplied
-// Reader and return any errors that may occur.
-//
-// This function will first read a boolean to determine if the Filter is nil or
-// empty.
-//
-// The initial writing MUST be done with 'UnmarshalStreamBool' or this function
-// will fail.
-func (f *Filter) UnmarshalStreamBool(r data.Reader) error {
-	v, err := r.Bool()
-	if err != nil {
-		return err
-	}
-	if !v {
-		return nil
-	}
-	if f == nil {
-		f = new(Filter)
-	}
-	return f.UnmarshalStream(r)
-}
-*/

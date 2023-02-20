@@ -1,3 +1,6 @@
+//go:build go1.14
+// +build go1.14
+
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
 // This program is free software: you can redistribute it and/or modify
@@ -43,12 +46,16 @@ var (
 //go:linkname watchSignalLoop os/signal.watchSignalLoop
 var watchSignalLoop func()
 
+func watchClose() {
+	<-watchChan
+	atomic.StoreUint32(&watchStarted, 2)
+	signalSend(0)
+}
 func watchSignals() {
-	go func() {
-		<-watchChan
-		atomic.StoreUint32(&watchStarted, 2)
-		signalSend(0)
-	}()
+	// NOTE(dij): Start is here so we can prevent early attempts at waiting on
+	// a non-ready channel.
+	atomic.StoreUint32(&watchStarted, 1)
+	go watchClose()
 	for {
 		s := signalRecv()
 		if s == 0 && atomic.LoadUint32(&watchStarted) == 2 {
@@ -59,20 +66,19 @@ func watchSignals() {
 	close(watchChan)
 }
 func startSignals() {
-	atomic.StoreUint32(&watchStarted, 1)
 	watchChan = make(chan struct{})
 	watchSignalLoop = watchSignals
 	signalEnable(0)
 }
+
+//go:linkname process os/signal.process
+func process(os.Signal)
 
 //go:linkname signalRecv os/signal.signal_recv
 func signalRecv() uint32
 
 //go:linkname signalEnable os/signal.enableSignal
 func signalEnable(uint32)
-
-//go:linkname process os/signal.process
-func process(sig os.Signal)
 
 //go:linkname signalSend runtime.sigsend
 func signalSend(uint32) bool
@@ -86,6 +92,9 @@ func signalSend(uint32) bool
 //
 // The supplied chan can be nil but if non-nil will be passed to 'signal.Stop'
 // for convince.
+//
+// If the Go version is 1.13 or less this function is just a wrapper for
+// 'signal.Stop'.
 func StopNotify(c chan<- os.Signal) {
 	if c != nil {
 		signal.Stop(c)
@@ -119,6 +128,9 @@ func StopNotify(c chan<- os.Signal) {
 //
 // This version will stop the signal handling loop once the 'StopNotify'
 // function has been called.
+//
+// If the Go version is 1.13 or less this function is just a wrapper for
+// 'signal.Notify'.
 func Notify(c chan<- os.Signal, s ...os.Signal) {
 	watchStart.Do(startSignals)
 	signal.Notify(c, s...)

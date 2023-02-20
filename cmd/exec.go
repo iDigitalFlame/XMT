@@ -16,14 +16,12 @@
 
 // Package cmd contains functions that can be used to execute external processes.
 // Some OS versions have more advanced featuresets that are avaliable.
-//
 package cmd
 
 import (
 	"bytes"
 	"context"
 	"io"
-	"os"
 	"sync/atomic"
 	"time"
 
@@ -31,7 +29,13 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-const exitStopped uint32 = 0x1337
+const (
+	exitStopped uint32 = 0x1337
+
+	cookieStopped uint32 = 0x1
+	cookieFinal   uint32 = 0x2
+	cookieRelease uint32 = 0x4
+)
 
 // Process is a struct that represents an executable command and allows for setting
 // options in order change the operating functions.
@@ -159,10 +163,6 @@ func (p *Process) Release() error {
 	if !p.x.isStarted() {
 		return ErrNotStarted
 	}
-	// if atomic.SwapUint32(&p.cookie, 2) != 0 {
-	// 	return nil
-	// }
-	// atomic.StoreUint32(&p.cookie, 2)
 	p.x.close()
 	return nil
 }
@@ -396,12 +396,12 @@ func (p *Process) stopWith(c uint32, e error) error {
 	if !p.running() {
 		return e
 	}
-	if atomic.LoadUint32(&p.cookie) != 1 {
-		s := p.cookie
-		if atomic.StoreUint32(&p.cookie, 1); p.Running() && s != 2 {
+	if atomic.LoadUint32(&p.cookie)&cookieFinal == 0 {
+		if atomic.SwapUint32(&p.cookie, p.cookie|cookieStopped|cookieFinal)&cookieStopped == 0 {
+			// if atomic.StoreUint32(&p.cookie, p.cookie|cookieStopped|cookieFinal); p.Running() {
 			p.x.kill(exitStopped, p)
 		}
-		if err := p.ctx.Err(); s != 2 && err != nil && p.exit == 0 {
+		if err := p.ctx.Err(); err != nil && p.exit == 0 {
 			p.err, p.exit = err, c
 		}
 		p.x.close()
@@ -482,14 +482,14 @@ func NewProcessContext(x context.Context, s ...string) *Process {
 }
 func (e *executable) StdinPipe(p *Process) (io.WriteCloser, error) {
 	var err error
-	if p.Stdin, e.r, err = os.Pipe(); err != nil {
+	if p.Stdin, e.r, err = pipe(); err != nil {
 		return nil, xerr.Wrap("unable to create Pipe", err)
 	}
 	e.closers = append(e.closers, p.Stdin.(io.Closer))
 	return e.r, nil
 }
 func (e *executable) StdoutPipe(p *Process) (io.ReadCloser, error) {
-	r, w, err := os.Pipe()
+	r, w, err := pipe()
 	if err != nil {
 		return nil, xerr.Wrap("unable to create Pipe", err)
 	}
@@ -498,7 +498,7 @@ func (e *executable) StdoutPipe(p *Process) (io.ReadCloser, error) {
 	return r, nil
 }
 func (e *executable) StderrPipe(p *Process) (io.ReadCloser, error) {
-	r, w, err := os.Pipe()
+	r, w, err := pipe()
 	if err != nil {
 		return nil, xerr.Wrap("unable to create Pipe", err)
 	}

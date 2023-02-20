@@ -1,4 +1,5 @@
 //go:build !windows && crypt
+// +build !windows,crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -36,7 +37,7 @@ func Format(s string) string {
 	if !filepath.IsAbs(s) {
 		var (
 			p      = crypt.Get(25) + s // /var/run/
-			f, err = os.OpenFile(p, 0x242, 0o400)
+			f, err = os.OpenFile(p, 0x242, 0600)
 			// 0x242 - CREATE | TRUNCATE | RDWR
 		)
 		if err != nil {

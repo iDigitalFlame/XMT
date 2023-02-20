@@ -1,4 +1,5 @@
 //go:build !windows && !crypt
+// +build !windows,!crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -22,13 +23,19 @@ import (
 	"os"
 	"sort"
 	"strconv"
+
+	"github.com/iDigitalFlame/xmt/data"
 )
 
 // Processes attempts to gather the current running Processes and returns them
 // as a slice of ProcessInfo structs, otherwise any errors are returned.
 func Processes() ([]ProcessInfo, error) {
-	l, err := os.ReadDir("/proc/")
+	f, err := os.Open("/proc/")
 	if err != nil {
+		return nil, err
+	}
+	l, err := f.Readdir(-1)
+	if f.Close(); err != nil {
 		return nil, err
 	}
 	if len(l) == 0 {
@@ -51,7 +58,7 @@ func Processes() ([]ProcessInfo, error) {
 		if v, err = strconv.ParseUint(n, 10, 32); err != nil {
 			continue
 		}
-		if b, err = os.ReadFile("/proc/" + n + "/status"); err != nil {
+		if b, err = data.ReadFile("/proc/" + n + "/status"); err != nil {
 			continue
 		}
 		u := getProcUser("/proc/" + n)

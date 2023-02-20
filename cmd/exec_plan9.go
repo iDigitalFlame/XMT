@@ -1,4 +1,5 @@
-//go:build js || plan9
+//go:build plan9
+// +build plan9
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -24,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"sync/atomic"
+	"syscall"
 
 	"github.com/iDigitalFlame/xmt/cmd/filter"
 )
@@ -40,18 +42,12 @@ func (e *executable) close() {
 			e.closers[i].Close()
 		}
 	}
-	// NOTE(dij): This causes *nix systems to create a Zombie process
-	//            (not what we want). Not sure if it matters enough to fix tho.
-	//
-	//	if e.e.Process != nil {
-	//	    e.e.Process.Release()
-	//	}
 }
 func (executable) Resume() error {
-	return nil
+	return syscall.EINVAL
 }
 func (executable) Suspend() error {
-	return nil
+	return syscall.EINVAL
 }
 func (e *executable) Pid() uint32 {
 	if e.e.ProcessState != nil {
@@ -65,7 +61,7 @@ func (e *executable) Pid() uint32 {
 //
 // This will not affect already running processes.
 func ResumeProcess(_ uint32) error {
-	return nil
+	return syscall.EINVAL
 }
 func (executable) Handle() uintptr {
 	return 0
@@ -76,7 +72,7 @@ func (executable) Handle() uintptr {
 //
 // This will not affect already suspended processes.
 func SuspendProcess(_ uint32) error {
-	return nil
+	return syscall.EINVAL
 }
 func (e *executable) isStarted() bool {
 	return e.e != nil && e.e.Process != nil
@@ -96,8 +92,8 @@ func (e *executable) wait(p *Process) {
 		p.stopWith(exitStopped, err2)
 		return
 	}
-	if atomic.StoreUint32(&p.cookie, 2); e.e.ProcessState != nil {
-		p.exit = uint32(e.e.ProcessState.ExitCode())
+	if atomic.StoreUint32(&p.cookie, atomic.LoadUint32(&p.cookie)|cookieStopped); e.e.ProcessState != nil {
+		p.exit = uint32(e.e.ProcessState.Sys().(*syscall.Waitmsg).ExitStatus())
 	}
 	if p.exit != 0 {
 		p.stopWith(p.exit, &ExitError{Exit: p.exit})
@@ -132,7 +128,7 @@ func (executable) SetNewConsole(_ bool, _ *Process) {
 }
 func (e *executable) kill(x uint32, p *Process) error {
 	if p.exit = x; e.e == nil || e.e.Process == nil {
-		return nil
+		return p.err
 	}
 	return e.e.Process.Kill()
 }
@@ -143,17 +139,14 @@ func (e *executable) start(x context.Context, p *Process, _ bool) error {
 		return ErrAlreadyStarted
 	}
 	e.e = exec.CommandContext(x, p.Args[0])
-	e.e.Args = p.Args
 	e.e.Dir, e.e.Env = p.Dir, p.Env
 	e.e.Stdin, e.e.Stdout, e.e.Stderr = p.Stdin, p.Stdout, p.Stderr
-	if !p.split {
+	if e.e.Args = p.Args; !p.split {
 		z := os.Environ()
 		if e.e.Env == nil {
 			e.e.Env = make([]string, 0, len(z))
 		}
-		for n := range z {
-			e.e.Env = append(e.e.Env, z[n])
-		}
+		e.e.Env = append(e.e.Env, z...)
 	}
 	if e.r != nil {
 		e.r.Close()

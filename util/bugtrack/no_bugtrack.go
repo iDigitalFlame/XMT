@@ -1,4 +1,5 @@
 //go:build !bugs
+// +build !bugs
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -48,4 +49,4 @@ func Recover(_ string) {}
 // Not recommended to be used in production environments.
 //
 // The "-tags bugs" option is required in order for this function to be used.
-func Track(_ string, _ ...any) {}
+func Track(_ string, _ ...interface{}) {}

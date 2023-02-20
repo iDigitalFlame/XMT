@@ -16,7 +16,6 @@
 
 // Package crypto contains helper functions and interfaces that can be used to
 // easily read and write different types of encrypted data.
-//
 package crypto
 
 import (
@@ -38,6 +37,9 @@ type writer struct {
 	w io.Writer
 	c *CBK
 }
+type nopCloser struct {
+	io.Reader
+}
 type flusher interface {
 	Flush() error
 }
@@ -58,6 +60,9 @@ func (w *writer) Close() error {
 	if c, ok := w.w.(io.Closer); ok {
 		return c.Close()
 	}
+	return nil
+}
+func (nopCloser) Close() error {
 	return nil
 }
 
@@ -96,13 +101,13 @@ func NewXORReader(x XOR, r io.Reader) io.Reader {
 	for i := range x {
 		v[i] = (x[i] + byte(i)) ^ 2
 	}
-	return io.NopCloser(&cipher.StreamReader{R: r, S: cipher.NewCFBDecrypter(x, v)})
+	return nopCloser{&cipher.StreamReader{R: r, S: cipher.NewCTR(x, v)}}
 }
 
 // NewCBKReader creates an io.ReadCloser type from the specified CBK cipher and
 // Reader.
-func NewCBKReader(c *CBK, r io.Reader) io.Reader {
-	return &reader{c: c, r: r}
+func NewCBKReader(c CBK, r io.Reader) io.Reader {
+	return &reader{c: &c, r: r}
 }
 
 // NewXORWriter creates an io.WriteCloser type from the specified XOR cipher and
@@ -115,13 +120,14 @@ func NewXORWriter(x XOR, w io.Writer) io.WriteCloser {
 	for i := range x {
 		v[i] = (x[i] + byte(i)) ^ 2
 	}
-	return &cipher.StreamWriter{W: w, S: cipher.NewCFBEncrypter(x, v)}
+	// return &cipher.StreamWriter{W: w, S: cipher.NewCFBEncrypter(x, v)}
+	return &cipher.StreamWriter{W: w, S: cipher.NewCTR(x, v)}
 }
 
 // NewCBKWriter creates an io.WriteCloser type from the specified CBK cipher and
 // Writer.
-func NewCBKWriter(c *CBK, w io.Writer) io.WriteCloser {
-	return &writer{c: c, w: w}
+func NewCBKWriter(c CBK, w io.Writer) io.WriteCloser {
+	return &writer{c: &c, w: w}
 }
 
 // NewBlockReader creates a data.Reader type from the specified block cipher,
@@ -135,7 +141,7 @@ func NewBlockReader(b cipher.Block, iv []byte, r io.Reader) (io.ReadCloser, erro
 	if len(iv) != b.BlockSize() {
 		return nil, xerr.Sub("block size must equal IV size", 0x29)
 	}
-	return io.NopCloser(&cipher.StreamReader{R: r, S: cipher.NewCFBDecrypter(b, iv)}), nil
+	return nopCloser{&cipher.StreamReader{R: r, S: cipher.NewCTR(b, iv)}}, nil
 }
 
 // NewBlockWriter creates a data.Reader type from the specified block cipher,
@@ -149,5 +155,5 @@ func NewBlockWriter(b cipher.Block, iv []byte, w io.Writer) (io.WriteCloser, err
 	if len(iv) != b.BlockSize() {
 		return nil, xerr.Sub("block size must equal IV size", 0x29)
 	}
-	return &cipher.StreamWriter{W: w, S: cipher.NewCFBEncrypter(b, iv)}, nil
+	return &cipher.StreamWriter{W: w, S: cipher.NewCTR(b, iv)}, nil
 }

@@ -1,4 +1,5 @@
 //go:build bugs
+// +build bugs
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -28,10 +29,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
-	"strconv"
 	"time"
 
 	"github.com/PurpleSec/logx"
+	"github.com/iDigitalFlame/xmt/util"
 )
 
 // Enabled is the stats of the bugtrack package.
@@ -50,7 +51,7 @@ func init() {
 		panic("bugtrack: init failed with error: " + err.Error())
 	}
 	var (
-		f = filepath.Join(p, "bugtrack-"+strconv.FormatUint(uint64(os.Getpid()), 10)+".log")
+		f = filepath.Join(p, "bugtrack-"+util.Uitoa(uint64(os.Getpid()))+".log")
 		l logx.Log
 	)
 	if l, err = logx.File(f, logx.Append, logx.Trace); err != nil {
@@ -86,6 +87,6 @@ func Recover(v string) {
 // Not recommended to be used in production environments.
 //
 // The "-tags bugs" option is required in order for this function to be used.
-func Track(s string, m ...any) {
+func Track(s string, m ...interface{}) {
 	log.Trace(s, m...)
 }

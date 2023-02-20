@@ -1,4 +1,5 @@
 //go:build !implant && !noproxy
+// +build !implant,!noproxy
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

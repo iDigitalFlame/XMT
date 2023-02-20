@@ -1,4 +1,5 @@
 //go:build !nojson
+// +build !nojson
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -23,7 +24,7 @@ import "encoding/json"
 // MarshalJSON will attempt to convert the data in this Filter into the returned
 // JSON byte array.
 func (f Filter) MarshalJSON() ([]byte, error) {
-	m := map[string]any{"fallback": f.Fallback}
+	m := map[string]interface{}{"fallback": f.Fallback}
 	if f.PID != 0 {
 		m["pid"] = f.PID
 	}
@@ -40,16 +41,6 @@ func (f Filter) MarshalJSON() ([]byte, error) {
 		m["include"] = f.Include
 	}
 	return json.Marshal(m)
-}
-func (b boolean) MarshalJSON() ([]byte, error) {
-	switch b {
-	case True:
-		return []byte(`"true"`), nil
-	case False:
-		return []byte(`"false"`), nil
-	default:
-	}
-	return []byte(`""`), nil
 }
 
 // UnmarshalJSON will attempt to parse the supplied JSON into this Filter.
@@ -91,5 +82,43 @@ func (f *Filter) UnmarshalJSON(b []byte) error {
 			return err
 		}
 	}
+	return nil
+}
+func (b boolean) MarshalJSON() ([]byte, error) {
+	switch b {
+	case True:
+		return []byte(`"true"`), nil
+	case False:
+		return []byte(`"false"`), nil
+	default:
+	}
+	return []byte(`""`), nil
+}
+func (b *boolean) UnmarshalJSON(d []byte) error {
+	if len(d) == 0 {
+		*b = Empty
+		return nil
+	}
+	if d[0] == '"' && len(d) >= 1 {
+		switch d[1] {
+		case '1', 'T', 't':
+			*b = True
+			return nil
+		case '0', 'F', 'f':
+			*b = False
+			return nil
+		}
+		*b = Empty
+		return nil
+	}
+	switch d[0] {
+	case '1', 'T', 't':
+		*b = True
+		return nil
+	case '0', 'F', 'f':
+		*b = False
+		return nil
+	}
+	*b = Empty
 	return nil
 }

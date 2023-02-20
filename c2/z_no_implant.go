@@ -1,4 +1,5 @@
 //go:build !implant
+// +build !implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -20,7 +21,6 @@ package c2
 
 import (
 	"io"
-	"strconv"
 	"time"
 
 	"github.com/PurpleSec/escape"
@@ -28,6 +28,7 @@ import (
 	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/device/local/tags"
+	"github.com/iDigitalFlame/xmt/util"
 )
 
 const maxEvents = 2048
@@ -39,6 +40,12 @@ type stringer interface {
 func (*Server) close() {}
 func (s *Server) count() int {
 	return len(s.events)
+}
+func formatBool(b bool) string {
+	if b {
+		return "true"
+	}
+	return "false"
 }
 func (s *Session) name() string {
 	return s.ID.String()
@@ -69,11 +76,11 @@ func (s *Session) String() string {
 	case s.IsClient() && (s.jitter == 0 || s.jitter > 100):
 		return "[" + s.ID.String() + "] " + s.sleep.String() + " -> " + s.host.String()
 	case s.IsClient():
-		return "[" + s.ID.String() + "] " + s.sleep.String() + "/" + strconv.FormatUint(uint64(s.jitter), 10) + "% -> " + s.host.String()
+		return "[" + s.ID.String() + "] " + s.sleep.String() + "/" + util.Uitoa(uint64(s.jitter)) + "% -> " + s.host.String()
 	case !s.IsClient() && (s.jitter == 0 || s.jitter > 100):
 		return "[" + s.ID.String() + "] " + s.sleep.String() + " -> " + s.host.String() + " " + s.Last.Format(time.RFC1123)
 	}
-	return "[" + s.ID.String() + "] " + s.sleep.String() + "/" + strconv.FormatUint(uint64(s.jitter), 10) + "% -> " + s.host.String() + " " + s.Last.Format(time.RFC1123)
+	return "[" + s.ID.String() + "] " + s.sleep.String() + "/" + util.Uitoa(uint64(s.jitter)) + "% -> " + s.host.String() + " " + s.Last.Format(time.RFC1123)
 }
 
 // JSON returns the data of this Job as a JSON blob.
@@ -82,8 +89,8 @@ func (j *Job) JSON(w io.Writer) error {
 		_, err := w.Write([]byte(`{}`))
 		return err
 	}
-	if _, err := w.Write([]byte(`{"id":` + strconv.FormatUint(uint64(j.ID), 10) + `,` +
-		`"type":` + strconv.FormatUint(uint64(j.Type), 10) + `,` +
+	if _, err := w.Write([]byte(`{"id":` + util.Uitoa(uint64(j.ID)) + `,` +
+		`"type":` + util.Uitoa(uint64(j.Type)) + `,` +
 		`"error":` + escape.JSON(j.Error) + `,` +
 		`"status":"` + j.Status.String() + `",` +
 		`"start":"` + j.Start.Format(time.RFC3339) + `"`,
@@ -101,7 +108,7 @@ func (j *Job) JSON(w io.Writer) error {
 		}
 	}
 	if j.Result != nil {
-		if _, err := w.Write([]byte(`,"result":` + strconv.FormatUint(uint64(j.Result.Size()), 10))); err != nil {
+		if _, err := w.Write([]byte(`,"result":` + util.Uitoa(uint64(j.Result.Size())))); err != nil {
 			return err
 		}
 	}
@@ -153,6 +160,7 @@ func (s *Server) JSON(w io.Writer) error {
 }
 func (l *Listener) oneshot(n *com.Packet) {
 	if l.s == nil || l.s.Oneshot == nil {
+		n.Clear()
 		return
 	}
 	l.m.queue(event{p: n, pf: l.s.Oneshot})
@@ -162,8 +170,8 @@ func (l *Listener) oneshot(n *com.Packet) {
 func (s *Session) JSON(w io.Writer) error {
 	if _, err := w.Write([]byte(`{` +
 		`"id":"` + s.ID.String() + `",` +
-		`"hash":"` + strconv.FormatUint(uint64(s.ID.Hash()), 10) + `",` +
-		`"channel":` + strconv.FormatBool(s.InChannel()) + `,` +
+		`"hash":"` + util.Uitoa(uint64(s.ID.Hash())) + `",` +
+		`"channel":` + formatBool(s.InChannel()) + `,` +
 		`"device":{` +
 		`"id":"` + s.ID.Full() + `",` +
 		`"user":` + escape.JSON(s.Device.User) + `,` +
@@ -171,11 +179,11 @@ func (s *Session) JSON(w io.Writer) error {
 		`"version":` + escape.JSON(s.Device.Version) + `,` +
 		`"arch":"` + s.Device.Arch().String() + `",` +
 		`"os":` + escape.JSON(s.Device.OS().String()) + `,` +
-		`"elevated":` + strconv.FormatBool(s.Device.IsElevated()) + `,` +
+		`"elevated":` + formatBool(s.Device.IsElevated()) + `,` +
 		`"capabilities":"` + tags.ParseCapabilities(s.Device.OS() == device.Windows, s.Device.Capabilities) + `",` +
-		`"domain":` + strconv.FormatBool(s.Device.IsDomainJoined()) + `,` +
-		`"pid":` + strconv.FormatUint(uint64(s.Device.PID), 10) + `,` +
-		`"ppid":` + strconv.FormatUint(uint64(s.Device.PPID), 10) + `,` +
+		`"domain":` + formatBool(s.Device.IsDomainJoined()) + `,` +
+		`"pid":` + util.Uitoa(uint64(s.Device.PID)) + `,` +
+		`"ppid":` + util.Uitoa(uint64(s.Device.PPID)) + `,` +
 		`"network":[`,
 	)); err != nil {
 		return err
@@ -210,26 +218,26 @@ func (s *Session) JSON(w io.Writer) error {
 		`]},"created":"` + s.Created.Format(time.RFC3339) + `",` +
 			`"last":"` + s.Last.Format(time.RFC3339) + `",` +
 			`"via":` + escape.JSON(s.host.String()) + `,` +
-			`"sleep":` + strconv.FormatUint(uint64(s.sleep), 10) + `,` +
-			`"jitter":` + strconv.FormatUint(uint64(s.jitter), 10) + `,`,
+			`"sleep":` + util.Uitoa(uint64(s.sleep)) + `,` +
+			`"jitter":` + util.Uitoa(uint64(s.jitter)) + `,`,
 	))
 	if err != nil {
 		return err
 	}
-	if s.kill != nil {
-		_, err = w.Write([]byte(`"kill_date":"` + s.kill.Format(time.RFC3339) + `",`))
-	} else {
+	if s.kill.IsZero() {
 		_, err = w.Write([]byte(`"kill_date":"",`))
+	} else {
+		_, err = w.Write([]byte(`"kill_date":"` + s.kill.Format(time.RFC3339) + `",`))
 	}
 	if err != nil {
 		return err
 	}
 	if s.work != nil {
 		_, err = w.Write([]byte(
-			`"work_hours":{"start_hour":` + strconv.FormatUint(uint64(s.work.StartHour), 10) + `,` +
-				`"start_min":` + strconv.FormatUint(uint64(s.work.StartMin), 10) + `,` +
-				`"end_hour":` + strconv.FormatUint(uint64(s.work.EndHour), 10) + `,` +
-				`"end_min":` + strconv.FormatUint(uint64(s.work.EndMin), 10) + `,` +
+			`"work_hours":{"start_hour":` + util.Uitoa(uint64(s.work.StartHour)) + `,` +
+				`"start_min":` + util.Uitoa(uint64(s.work.StartMin)) + `,` +
+				`"end_hour":` + util.Uitoa(uint64(s.work.EndHour)) + `,` +
+				`"end_min":` + util.Uitoa(uint64(s.work.EndMin)) + `,` +
 				`"days":"` + s.work.String() + `"}`,
 		))
 	} else {
@@ -288,7 +296,7 @@ func (l *Listener) JSON(w io.Writer) error {
 		}
 		l.s.lock.RUnlock()
 	}
-	if _, err := w.Write([]byte(`,"count":` + strconv.FormatUint(n, 10))); err != nil {
+	if _, err := w.Write([]byte(`,"count":` + util.Uitoa(uint64(n)))); err != nil {
 		return err
 	}
 	if t, ok := l.listener.(stringer); ok {

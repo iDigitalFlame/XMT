@@ -1,4 +1,5 @@
-//go:build !windows && !js && !plan9
+//go:build solaris && amd64
+// +build solaris,amd64
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -16,27 +17,28 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-package local
+package unix
 
-import "golang.org/x/sys/unix"
+import (
+	"syscall"
+	"unsafe"
+)
 
-func uname() string {
-	var (
-		u   unix.Utsname
-		err = unix.Uname(&u)
-	)
-	if err != nil {
-		return ""
+//go:cgo_import_dynamic libc_uname uname "libc.so"
+//go:linkname funcUname libc_uname
+var funcUname uintptr
+
+type utsName struct {
+	Sysname  [257]byte
+	Nodename [257]byte
+	Release  [257]byte
+	Version  [257]byte
+	Machine  [257]byte
+}
+
+func uname(u *utsName) error {
+	if _, _, err := syscall.RawSyscall6(uintptr(unsafe.Pointer(&funcUname)), uintptr(unsafe.Pointer(u)), 0, 0, 0, 0, 0); err != 0 {
+		return err
 	}
-	var (
-		v = make([]byte, 65)
-		i int
-	)
-	for ; i < 65; i++ {
-		if u.Release[i] == 0 {
-			break
-		}
-		v[i] = u.Release[i]
-	}
-	return string(v[:i])
+	return nil
 }

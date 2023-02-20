@@ -136,6 +136,7 @@ func (p *Packet) readBody(r io.Reader) error {
 	if p.len == 0 {
 		return nil
 	}
+	p.Limit = int(p.len)
 	var (
 		t   uint64
 		err error
@@ -146,7 +147,7 @@ func (p *Packet) readBody(r io.Reader) error {
 			break
 		}
 	}
-	if bugtrack.Enabled {
+	if p.Limit = 0; bugtrack.Enabled {
 		bugtrack.Track("com.(*Packet).readBody(): p.len=%d, t=%d, err=%s", p.len, t, err)
 	}
 	if t < p.len {
@@ -207,6 +208,9 @@ func (p *Packet) writeBody(w io.Writer) error {
 }
 func (p *Packet) readHeader(r io.Reader) error {
 	if err := p.Device.Read(r); err != nil {
+		if bugtrack.Enabled {
+			bugtrack.Track("com.(*Packet).readHeader(): Read Device failed err=%s", err)
+		}
 		return err
 	}
 	var (

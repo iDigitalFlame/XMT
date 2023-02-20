@@ -1,4 +1,5 @@
 //go:build darwin && !ios
+// +build darwin,!ios
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

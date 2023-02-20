@@ -1,4 +1,5 @@
-//go:build windows && (arm || 386)
+//go:build windows && crypt && !go1.11
+// +build windows,crypt,!go1.11
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -18,7 +19,6 @@
 
 package winapi
 
-const (
-	ptrNext   = 184
-	ptrThread = 444
-)
+import "github.com/iDigitalFlame/xmt/util/crypt"
+
+var dllPsapi = &lazyDLL{name: crypt.Get(101)} // psapi.dll

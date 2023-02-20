@@ -1,4 +1,5 @@
 //go:build !regexp
+// +build !regexp
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

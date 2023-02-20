@@ -60,12 +60,16 @@ type matchDomain struct {
 	x bool
 }
 
+// make this return a seperate struct
 func (c *config) parse() {
 	if u, err := parse(c.HTTPProxy); err == nil {
 		c.http = u
 	}
 	if u, err := parse(c.HTTPSProxy); err == nil {
 		c.https = u
+	}
+	if len(c.NoProxy) == 0 {
+		return
 	}
 	for _, v := range strings.Split(c.NoProxy, ",") {
 		if v = strings.ToLower(strings.TrimSpace(v)); len(v) == 0 {
@@ -125,7 +129,7 @@ func realAddr(u *url.URL) string {
 	}
 	return net.JoinHostPort(a, p)
 }
-func (c *config) usable(u string) bool {
+func (c config) usable(u string) bool {
 	if len(u) == 0 {
 		return true
 	}
@@ -195,13 +199,14 @@ func parse(u string) (*url.URL, error) {
 // a port number), then a nil URL and nil error will be returned.
 //
 // NOTE(dij): I don't have handling of "<local>" (Windows specific) bypass
-//            rules in place. I would have to re-implement "httpproxy" code
-//            and might not be worth it.
+//
+//	rules in place. I would have to re-implement "httpproxy" code
+//	and might not be worth it.
 func Proxy(r *http.Request) (*url.URL, error) {
 	proxySync.Do(func() {
-		if p := proxyInit(); p != nil {
-			proxySync.f = p.ProxyFunc()
-		}
+		v := proxyInit()
+		v.parse()
+		proxySync.f = v.proxyForURL
 	})
 	if proxySync.f == nil {
 		return nil, nil
@@ -226,7 +231,7 @@ func (m matchDomain) match(h, p string, _ net.IP) bool {
 	}
 	return false
 }
-func (c *config) proxyForURL(r *url.URL) (*url.URL, error) {
+func (c config) proxyForURL(r *url.URL) (*url.URL, error) {
 	if !c.usable(realAddr(r)) {
 		return nil, nil
 	}
@@ -237,8 +242,4 @@ func (c *config) proxyForURL(r *url.URL) (*url.URL, error) {
 		return nil, syscall.EINVAL
 	}
 	return c.http, nil
-}
-func (c *config) ProxyFunc() func(*url.URL) (*url.URL, error) {
-	c.parse()
-	return c.proxyForURL
 }

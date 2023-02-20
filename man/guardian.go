@@ -26,7 +26,6 @@
 // stream with optional encryption capabilities. Sentinels can launch
 // applications in may different ways, including downloading, injecting or
 // directly executing.
-//
 package man
 
 import (
@@ -70,6 +69,13 @@ func (g *Guardian) Close() error {
 // This can be used to monitor a Guardian's status using a select statement.
 func (g *Guardian) Done() <-chan struct{} {
 	return g.ch
+}
+func (g *Guardian) wait(x context.Context) {
+	select {
+	case <-g.ch:
+	case <-x.Done():
+		g.Close()
+	}
 }
 
 // MustGuard returns a Guardian instance that watches on the name provided.
@@ -131,13 +137,7 @@ func GuardContext(x context.Context, l Linker, n string) (*Guardian, error) {
 	}
 	g := &Guardian{ch: make(chan struct{}), sock: v}
 	if x != nil && x != context.Background() {
-		go func() {
-			select {
-			case <-g.ch:
-			case <-x.Done():
-				g.Close()
-			}
-		}()
+		go g.wait(x)
 	}
 	go v.Listen()
 	return g, nil

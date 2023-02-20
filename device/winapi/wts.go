@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -19,7 +20,6 @@
 package winapi
 
 import (
-	"syscall"
 	"time"
 	"unsafe"
 
@@ -97,49 +97,7 @@ type SessionProcess struct {
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtscloseserver
 func WTSCloseServer(h uintptr) {
-	syscall.SyscallN(funcWTSCloseServer.address(), h)
-}
-func (s *Session) getSessionInfo(h uintptr) error {
-	var (
-		x uint32
-		i *wtsInfo
-	)
-	r, _, err := syscall.SyscallN(
-		funcWTSQuerySessionInformation.address(), h, uintptr(s.ID), 0x18, uintptr(unsafe.Pointer(&i)),
-		uintptr(unsafe.Pointer(&x)),
-	)
-	if r == 0 {
-		return unboxError(err)
-	}
-	if s.User, s.Domain = UTF16ToString(i.User[:]), UTF16ToString(i.Domain[:]); i.Logon > 0 {
-		s.Login = time.Unix(0, (i.Logon-epoch)*100).Unix()
-	}
-	if i.LastInput > 0 {
-		s.LastInput = time.Unix(0, (i.LastInput-epoch)*100).Unix()
-	} else if i.Logon > 0 {
-		s.LastInput = time.Unix(0, (i.Now-epoch)*100).Unix()
-	}
-	syscall.SyscallN(funcWTSFreeMemory.address(), uintptr(unsafe.Pointer(i)))
-	var a *wtsAddr
-	r, _, err = syscall.SyscallN(
-		funcWTSQuerySessionInformation.address(), h, uintptr(s.ID), 0xE, uintptr(unsafe.Pointer(&a)),
-		uintptr(unsafe.Pointer(&x)),
-	)
-	if s.Remote = false; r == 0 {
-		return unboxError(err)
-	}
-	switch a.Family {
-	case 0x2:
-		copy(s.From[0:], a.Address[2:6])
-		s.Remote = true
-	case 0x17:
-		copy(s.From[0:], a.Address[0:])
-		s.Remote = true
-	default:
-		s.Remote = false
-	}
-	syscall.SyscallN(funcWTSFreeMemory.address(), uintptr(unsafe.Pointer(a)))
-	return nil
+	syscallN(funcWTSCloseServer.address(), h)
 }
 
 // WTSOpenServer Windows API Call
@@ -156,7 +114,7 @@ func WTSOpenServer(server string) (uintptr, error) {
 	if err != nil {
 		return invalid, err
 	}
-	r, _, err1 := syscall.SyscallN(funcWTSOpenServer.address(), uintptr(unsafe.Pointer(n)))
+	r, _, err1 := syscallN(funcWTSOpenServer.address(), uintptr(unsafe.Pointer(n)))
 	if r == invalid {
 		return invalid, unboxError(err1)
 	}
@@ -172,13 +130,13 @@ func WTSGetSessions(server uintptr) ([]Session, error) {
 	var (
 		b          uintptr
 		c          uint32
-		r, _, err1 = syscall.SyscallN(funcWTSEnumerateSessions.address(), server, 0, 1, uintptr(unsafe.Pointer(&b)), uintptr(unsafe.Pointer(&c)))
+		r, _, err1 = syscallN(funcWTSEnumerateSessions.address(), server, 0, 1, uintptr(unsafe.Pointer(&b)), uintptr(unsafe.Pointer(&c)))
 	)
 	if r == 0 {
 		return nil, unboxError(err1)
 	}
 	if c == 0 {
-		syscall.SyscallN(funcWTSFreeMemory.address(), b)
+		syscallN(funcWTSFreeMemory.address(), b)
 		return nil, nil
 	}
 	var (
@@ -190,12 +148,12 @@ func WTSGetSessions(server uintptr) ([]Session, error) {
 			s = *(*wtsSession)(unsafe.Pointer(b + (wtsSessionSize * uintptr(i))))
 			v = Session{ID: s.SessionID, Status: uint8(s.State), Host: UTF16PtrToString(s.Station)}
 		)
-		if err = v.getSessionInfo(server); err != nil {
+		if err = v.getSessionInfo(IsWindows7(), server); err != nil {
 			break
 		}
 		o = append(o, v)
 	}
-	syscall.SyscallN(funcWTSFreeMemory.address(), b)
+	syscallN(funcWTSFreeMemory.address(), b)
 	return o, err
 }
 
@@ -221,6 +179,75 @@ func WTSGetSessionsHost(server string) ([]Session, error) {
 		WTSCloseServer(h)
 	}
 	return r, err
+}
+func (s *Session) getSessionInfo(c bool, h uintptr) error {
+	var x uint32
+	if c {
+		var (
+			i         *wtsInfo
+			r, _, err = syscallN(
+				funcWTSQuerySessionInformation.address(), h, uintptr(s.ID), 0x18, uintptr(unsafe.Pointer(&i)),
+				uintptr(unsafe.Pointer(&x)),
+			)
+			// 0x18 - WTSSessionInfo
+		)
+		if r == 0 {
+			return unboxError(err)
+		}
+		if s.User, s.Domain = UTF16ToString(i.User[:]), UTF16ToString(i.Domain[:]); i.Logon > 0 {
+			s.Login = time.Unix(0, (i.Logon-epoch)*100).Unix()
+		}
+		if i.LastInput > 0 {
+			s.LastInput = time.Unix(0, (i.LastInput-epoch)*100).Unix()
+		} else if i.Logon > 0 {
+			s.LastInput = time.Unix(0, (i.Now-epoch)*100).Unix()
+		}
+		syscallN(funcWTSFreeMemory.address(), uintptr(unsafe.Pointer(i)))
+	} else {
+		var (
+			v         *uint16
+			r, _, err = syscallN(
+				funcWTSQuerySessionInformation.address(), h, uintptr(s.ID), 0x5, uintptr(unsafe.Pointer(&v)),
+				uintptr(unsafe.Pointer(&x)),
+			)
+			// 0x5 - WTSUserName
+		)
+		if r == 0 {
+			return unboxError(err)
+		}
+		s.User = UTF16PtrToString(v)
+		syscallN(funcWTSFreeMemory.address(), uintptr(unsafe.Pointer(v)))
+		// 0x7 - WTSDomainName
+		r, _, err = syscallN(
+			funcWTSQuerySessionInformation.address(), h, uintptr(s.ID), 0x7, uintptr(unsafe.Pointer(&v)),
+			uintptr(unsafe.Pointer(&x)),
+		)
+		if r == 0 {
+			return unboxError(err)
+		}
+		s.Domain = UTF16PtrToString(v)
+		syscallN(funcWTSFreeMemory.address(), uintptr(unsafe.Pointer(v)))
+	}
+	var a *wtsAddr
+	r, _, err := syscallN(
+		funcWTSQuerySessionInformation.address(), h, uintptr(s.ID), 0xE, uintptr(unsafe.Pointer(&a)),
+		uintptr(unsafe.Pointer(&x)),
+	)
+	if s.Remote = false; r == 0 {
+		return unboxError(err)
+	}
+	switch a.Family {
+	case 0x2:
+		copy(s.From[0:], a.Address[2:6])
+		s.Remote = true
+	case 0x17:
+		copy(s.From[0:], a.Address[0:])
+		s.Remote = true
+	default:
+		s.Remote = false
+	}
+	syscallN(funcWTSFreeMemory.address(), uintptr(unsafe.Pointer(a)))
+	return nil
 }
 
 // MarshalStream transforms this struct into a binary format and writes to the
@@ -248,7 +275,7 @@ func WTSLogoffSession(server uintptr, sid int32, wait bool) error {
 	if wait {
 		w = 1
 	}
-	if r, _, err := syscall.SyscallN(funcWTSLogoffSession.address(), server, uintptr(sid), uintptr(w)); r == 0 {
+	if r, _, err := syscallN(funcWTSLogoffSession.address(), server, uintptr(sid), uintptr(w)); r == 0 {
 		return unboxError(err)
 	}
 	return nil
@@ -267,7 +294,7 @@ func WTSDisconnectSession(server uintptr, sid int32, wait bool) error {
 	if wait {
 		w = 1
 	}
-	if r, _, err := syscall.SyscallN(funcWTSDisconnectSession.address(), server, uintptr(sid), uintptr(w)); r == 0 {
+	if r, _, err := syscallN(funcWTSDisconnectSession.address(), server, uintptr(sid), uintptr(w)); r == 0 {
 		return unboxError(err)
 	}
 	return nil
@@ -283,7 +310,7 @@ func WTSEnumerateProcesses(server uintptr, sid int32) ([]SessionProcess, error) 
 	var (
 		c         uint32
 		b         uintptr
-		r, _, err = syscall.SyscallN(funcWTSEnumerateProcesses.address(), server, 0, 1, uintptr(unsafe.Pointer(&b)), uintptr(unsafe.Pointer(&c)))
+		r, _, err = syscallN(funcWTSEnumerateProcesses.address(), server, 0, 1, uintptr(unsafe.Pointer(&b)), uintptr(unsafe.Pointer(&c)))
 	)
 	if r == 0 {
 		return nil, unboxError(err)
@@ -298,7 +325,7 @@ func WTSEnumerateProcesses(server uintptr, sid int32) ([]SessionProcess, error) 
 			o = append(o, SessionProcess{Name: UTF16PtrToString(s.Name), User: u, SessionID: s.SessionID, PID: s.PID})
 		}
 	}
-	syscall.SyscallN(funcWTSFreeMemory.address(), b)
+	syscallN(funcWTSFreeMemory.address(), b)
 	return o, nil
 }
 
@@ -321,7 +348,7 @@ func WTSSendMessage(server uintptr, sid int32, title, text string, f, secs uint3
 	if wait {
 		w = 1
 	}
-	r, _, err1 := syscall.SyscallN(
+	r, _, err1 := syscallN(
 		funcWTSSendMessage.address(), server, uintptr(sid), uintptr(unsafe.Pointer(t)), uintptr(len(title)*2), uintptr(unsafe.Pointer(d)),
 		uintptr(len(text)*2), uintptr(f), uintptr(secs), uintptr(unsafe.Pointer(&o)), uintptr(w),
 	)

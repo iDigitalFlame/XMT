@@ -1,4 +1,5 @@
 //go:build map
+// +build map
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -18,4 +19,4 @@
 
 package tags
 
-const setCapMemoryMapper = 0
+const setCapMemoryMapper = CapMemoryMapper

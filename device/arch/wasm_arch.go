@@ -1,4 +1,5 @@
 //go:build wasm
+// +build wasm
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

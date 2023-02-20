@@ -1,4 +1,6 @@
 //go:build (darwin || ios) && crypt
+// +build darwin ios
+// +build crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -22,6 +24,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/iDigitalFlame/xmt/device/unix"
 	"github.com/iDigitalFlame/xmt/util/crypt"
 )
 
@@ -71,7 +74,7 @@ func version() string {
 		v = m[crypt.Get(61)] // PRODUCTVERSION
 	}
 	if len(v) == 0 {
-		v = uname()
+		v = unix.Release()
 	}
 	switch {
 	case len(n) == 0 && len(b) == 0 && len(v) == 0:

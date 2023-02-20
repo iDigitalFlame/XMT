@@ -1,3 +1,6 @@
+//go:build !implant
+// +build !implant
+
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
 // This program is free software: you can redistribute it and/or modify

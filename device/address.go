@@ -18,9 +18,9 @@ package device
 
 import (
 	"net"
-	"net/netip"
 
 	"github.com/iDigitalFlame/xmt/data"
+	"github.com/iDigitalFlame/xmt/util"
 )
 
 // Address represents an encoded IPv4 or IPv6 address.
@@ -170,20 +170,6 @@ func (a Address) IsUnspecified() bool {
 	return a.hi == 0 && a.low == 0
 }
 
-// ToAddr will return this Address as a netip.Addr struct. This will choose the
-// type based on the underlying address size.
-func (a *Address) ToAddr() netip.Addr {
-	if a.Is4() {
-		return netip.AddrFrom4([4]byte{byte(a.low >> 24), byte(a.low >> 16), byte(a.low >> 8), byte(a.low)})
-	}
-	return netip.AddrFrom16([16]byte{
-		byte(a.hi >> 56), byte(a.hi >> 48), byte(a.hi >> 40), byte(a.hi >> 32),
-		byte(a.hi >> 24), byte(a.hi >> 16), byte(a.hi >> 8), byte(a.hi),
-		byte(a.low >> 56), byte(a.low >> 48), byte(a.low >> 40), byte(a.low >> 32),
-		byte(a.low >> 24), byte(a.low >> 16), byte(a.low >> 8), byte(a.low),
-	})
-}
-
 // SetBytes will set the internal values of this address to the specified bytes
 // contained in the byte array.
 //
@@ -224,14 +210,14 @@ func (a Address) IsLinkLocalUnicast() bool {
 }
 func write(b *[15]byte, v uint8, n int) int {
 	if v >= 100 {
-		b[n] = table[v/100]
+		b[n] = util.HexTable[v/100]
 		n++
 	}
 	if v >= 10 {
-		b[n] = table[v/10%10]
+		b[n] = util.HexTable[v/10%10]
 		n++
 	}
-	b[n] = table[v%10]
+	b[n] = util.HexTable[v%10]
 	return n + 1
 }
 
@@ -241,18 +227,18 @@ func (a Address) IsLinkLocalMulticast() bool {
 }
 func writeHex(b *[39]byte, v uint16, n int) int {
 	if v >= 0x1000 {
-		b[n] = table[v>>12]
+		b[n] = util.HexTable[v>>12]
 		n++
 	}
 	if v >= 0x100 {
-		b[n] = table[v>>8&0xF]
+		b[n] = util.HexTable[v>>8&0xF]
 		n++
 	}
 	if v >= 0x10 {
-		b[n] = table[v>>4&0xF]
+		b[n] = util.HexTable[v>>4&0xF]
 		n++
 	}
-	b[n] = table[v&0xF]
+	b[n] = util.HexTable[v&0xF]
 	return n + 1
 }
 

@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -19,7 +20,6 @@
 package winapi
 
 import (
-	"syscall"
 	"unsafe"
 )
 
@@ -406,7 +406,7 @@ func (s *SID) UserName() (string, error) {
 	for {
 		var (
 			n, d      = make([]uint16, c), make([]uint16, x)
-			r, _, err = syscall.SyscallN(funcLookupAccountSid.address(),
+			r, _, err = syscallN(funcLookupAccountSid.address(),
 				0, uintptr(unsafe.Pointer(s)), uintptr(unsafe.Pointer(&n[0])),
 				uintptr(unsafe.Pointer(&c)), uintptr(unsafe.Pointer(&d[0])),
 				uintptr(unsafe.Pointer(&x)), uintptr(unsafe.Pointer(&t)),
@@ -427,22 +427,22 @@ func (s *SID) UserName() (string, error) {
 
 // IsWellKnown returns true if this SID matches the well known SID type index.
 func (s *SID) IsWellKnown(t uint32) bool {
-	r, _, _ := syscall.SyscallN(funcIsWellKnownSID.address(), uintptr(unsafe.Pointer(s)), uintptr(t))
+	r, _, _ := syscallN(funcIsWellKnownSID.address(), uintptr(unsafe.Pointer(s)), uintptr(t))
 	return r > 0
 }
 func (s *SecurityDescriptor) len() uint32 {
-	r, _, _ := syscall.SyscallN(funcRtlLengthSecurityDescriptor.address(), uintptr(unsafe.Pointer(s)))
+	r, _, _ := syscallN(funcRtlLengthSecurityDescriptor.address(), uintptr(unsafe.Pointer(s)))
 	return uint32(r)
 }
 func localFree(h uintptr) (uintptr, error) {
-	r, _, err := syscall.SyscallN(funcLocalFree.address(), h)
+	r, _, err := syscallN(funcLocalFree.address(), h)
 	if r != 0 {
 		return r, unboxError(err)
 	}
 	return r, nil
 }
 func convertSIDToStringSID(i *SID, s **uint16) error {
-	r, _, err := syscall.SyscallN(funcConvertSIDToStringSID.address(), uintptr(unsafe.Pointer(i)), uintptr(unsafe.Pointer(s)))
+	r, _, err := syscallN(funcConvertSIDToStringSID.address(), uintptr(unsafe.Pointer(i)), uintptr(unsafe.Pointer(s)))
 	if r == 0 {
 		return unboxError(err)
 	}
@@ -458,7 +458,6 @@ func (s *SecurityDescriptor) copyRelative() *SecurityDescriptor {
 	}
 	var (
 		b []byte
-		c = int(unsafe.Sizeof(uintptr(0)))
 		h = (*SliceHeader)(unsafe.Pointer(&b))
 	)
 	h.Data = unsafe.Pointer(s)
@@ -466,7 +465,7 @@ func (s *SecurityDescriptor) copyRelative() *SecurityDescriptor {
 	var (
 		d []byte
 		x = (*SliceHeader)(unsafe.Pointer(&d))
-		a = make([]uintptr, (n+c-1)/c)
+		a = make([]uintptr, (n+int(ptrSize)-1)/int(ptrSize))
 	)
 	x.Data = (*SliceHeader)(unsafe.Pointer(&a)).Data
 	x.Len, x.Cap = n, n

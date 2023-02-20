@@ -1,4 +1,5 @@
 //go:build implant
+// +build implant
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -27,18 +28,15 @@
 // It is recommended if errors are needed to be compared even when in an implant
 // build, to use the "Sub" function, which will ignore error strings and use
 // error codes instead.
-//
 package xerr
 
-const (
-	// ExtendedInfo is a compile time constant to help signal if complex string
-	// values should be concatenated inline.
-	//
-	// This helps prevent debugging when the "-tags implant" option is enabled.
-	ExtendedInfo = false
+import "github.com/iDigitalFlame/xmt/util"
 
-	table = "0123456789ABCDEF"
-)
+// ExtendedInfo is a compile time constant to help signal if complex string
+// values should be concatenated inline.
+//
+// This helps prevent debugging when the "-tags implant" option is enabled.
+const ExtendedInfo = false
 
 type numErr uint8
 
@@ -50,9 +48,9 @@ func byteHexStr(b numErr) string {
 		return "0"
 	}
 	if b < 16 {
-		return table[b&0x0F : (b&0x0F)+1]
+		return util.HexTable[b&0x0F : (b&0x0F)+1]
 	}
-	return table[b>>4:(b>>4)+1] + table[b&0x0F:(b&0x0F)+1]
+	return util.HexTable[b>>4:(b>>4)+1] + util.HexTable[b&0x0F:(b&0x0F)+1]
 }
 
 // Sub creates a new string backed error interface and returns it.

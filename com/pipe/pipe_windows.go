@@ -1,4 +1,5 @@
 //go:build windows
+// +build windows
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -201,6 +202,10 @@ func (c *Conn) Read(b []byte) (int, error) {
 	}
 	return c.finish(winapi.ReadFile(c.handle, b, &a, o), int(a), c.read, o)
 }
+func (l *Listener) wait(x context.Context) {
+	<-x.Done()
+	l.Close()
+}
 
 // Write implements the 'net.Conn' interface.
 func (c *Conn) Write(b []byte) (int, error) {
@@ -264,7 +269,7 @@ func (l *Listener) AcceptPipe() (*Conn, error) {
 		_, err = complete(h, o)
 	}
 	if l.active = 0; atomic.LoadUint32(&l.done) == 1 {
-		return nil, net.ErrClosed
+		return nil, ErrClosed
 	}
 	winapi.CancelIoEx(l.active, l.overlap)
 	if winapi.CloseHandle(o.Event); err == winapi.ErrOperationAborted {
@@ -523,10 +528,7 @@ func ListenSecurityContext(x context.Context, path string, p *winapi.SecurityAtt
 	}
 	n := &Listener{addr: a, handle: l, perms: p}
 	if x != context.Background() {
-		go func(z *Listener) {
-			<-x.Done()
-			z.Close()
-		}(n)
+		go n.wait(x)
 	}
 	return n, nil
 }
