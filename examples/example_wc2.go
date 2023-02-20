@@ -35,7 +35,7 @@ func exampleWC2() {
 	if len(os.Args) == 2 {
 		var (
 			s = c2.NewServer(logx.Console(logx.Debug))
-			x = wc2.New(time.Second * 10)
+			x = wc2.NewServer(time.Second * 10)
 		)
 		x.Target.URL = text.Matcher("/login/ajax/%s/%d")
 		x.Target.Header("X-Watch", text.Matcher("%5fs-%5fs"))
