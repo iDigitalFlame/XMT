@@ -28,6 +28,10 @@ This framework also contains many utility functions, including:
 The pkg.go.dev site has some of the framework documentation and definitions
 [here](https://pkg.go.dev/github.com/iDigitalFlame/xmt).
 
+__DISCLAIMER: Please use for legal reasons only. I'm not responsible if you get__
+__in trouble for using this improperly or if someone owns your environment and is__
+__using XMT (or a derivative of it).__
+
 ## Roadmap
 
 _Updated 02/17/23_
@@ -52,19 +56,19 @@ above list:
 
 ## Compatibility
 
-This project is compatable with **ALL** Golang versions starting from **go1.10**!
+This project is compatable with __ALL__ Golang versions starting from __go1.10__!
 You can download the older versions of Golang from [the Golang website](https://go.dev/dl/).
 
 Unless convined otherwise, I plan to keep the compatibility down to Go1.10.
-**Since I don't control the Script engines, Scripts are bound to >= go1.18**
+__Since I don't control the Script engines, Scripts are bound to >= go1.18__
 
-**The following depreciated build types will NOT be supported**
+__The following depreciated build types will NOT be supported__
 
 - nacl/386
 - nacl/amd64p32
 - nacl/arm
 
-**The following depreciated build types WORK but are specific**
+__The following depreciated build types WORK but are specific__
 
 - darwin/386 (<= go1.14)
 - darwin/arm (<= go1.14, needs CGO)
@@ -85,7 +89,7 @@ So far the only issues I've seen are:
     "Administrators" group are considered elevated.
   - Per the previous entry, the "Untrust" helper will NOT set the Token Integrity
     _(since it doesn't exist!)_, but it will STILL remove Token permissions.
-  - Setting the parent process does **NOT** work.
+  - Setting the parent process does __NOT__ work.
 - Vista, Server 2008 and older
   - Cannot evade ETW logs as the function calls do not exist.
 - Windows 8.1, Server 2012 and older
@@ -95,7 +99,7 @@ So far the only issues I've seen are:
 
 Golang version 1.11 introduced the concept of Golang Modules and made dependency
 management simple. Unfortunately, Go1.10 (the last to support Xp, 2003, 2008
-and Vista) does **not**.
+and Vista) does __not__.
 
 To work around this, we can just _vendor_ the packages, since the only dependencies,
 are the following PurpleSec modules:
@@ -140,6 +144,8 @@ BSides Las Vegas 2022: So you Wanta Build a C2?
 ## Bugs
 
 _Updated 02/17/23_
+
+- Potential KeyPair sync issue over long periods of time. __Still needs more testing__
 
 Feel free to submit issue tickets or pull requests if something is broken or
 doesn't act right. (I don't bite, mostly owo)

