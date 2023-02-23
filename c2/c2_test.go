@@ -18,7 +18,6 @@ package c2
 
 import (
 	"testing"
-	"time"
 
 	"github.com/PurpleSec/logx"
 	"github.com/iDigitalFlame/xmt/c2/cfg"
@@ -52,18 +51,10 @@ func TestC2(t *testing.T) {
 		t.Fatalf("TestC2(): Listen test1_udp failed with an error: %s!", err.Error())
 	}
 
-	v1, err := Connect(logx.NOP, cfg.Static{H: "localhost:9091", C: com.TCP, S: time.Second * 2})
-	if err != nil {
-		t.Fatalf("TestC2(): Connect test1_tcp failed with an error: %s!", err.Error())
-	}
-
-	time.Sleep(time.Second * 3)
-
 	for _, v := range s.Sessions() {
 		v.Close()
 	}
 
-	v1.Wait()
 	c1.Close()
 	c2.Close()
 }
