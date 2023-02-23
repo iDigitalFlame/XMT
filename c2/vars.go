@@ -66,8 +66,6 @@ var (
 	// size larger than the maximum size (65535/0xFFFF).
 	ErrTooManyPackets = xerr.Sub("frag/multi count is larger than 0xFFFF", 0x56)
 
-	empty time.Time
-
 	buffers = sync.Pool{
 		New: func() interface{} {
 			return new(data.Chunk)

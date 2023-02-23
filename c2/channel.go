@@ -33,12 +33,16 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-// ErrMalformedPacket is an error returned by various Packet reading
-// functions when a Packet is attempted to be passed that is nil or invalid.
-//
-// Invalid Packets are packets that do not have a proper ID value or contain
-// an empty device ID.
-var ErrMalformedPacket = xerr.Sub("empty or nil Packet", 0x46)
+var (
+	// ErrMalformedPacket is an error returned by various Packet reading
+	// functions when a Packet is attempted to be passed that is nil or invalid.
+	//
+	// Invalid Packets are packets that do not have a proper ID value or contain
+	// an empty device ID.
+	ErrMalformedPacket = xerr.Sub("empty or nil Packet", 0x46)
+
+	empty time.Time
+)
 
 var _ connHost = (*Session)(nil)
 

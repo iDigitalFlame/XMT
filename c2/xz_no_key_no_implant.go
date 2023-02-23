@@ -19,11 +19,11 @@
 
 package c2
 
-import "github.com/iDigitalFlame/xmt/com"
+import (
+	"github.com/iDigitalFlame/xmt/com"
+	"github.com/iDigitalFlame/xmt/data"
+)
 
-func (*Session) keyListenerRegenerate(_ string, _ *com.Packet) error {
-	return nil
-}
 func (*Session) keyCryptAndUpdate(_ string, _ *com.Packet, _ bool) error {
 	return nil
 }

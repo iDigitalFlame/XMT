@@ -165,12 +165,6 @@ func (c *Client) SetTLS(t *tls.Config) *Client {
 func NewClient(d time.Duration, t *Target) *Client {
 	return NewClientTLS(d, nil, t)
 }
-func (t *transport) dial(_, a string) (net.Conn, error) {
-	return t.dialContext(context.Background(), "", a)
-}
-func (t *transport) dialTLS(_, a string) (net.Conn, error) {
-	return t.dialTLSContext(context.Background(), "", a)
-}
 
 // NewClientTLS creates a new WC2 Client with the supplied Timeout and TLS
 // configuration.

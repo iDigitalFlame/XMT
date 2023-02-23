@@ -1,5 +1,5 @@
-//go:build nokeyset
-// +build nokeyset
+//go:build go1.13 && !go1.14
+// +build go1.13,!go1.14
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -17,19 +17,18 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 //
 
-package c2
+package wc2
 
-import "github.com/iDigitalFlame/xmt/com"
+import (
+	"context"
+	"net"
+	"net/http"
+)
 
-func (*Session) keyCheckRevert() {}
-func (*Session) keyCheckSync() error {
-	return nil
+func (t *transport) hook(x *http.Transport) {
+	x.DialTLS = t.dialTLS
+	x.DialContext = t.dialContext
 }
-func (s *Session) keyNextSync() *com.Packet {
-	_ = s.keysNext
-	return nil
-}
-func (*Session) keySessionGenerate(_ *com.Packet) {}
-func (*Session) keySessionSync(_ *com.Packet) error {
-	return nil
+func (t *transport) dialTLS(_, a string) (net.Conn, error) {
+	return t.dialTLSContext(context.Background(), "", a)
 }

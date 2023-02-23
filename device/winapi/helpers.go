@@ -192,7 +192,7 @@ type lsaAttributes struct {
 type processParams struct {
 	// DO NOT REORDER
 	_                [16]byte
-	_                uintptr
+	Console          uintptr
 	_                uint32
 	StandardInput    uintptr
 	StandardOutput   uintptr
@@ -466,7 +466,6 @@ func killRuntime() {
 		}
 		return
 	}
-	// should we clear the GC here? since the threads won't be needed anymore, so the GC should be fine
 	EmptyWorkingSet()
 	TerminateThread(CurrentThread, 0) // Buck Stops here.
 }

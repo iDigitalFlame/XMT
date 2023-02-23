@@ -280,7 +280,7 @@ func (s *Session) shutdown() {
 		s.m.queue(event{s: s, sf: s.Shutdown})
 	}
 	if s.proxy != nil {
-		s.proxy.Close()
+		_ = s.proxy.Close()
 	}
 	if s.lock.Lock(); !s.state.SendClosed() {
 		s.state.Set(stateSendClose)
@@ -1149,7 +1149,7 @@ func (s *Session) MigrateProfile(wait bool, n string, b []byte, job uint16, t ti
 		s.log.Debug("[%s/Mg8] Received 'OK' from host, proceeding with shutdown!", s.ID)
 	}
 	if s.lock.Unlock(); s.proxy != nil && s.proxy.IsActive() {
-		s.proxy.Close()
+		_ = s.proxy.Close()
 	}
 	s.state.Set(stateClosing)
 	for s.Wake(); ; {

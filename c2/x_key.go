@@ -20,6 +20,8 @@
 package c2
 
 import (
+	"time"
+
 	"github.com/iDigitalFlame/xmt/c2/cout"
 	"github.com/iDigitalFlame/xmt/com"
 	"github.com/iDigitalFlame/xmt/data"
@@ -29,7 +31,9 @@ import (
 )
 
 func (s *Session) keyCheckRevert() {
-	s.keysNext = nil
+	if s.keysNext = nil; bugtrack.Enabled {
+		bugtrack.Track("c2.(*Session).keyCheckRevert(): %s KeyPair queued sync canceled!", s.ID)
+	}
 }
 func (s *Session) keyCheckSync() error {
 	if s.keysNext == nil {
@@ -58,7 +62,14 @@ func (s *Session) keyNextSync() *com.Packet {
 	if !s.IsClient() || s.keysNext != nil || s.state.Moving() {
 		return nil
 	}
-	if util.FastRandN(130) != 0 {
+	// Have the % chance of changing be a factor of how LONG we sleep for, so
+	// implants that wait a longer period of time won't necessarily change keys
+	// less than ones that update in shorter periods.
+	d := 60 - int(s.sleep/time.Minute)
+	if d < 0 {
+		d = 0 // Base will ALWAY be 50.
+	}
+	if util.FastRandN(50+d) != 0 {
 		return nil
 	}
 	if cout.Enabled {

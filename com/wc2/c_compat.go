@@ -42,7 +42,6 @@ func maskConn(c net.Conn) net.Conn {
 	return maskedConn{c}
 }
 func (t *transport) hook(x *http.Transport) {
-	x.Dial = t.dial
 	x.DialTLS = t.dialTLS
 	x.DialContext = t.dialContext
 }
@@ -61,5 +60,8 @@ func newTransport(d time.Duration) *http.Transport {
 		ExpectContinueTimeout: d,
 		ResponseHeaderTimeout: d,
 	}
+}
+func (t *transport) dialTLS(_, a string) (net.Conn, error) {
+	return t.dialTLSContext(context.Background(), "", a)
 }
 func baseContext(_ *listener, _ func(net.Listener) context.Context) {}

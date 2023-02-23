@@ -7,6 +7,7 @@ of XMT.
 
 None of these are used by default.
 
+- altload
 - bugs
 - implant
 - crypt
@@ -46,6 +47,7 @@ The most popular set for size and usage is: `implant,nojson,noproxy`
 
 ## Windows Specific
 
+- altload
 - heap
 - svcdll
 - nopanic

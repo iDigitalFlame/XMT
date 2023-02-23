@@ -269,6 +269,7 @@ func (l *Listener) AcceptPipe() (*Conn, error) {
 		_, err = complete(h, o)
 	}
 	if l.active = 0; atomic.LoadUint32(&l.done) == 1 {
+		winapi.CloseHandle(o.Event)
 		return nil, ErrClosed
 	}
 	winapi.CancelIoEx(l.active, l.overlap)
@@ -444,7 +445,7 @@ func ListenSecurity(path string, p *winapi.SecurityAttributes) (*Listener, error
 // The provided Context can be used to cancel the Listener.
 func ListenPermsContext(x context.Context, path, perms string) (*Listener, error) {
 	var (
-		s   = winapi.SecurityAttributes{InheritHandle: 1}
+		s   = winapi.SecurityAttributes{InheritHandle: 0}
 		err error
 	)
 	if len(perms) > 0 {

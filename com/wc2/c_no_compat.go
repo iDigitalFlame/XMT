@@ -31,12 +31,6 @@ import (
 func maskConn(c net.Conn) net.Conn {
 	return c
 }
-func (t *transport) hook(x *http.Transport) {
-	x.Dial = t.dial
-	x.DialTLS = t.dialTLS
-	x.DialContext = t.dialContext
-	x.DialTLSContext = t.dialTLSContext
-}
 func newRequest(x context.Context) *http.Request {
 	r, _ := http.NewRequestWithContext(x, http.MethodGet, "", nil)
 	return r
