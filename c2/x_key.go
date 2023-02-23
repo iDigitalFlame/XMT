@@ -67,7 +67,7 @@ func (s *Session) keyNextSync() *com.Packet {
 	// less than ones that update in shorter periods.
 	d := 60 - int(s.sleep/time.Minute)
 	if d < 0 {
-		d = 0 // Base will ALWAY be 50.
+		d = 0 // Base will ALWAYS be 50.
 	}
 	if util.FastRandN(50+d) != 0 {
 		return nil
