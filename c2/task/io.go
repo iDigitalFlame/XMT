@@ -290,7 +290,6 @@ func taskDownload(x context.Context, r data.Reader, w data.Writer) error {
 	if s, ok := w.(backer); ok {
 		s.Grow(int(c))
 	}
-	//  ^ This should NEVER panic!
 	// 0 - READONLY
 	f, err := os.OpenFile(v, 0, 0)
 	if err != nil {
@@ -361,7 +360,6 @@ func taskPullExec(x context.Context, r data.Reader, w data.Writer) error {
 	var (
 		c, _ = e.ExitCode()
 		s, _ = w.(backer)
-		//     ^ This should NEVER panic!
 	)
 	if s == nil {
 		return nil

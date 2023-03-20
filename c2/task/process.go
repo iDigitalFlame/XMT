@@ -144,9 +144,11 @@ func taskProcess(x context.Context, r data.Reader, w data.Writer) error {
 	}
 	var (
 		c, _ = p.ExitCode()
-		s    = w.(backer)
-		//     ^ This should NEVER panic!
+		s, _ = w.(backer)
 	)
+	if s == nil {
+		return nil
+	}
 	s.WriteUint32Pos(0, i)
 	s.WriteUint32Pos(4, uint32(c))
 	return nil
