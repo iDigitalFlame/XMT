@@ -26,15 +26,13 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-const (
-	// DefaultSleep is the default sleep Time when the provided sleep value is
-	// empty or negative.
-	DefaultSleep = time.Duration(60) * time.Second
+// DefaultSleep is the default sleep Time when the provided sleep value is
+// empty or negative.
+const DefaultSleep = time.Duration(60) * time.Second
 
-	// DefaultJitter is the default Jitter value when the provided jitter value
-	// is negative.
-	DefaultJitter uint8 = 10
-)
+// DefaultJitter is the default Jitter value when the provided jitter value
+// is negative.
+const DefaultJitter uint8 = 10
 
 var (
 	// ErrNotAListener is an error that can be returned by a call to a Profile's
@@ -59,8 +57,6 @@ var (
 // of this Profile.
 type Static struct {
 	_ [0]func()
-	// K is the KillDate
-	K *time.Time
 	// W is the Wrapper
 	W Wrapper
 	// T is the Transform
@@ -69,16 +65,18 @@ type Static struct {
 	L Accepter
 	// C is the Connector or Client Connector
 	C Connector
+	// K is the KillDate
+	K *time.Time
 	// A is the WorHours
 	A *WorkHours
 	// H is the Target Host or Listen Address
 	H string
+	// P is the valid Server PublicKeys that can be used as FNV-32 hashes
+	P []uint32
 	// S is the Sleep duration
 	S time.Duration
 	// J is the Jitter percentage
 	J int8
-	// P is the valid Server PublicKeys that can be used as FNV-32 hashes
-	P []uint32
 }
 
 // Profile is an interface that defines a C2 connection.

@@ -31,19 +31,16 @@ var proxySync struct {
 }
 
 type config struct {
-	HTTPProxy  string
-	HTTPSProxy string
-	NoProxy    string
-	CGI        bool
-
-	http   *url.URL
-	https  *url.URL
-	ip     []matcher
-	domain []matcher
+	http, https *url.URL
+	HTTPProxy   string
+	HTTPSProxy  string
+	NoProxy     string
+	ip, domain  []matcher
+	CGI         bool
 }
 type matchIP struct {
-	i net.IP
 	p string
+	i net.IP
 }
 type matchAll struct{}
 type matchCIDR struct {
@@ -60,7 +57,6 @@ type matchDomain struct {
 	x bool
 }
 
-// make this return a seperate struct
 func (c *config) parse() {
 	if u, err := parse(c.HTTPProxy); err == nil {
 		c.http = u

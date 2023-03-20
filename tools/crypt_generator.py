@@ -20,6 +20,39 @@ from json import dumps
 from os.path import join
 from sys import argv, exit
 
+OS_ARCH_TAGS = [
+    "386",
+    "aix",
+    "amd64",
+    "amd64p32",
+    "android",
+    "arm",
+    "arm64",
+    "darwin",
+    "dragonfly",
+    "freebsd",
+    "illumos",
+    "ios",
+    "js",
+    "linux",
+    "loong64",
+    "mips",
+    "mips64",
+    "mips64le",
+    "mipsle",
+    "nacl",
+    "netbsd",
+    "openbsd",
+    "plan9",
+    "ppc64",
+    "ppc64le",
+    "riscv64",
+    "s390x",
+    "solaris",
+    "wasm",
+    "windows",
+]
+
 
 def _make_tags(v):
     s = v.strip()
@@ -32,7 +65,8 @@ def _make_tags(v):
         return None
     r = list()
     for i in e:
-        if i == "||" or i == "&&" or i == "crypt":
+        # Remove operators and any go version tags
+        if i == "||" or i == "&&" or i == "crypt" or "go1." in i:
             continue
         r.append(i.replace("(", "").replace(")", ""))
     r.sort()
@@ -44,21 +78,40 @@ def _merge_tags(one, two):
         return None
     if len(one) == 0 or len(two) == 0:
         return None
+    if one == two:
+        return one
+    y, z = False, False
+    for i in one:
+        if len(i) == 0:
+            continue
+        if i[0] != "!":
+            break
+        z = True
+    for i in two:
+        if len(i) == 0:
+            continue
+        if i[0] != "!":
+            break
+        y = True
     r = one.copy()
     for i in two:
         if i[0] == "!":  # We have a negate
             if i[1:] in r:  # We have a negative but theres a positive in the list
                 r.remove(i[1:])  # Remove the positive
                 continue  # Skip the negative
-            if i in r:
+            if i in r:  # Already exists
                 continue
-            r.append(i)  # Add it since we don't care.
+            if y and not z:  # Only add if "two" is all negative and "one" is not.
+                r.append(i)  # Add it since we don't care.
             continue
         # It's a positive
         if f"!{i}" in r:  # Is a negative of that in the current?
             r.remove(f"!{i}")  # Remove it
             continue  # Skip the positive, so we can have both
-        if i in r:
+        if i in r:  # Already exists
+            continue
+        # Skip if we are all negatives and its an OS/ARCH name.
+        if z and i in OS_ARCH_TAGS:
             continue
         r.append(i)
     if len(r) == 0:

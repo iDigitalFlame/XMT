@@ -29,8 +29,8 @@ import (
 
 func release() map[string]string {
 	var (
-		b      = crypt.Get(79) // /etc
-		f, err = os.Open(b)
+		b      = crypt.Get(92) // /etc
+		f, err = os.OpenFile(b, 0, 0)
 	)
 	if err != nil {
 		return nil
@@ -41,21 +41,13 @@ func release() map[string]string {
 	}
 	var (
 		m = make(map[string]string)
-		s = crypt.Get(80) // release
+		s = crypt.Get(93) // release
 	)
 	for i := range e {
 		if e[i] != s && !strings.Contains(e[i], s) {
 			continue
 		}
-		d, err := os.Open(b + string(os.PathSeparator) + e[i])
-		if err != nil {
-			continue
-		}
-		b, err := data.ReadAll(d)
-		if d.Close(); err != nil || len(b) == 0 {
-			continue
-		}
-		for _, v := range strings.Split(string(b), "\n") {
+		for _, v := range data.ReadSplit(b+string(os.PathSeparator)+e[i], "\n") {
 			x := strings.IndexByte(v, '=')
 			if x < 1 || len(v)-x < 2 {
 				continue

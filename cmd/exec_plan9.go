@@ -28,6 +28,7 @@ import (
 	"syscall"
 
 	"github.com/iDigitalFlame/xmt/cmd/filter"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 type executable struct {
@@ -80,8 +81,6 @@ func (e *executable) isStarted() bool {
 func (e *executable) isRunning() bool {
 	return e.isStarted() && e.e.ProcessState == nil
 }
-func (executable) SetToken(_ uintptr) {
-}
 func (e *executable) wait(p *Process) {
 	err := e.e.Wait()
 	if _, ok := err.(*exec.ExitError); err != nil && !ok {
@@ -101,38 +100,53 @@ func (e *executable) wait(p *Process) {
 	}
 	p.stopWith(p.exit, nil)
 }
-func (executable) SetFullscreen(_ bool) {
-}
-func (executable) SetWindowDisplay(_ int) {
-}
-func (executable) SetWindowTitle(_ string) {
-}
-func (executable) SetLogin(_, _, _ string) {}
-func (executable) SetWindowSize(_, _ uint32) {
-}
-func (executable) SetUID(_ int32, _ *Process) {
-}
-func (executable) SetGID(_ int32, _ *Process) {
-}
-func (executable) SetWindowPosition(_, _ uint32) {
-}
-func (executable) SetChroot(_ string, _ *Process) {
-}
-func (executable) SetNoWindow(_ bool, _ *Process) {
-}
-func (executable) SetDetached(_ bool, _ *Process) {
-}
-func (executable) SetSuspended(_ bool, _ *Process) {
-}
-func (executable) SetNewConsole(_ bool, _ *Process) {
-}
+
+func (executable) SetToken(_ uintptr)               {}
+func (executable) SetFullscreen(_ bool)             {}
+func (executable) SetWindowDisplay(_ int)           {}
+func (executable) SetWindowTitle(_ string)          {}
+func (executable) SetLogin(_, _, _ string)          {}
+func (executable) SetWindowSize(_, _ uint32)        {}
+func (executable) SetUID(_ int32, _ *Process)       {}
+func (executable) SetGID(_ int32, _ *Process)       {}
+func (executable) SetWindowPosition(_, _ uint32)    {}
+func (executable) SetChroot(_ string, _ *Process)   {}
+func (executable) SetNoWindow(_ bool, _ *Process)   {}
+func (executable) SetDetached(_ bool, _ *Process)   {}
+func (executable) SetSuspended(_ bool, _ *Process)  {}
+func (executable) SetNewConsole(_ bool, _ *Process) {}
 func (e *executable) kill(x uint32, p *Process) error {
 	if p.exit = x; e.e == nil || e.e.Process == nil {
 		return p.err
 	}
 	return e.e.Process.Kill()
 }
-func (executable) SetParent(_ *filter.Filter, _ *Process) {
+func (executable) SetParent(_ *filter.Filter, _ *Process) {}
+func (e *executable) StdinPipe(p *Process) (io.WriteCloser, error) {
+	var err error
+	if p.Stdin, e.r, err = os.Pipe(); err != nil {
+		return nil, xerr.Wrap("unable to create Pipe", err)
+	}
+	e.closers = append(e.closers, p.Stdin.(io.Closer))
+	return e.r, nil
+}
+func (e *executable) StdoutPipe(p *Process) (io.ReadCloser, error) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		return nil, xerr.Wrap("unable to create Pipe", err)
+	}
+	p.Stdout = w
+	e.closers = append(e.closers, w)
+	return r, nil
+}
+func (e *executable) StderrPipe(p *Process) (io.ReadCloser, error) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		return nil, xerr.Wrap("unable to create Pipe", err)
+	}
+	p.Stderr = w
+	e.closers = append(e.closers, w)
+	return r, nil
 }
 func (e *executable) start(x context.Context, p *Process, _ bool) error {
 	if e.e != nil {

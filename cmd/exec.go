@@ -398,7 +398,6 @@ func (p *Process) stopWith(c uint32, e error) error {
 	}
 	if atomic.LoadUint32(&p.cookie)&cookieFinal == 0 {
 		if atomic.SwapUint32(&p.cookie, p.cookie|cookieStopped|cookieFinal)&cookieStopped == 0 {
-			// if atomic.StoreUint32(&p.cookie, p.cookie|cookieStopped|cookieFinal); p.Running() {
 			p.x.kill(exitStopped, p)
 		}
 		if err := p.ctx.Err(); err != nil && p.exit == 0 {
@@ -479,30 +478,4 @@ func (p *Process) StderrPipe() (io.ReadCloser, error) {
 // of this process.
 func NewProcessContext(x context.Context, s ...string) *Process {
 	return &Process{Args: s, ctx: x}
-}
-func (e *executable) StdinPipe(p *Process) (io.WriteCloser, error) {
-	var err error
-	if p.Stdin, e.r, err = pipe(); err != nil {
-		return nil, xerr.Wrap("unable to create Pipe", err)
-	}
-	e.closers = append(e.closers, p.Stdin.(io.Closer))
-	return e.r, nil
-}
-func (e *executable) StdoutPipe(p *Process) (io.ReadCloser, error) {
-	r, w, err := pipe()
-	if err != nil {
-		return nil, xerr.Wrap("unable to create Pipe", err)
-	}
-	p.Stdout = w
-	e.closers = append(e.closers, w)
-	return r, nil
-}
-func (e *executable) StderrPipe(p *Process) (io.ReadCloser, error) {
-	r, w, err := pipe()
-	if err != nil {
-		return nil, xerr.Wrap("unable to create Pipe", err)
-	}
-	p.Stderr = w
-	e.closers = append(e.closers, w)
-	return r, nil
 }

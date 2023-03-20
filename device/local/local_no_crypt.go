@@ -19,4 +19,4 @@
 
 package local
 
-const vers = "framework-v6"
+const vers = "framework-v7"

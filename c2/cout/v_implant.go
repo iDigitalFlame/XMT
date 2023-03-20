@@ -24,9 +24,11 @@ package cout
 
 import "github.com/PurpleSec/logx"
 
-// Enabled is a compile time constant that can be used to disable/enable the logx Logger and prevent any
-// un-needed fmt calls as the client does not /naturally/ need to produce output. Only needed for debug
-// purposes
+// Enabled is a compile time constant that can be used to disable/enable the
+// logx Logger and prevent any un-needed fmt calls as the client does not
+// /naturally/ need to produce output.
+//
+// Only needed for debug purposes.
 const Enabled = false
 
 var log Log

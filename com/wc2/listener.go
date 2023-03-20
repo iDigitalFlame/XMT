@@ -29,7 +29,7 @@ import (
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
 )
 
-var done complete
+var done = new(complete)
 
 type addr string
 type conn struct {
@@ -107,7 +107,7 @@ func (l *listener) Accept() (net.Conn, error) {
 		)
 		select {
 		case <-t.C:
-			err = &done
+			err = done
 		case <-l.ch:
 			err = io.ErrClosedPipe
 		case <-l.pch:

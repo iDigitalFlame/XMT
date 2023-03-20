@@ -21,4 +21,4 @@ package text
 
 import "github.com/iDigitalFlame/xmt/util/crypt"
 
-var alpha = crypt.Get(98) // abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789
+var alpha = crypt.Get(121) // abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789

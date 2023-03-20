@@ -45,17 +45,15 @@ var (
 // server and allows for packets to be routed through a current established
 // Session.
 type Proxy struct {
-	lock sync.RWMutex
 	connection
-
-	listener net.Listener
-	ch       chan struct{}
-	close    chan uint32
-	parent   *Session
-	cancel   context.CancelFunc
-	clients  map[uint32]*proxyClient
-
+	listener   net.Listener
+	ch         chan struct{}
+	close      chan uint32
+	parent     *Session
+	cancel     context.CancelFunc
+	clients    map[uint32]*proxyClient
 	name, addr string
+	lock       sync.RWMutex
 	state      state
 }
 type proxyClient struct {

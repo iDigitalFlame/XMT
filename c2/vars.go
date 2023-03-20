@@ -36,12 +36,12 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-const (
-	// RvResult is the generic value for indicating a result value. Packets
-	// that have this as their ID value will be forwarded to the authoritative
-	// Mux and will be discarded if it does not match an active Job ID.
-	RvResult uint8 = 0x14
+// RvResult is the generic value for indicating a result value. Packets
+// that have this as their ID value will be forwarded to the authoritative
+// Mux and will be discarded if it does not match an active Job ID.
+const RvResult uint8 = 0x14
 
+const (
 	fragMax     = 0xFFFF
 	readTimeout = time.Millisecond * 350
 )
@@ -60,18 +60,16 @@ const (
 	SvDrop     uint8 = 0x6
 )
 
-var (
-	// ErrTooManyPackets is an error returned by many of the Packet writing
-	// functions when attempts to combine Packets would create a Packet grouping
-	// size larger than the maximum size (65535/0xFFFF).
-	ErrTooManyPackets = xerr.Sub("frag/multi count is larger than 0xFFFF", 0x56)
+// ErrTooManyPackets is an error returned by many of the Packet writing
+// functions when attempts to combine Packets would create a Packet grouping
+// size larger than the maximum size (65535/0xFFFF).
+var ErrTooManyPackets = xerr.Sub("frag/multi count is larger than 0xFFFF", 0x56)
 
-	buffers = sync.Pool{
-		New: func() interface{} {
-			return new(data.Chunk)
-		},
-	}
-)
+var buffers = sync.Pool{
+	New: func() interface{} {
+		return new(data.Chunk)
+	},
+}
 
 func returnBuffer(c *data.Chunk) {
 	c.Clear()

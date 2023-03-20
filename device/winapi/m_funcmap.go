@@ -89,7 +89,7 @@ func (v *funcMap) unmap() error {
 		return nil
 	}
 	atomic.SwapUintptr(&v.proc.addr, v.bak)
-	err := NtFreeVirtualMemory(CurrentProcess, v.swap)
+	err := NtFreeVirtualMemory(CurrentProcess, v.swap, 0)
 	v.swap, v.len = 0, 0
 	return err
 }
@@ -185,6 +185,9 @@ func FuncRemapHash(h uint32, b []byte) error {
 	if err := v.proc.find(); err != nil {
 		return err
 	}
+	if v.swap != 0 {
+		return syscall.EADDRINUSE
+	}
 	atomic.CompareAndSwapUintptr(&v.bak, 0, v.proc.addr) // Single swap to prevent lock
 	var (
 		n      = uint32(len(b))
@@ -203,7 +206,7 @@ func FuncRemapHash(h uint32, b []byte) error {
 		atomic.SwapUintptr(&v.proc.addr, a)
 		return nil
 	}
-	NtFreeVirtualMemory(CurrentProcess, a)
+	NtFreeVirtualMemory(CurrentProcess, a, 0)
 	return err
 }
 func registerSyscall(p *lazyProc, n string, h uint32) {

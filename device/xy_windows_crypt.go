@@ -28,24 +28,35 @@ import (
 var (
 	// ShellArgs is the default machine specific command shell arguments to run
 	// commands.
-	ShellArgs = crypt.Get(42) // /c
+	ShellArgs = "/c"
 	// PowerShell is the path to the PowerShell binary, which is based on the
 	// underlying OS type.
-	PowerShell = crypt.Get(43) // powershell.exe
-	home       = crypt.Get(44) // %USERPROFILE%
-	debugDlls  = crypt.Get(45) // hal.dll\nwmi.dll\nwpx.dll\nwdc.dll\nzipfldr.dll\ninput.dll\nspp.dll
+	PowerShell = crypt.Get(42) // powershell.exe
+	debugDlls  = crypt.Get(43) // hal.dll\nwmi.dll\nwpx.dll\nwdc.dll\nzipfldr.dll\ninput.dll\nspp.dll
 
 )
 
 func shell() string {
-	if s, ok := os.LookupEnv(crypt.Get(46)); ok { // ComSpec
+	if s, ok := os.LookupEnv(crypt.Get(44)); ok { // ComSpec
 		return s
 	}
-	if d, ok := os.LookupEnv(crypt.Get(47)); ok { // WinDir
-		p := d + crypt.Get(48) // \system32\cmd.exe
+	if d, ok := os.LookupEnv(crypt.Get(45)); ok { // WinDir
+		p := d + crypt.Get(46) // \system32\cmd.exe
 		if s, err := os.Stat(p); err == nil && !s.IsDir() {
 			return p
 		}
 	}
-	return crypt.Get(49) // %WinDir%\system32\cmd.exe
+	return crypt.Get(47) // %WinDir%\system32\cmd.exe
+}
+
+// UserHomeDir returns the current user's home directory.
+//
+// On Unix, including macOS, it returns the $HOME environment variable.
+// On Windows, it returns %USERPROFILE%.
+// On Plan 9, it returns the $home environment variable.
+// On JS/WASM it returns and empty string.
+//
+// Golang compatibility helper function.
+func UserHomeDir() string {
+	return os.Getenv(crypt.Get(48)) // USERPROFILE
 }

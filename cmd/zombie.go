@@ -155,5 +155,5 @@ func NewZombie(b []byte, s ...string) *Zombie {
 //
 // This function allows for specification of a Context for cancellation.
 func NewZombieContext(x context.Context, b []byte, s ...string) *Zombie {
-	return &Zombie{Data: b, Process: Process{Args: s, ctx: x}, t: thread{ctx: x}}
+	return &Zombie{Data: b, Process: Process{Args: s, ctx: x}, t: threadInit(x)}
 }

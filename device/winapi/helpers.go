@@ -49,194 +49,19 @@ var allm unsafe.Pointer
 // The lock will stay enabled until it's done, so it's "thread safe".
 var dumpStack dumpParam
 
+//go:linkname setConsoleCtrlHandler runtime._SetConsoleCtrlHandler
+var setConsoleCtrlHandler uintptr
+
 var dumpCallbackOnce struct {
 	_ [0]func()
 	sync.Once
 	f uintptr
 }
 
-type curDir struct {
-	// DO NOT REORDER
-	DosPath lsaString
-	Handle  uintptr
-}
-type modInfo struct {
-	// DO NOT REORDER
-	Base  uintptr
-	Size  uint32
-	Entry uintptr
-}
-type clientID struct {
-	// DO NOT REORDER
-	Process uintptr
-	Thread  uintptr
-}
-type objAttrs struct {
-	// DO NOT REORDER
-	Length                   uint32
-	RootDirectory            uintptr
-	ObjectName               *lsaString
-	Attributes               uint32
-	SecurityDescriptor       *SecurityDescriptor
-	SecurityQualityOfService *SecurityQualityOfService
-}
-type certBlob struct {
-	// DO NOT REORDER
-	_ uint32
-	_ uintptr
-}
-type certAlgo struct {
-	// DO NOT REORDER
-	_ *uint16
-	_ certBlob
-}
-type certInfo struct {
-	// DO NOT REORDER
-	_       uint32
-	Serial  certBlob
-	_       certAlgo
-	Issuer  certBlob
-	_, _    uint64
-	Subject certBlob
-	_       certAlgo
-	_, _, _ certBlob
-	_       uint32
-	_       uintptr
-	// NOTE(dij): This is here as go1.10 has a bug with this.
-	//            It tries to compare certInfo structs for some reason?
-	_ [0]func()
-}
-type lsaString struct {
-	// DO NOT REORDER
-	Length        uint16
-	MaximumLength uint16
-	Buffer        *uint16
-}
-type dumpParam struct {
-	_ [0]func()
-	sync.Mutex
-	h, b uintptr
-	s, w uint64
-}
-type certSigner struct {
-	// DO NOT REORDER
-	_       uint32
-	Issuer  certBlob
-	Serial  certBlob
-	_, _    certAlgo
-	_, _, _ certBlob
-	// NOTE(dij): This is here as go1.10 has a bug with this.
-	//            It tries to compare certSigner structs for some reason?
-	_ [0]func()
-}
-type dumpOutput struct {
-	Status int32
-}
-type privileges struct {
-	// DO NOT REORDER
-	PrivilegeCount uint32
-	Privileges     [5]LUIDAndAttributes
-}
-type processPeb struct {
-	// DO NOT REORDER
-	_                      [2]byte
-	BeingDebugged          byte
-	_                      [1]byte
-	_                      [2]uintptr
-	Ldr                    uintptr
-	ProcessParameters      *processParams
-	_                      [3]uintptr
-	AtlThunkSListPtr       uintptr
-	_                      uintptr
-	_                      uint32
-	_                      uintptr
-	_                      uint32
-	AtlThunkSListPtr32     uint32
-	_                      [9]uintptr
-	_                      [10]byte
-	NtGlobalFlag           uint32
-	_                      [35]uintptr
-	_                      [84]byte
-	PostProcessInitRoutine uintptr
-	_                      [128]byte
-	_                      [1]uintptr
-	SessionID              uint32
-}
-type timeZoneInfo struct {
-	// DO NOT REORDER
-	Bias         uint32
-	_            [80]byte
-	StdBias      uint32
-	_            [80]byte
-	DaylightBias uint32
-}
-type highContrast struct {
-	// DO NOT REORDER
-	Size  uint32
-	Flags uint32
-	_     *uint16
-}
 type dumpCallback struct {
 	// DO NOT REORDER
 	Func uintptr
 	Args uintptr
-}
-type lsaAttributes struct {
-	// DO NOT REORDER
-	Length     uint32
-	_          uintptr
-	_          *lsaString
-	Attributes uint32
-	_, _       unsafe.Pointer
-}
-type processParams struct {
-	// DO NOT REORDER
-	_                [16]byte
-	Console          uintptr
-	_                uint32
-	StandardInput    uintptr
-	StandardOutput   uintptr
-	StandardError    uintptr
-	CurrentDirectory curDir
-	DllPath          lsaString
-	ImagePathName    lsaString
-	CommandLine      lsaString
-	Environment      uintptr
-}
-type threadBasicInfo struct {
-	// DO NOT REORDER
-	ExitStatus     uint32
-	TebBaseAddress uintptr
-	ClientID       clientID
-	_              uint64
-	_              uint32
-}
-type ntUnicodeString struct {
-	// DO NOT REORDER
-	Length        uint16
-	MaximumLength uint16
-	_, _          uint16
-	Buffer        [260]uint16
-}
-type systemBasicInfo struct {
-	// DO NOT REORDER
-	_             [8]byte
-	PageSize      uint32
-	PhysicalPages uint32
-	LowPage       uint32
-	HighPage      uint32
-	_             uint32
-	_             [3]uintptr
-	NumProc       uint8
-}
-type processBasicInfo struct {
-	// DO NOT REORDER
-	ExitStatus                   uint32
-	PebBaseAddress               uintptr
-	_                            *uintptr
-	_                            uint32
-	UniqueProcessID              uintptr
-	InheritedFromUniqueProcessID uintptr
 }
 type kernelSharedData struct {
 	// DO NOT REORDER
@@ -269,11 +94,6 @@ type kernelSharedData struct {
 	VirtualizationFlags   uint8
 	_                     [2]byte
 	SharedDataFlags       uint32
-}
-type lsaAccountDomainInfo struct {
-	// DO NOT REORDER
-	_   lsaString
-	SID *SID
 }
 
 // KillRuntime attempts to walk through the process threads and will forcefully
@@ -328,7 +148,12 @@ func killRuntime() {
 	if bugtrack.Enabled {
 		bugtrack.Track("winapi.killRuntime(): Module range a=%d, e=%d", a, e)
 	}
-	x := make(map[uint32]struct{}, 8)
+	runtime.GC()
+	debug.FreeOSMemory()
+	var (
+		x = make(map[uint32]struct{}, 8)
+		g = make([]uintptr, 0, 8)
+	)
 	for i := uintptr(allm); ; {
 		if h := *(*uintptr)(unsafe.Pointer(i + ptrThread)); h > 0 {
 			if z, err := getThreadID(h); err == nil {
@@ -336,6 +161,7 @@ func killRuntime() {
 					bugtrack.Track("winapi.killRuntime(): Found runtime thread ID z=%d, h=%d", z, h)
 				}
 			}
+			g = append(g, h)
 		}
 		n := (*uintptr)(unsafe.Pointer(i + ptrNext))
 		if n == nil || *n == 0 {
@@ -412,7 +238,7 @@ func killRuntime() {
 		for i := range m {
 			CloseHandle(m[i])
 		}
-		if m = nil; b {
+		if g, m = nil, nil; b {
 			if bugtrack.Enabled {
 				bugtrack.Track("winapi.killRuntime(): We're in the base thread, we can exit normally.")
 			}
@@ -433,7 +259,7 @@ func killRuntime() {
 		for i := range m {
 			CloseHandle(m[i])
 		}
-		if m = nil; bugtrack.Enabled {
+		if g, m = nil, nil; bugtrack.Enabled {
 			bugtrack.Track("winapi.killRuntime(): We're a Zombie, we can exit normally.")
 		}
 		// Out of all the base threads, only one exists and is suspended,
@@ -450,13 +276,25 @@ func killRuntime() {
 	//            /should/ only clean unused libraries after we are done.
 	//            ntdll.dll will NOT be unloaded.
 	freeLoadedLibaries()
+	// Stop all running Goroutines
+	stopTheWorld("exit")
+	// Disable the CTRL console handler that Go sets.
+	removeCtrlHandler()
 	// What's left is that we're probally injected into memory somewhere, and
 	// we just need to nuke the runtime without affecting the host.
+	for i := range g {
+		CloseHandle(g[i])
+	}
+	g = nil
 	for i := range m {
 		if err = TerminateThread(m[i], 0); err != nil {
 			break
 		}
 	}
+	// Close all timers and open handles
+	// Even if the world is stopped, we still run into this occasionally. So it's
+	// down here instead.
+	destoryAllM()
 	for i := range m {
 		CloseHandle(m[i])
 	}
@@ -466,8 +304,11 @@ func killRuntime() {
 		}
 		return
 	}
+	if bugtrack.Enabled {
+		bugtrack.Track("winapi.killRuntime(): Bye bye!")
+	}
 	EmptyWorkingSet()
-	TerminateThread(CurrentThread, 0) // Buck Stops here.
+	freeRuntimeMemory() // Buck Stops here.
 }
 
 // Getppid returns the Parent Process ID of this Process by reading the PEB.
@@ -558,6 +399,9 @@ func IsDebugged() bool {
 	return err == nil && v
 }
 
+//go:linkname stopTheWorld runtime.stopTheWorld
+func stopTheWorld(string)
+
 // IsSystemEval returns true if the KSHARED_USER_DATA.SystemExpirationDate value
 // is greater than zero.
 //
@@ -575,33 +419,45 @@ func IsUACEnabled() bool {
 	return (*kernelSharedData)(unsafe.Pointer(kernelShared)).SharedDataFlags&0x2 != 0
 }
 func freeLoadedLibaries() {
-	if dllAmsi.addr > 0 {
-		syscall.FreeLibrary(syscall.Handle(dllAmsi.addr))
+	dllAmsi.free()
+	dllGdi32.free()
+	dllUser32.free()
+	dllWinhttp.free()
+	dllDbgHelp.free()
+	dllAdvapi32.free()
+	dllWtsapi32.free()
+	dllKernel32.free()
+	dllKernelBase.free()
+}
+
+// ErasePEHeader erases the first page of the mapped PE memory data. This is
+// recommended to ONLY use when using a shipped binary.
+//
+// Any errors found during zeroing will returned.
+//
+// Retrieved from: https://github.com/LordNoteworthy/al-khaser/blob/master/al-khaser/AntiDump/ErasePEHeaderFromMemory.cpp
+func ErasePEHeader() error {
+	var (
+		h          uintptr
+		r, _, err1 = syscallN(funcGetModuleHandleEx.address(), 0x2, 0, uintptr(unsafe.Pointer(&h)))
+		// 0x2 - GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT
+	)
+	if r == 0 {
+		return unboxError(err1)
 	}
-	if dllGdi32.addr > 0 {
-		syscall.FreeLibrary(syscall.Handle(dllGdi32.addr))
+	var (
+		n      = uint32(syscall.Getpagesize())
+		o, err = NtProtectVirtualMemory(CurrentProcess, h, n, 0x40)
+		// 0x40 - PAGE_EXECUTE_READWRITE
+	)
+	if err != nil {
+		return err
 	}
-	if dllUser32.addr > 0 {
-		syscall.FreeLibrary(syscall.Handle(dllUser32.addr))
+	for i := uint32(0); i < n; i++ {
+		(*(*[1]byte)(unsafe.Pointer(h + uintptr(i))))[0] = 0
 	}
-	if dllWinhttp.addr > 0 {
-		syscall.FreeLibrary(syscall.Handle(dllWinhttp.addr))
-	}
-	if dllDbgHelp.addr > 0 {
-		syscall.FreeLibrary(syscall.Handle(dllDbgHelp.addr))
-	}
-	if dllAdvapi32.addr > 0 {
-		syscall.FreeLibrary(syscall.Handle(dllAdvapi32.addr))
-	}
-	if dllWtsapi32.addr > 0 {
-		syscall.FreeLibrary(syscall.Handle(dllWtsapi32.addr))
-	}
-	if dllKernel32.addr > 0 {
-		syscall.FreeLibrary(syscall.Handle(dllKernel32.addr))
-	}
-	if dllKernelBase.addr > 0 {
-		syscall.FreeLibrary(syscall.Handle(dllKernelBase.addr))
-	}
+	_, err = NtProtectVirtualMemory(CurrentProcess, h, n, o)
+	return err
 }
 func (p *dumpParam) close() {
 	heapFree(p.b, p.h)
@@ -750,6 +606,8 @@ func IsUTCTime() (bool, error) {
 // memory that is converted to a time.Time struct.
 //
 // This can be used to get the system time without relying on any API calls.
+//
+// NOTE(dij): Supposedly Go already reads this for 'time.Now()'?
 func GetKernelTime() time.Time {
 	var (
 		s = (*kernelSharedData)(unsafe.Pointer(kernelShared))
@@ -780,7 +638,7 @@ func (p *dumpParam) init() error {
 // LoadLibraryAddress is a simple function that returns the raw address of the
 // 'LoadLibraryW' function in 'kernel32.dll' that's currently loaded.
 func LoadLibraryAddress() uintptr {
-	return funcLoadLibrary.address()
+	return funcLoadLibrary
 }
 
 // IsStackTracingEnabled returns true if the KSHARED_USER_DATA.MaxStackTraceDepth
@@ -861,6 +719,13 @@ func SetHighContrast(e bool) error {
 	return nil
 }
 
+// InWow64Process is a helper function that just calls'IsWow64Process' with the
+// 'CurrentProcess' handle to determine if the current process is a WOW64 process.
+func InWow64Process() (bool, error) {
+	return IsWow64Process(CurrentProcess)
+}
+
+/*
 // IsVirtualizationEnabled return true if the current device processor has the
 // PF_VIRT_FIRMWARE_ENABLED flag. This will just indicate if the device has the
 // capability to run Virtual Machines. This is commonly not the case of many VMs
@@ -873,7 +738,7 @@ func SetHighContrast(e bool) error {
 func IsVirtualizationEnabled() bool {
 	// 0x15 - PF_VIRT_FIRMWARE_ENABLED
 	return (*kernelSharedData)(unsafe.Pointer(kernelShared)).ProcessorFeatures[0x15] > 0
-}
+}*/
 
 // SetCommandLine will attempt to read the Process PEB and overrite the
 // 'ProcessParameters.CommandLine' property with the supplied string value.
@@ -1094,6 +959,24 @@ func SetAllThreadsToken(h uintptr) error {
 	return ForEachThread(func(t uintptr) error { return SetThreadToken(t, h) })
 }
 func getProcessPeb() (*processPeb, error) {
+	/*
+		PVOID64 GetPeb64()
+		{
+			PVOID64 peb64 = NULL;
+
+			if (API::IsAvailable(API_IDENTIFIER::API_NtWow64QueryInformationProcess64))
+			{
+				PROCESS_BASIC_INFORMATION_WOW64 pbi64 = {};
+
+				auto NtWow64QueryInformationProcess64 = static_cast<pNtWow64QueryInformationProcess64>(API::GetAPI(API_IDENTIFIER::API_NtWow64QueryInformationProcess64));
+				NTSTATUS status = NtWow64QueryInformationProcess64(GetCurrentProcess(), ProcessBasicInformation, &pbi64, sizeof(pbi64), nullptr);
+				if ( NT_SUCCESS ( status ) )
+					peb64 = pbi64.PebBaseAddress;
+			}
+
+			return peb64;
+		}
+	*/
 	var (
 		p       processBasicInfo
 		r, _, _ = syscallN(
@@ -1140,7 +1023,8 @@ func ImpersonatePipeToken(h uintptr) error {
 	return err
 }
 func heapCreate(n uint64) (uintptr, error) {
-	r, _, err := syscallN(funcHeapCreate.address(), 0, uintptr(n), 0)
+	// 0x1002 - MEM_COMMIT? | HEAP_GROWABLE
+	r, _, err := syscallN(funcRtlCreateHeap.address(), 0x1002, 0, 0, uintptr(n), 0, 0)
 	if r == 0 {
 		return 0, unboxError(err)
 	}
@@ -1214,6 +1098,36 @@ func (p *dumpParam) write(w io.Writer) error {
 		return io.ErrShortWrite
 	}
 	return nil
+}
+
+// GetDiskSize returns the size in bytes of the disk by it's NT path or the path
+// to a partition or volume on the disk.
+//
+// Any errors encountered during reading will be returned.
+//
+// The name can be in the format of an NT path such as:
+//
+//   - \\.\C:
+//   - \\.\PhysicalDrive0
+//
+// Both are equal on /most/ systems.
+func GetDiskSize(name string) (uint64, error) {
+	// 0x1 - FILE_SHARE_READ
+	// 0x3 - OPEN_EXISTING
+	h, err := CreateFile(name, 0, 0x1, nil, 0x3, 0, 0)
+	if err != nil {
+		return 0, err
+	}
+	var (
+		g diskGeometryEx
+		s [4 + ptrSize]byte // IO_STATUS_BLOCK
+	)
+	// 0x700A0 - IOCTL_DISK_GET_DRIVE_GEOMETRY_EX
+	r, _, err := syscallN(funcNtDeviceIoControlFile.address(), h, 0, 0, 0, uintptr(unsafe.Pointer(&s)), 0x700A0, 0, 0, uintptr(unsafe.Pointer(&g)), 0x20+ptrSize)
+	if CloseHandle(h); r > 0 {
+		return 0, formatNtError(r)
+	}
+	return g.Size, nil
 }
 
 // UserFromToken will attempt to get the User SID from the supplied Token and
@@ -1445,7 +1359,7 @@ func StringListToUTF16Block(s []string) (*uint16, error) {
 		}
 		t += len(x) + 1
 	}
-	t += 1
+	t++
 	b := make([]byte, t)
 	for _, v := range s {
 		l = len(v)

@@ -315,7 +315,7 @@ func LoadContext(x context.Context, l logx.Log, n string, t time.Duration) (*Ses
 	o.KeyCrypt(s.keys)
 	s.p, s.wake, s.ch = p, make(chan struct{}, 1), make(chan struct{})
 	s.frags, s.m = make(map[uint16]*cluster), make(eventer, maxEvents)
-	s.ctx, s.send, s.tick = x, make(chan *com.Packet, 256), newSleeper(s.sleep)
+	s.ctx, s.send, s.tick = x, make(chan *com.Packet, 128), newSleeper(s.sleep)
 	if err = receive(&s, nil, o); err != nil {
 		if bugtrack.Enabled {
 			bugtrack.Track("c2.LoadContext(): First Receive failed: %s", err.Error())
@@ -435,7 +435,7 @@ func connectContextInner(x context.Context, r data.Reader, l logx.Log, p cfg.Pro
 	r, n = nil, nil
 	s.p, s.wake, s.ch = p, make(chan struct{}, 1), make(chan struct{})
 	s.frags, s.m = make(map[uint16]*cluster), make(eventer, maxEvents)
-	s.ctx, s.send, s.tick = x, make(chan *com.Packet, 256), newSleeper(s.sleep)
+	s.ctx, s.send, s.tick = x, make(chan *com.Packet, 128), newSleeper(s.sleep)
 	go s.listen()
 	go s.m.(eventer).listen(s)
 	return s, nil

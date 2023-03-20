@@ -22,6 +22,7 @@ package winapi
 import (
 	"sync"
 	"sync/atomic"
+	"syscall"
 )
 
 type lazyDLL struct {
@@ -31,13 +32,23 @@ type lazyDLL struct {
 	addr uintptr
 }
 type lazyProc struct {
-	_ [0]func()
-	sync.Mutex
+	_    [0]func()
 	dll  *lazyDLL
 	name string
+	sync.Mutex
 	addr uintptr
 }
 
+func (d *lazyDLL) free() error {
+	if d.addr == 0 {
+		return nil
+	}
+	d.Lock()
+	err := syscall.FreeLibrary(syscall.Handle(d.addr))
+	atomic.StoreUintptr(&d.addr, 0)
+	d.Unlock()
+	return err
+}
 func (d *lazyDLL) load() error {
 	if atomic.LoadUintptr(&d.addr) > 0 {
 		return nil

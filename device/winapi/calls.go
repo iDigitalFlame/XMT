@@ -83,9 +83,9 @@ func SetEvent(h uintptr) error {
 // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntclose
 func CloseHandle(h uintptr) error {
 	// NOTE(dij): Uncomment to track empty handles
-	// if h == 0 {
-	// 	panic("invalid")
-	// }
+	//	if h == 0 {
+	// 		panic("invalid")
+	//	}
 	r, _, _ := syscallN(funcNtClose.address(), h)
 	if bugtrack.Enabled { // Trace Bad Handles
 		bugtrack.Track("winapi.CloseHandle() h=0x%X, r=0x%X", h, r)
@@ -362,28 +362,6 @@ func GetExitCodeThread(h uintptr, e *uint32) error {
 	return nil
 }
 
-// NtFreeVirtualMemory Windows API Call
-//
-//	The NtFreeVirtualMemory routine releases, decommits, or both releases and
-//	decommits, a region of pages within the virtual address space of a specified
-//	process.
-//
-// https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntfreevirtualmemory
-func NtFreeVirtualMemory(h, address uintptr) error {
-	var (
-		s       uintptr
-		r, _, _ = syscallN(
-			funcNtFreeVirtualMemory.address(), h, uintptr(unsafe.Pointer(&address)), uintptr(unsafe.Pointer(&s)),
-			0x8000,
-		)
-		// 0x8000 - MEM_RELEASE
-	)
-	if r > 0 {
-		return formatNtError(r)
-	}
-	return nil
-}
-
 // GetExitCodeProcess Windows API Call
 //
 //	Retrieves the termination status of the specified process.
@@ -400,34 +378,6 @@ func GetExitCodeProcess(h uintptr, e *uint32) error {
 		return formatNtError(r)
 	}
 	*e = p.ExitStatus
-	return nil
-}
-
-// Thread32Next Windows API Call
-//
-//	Retrieves information about the next thread of any process encountered in
-//	the system memory snapshot.
-//
-// https://docs.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-thread32next
-func Thread32Next(h uintptr, e *ThreadEntry32) error {
-	r, _, err := syscallN(funcThread32Next.address(), h, uintptr(unsafe.Pointer(e)))
-	if r == 0 {
-		return unboxError(err)
-	}
-	return nil
-}
-
-// Thread32First Windows API Call
-//
-//	Retrieves information about the first thread of any process encountered in
-//	a system snapshot.
-//
-// https://docs.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-thread32first
-func Thread32First(h uintptr, e *ThreadEntry32) error {
-	r, _, err := syscallN(funcThread32First.address(), h, uintptr(unsafe.Pointer(e)))
-	if r == 0 {
-		return unboxError(err)
-	}
 	return nil
 }
 
@@ -478,28 +428,24 @@ func NtUnmapViewOfSection(proc, section uintptr) error {
 	return nil
 }
 
-// Process32Next Windows API Call
+// NtFreeVirtualMemory Windows API Call
 //
-//	Retrieves information about the next process recorded in a system snapshot.
+//	The NtFreeVirtualMemory routine releases, decommits, or both releases and
+//	decommits, a region of pages within the virtual address space of a specified
+//	process.
 //
-// https://docs.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-process32nextw
-func Process32Next(h uintptr, e *ProcessEntry32) error {
-	r, _, err := syscallN(funcProcess32Next.address(), h, uintptr(unsafe.Pointer(e)))
-	if r == 0 {
-		return unboxError(err)
-	}
-	return nil
-}
-
-// Process32First Windows API Call
-//
-//	Retrieves information about the next process recorded in a system snapshot.
-//
-// https://docs.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-process32next
-func Process32First(h uintptr, e *ProcessEntry32) error {
-	r, _, err := syscallN(funcProcess32First.address(), h, uintptr(unsafe.Pointer(e)))
-	if r == 0 {
-		return unboxError(err)
+// https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntfreevirtualmemory
+func NtFreeVirtualMemory(h, address, size uintptr) error {
+	var (
+		s       uintptr = size
+		r, _, _         = syscallN(
+			funcNtFreeVirtualMemory.address(), h, uintptr(unsafe.Pointer(&address)), uintptr(unsafe.Pointer(&s)),
+			0x8000,
+		)
+		// 0x8000 - MEM_RELEASE
+	)
+	if r > 0 {
+		return formatNtError(r)
 	}
 	return nil
 }
@@ -601,37 +547,6 @@ func LookupPrivilegeValue(system, name string, l *LUID) error {
 		return unboxError(err1)
 	}
 	return nil
-}
-
-// DeleteProcThreadAttributeList Windows API Call
-//
-//	Deletes the specified list of attributes for process and thread creation.
-//
-// https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-deleteprocthreadattributelist
-//
-// TODO(dij): Are we sure this function does anything? Ghidra shows that it just
-//
-//	returns!
-func DeleteProcThreadAttributeList(a *StartupAttributes) error {
-	r, _, err := syscallN(funcDeleteProcThreadAttributeList.address(), uintptr(unsafe.Pointer(a)))
-	if r == 0 {
-		return unboxError(err)
-	}
-	return nil
-}
-
-// CreateToolhelp32Snapshot Windows API Call
-//
-//	Takes a snapshot of the specified processes, as well as the heaps, modules,
-//	and threads used by these processes.
-//
-// https://docs.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-createtoolhelp32snapshot
-func CreateToolhelp32Snapshot(flags, pid uint32) (uintptr, error) {
-	r, _, err := syscallN(funcCreateToolhelp32Snapshot.address(), uintptr(flags), uintptr(pid))
-	if r == invalid {
-		return 0, unboxError(err)
-	}
-	return r, nil
 }
 
 // WaitForSingleObject Windows API Call
@@ -788,16 +703,28 @@ func QueryServiceDynamicInformation(h uintptr, l uint32) (uint32, error) {
 //	Opens an existing thread object.
 //
 // https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openthread
+//
+// Re-targeted to use 'NtOpenThread' instead.
+// https://learn.microsoft.com/en-us/windows/win32/devnotes/ntopenthread
 func OpenThread(access uint32, inherit bool, tid uint32) (uintptr, error) {
-	var i uint32
-	if inherit {
-		i = 1
+	var (
+		o objAttrs
+		h uintptr
+		i clientID
+	)
+	if i.Thread = uintptr(tid); inherit {
+		// 0x2 - OBJ_INHERIT
+		o.Attributes = 0x2
 	}
-	r, _, err := syscallN(funcOpenThread.address(), uintptr(access), uintptr(i), uintptr(tid))
-	if r == 0 {
-		return 0, unboxError(err)
+	o.Length = uint32(unsafe.Sizeof(o))
+	r, _, _ := syscallN(
+		funcNtOpenThread.address(), uintptr(unsafe.Pointer(&h)), uintptr(access), uintptr(unsafe.Pointer(&o)),
+		uintptr(unsafe.Pointer(&i)),
+	)
+	if r > 0 {
+		return 0, formatNtError(r)
 	}
-	return r, nil
+	return h, nil
 }
 
 // OpenMutex Windows API Call

@@ -33,15 +33,13 @@ const (
 
 var dllKernelOrAdvapi = dllAdvapi32
 
-var (
-	adminGroupSID = [16]byte{1, 2, 0, 0, 0, 0, 0, 5, 32, 0, 0, 0, 32, 2, 0, 0}
+var adminGroupSID = [16]byte{1, 2, 0, 0, 0, 0, 0, 5, 32, 0, 0, 0, 32, 2, 0, 0}
 
-	compatOnce struct {
-		sync.Once
-		v    uint8
-		c, x bool
-	}
-)
+var compatOnce struct {
+	sync.Once
+	v    uint8
+	c, x bool
+}
 
 // IsWindows7 returns true if the underlying device runs at least Windows 7
 // (>=6.2) and built using <= go1.10.
@@ -131,38 +129,6 @@ func UserInAdminGroup() bool {
 	return r > 0 && a > 0
 }
 
-// IsWow64Process Windows API Call
-//
-//	Determines whether the specified process is running under WOW64 or an
-//	Intel64 of x64 processor.
-//
-// https://docs.microsoft.com/en-us/windows/win32/api/wow64apiset/nf-wow64apiset-iswow64process
-func IsWow64Process() (bool, error) {
-	if funcRtlWow64GetProcessMachines.find() != nil {
-		// Windows Vista does not have 'RtlWow64GetProcessMachines'. Do another
-		// check with 'NtQueryInformationProcess'
-		//
-		// 0x400 - PROCESS_QUERY_INFORMATION
-		if h, err := OpenProcess(0x400, false, GetCurrentProcessID()); err == nil {
-			var (
-				v       uint32
-				r, _, _ = syscallN(funcNtQueryInformationProcess.address(), h, 0x1A, uintptr(unsafe.Pointer(&v)), 4, 0)
-				// 0x1A - ProcessWow64Information
-			)
-			if CloseHandle(h); r == 0 {
-				return v > 0, nil
-			}
-		}
-		// Running on "true" x86.
-		return false, nil
-	}
-	var p, n uint16
-	if r, _, _ := syscallN(funcRtlWow64GetProcessMachines.address(), CurrentProcess, uintptr(unsafe.Pointer(&p)), uintptr(unsafe.Pointer(&n))); r > 0 {
-		return false, formatNtError(r)
-	}
-	return p > 0, nil
-}
-
 // IsTokenElevated returns true if this token has a High or System privileges.
 //
 // Always returns false on any systems older than Windows Vista.
@@ -186,6 +152,33 @@ func IsTokenElevated(h uintptr) bool {
 		// 0x14 - TokenElevation
 	)
 	return err == nil && n == 4 && e != 0
+}
+
+// IsWow64Process Windows API Call
+//
+//	Determines whether the specified process is running under WOW64 or an
+//	Intel64 of x64 processor.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/wow64apiset/nf-wow64apiset-iswow64process
+func IsWow64Process(h uintptr) (bool, error) {
+	if funcRtlWow64GetProcessMachines.find() != nil {
+		// Windows Vista does not have 'RtlWow64GetProcessMachines'. Do another
+		// check with 'NtQueryInformationProcess'
+		var (
+			v       uint32
+			r, _, _ = syscallN(funcNtQueryInformationProcess.address(), h, 0x1A, uintptr(unsafe.Pointer(&v)), 4, 0)
+			// 0x1A - ProcessWow64Information
+		)
+		if r > 0 {
+			return false, formatNtError(r)
+		}
+		return v > 0, nil
+	}
+	var p, n uint16
+	if r, _, _ := syscallN(funcRtlWow64GetProcessMachines.address(), h, uintptr(unsafe.Pointer(&p)), uintptr(unsafe.Pointer(&n))); r > 0 {
+		return false, formatNtError(r)
+	}
+	return p > 0, nil
 }
 
 // CancelIoEx Windows API Call
@@ -390,10 +383,11 @@ func NtCreateThreadEx(h, address, args uintptr, suspended bool) (uintptr, error)
 	if !IsWindowsVista() {
 		var s uint32
 		if suspended {
+			// 0x4 - CREATE_SUSPENDED
 			s = 0x4
 		}
 		// NOTE(dij): I hate that I have to call this function instead of it's
-		//            Nt* counterpart. NtCreateThread needs to be "activate" and
+		//            Nt* counterpart. NtCreateThread needs to be "activated" and
 		//            CSR must be notified. If you're reading this and want to see
 		//            what I'm talking about, ReactOS has a good example of it
 		// https://doxygen.reactos.org/d0/d85/dll_2win32_2kernel32_2client_2thread_8c.html#a17cb3377438e48382207f54a8d045f07

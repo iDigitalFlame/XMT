@@ -251,10 +251,10 @@ func ZombieDLLReader(r io.Reader, args ...string) (Zombie, error) {
 //	    uint32              // PID
 //	    int32               // Exit Code
 //	    []byte              // Output (Stdout and Stderr)
-func ZombieAsmReader(r io.Reader, args ...string) (*Zombie, error) {
+func ZombieAsmReader(r io.Reader, args ...string) (Zombie, error) {
 	b, err := data.ReadAll(r)
 	if err != nil {
-		return nil, err
+		return Zombie{}, err
 	}
-	return &Zombie{Data: b, Args: args}, nil
+	return Zombie{Data: b, Args: args}, nil
 }

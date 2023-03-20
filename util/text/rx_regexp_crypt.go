@@ -25,4 +25,4 @@ import (
 	"github.com/iDigitalFlame/xmt/util/crypt"
 )
 
-var regxBuild = regexp.MustCompile(crypt.Get(99)) // (\%(\d+f?)?[dhcsuln])
+var regxBuild = regexp.MustCompile(crypt.Get(120)) // (\%(\d+f?)?[dhcsuln])

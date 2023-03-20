@@ -28,7 +28,6 @@ const (
 	// PowerShell is the path to the PowerShell binary, which is based on the
 	// underlying OS type.
 	PowerShell = "powershell.exe"
-	home       = "%USERPROFILE%"
 	debugDlls  = "hal.dll\nwmi.dll\nwpx.dll\nwdc.dll\nzipfldr.dll\ninput.dll\nspp.dll"
 )
 
@@ -43,4 +42,16 @@ func shell() string {
 		}
 	}
 	return `%WinDir%\system32\cmd.exe`
+}
+
+// UserHomeDir returns the current user's home directory.
+//
+// On Unix, including macOS, it returns the $HOME environment variable.
+// On Windows, it returns %USERPROFILE%.
+// On Plan 9, it returns the $home environment variable.
+// On JS/WASM it returns and empty string.
+//
+// Golang compatibility helper function.
+func UserHomeDir() string {
+	return os.Getenv("USERPROFILE")
 }

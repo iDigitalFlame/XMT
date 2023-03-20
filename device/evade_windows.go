@@ -44,5 +44,10 @@ func Evade(f uint8) error {
 			return err
 		}
 	}
+	if f&EvadeEraseHeader != 0 {
+		if err := winapi.ErasePEHeader(); err != nil {
+			return err
+		}
+	}
 	return nil
 }

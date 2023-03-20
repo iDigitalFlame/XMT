@@ -23,8 +23,6 @@ import (
 	"github.com/iDigitalFlame/xmt/util"
 )
 
-const maxNetworks = 255
-
 type device struct {
 	Name    string
 	Address []Address
@@ -80,7 +78,7 @@ func (n *Network) Refresh() error {
 		}
 		c := device{Name: l[i].Name, Address: make([]Address, 0, len(a)), Mac: mac(l[i].HardwareAddr)}
 		for o := range a {
-			if o > maxNetworks {
+			if o > 0xFF {
 				break
 			}
 			var t Address

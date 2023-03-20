@@ -1,5 +1,5 @@
-//go:build !windows && !plan9
-// +build !windows,!plan9
+//go:build !windows && !plan9 && !js
+// +build !windows,!plan9,!js
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -28,7 +28,7 @@ import (
 )
 
 func getProcUser(p string) string {
-	f, err := os.Stat(p)
+	f, err := os.Lstat(p)
 	if err != nil {
 		return ""
 	}

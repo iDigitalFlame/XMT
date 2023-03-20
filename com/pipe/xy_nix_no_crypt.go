@@ -19,10 +19,7 @@
 
 package pipe
 
-import (
-	"os"
-	"path/filepath"
-)
+import "os"
 
 // PermEveryone is the Linux permission string used in sockets to allow anyone to write and read
 // to the listening socket. This can be used for socket communication between privilege boundaries.
@@ -32,7 +29,7 @@ var PermEveryone = "0766"
 // Format will ensure the path for this Pipe socket fits the proper OS based pathname. Valid path names will be
 // returned without any changes.
 func Format(s string) string {
-	if !filepath.IsAbs(s) {
+	if len(s) > 0 && s[0] != '/' {
 		var (
 			p      = "/var/run/" + s
 			f, err = os.OpenFile(p, 0x242, 0600)

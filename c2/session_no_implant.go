@@ -48,34 +48,35 @@ var ErrNoTask = xerr.Sub("no Job created for client Session", 0x58)
 // This struct does some automatic handling and acts as the communication
 // channel between the client and server.
 type Session struct {
-	lock sync.RWMutex
+	connection
+	kill time.Time
 
 	Last    time.Time
 	Created time.Time
-	connection
+	swap    cfg.Profile
 
-	swap            cfg.Profile
-	ch, wake        chan struct{}
+	Receive         func(*Session, *com.Packet)
+	jobs            map[uint16]*Job
 	parent          *Listener
 	send, recv, chn chan *com.Packet
 	frags           map[uint16]*cluster
-	jobs            map[uint16]*Job
+	ch              chan struct{}
 
 	Shutdown func(*Session)
-	Receive  func(*Session, *com.Packet)
+	keysNext *data.KeyPair
 	proxy    *proxyBase
 	tick     *sleeper
 	peek     *com.Packet
+	wake     chan struct{}
+	work     *cfg.WorkHours
 	host     container
 	proxies  []proxyData
-	kill     time.Time
-	work     *cfg.WorkHours
 
-	Device   device.Machine
-	sleep    time.Duration
-	state    state
-	keysNext *data.KeyPair
-	keys     data.KeyPair
+	Device device.Machine
+	sleep  time.Duration
+	lock   sync.RWMutex
+	state  state
+	keys   data.KeyPair
 
 	ID             device.ID
 	jitter, errors uint8

@@ -1,14 +1,11 @@
 {
     "0": {
-        "value": "*.dll"
-    },
-    "1": {
-        "value": "*.jpg",
+        "value": "@SHELL@",
         "tags": [
-            "windows"
+            "!implant"
         ]
     },
-    "2": {
+    "1": {
         "value": "ID",
         "tags": [
             "scripts",
@@ -17,38 +14,44 @@
             "!windows"
         ]
     },
-    "3": {
+    "2": {
         "value": "OS",
         "tags": [
             "scripts"
         ]
     },
-    "4": {
+    "3": {
         "value": "PID",
         "tags": [
             "scripts"
         ]
     },
-    "5": {
+    "4": {
         "value": "PPID",
         "tags": [
             "scripts"
         ]
     },
-    "6": {
+    "5": {
         "value": "ADMIN",
         "tags": [
             "scripts"
         ]
     },
-    "7": {
+    "6": {
         "value": "HOSTNAME",
         "tags": [
             "scripts"
         ]
     },
+    "7": {
+        "value": "*.jpg",
+        "tags": [
+            "windows"
+        ]
+    },
     "8": {
-        "value": "@SHELL@"
+        "value": "*.dll"
     },
     "9": {
         "value": "amazon.com\namazonaws.com\napple.com\naws.amazon.com\nbing.com\ndocs.google.com\nduckduckgo.com\nebay.com\nfacebook.com\ngithub.com\ngmail.com\ngoogle.com\nimages.google.com\nimg.t.co\ninstagram.com\nlinkedin.com\nlogin.live.com\nmaps.google.com\nmicrosoft.com\nmsn.com\noffice.com\noffice365.com\noutlook.com\noutlook.office.com\npaypal.com\nredd.it\nreddit.com\ns3.amazon.com\nsharepoint.com\nslack.com\nspotify.com\nt.co\ntwimg.com\ntwitch.tv\ntwitter.com\nupdate.windows.com\nwalmart.com\nwikipedia.org\nwindows.com\nxp.apple.com\nyahoo.com"
@@ -60,98 +63,96 @@
         ]
     },
     "11": {
-        "value": "C:\\Windows\\System32",
-        "tags": [
-            "windows"
-        ]
-    },
-    "12": {
         "value": "/proc/",
         "tags": [
-            "!windows",
-            "!js"
-        ]
-    },
-    "13": {
-        "value": "/status",
-        "tags": [
+            "!js",
             "!windows"
         ]
     },
-    "14": {
+    "12": {
+        "value": "/status",
+        "tags": [
+            "!js",
+            "!windows"
+        ]
+    },
+    "13": {
         "value": "ip"
     },
-    "15": {
+    "14": {
         "value": "tcp"
     },
-    "16": {
+    "15": {
         "value": "udp"
     },
-    "17": {
+    "16": {
         "value": "unix"
     },
-    "18": {
+    "17": {
         "value": "pipe"
     },
-    "19": {
+    "18": {
         "value": "http"
     },
-    "20": {
-        "value": "D:PAI(A;;FA;;;WD)(A;;FA;;;SY)",
-        "tags": [
-            "windows"
-        ]
-    },
-    "21": {
-        "value": "connection timeout",
-        "tags": [
-            "windows"
-        ]
-    },
-    "22": {
-        "value": "empty connection",
-        "tags": [
-            "windows"
-        ]
-    },
-    "23": {
-        "value": "\\\\.\\pipe\\",
-        "tags": [
-            "windows"
-        ]
-    },
-    "24": {
+    "19": {
         "value": "0766",
         "tags": [
             "!windows"
         ]
     },
-    "25": {
+    "20": {
         "value": "/var/run/",
         "tags": [
             "!windows"
         ]
     },
-    "26": {
+    "21": {
         "value": "/tmp/",
         "tags": [
             "!windows"
         ]
     },
-    "27": {
+    "22": {
+        "value": "D:PAI(A;;FA;;;WD)(A;;FA;;;SY)",
+        "tags": [
+            "windows"
+        ]
+    },
+    "23": {
+        "value": "connection timeout",
+        "tags": [
+            "windows"
+        ]
+    },
+    "24": {
+        "value": "empty connection",
+        "tags": [
+            "windows"
+        ]
+    },
+    "25": {
+        "value": "\\\\.\\pipe\\",
+        "tags": [
+            "windows"
+        ]
+    },
+    "26": {
         "value": "User-Agent"
     },
-    "28": {
+    "27": {
         "value": "wc2"
     },
-    "29": {
+    "28": {
         "value": "Upgrade"
     },
-    "30": {
+    "29": {
         "value": "websocket"
     },
-    "31": {
+    "30": {
         "value": "Connection"
+    },
+    "31": {
+        "value": "0.0.0.0"
     },
     "32": {
         "value": "/bin/sh",
@@ -161,28 +162,28 @@
         ]
     },
     "33": {
-        "value": "-c",
-        "tags": [
-            "!js",
-            "!windows"
-        ]
-    },
-    "34": {
         "value": "pwsh",
         "tags": [
             "!js",
             "!windows"
         ]
     },
+    "34": {
+        "value": "/proc/self/status",
+        "tags": [
+            "!js",
+            "!windows"
+        ]
+    },
     "35": {
-        "value": "$HOME",
+        "value": "HOME",
         "tags": [
             "!js",
             "!windows"
         ]
     },
     "36": {
-        "value": "/proc/self/status",
+        "value": "/sdcard",
         "tags": [
             "!js",
             "!windows"
@@ -224,189 +225,246 @@
         ]
     },
     "42": {
-        "value": "/c",
-        "tags": [
-            "windows"
-        ]
-    },
-    "43": {
         "value": "powershell.exe",
         "tags": [
             "windows"
         ]
     },
-    "44": {
-        "value": "%USERPROFILE%",
-        "tags": [
-            "windows"
-        ]
-    },
-    "45": {
+    "43": {
         "value": "hal.dll\nwmi.dll\nwpx.dll\nwdc.dll\nzipfldr.dll\ninput.dll\nspp.dll",
         "tags": [
             "windows"
         ]
     },
-    "46": {
+    "44": {
         "value": "ComSpec",
         "tags": [
             "windows"
         ]
     },
-    "47": {
+    "45": {
         "value": "WinDir",
         "tags": [
             "windows"
         ]
     },
-    "48": {
+    "46": {
         "value": "\\system32\\cmd.exe",
         "tags": [
             "windows"
         ]
     },
-    "49": {
+    "47": {
         "value": "%WinDir%\\system32\\cmd.exe",
         "tags": [
             "windows"
         ]
     },
-    "50": {
-        "value": "0.0.0.0"
-    },
-    "51": {
-        "value": "Software\\Microsoft\\Cryptography",
+    "48": {
+        "value": "USERPROFILE",
         "tags": [
             "windows"
+        ]
+    },
+    "49": {
+        "value": "/proc/vz",
+        "tags": [
+            "!386",
+            "!amd64",
+            "!s390x",
+            "!windows"
+        ]
+    },
+    "50": {
+        "value": "/proc/bc",
+        "tags": [
+            "!386",
+            "!amd64",
+            "!s390x",
+            "!windows"
+        ]
+    },
+    "51": {
+        "value": "/.dockerenv",
+        "tags": [
+            "!386",
+            "!amd64",
+            "!s390x",
+            "!windows"
         ]
     },
     "52": {
-        "value": "MachineGuid",
+        "value": "/run/.containerenv",
         "tags": [
-            "windows"
+            "!386",
+            "!amd64",
+            "!s390x",
+            "!windows"
         ]
     },
     "53": {
-        "value": "Software\\Microsoft\\Windows NT\\CurrentVersion",
+        "value": "/run/systemd/container",
         "tags": [
-            "windows"
+            "!386",
+            "!amd64",
+            "!s390x",
+            "!windows"
         ]
     },
     "54": {
-        "value": "ProductName",
+        "value": "/proc/sys/kernel/osrelease",
         "tags": [
-            "windows"
+            "!386",
+            "!amd64",
+            "!s390x",
+            "!windows"
         ]
     },
     "55": {
-        "value": "Windows",
+        "value": "/comm",
         "tags": [
-            "windows"
+            "!386",
+            "!amd64",
+            "!s390x",
+            "!windows"
         ]
     },
     "56": {
-        "value": "/usr/sbin/ioreg -rd1 -c IOPlatformExpertDevice",
+        "value": "CONTAINER",
         "tags": [
-            "darwin",
-            "ios"
+            "!386",
+            "!amd64",
+            "!s390x",
+            "!windows"
         ]
     },
     "57": {
-        "value": "IOPlatformUUID",
+        "value": "/proc/1/environ",
         "tags": [
-            "darwin",
-            "ios"
+            "!386",
+            "!amd64",
+            "!s390x",
+            "!windows"
         ]
     },
     "58": {
-        "value": "/usr/bin/sw_vers",
+        "value": "/proc/cpuinfo",
         "tags": [
-            "darwin",
-            "ios"
+            "!386",
+            "!amd64",
+            "!s390x",
+            "!windows"
         ]
     },
     "59": {
-        "value": "PRODUCTNAME",
+        "value": "/sys/class/dmi/id/sys_vendor",
         "tags": [
-            "darwin",
-            "ios"
+            "!386",
+            "!amd64",
+            "!s390x",
+            "!windows"
         ]
     },
     "60": {
-        "value": "BUILDVERSION",
+        "value": "/sys/class/dmi/id/board_vendor",
         "tags": [
-            "darwin",
-            "ios"
+            "!386",
+            "!amd64",
+            "!s390x",
+            "!windows"
         ]
     },
     "61": {
-        "value": "PRODUCTVERSION",
+        "value": "/sys/class/dmi/id/bios_vendor",
         "tags": [
-            "darwin",
-            "ios"
+            "!386",
+            "!amd64",
+            "!s390x",
+            "!windows"
         ]
     },
     "62": {
-        "value": "MacOS",
+        "value": "/sys/class/dmi/id/product_version",
         "tags": [
-            "darwin",
-            "ios"
+            "!386",
+            "!amd64",
+            "!s390x",
+            "!windows"
         ]
     },
     "63": {
-        "value": "/var/lib/dbus/machine-id",
+        "value": "Hardware\\Description\\System\\BIOS",
         "tags": [
-            "android",
-            "linux"
+            "!386",
+            "!amd64",
+            "!s390x",
+            "windows"
         ]
     },
     "64": {
-        "value": "/etc/machine-id",
+        "value": "BaseBoardManufacturer",
         "tags": [
-            "android",
-            "linux"
+            "!386",
+            "!amd64",
+            "!s390x",
+            "windows"
         ]
     },
     "65": {
-        "value": "PRETTY_NAME",
+        "value": "BaseBoardProduct",
         "tags": [
-            "!darwin",
-            "!js",
-            "!windows"
+            "!386",
+            "!amd64",
+            "!s390x",
+            "windows"
         ]
     },
     "66": {
-        "value": "NAME",
+        "value": "BIOSVendor",
         "tags": [
-            "!darwin",
-            "!js",
-            "!windows"
+            "!386",
+            "!amd64",
+            "!s390x",
+            "windows"
         ]
     },
     "67": {
-        "value": "VERSION_ID",
+        "value": "SystemManufacturer",
         "tags": [
-            "!darwin",
-            "!js",
-            "!windows"
+            "!386",
+            "!amd64",
+            "!s390x",
+            "windows"
         ]
     },
     "68": {
-        "value": "VERSION",
+        "value": "SystemFamily",
         "tags": [
-            "!darwin",
-            "!js",
-            "!windows"
+            "!386",
+            "!amd64",
+            "!s390x",
+            "windows"
         ]
     },
     "69": {
-        "value": "Linux",
+        "value": "SystemProductName",
         "tags": [
-            "android",
-            "linux"
+            "!386",
+            "!amd64",
+            "!s390x",
+            "windows"
         ]
     },
     "70": {
+        "value": "SystemVersion",
+        "tags": [
+            "!386",
+            "!amd64",
+            "!s390x",
+            "windows"
+        ]
+    },
+    "71": {
         "value": "lsattr -l sys0 -a os_uuid -E",
         "tags": [
             "!android",
@@ -417,7 +475,7 @@
             "!windows"
         ]
     },
-    "71": {
+    "72": {
         "value": "sysctl -n hw.uuid",
         "tags": [
             "!android",
@@ -428,7 +486,7 @@
             "!windows"
         ]
     },
-    "72": {
+    "73": {
         "value": "/etc/hostid",
         "tags": [
             "!android",
@@ -438,7 +496,7 @@
             "!windows"
         ]
     },
-    "73": {
+    "74": {
         "value": "kenv -q smbios.system.uuid",
         "tags": [
             "!android",
@@ -448,7 +506,23 @@
             "!windows"
         ]
     },
-    "74": {
+    "75": {
+        "value": "PRETTY_NAME",
+        "tags": [
+            "!darwin",
+            "!js",
+            "!windows"
+        ]
+    },
+    "76": {
+        "value": "VERSION_ID",
+        "tags": [
+            "!darwin",
+            "!js",
+            "!windows"
+        ]
+    },
+    "77": {
         "value": "freebsd-version -k",
         "tags": [
             "!android",
@@ -459,7 +533,7 @@
             "!windows"
         ]
     },
-    "75": {
+    "78": {
         "value": "BSD",
         "tags": [
             "!android",
@@ -470,22 +544,92 @@
             "!windows"
         ]
     },
-    "76": {
+    "79": {
         "value": "JavaScript",
         "tags": [
             "js"
         ]
     },
-    "77": {
-        "value": "framework-v6"
+    "80": {
+        "value": "/var/lib/dbus/machine-id",
+        "tags": [
+            "android",
+            "linux"
+        ]
     },
-    "78": {
+    "81": {
+        "value": "/etc/machine-id",
+        "tags": [
+            "android",
+            "linux"
+        ]
+    },
+    "82": {
+        "value": "Linux",
+        "tags": [
+            "android",
+            "linux"
+        ]
+    },
+    "83": {
+        "value": "framework-v7"
+    },
+    "84": {
+        "value": "/usr/sbin/ioreg -rd1 -c IOPlatformExpertDevice",
+        "tags": [
+            "darwin",
+            "ios"
+        ]
+    },
+    "85": {
+        "value": "IOPlatformUUID",
+        "tags": [
+            "darwin",
+            "ios"
+        ]
+    },
+    "86": {
+        "value": "/usr/bin/sw_vers",
+        "tags": [
+            "darwin",
+            "ios"
+        ]
+    },
+    "87": {
+        "value": "PRODUCTNAME",
+        "tags": [
+            "darwin",
+            "ios"
+        ]
+    },
+    "88": {
+        "value": "BUILDVERSION",
+        "tags": [
+            "darwin",
+            "ios"
+        ]
+    },
+    "89": {
+        "value": "PRODUCTVERSION",
+        "tags": [
+            "darwin",
+            "ios"
+        ]
+    },
+    "90": {
+        "value": "MacOS",
+        "tags": [
+            "darwin",
+            "ios"
+        ]
+    },
+    "91": {
         "value": "plan9",
         "tags": [
             "plan9"
         ]
     },
-    "79": {
+    "92": {
         "value": "/etc",
         "tags": [
             "!darwin",
@@ -494,7 +638,7 @@
             "!windows"
         ]
     },
-    "80": {
+    "93": {
         "value": "release",
         "tags": [
             "!darwin",
@@ -503,121 +647,157 @@
             "!windows"
         ]
     },
-    "81": {
+    "94": {
+        "value": "Software\\Microsoft\\Cryptography",
+        "tags": [
+            "windows"
+        ]
+    },
+    "95": {
+        "value": "MachineGuid",
+        "tags": [
+            "windows"
+        ]
+    },
+    "96": {
+        "value": "Software\\Microsoft\\Windows NT\\CurrentVersion",
+        "tags": [
+            "windows"
+        ]
+    },
+    "97": {
+        "value": "ProductName",
+        "tags": [
+            "windows"
+        ]
+    },
+    "98": {
+        "value": "Windows",
+        "tags": [
+            "windows"
+        ]
+    },
+    "99": {
+        "value": "\\SystemRoot",
+        "tags": [
+            "windows"
+        ]
+    },
+    "100": {
         "value": "SeDebugPrivilege",
         "tags": [
             "windows"
         ]
     },
-    "82": {
+    "101": {
         "value": "amsi.dll",
         "tags": [
             "windows"
         ]
     },
-    "83": {
+    "102": {
         "value": "ntdll.dll",
         "tags": [
             "windows"
         ]
     },
-    "84": {
+    "103": {
         "value": "gdi32.dll",
         "tags": [
             "windows"
         ]
     },
-    "85": {
+    "104": {
         "value": "user32.dll",
         "tags": [
             "windows"
         ]
     },
-    "86": {
+    "105": {
         "value": "winhttp.dll",
         "tags": [
             "windows"
         ]
     },
-    "87": {
+    "106": {
         "value": "DbgHelp.dll",
         "tags": [
             "windows"
         ]
     },
-    "88": {
-        "value": "advapi32.dll",
-        "tags": [
-            "windows"
-        ]
-    },
-    "89": {
-        "value": "wtsapi32.dll",
-        "tags": [
-            "windows"
-        ]
-    },
-    "90": {
-        "value": "kernel32.dll",
-        "tags": [
-            "windows"
-        ]
-    },
-    "91": {
-        "value": "kernelbase.dll",
-        "tags": [
-            "windows"
-        ]
-    },
-    "92": {
-        "value": "\\\\.\\mailslot\\",
-        "tags": [
-            "windows"
-        ]
-    },
-    "93": {
-        "value": "Global\\",
-        "tags": [
-            "windows"
-        ]
-    },
-    "94": {
-        "value": "localhost:"
-    },
-    "95": {
-        "value": "*.so"
-    },
-    "96": {
-        "value": "*.exe"
-    },
-    "97": {
-        "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36"
-    },
-    "98": {
-        "value": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-    },
-    "99": {
-        "value": "(\\%(\\d+f?)?[dhcsuln])",
-        "tags": [
-            "regexp"
-        ]
-    },
-    "100": {
+    "107": {
         "value": "crypt32.dll",
         "tags": [
             "windows"
         ]
     },
-    "101": {
+    "108": {
+        "value": "kernel32.dll",
+        "tags": [
+            "windows"
+        ]
+    },
+    "109": {
+        "value": "advapi32.dll",
+        "tags": [
+            "windows"
+        ]
+    },
+    "110": {
+        "value": "wtsapi32.dll",
+        "tags": [
+            "windows"
+        ]
+    },
+    "111": {
+        "value": "kernelbase.dll",
+        "tags": [
+            "windows"
+        ]
+    },
+    "112": {
         "value": "psapi.dll",
         "tags": [
             "windows"
         ]
     },
-    "102": {
-        "value": "\\SystemRoot",
+    "113": {
+        "value": "localhost:"
+    },
+    "114": {
+        "value": "*.so"
+    },
+    "115": {
+        "value": "*.exe"
+    },
+    "116": {
+        "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.88 Safari/537.36"
+    },
+    "117": {
+        "value": "\\\\.\\mailslot\\",
         "tags": [
             "windows"
         ]
+    },
+    "118": {
+        "value": "Global\\",
+        "tags": [
+            "windows"
+        ]
+    },
+    "119": {
+        "value": "\\\\.\\C:",
+        "tags": [
+            "windows"
+        ]
+    },
+    "120": {
+        "value": "(\\%(\\d+f?)?[dhcsuln])",
+        "tags": [
+            "regexp"
+        ]
+    },
+    "121": {
+        "value": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     }
 }

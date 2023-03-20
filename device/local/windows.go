@@ -20,7 +20,6 @@
 package local
 
 import (
-	"os"
 	"syscall"
 	"unsafe"
 
@@ -28,10 +27,7 @@ import (
 )
 
 func getPPID() uint32 {
-	if p := winapi.Getppid(); p > 0 {
-		return p
-	}
-	return uint32(os.Getppid())
+	return winapi.Getppid()
 }
 func isElevated() uint8 {
 	var e uint8
@@ -46,7 +42,7 @@ func isElevated() uint8 {
 		return e
 	}
 	if syscall.NetApiBufferFree((*byte)(unsafe.Pointer(d))); s == 3 {
-		e += 128
+		e |= 0x80
 	}
 	return e
 }

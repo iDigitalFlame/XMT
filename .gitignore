@@ -1,2 +1,6 @@
 unit_tests
 vendor
+
+# This isn't done yet, don't release.
+man/check
+man/check/*

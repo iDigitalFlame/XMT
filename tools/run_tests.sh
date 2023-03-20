@@ -61,7 +61,7 @@ run_vet() {
     env GOARCH=$1 GOOS=$2 go vet ./cmd 2>&1 | grep -vE '^# github.com|: possible misuse of unsafe.Pointer$'
     env GOARCH=$1 GOOS=$2 go vet ./com 2>&1 | grep -vE '^# github.com'
     env GOARCH=$1 GOOS=$2 go vet ./data 2>&1 | grep -vE '^# github.com'
-    env GOARCH=$1 GOOS=$2 go vet ./device 2>&1 | grep -vE '^# github.com|: possible misuse of unsafe.Pointer$'
+    env GOARCH=$1 GOOS=$2 go vet ./device 2>&1 | grep -vE '^# github.com|: possible misuse of unsafe.Pointer$|\.s:'
     env GOARCH=$1 GOOS=$2 go vet ./man 2>&1 | grep -vE '^# github.com'
     env GOARCH=$1 GOOS=$2 go vet ./util 2>&1 | grep -vE '^# github.com'
 }

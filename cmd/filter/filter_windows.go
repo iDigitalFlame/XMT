@@ -28,8 +28,6 @@ import (
 	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
-var emptyProc winapi.ProcessEntry
-
 func isTokenElevated(h uintptr) bool {
 	if !winapi.IsTokenElevated(h) {
 		return false
@@ -308,7 +306,7 @@ func (f Filter) open(a uint32, r bool, x filter) (winapi.ProcessEntry, error) {
 		return nil
 	})
 	if err != nil {
-		return emptyProc, err
+		return winapi.ProcessEntry{}, err
 	}
 	switch len(z) {
 	case 0:
@@ -318,7 +316,7 @@ func (f Filter) open(a uint32, r bool, x filter) (winapi.ProcessEntry, error) {
 			}
 			return f.open(a, true, x)
 		}
-		return emptyProc, ErrNoProcessFound
+		return winapi.ProcessEntry{}, ErrNoProcessFound
 	case 1:
 		if bugtrack.Enabled {
 			bugtrack.Track("filter.(Filter).open(): Choosing process e.Name=%s, e.PID=%d.", z[0].Name, z[0].PID)

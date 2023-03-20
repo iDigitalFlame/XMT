@@ -21,4 +21,4 @@ package winapi
 
 import "github.com/iDigitalFlame/xmt/util/crypt"
 
-var dllPsapi = &lazyDLL{name: crypt.Get(101)} // psapi.dll
+var dllPsapi = &lazyDLL{name: crypt.Get(112)} // psapi.dll

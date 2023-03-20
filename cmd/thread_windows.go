@@ -49,7 +49,7 @@ func (t *thread) close() {
 	}
 	if t.loc > 0 && atomic.LoadUint32(&t.cookie)&cookieRelease == 0 {
 		if t.owner == winapi.CurrentProcess {
-			winapi.NtFreeVirtualMemory(t.owner, t.loc)
+			winapi.NtFreeVirtualMemory(t.owner, t.loc, 0)
 		} else {
 			freeMemory(t.owner, t.loc)
 		}
@@ -190,6 +190,9 @@ func nextNonThread(p, i uint32) uintptr {
 		return nil
 	})
 	return n
+}
+func threadInit(x context.Context) thread {
+	return thread{ctx: x}
 }
 func (t *thread) Handle() (uintptr, error) {
 	if t.hwnd == 0 {

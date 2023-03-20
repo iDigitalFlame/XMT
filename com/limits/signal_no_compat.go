@@ -26,9 +26,6 @@ package limits
 import (
 	"os"
 	"os/signal"
-
-	// Importing runtime to "load in" the handler functions
-	_ "runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -74,10 +71,10 @@ func startSignals() {
 //go:linkname process os/signal.process
 func process(os.Signal)
 
-//go:linkname signalRecv os/signal.signal_recv
+//go:linkname signalRecv runtime.signal_recv
 func signalRecv() uint32
 
-//go:linkname signalEnable os/signal.enableSignal
+//go:linkname signalEnable runtime.signal_enable
 func signalEnable(uint32)
 
 //go:linkname signalSend runtime.sigsend

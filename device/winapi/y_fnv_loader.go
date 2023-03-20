@@ -76,6 +76,16 @@ func (d *lazyDLL) load() error {
 	d.Unlock()
 	return err
 }
+func (d *lazyDLL) free() error {
+	if d.addr == 0 {
+		return nil
+	}
+	d.Lock()
+	err := syscall.FreeLibrary(syscall.Handle(d.addr))
+	atomic.StoreUintptr(&d.addr, 0)
+	d.Unlock()
+	return err
+}
 func (p *lazyProc) find() error {
 	if atomic.LoadUintptr(&p.addr) > 0 {
 		return nil

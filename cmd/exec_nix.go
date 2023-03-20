@@ -28,6 +28,7 @@ import (
 	"syscall"
 
 	"github.com/iDigitalFlame/xmt/cmd/filter"
+	"github.com/iDigitalFlame/xmt/util/xerr"
 )
 
 const (
@@ -51,12 +52,12 @@ func (e *executable) close() {
 			e.closers[i].Close()
 		}
 	}
-	//if e.e.Process != nil {
 	// NOTE(dij): This causes *nix systems to create a Zombie process
 	//            (not what we want). Not sure if it matters enough to fix
 	//            tho.
-	// e.e.Process.Release()
-	//}
+	//	if e.e.Process != nil {
+	//		e.e.Process.Release()
+	//	}
 }
 func (e *executable) Pid() uint32 {
 	if e.e.ProcessState != nil {
@@ -95,8 +96,6 @@ func (e *executable) isStarted() bool {
 func (e *executable) isRunning() bool {
 	return e.isStarted() && e.e.ProcessState == nil
 }
-func (executable) SetToken(_ uintptr) {
-}
 func (e *executable) wait(p *Process) {
 	err := e.e.Wait()
 	if _, ok := err.(*exec.ExitError); err != nil && !ok {
@@ -116,15 +115,12 @@ func (e *executable) wait(p *Process) {
 	}
 	p.stopWith(p.exit, nil)
 }
-func (executable) SetFullscreen(_ bool) {
-}
-func (executable) SetWindowDisplay(_ int) {
-}
-func (executable) SetWindowTitle(_ string) {
-}
-func (executable) SetLogin(_, _, _ string) {}
-func (executable) SetWindowSize(_, _ uint32) {
-}
+func (executable) SetToken(_ uintptr)        {}
+func (executable) SetFullscreen(_ bool)      {}
+func (executable) SetWindowDisplay(_ int)    {}
+func (executable) SetWindowTitle(_ string)   {}
+func (executable) SetLogin(_, _, _ string)   {}
+func (executable) SetWindowSize(_, _ uint32) {}
 func (e *executable) SetUID(u int32, p *Process) {
 	if u < 0 {
 		p.flags, e.uid = p.flags&^flagUID, 0
@@ -141,12 +137,9 @@ func (e *executable) SetGID(g int32, p *Process) {
 		p.flags |= flagGID
 	}
 }
-func (executable) SetWindowPosition(_, _ uint32) {
-}
-func (executable) SetNoWindow(_ bool, _ *Process) {
-}
-func (executable) SetDetached(_ bool, _ *Process) {
-}
+func (executable) SetWindowPosition(_, _ uint32)  {}
+func (executable) SetNoWindow(_ bool, _ *Process) {}
+func (executable) SetDetached(_ bool, _ *Process) {}
 func (executable) SetSuspended(s bool, p *Process) {
 	if s {
 		p.flags |= flagSuspend
@@ -154,8 +147,7 @@ func (executable) SetSuspended(s bool, p *Process) {
 		p.flags = flagSuspend
 	}
 }
-func (executable) SetNewConsole(_ bool, _ *Process) {
-}
+func (executable) SetNewConsole(_ bool, _ *Process) {}
 func (e *executable) SetChroot(s string, p *Process) {
 	if len(s) == 0 {
 		p.flags, e.c = p.flags&^flagChroot, ""
@@ -170,7 +162,32 @@ func (e *executable) kill(x uint32, p *Process) error {
 	}
 	return e.e.Process.Kill()
 }
-func (executable) SetParent(_ *filter.Filter, _ *Process) {
+func (executable) SetParent(_ *filter.Filter, _ *Process) {}
+func (e *executable) StdinPipe(p *Process) (io.WriteCloser, error) {
+	var err error
+	if p.Stdin, e.r, err = os.Pipe(); err != nil {
+		return nil, xerr.Wrap("unable to create Pipe", err)
+	}
+	e.closers = append(e.closers, p.Stdin.(io.Closer))
+	return e.r, nil
+}
+func (e *executable) StdoutPipe(p *Process) (io.ReadCloser, error) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		return nil, xerr.Wrap("unable to create Pipe", err)
+	}
+	p.Stdout = w
+	e.closers = append(e.closers, w)
+	return r, nil
+}
+func (e *executable) StderrPipe(p *Process) (io.ReadCloser, error) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		return nil, xerr.Wrap("unable to create Pipe", err)
+	}
+	p.Stderr = w
+	e.closers = append(e.closers, w)
+	return r, nil
 }
 func (e *executable) start(x context.Context, p *Process, _ bool) error {
 	if e.e != nil {

@@ -39,6 +39,8 @@ var (
 	funcNtSetEvent                  = dllNtdll.sysProc(0x5E5D5E5B)
 	funcRtlFreeHeap                 = dllNtdll.proc(0xBC880A2D)
 	funcNtTraceEvent                = dllNtdll.sysProc(0x89F984CE)
+	funcNtOpenThread                = dllNtdll.sysProc(0x7319665F)
+	funcRtlCreateHeap               = dllNtdll.proc(0xA1846AB)
 	funcEtwEventWrite               = dllNtdll.proc(0xD32A6690) // >= WinVista
 	funcDbgBreakPoint               = dllNtdll.proc(0x6861210F)
 	funcNtOpenProcess               = dllNtdll.sysProc(0x57367582)
@@ -66,6 +68,7 @@ var (
 	funcNtImpersonateThread         = dllNtdll.sysProc(0x12724B12)
 	funcNtUnmapViewOfSection        = dllNtdll.sysProc(0x19B022D)
 	funcNtWriteVirtualMemory        = dllNtdll.sysProc(0x2012F428)
+	funcNtDeviceIoControlFile       = dllNtdll.sysProc(0x5D0C9026)
 	funcNtWaitForSingleObject       = dllNtdll.sysProc(0x46D9033C)
 	funcNtSetInformationToken       = dllNtdll.sysProc(0x43623A4)
 	funcNtProtectVirtualMemory      = dllNtdll.sysProc(0xD86AFCB8)
@@ -84,45 +87,36 @@ var (
 	funcRtlWow64GetProcessMachines  = dllNtdll.proc(0x982D219D) // == 64bit/ARM64
 	funcRtlLengthSecurityDescriptor = dllNtdll.proc(0xF5677F7C)
 
-	funcReadFile                      = dllKernelBase.proc(0xEBE8E9AF)
-	funcWriteFile                     = dllKernelBase.proc(0x567775AC)
-	funcOpenMutex                     = dllKernelBase.proc(0x56F8CC91)
-	funcLocalFree                     = dllKernelBase.proc(0x3A5DD394)
-	funcOpenEvent                     = dllKernelBase.proc(0x3D0B286)
-	funcOpenThread                    = dllKernelBase.proc(0x9D818049)
-	funcHeapCreate                    = dllKernelBase.proc(0x65E14E43)
-	funcCreateFile                    = dllKernelBase.proc(0xBD1BFDAE)
-	funcDebugBreak                    = dllKernelBase.proc(0x7F7E4A57)
-	funcCreateMutex                   = dllKernelBase.proc(0x3FFF8555)
-	funcCreateEvent                   = dllKernelBase.proc(0x9C12E8F2)
-	funcWaitNamedPipe                 = dllKernelBase.proc(0x7851B108)
-	funcOpenSemaphore                 = dllKernelBase.proc(0xEFE004)
-	funcCreateNamedPipe               = dllKernelBase.proc(0xF05E3B8B)
-	funcConnectNamedPipe              = dllKernelBase.proc(0xEE1FF6A8)
-	funcGetModuleHandleEx             = dllKernelBase.proc(0x2FFDCF65)
-	funcOutputDebugString             = dllKernelBase.proc(0x58448029)
-	funcGetCurrentThreadID            = dllKernelBase.proc(0x3C31D725)
-	funcGetOverlappedResult           = dllKernelBase.proc(0x1C7ADC04)
-	funcDisconnectNamedPipe           = dllKernelBase.proc(0xCC9E66D6)
-	funcGetCurrentProcessID           = dllKernelBase.proc(0x75FCB062)
-	funcUpdateProcThreadAttribute     = dllKernelBase.proc(0xEB87DE36) // >= WinVista
-	funcDeleteProcThreadAttributeList = dllKernelBase.proc(0xAE159724) // >= WinVista
+	funcReadFile                  = dllKernelBase.proc(0xEBE8E9AF)
+	funcWriteFile                 = dllKernelBase.proc(0x567775AC)
+	funcOpenMutex                 = dllKernelBase.proc(0x56F8CC91)
+	funcLocalFree                 = dllKernelBase.proc(0x3A5DD394)
+	funcOpenEvent                 = dllKernelBase.proc(0x3D0B286)
+	funcCreateFile                = dllKernelBase.proc(0xBD1BFDAE)
+	funcDebugBreak                = dllKernelBase.proc(0x7F7E4A57)
+	funcCreateMutex               = dllKernelBase.proc(0x3FFF8555)
+	funcCreateEvent               = dllKernelBase.proc(0x9C12E8F2)
+	funcWaitNamedPipe             = dllKernelBase.proc(0x7851B108)
+	funcOpenSemaphore             = dllKernelBase.proc(0xEFE004)
+	funcCreateNamedPipe           = dllKernelBase.proc(0xF05E3B8B)
+	funcConnectNamedPipe          = dllKernelBase.proc(0xEE1FF6A8)
+	funcGetModuleHandleEx         = dllKernelBase.proc(0x2FFDCF65)
+	funcOutputDebugString         = dllKernelBase.proc(0x58448029)
+	funcGetCurrentThreadID        = dllKernelBase.proc(0x3C31D725)
+	funcGetOverlappedResult       = dllKernelBase.proc(0x1C7ADC04)
+	funcDisconnectNamedPipe       = dllKernelBase.proc(0xCC9E66D6)
+	funcGetCurrentProcessID       = dllKernelBase.proc(0x75FCB062)
+	funcUpdateProcThreadAttribute = dllKernelBase.proc(0xEB87DE36) // >= WinVista
 
 	funcIsWellKnownSID             = dllKernelOrAdvapi.proc(0xF855936A) // >= Win7 kernelbase.dll else advapi32.dll
 	funcCreateWellKnownSid         = dllKernelOrAdvapi.proc(0x25F61A8E) // >= Win7 kernelbase.dll else advapi32.dll
 	funcImpersonateNamedPipeClient = dllKernelOrAdvapi.proc(0x2BA3D9CE) // >= Win7 kernelbase.dll else advapi32.dll
 
-	funcLoadLibrary                = dllKernel32.proc(0x9322F2CD)
-	funcThread32Next               = dllKernel32.proc(0x9B4B1895)
 	funcCreateProcess              = dllKernel32.proc(0x19C69863)
-	funcProcess32Next              = dllKernel32.proc(0x80132847)
-	funcThread32First              = dllKernel32.proc(0xC5311BC8)
-	funcProcess32First             = dllKernel32.proc(0xD4C414BE)
 	funcCreateMailslot             = dllKernel32.proc(0xB10785BB)
 	funcCreateSemaphore            = dllKernel32.proc(0xE540398)
 	funcK32EnumDeviceDrivers       = dllKernel32.proc(0x779D5EFF) // >= Win7 (Xp sub = psapi.EnumDeviceDrivers)
 	funcK32GetModuleInformation    = dllKernel32.proc(0xFD5B63D5) // >= Win7 (Xp sub = psapi.GetModuleInformation)
-	funcCreateToolhelp32Snapshot   = dllKernel32.proc(0xBAA64095)
 	funcSetProcessWorkingSetSizeEx = dllKernel32.proc(0xAB634AE1) // >= WinS2003 (Not in XP sub = SetProcessWorkingSetSize)
 	funcK32GetDeviceDriverFileName = dllKernel32.proc(0x9EF6FF6D) // >= Win7 (Xp sub = psapi.GetDeviceDriverFileNameW)
 
@@ -210,7 +204,7 @@ var (
 
 func doSearchSystem32() bool {
 	searchSystem32.Do(func() {
-		searchSystem32.v = dllKernel32.proc(0xE849CE13).find() == nil // >= Win8 / ~Win7
+		searchSystem32.v = funcAddDllDirectory > 0 // >= Win8 / ~Win7
 	})
 	return searchSystem32.v
 }

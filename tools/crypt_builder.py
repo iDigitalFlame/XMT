@@ -32,7 +32,6 @@ def xor(key, data):
     if len(data) == 0 or len(key) == 0:
         return bytearray()
     r = bytearray(len(data))
-    print(f"Encode {len(data)} : {len(key)}")
     for i in range(0, len(r)):
         r[i] = data[i] ^ key[i % len(key)]
     return r
@@ -76,20 +75,27 @@ def get_env_tags(args):
     return t
 
 
-def can_use_tag(tags, values):
-    if not isinstance(tags, list) or not isinstance(values, list):
+def use_tag(current, tags):
+    if not isinstance(tags, list) or not isinstance(current, list) or len(current) == 0:
         return True
-    if len(values) == 0:
-        return True
-    r = True
+    n = True
     for t in tags:
-        for v in values:
-            if t.lower() == v.lower():
-                r = True
-                break
-            if v[0] == "!" and v[1:].lower() == t.lower():
-                return False
-    return r
+        if t[0] != "!":
+            n = False
+            break
+    # Check negatives first
+    for t in tags:
+        if t[0] != "!":
+            continue
+        if t[1:] in current:
+            return False
+    # Check positives
+    for t in tags:
+        if t[0] == "!":
+            continue
+        if t in current:
+            return True
+    return n
 
 
 class CryptWriter(BytesIO):
@@ -124,15 +130,18 @@ class CryptWriter(BytesIO):
             if not isinstance(v, dict) or "value" not in v:
                 c[int(k)] = ""
                 continue
-            if not can_use_tag(tags, v.get("tags")):
+            if not use_tag(tags, v.get("tags")):
                 c[int(k)] = ""
             else:
                 c[int(k)] = v["value"]
+        print("Including strings in build...")
         for x in range(0, len(c)):
             self.add(c[x])
             if len(c[x]) == 0:
                 continue
-            print(f'+ {x:3} == "{c[x]}"')
+            s = c[x].replace("\n", "\\n")
+            print(f'+ {x:3} == "{s}"')
+            del s
 
 
 if __name__ == "__main__":
@@ -152,7 +161,7 @@ if __name__ == "__main__":
     w.from_file(argv[1], get_env_tags(argv[2:]))
 
     if n:
-        print("Add this to ldflags:")
+        print("Add this to ldflags:\n")
         print(
             f"-X 'github.com/iDigitalFlame/xmt/util/crypt.key={w.key_output()}'", end=""
         )

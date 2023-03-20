@@ -41,7 +41,7 @@ func (r *ctxReader) Close() error {
 	r.cancel()
 	return r.ReadCloser.Close()
 }
-func (*nopReadCloser) Close() error {
+func (nopReadCloser) Close() error {
 	return nil
 }
 func float32ToInt(f float32) uint32 {
@@ -50,7 +50,7 @@ func float32ToInt(f float32) uint32 {
 func float64ToInt(f float64) uint64 {
 	return *(*uint64)(unsafe.Pointer(&f))
 }
-func (*nopWriteCloser) Close() error {
+func (nopWriteCloser) Close() error {
 	return nil
 }
 func float32FromInt(i uint32) float32 {
@@ -68,7 +68,7 @@ func float64FromInt(i uint64) float64 {
 //
 // This is a pre go1.16 compatibility helper.
 func ReadFile(n string) ([]byte, error) {
-	f, err := os.Open(n)
+	f, err := os.OpenFile(n, 0, 0)
 	if err != nil {
 		return nil, err
 	}

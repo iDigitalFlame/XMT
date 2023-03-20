@@ -121,5 +121,5 @@ func (d *DLL) Handle() (uintptr, error) {
 // This function accepts a context that can be used to control the cancellation
 // of the thread.
 func NewDLLContext(x context.Context, p string) *DLL {
-	return &DLL{Path: p, t: thread{ctx: x}}
+	return &DLL{Path: p, t: threadInit(x)}
 }

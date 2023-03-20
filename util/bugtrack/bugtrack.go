@@ -40,27 +40,7 @@ import (
 // This is true if bug tracking is enabled.
 const Enabled = true
 
-var log logx.Log
-
-func init() {
-	var (
-		p   = os.TempDir()
-		err = os.MkdirAll(p, 0755)
-	)
-	if err != nil {
-		panic("bugtrack: init failed with error: " + err.Error())
-	}
-	var (
-		f = filepath.Join(p, "bugtrack-"+util.Uitoa(uint64(os.Getpid()))+".log")
-		l logx.Log
-	)
-	if l, err = logx.File(f, logx.Append, logx.Trace); err != nil {
-		panic("bugtrack: creating file log failed with error: " + err.Error())
-	}
-	log = logx.Multiple(l, logx.Writer(os.Stderr, logx.Trace))
-	log.SetPrefix("BUGTRACK")
-	log.Info(`Bugtrack log init complete, log file can be found at "%s".`, f)
-}
+var log = bugInit()
 
 // Recover is a "guard" function to be used to gracefully shut down a program
 // when a panic is detected.
@@ -79,6 +59,26 @@ func Recover(v string) {
 		log.Error("Trace: %s", debug.Stack())
 		time.Sleep(time.Minute)
 	}
+}
+func bugInit() logx.Log {
+	var (
+		p   = os.TempDir()
+		err = os.MkdirAll(p, 0755)
+	)
+	if err != nil {
+		panic("bugtrack: init failed with error: " + err.Error())
+	}
+	var (
+		f = filepath.Join(p, "bugtrack-"+util.Uitoa(uint64(os.Getpid()))+".log")
+		l logx.Log
+	)
+	if l, err = logx.File(f, logx.Append, logx.Trace); err != nil {
+		panic("bugtrack: creating file log failed with error: " + err.Error())
+	}
+	r := logx.Multiple(l, logx.Writer(os.Stderr, logx.Trace))
+	r.SetPrefix("BUGTRACK")
+	r.Info(`Bugtrack log init complete! Log file located at "%s".`, f)
+	return r
 }
 
 // Track is a simple logging function that takes the same arguments as a

@@ -301,7 +301,7 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, bool, error) {
 			ch:         make(chan struct{}),
 			ID:         n.Device,
 			jobs:       make(map[uint16]*Job),
-			send:       make(chan *com.Packet, 256),
+			send:       make(chan *com.Packet, 128),
 			wake:       make(chan struct{}, 1),
 			frags:      make(map[uint16]*cluster),
 			parent:     l,
@@ -309,7 +309,7 @@ func (l *Listener) talk(a string, n *com.Packet) (*conn, bool, error) {
 			connection: connection{s: l.s, m: l.m, log: l.log, ctx: l.ctx},
 		}
 		if l.state.CanRecv() {
-			s.recv = make(chan *com.Packet, 256)
+			s.recv = make(chan *com.Packet, 128)
 		}
 		var err error
 		if s.proxies, err = s.readDeviceInfo(infoHello, n); err != nil {
@@ -394,7 +394,7 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 			ch:         make(chan struct{}),
 			ID:         n.Device,
 			jobs:       make(map[uint16]*Job),
-			send:       make(chan *com.Packet, 256),
+			send:       make(chan *com.Packet, 128),
 			wake:       make(chan struct{}, 1),
 			frags:      make(map[uint16]*cluster),
 			parent:     l,
@@ -402,7 +402,7 @@ func (l *Listener) talkSub(a string, n *com.Packet, o bool) (connHost, uint32, *
 			connection: connection{s: l.s, m: l.m, log: l.log, ctx: l.ctx},
 		}
 		if l.state.CanRecv() {
-			s.recv = make(chan *com.Packet, 256)
+			s.recv = make(chan *com.Packet, 128)
 		}
 		var err error
 		if s.proxies, err = s.readDeviceInfo(infoHello, n); err != nil {

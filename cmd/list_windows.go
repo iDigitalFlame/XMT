@@ -20,15 +20,10 @@
 package cmd
 
 import (
-	"os"
 	"sort"
-	"syscall"
 
 	"github.com/iDigitalFlame/xmt/device/winapi"
 	"github.com/iDigitalFlame/xmt/util/bugtrack"
-
-	// Import to use linkname.
-	_ "unsafe"
 )
 
 // Processes attempts to gather the current running Processes and returns them
@@ -50,16 +45,3 @@ func Processes() ([]ProcessInfo, error) {
 	sort.Sort(r)
 	return r, err
 }
-func pipe() (*os.File, *os.File, error) {
-	var (
-		p   [2]syscall.Handle
-		err = syscall.Pipe(p[:])
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	return newFile(p[0], "|0", "file"), newFile(p[1], "|1", "file"), nil
-}
-
-//go:linkname newFile os.newFile
-func newFile(h syscall.Handle, n, k string) *os.File

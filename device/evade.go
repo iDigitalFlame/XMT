@@ -26,6 +26,10 @@ const (
 	// EvadeWinHideThreads is an evasion flag that instructs the client to hide
 	// all of it's current threads from debuggers.
 	EvadeWinHideThreads
+	// EvadeEraseHeader is an evasion flag that instructs the client to hide it's
+	// binary presense and prevent debugging by zeroing out it's PE stub in memory.
+	// This should only be used if we /own/ and are the binary.
+	EvadeEraseHeader
 	// EvadeAll does exactly what it says, enables ALL Evasion functions.
 	EvadeAll uint8 = 0xFF
 )

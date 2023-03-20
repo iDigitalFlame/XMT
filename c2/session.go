@@ -40,9 +40,8 @@ import (
 const (
 	sleepMod  = 5
 	maxErrors = 5
-
-	spawnDefaultTime = time.Second * 10
 )
+const spawnDefaultTime = time.Second * 10
 const (
 	infoHello   uint8 = 0
 	infoMigrate uint8 = iota
@@ -753,7 +752,7 @@ func (s *Session) Packets() <-chan *com.Packet {
 		return nil
 	}
 	s.lock.Lock()
-	s.recv = make(chan *com.Packet, 256)
+	s.recv = make(chan *com.Packet, 128)
 	if s.state.Set(stateCanRecv); cout.Enabled {
 		s.log.Info("[%s] Enabling Packet receive channel.", s.ID)
 	}

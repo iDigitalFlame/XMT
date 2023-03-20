@@ -19,11 +19,14 @@
 
 package cmd
 
-import "github.com/iDigitalFlame/xmt/device"
+import (
+	"context"
+
+	"github.com/iDigitalFlame/xmt/device"
+)
 
 type thread struct {
-	_   [0]func()
-	ctx interface{}
+	_ [0]func()
 }
 
 func (thread) Pid() uint32 {
@@ -59,4 +62,7 @@ func (thread) Handle() (uintptr, error) {
 }
 func (thread) Location() (uintptr, error) {
 	return 0, device.ErrNoWindows
+}
+func threadInit(_ context.Context) thread {
+	return thread{}
 }

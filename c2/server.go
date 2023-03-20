@@ -39,26 +39,26 @@ import (
 // Server is the manager for all C2 Listener and Sessions connection and states.
 // This struct also manages all events and connection changes.
 type Server struct {
-	Keys     data.KeyPair
-	New      func(*Session)
-	Oneshot  func(*com.Packet)
-	Shutdown func(*Session)
+	log    cout.Log
+	ctx    context.Context
+	events chan event
+	active map[string]*Listener
+	ch     chan struct{}
 
-	ch   chan struct{}
-	log  cout.Log
-	ctx  context.Context
-	new  chan *Listener
-	lock sync.RWMutex
-	init sync.Once
+	Oneshot func(*com.Packet)
+	New     func(*Session)
+	new     chan *Listener
 
+	Shutdown    func(*Session)
 	delSession  chan uint32
 	delListener chan string
+	sessions    map[uint32]*Session
+	cancel      context.CancelFunc
+	lock        sync.RWMutex
+	init        sync.Once
+	run         uint32
 
-	events   chan event
-	cancel   context.CancelFunc
-	active   map[string]*Listener
-	sessions map[uint32]*Session
-	run      uint32
+	Keys data.KeyPair
 }
 
 // Wait will block until the current Server is closed and shutdown.

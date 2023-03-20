@@ -21,4 +21,4 @@ package local
 
 import "github.com/iDigitalFlame/xmt/util/crypt"
 
-var vers = crypt.Get(77) // framework-v6
+var vers = crypt.Get(83) // framework-v7

@@ -39,12 +39,12 @@ var bufs = sync.Pool{
 }
 
 // Flush allows Chunk to support the io.Flusher interface.
-func (*Chunk) Flush() error {
+func (Chunk) Flush() error {
 	return nil
 }
 
 // Close allows Chunk to support the io.Closer interface.
-func (*Chunk) Close() error {
+func (Chunk) Close() error {
 	return nil
 }
 
@@ -90,11 +90,11 @@ func (c *Chunk) Remaining() int {
 // This may be empty depending on the read status of this chunk. To retrieve the
 // full buffer, use the 'Seek' function to set the read cursor to zero.
 func (c *Chunk) Payload() []byte {
-	if c.Empty() {
+	if c.Empty() || c.rpos > c.Size() {
 		return nil
 	}
-	_ = c.buf[c.rpos]
-	return c.buf[c.rpos:]
+	_ = c.buf[c.Size()-1]
+	return c.buf[c.rpos:c.Size()]
 }
 
 // Available returns if a limit will block the writing of n bytes. This function

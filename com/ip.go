@@ -75,8 +75,8 @@ func (i *ipConnector) Listen(x context.Context, s string) (net.Listener, error) 
 		return nil, err
 	}
 	l := &udpListener{
-		new:  make(chan *udpConn, 16),
 		del:  make(chan udpAddr, 16),
+		new:  make(chan *udpConn, 16),
 		cons: make(map[udpAddr]*udpConn),
 		sock: &udpCompat{&ipPacketConn{PacketConn: c}},
 	}

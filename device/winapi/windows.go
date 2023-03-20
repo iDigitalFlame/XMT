@@ -28,8 +28,8 @@ import (
 )
 
 var winCb struct {
-	sync.Mutex
 	e []Window
+	sync.Mutex
 }
 var enumWindowsOnce struct {
 	_ [0]func()

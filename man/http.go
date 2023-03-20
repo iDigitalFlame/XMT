@@ -36,8 +36,8 @@ import (
 
 var client struct {
 	_ [0]func()
-	sync.Once
 	v *http.Client
+	sync.Once
 }
 
 func rawParse(r string) (*url.URL, error) {

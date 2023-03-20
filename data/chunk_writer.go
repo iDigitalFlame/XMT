@@ -172,7 +172,6 @@ func (c *Chunk) WriteUint32(n uint32) error {
 // If this function returns 'ErrLimit' this indicates that the write was NOT
 // preformed.
 func (c *Chunk) WriteUint64(n uint64) error {
-
 	i, err := c.checkWriteSize(8)
 	if i == -1 {
 		return err

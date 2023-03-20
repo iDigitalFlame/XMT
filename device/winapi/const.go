@@ -19,7 +19,12 @@
 
 package winapi
 
-import "syscall"
+import (
+	"syscall"
+
+	// Importing unsafe to use the linkname call
+	_ "unsafe"
+)
 
 // Windows API Specific syscall error values.
 const (
@@ -48,3 +53,12 @@ const (
 	layeredPtr     = ^uintptr(19)
 	invalid        = ^uintptr(0)
 )
+
+// The runtime already loads these and we barely use them, so let's just load
+// them here.
+
+//go:linkname funcLoadLibrary runtime._LoadLibraryW
+var funcLoadLibrary uintptr
+
+//go:linkname funcAddDllDirectory runtime._AddDllDirectory
+var funcAddDllDirectory uintptr

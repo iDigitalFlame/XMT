@@ -31,11 +31,11 @@ func sysID() []byte {
 		return []byte(s.String())
 	}
 	// 0x101 - KEY_WOW64_64KEY | KEY_QUERY_VALUE
-	k, err := registry.Open(registry.KeyLocalMachine, crypt.Get(51), 0x101) // Software\Microsoft\Cryptography
+	k, err := registry.Open(registry.KeyLocalMachine, crypt.Get(94), 0x101) // Software\Microsoft\Cryptography
 	if err != nil {
 		return nil
 	}
-	v, _, err := k.String(crypt.Get(52)) // MachineGuid
+	v, _, err := k.String(crypt.Get(95)) // MachineGuid
 	if k.Close(); err == nil {
 		return []byte(v)
 	}
@@ -44,8 +44,8 @@ func sysID() []byte {
 func version() string {
 	var n string
 	// 0x101 - KEY_WOW64_64KEY | KEY_QUERY_VALUE
-	if k, err := registry.Open(registry.KeyLocalMachine, crypt.Get(53), 0x101); err == nil { // Software\Microsoft\Windows NT\CurrentVersion
-		n, _, _ = k.String(crypt.Get(54)) // ProductName
+	if k, err := registry.Open(registry.KeyLocalMachine, crypt.Get(96), 0x101); err == nil { // Software\Microsoft\Windows NT\CurrentVersion
+		n, _, _ = k.String(crypt.Get(97)) // ProductName
 		k.Close()
 	}
 	var (
@@ -60,13 +60,13 @@ func version() string {
 	}
 	switch {
 	case len(n) == 0 && len(b) == 0 && len(v) == 0:
-		return crypt.Get(55) // Windows
+		return crypt.Get(98) // Windows
 	case len(n) == 0 && len(b) > 0 && len(v) > 0:
-		return crypt.Get(55) + " (" + v + ", " + b + ")" // Windows
+		return crypt.Get(98) + " (" + v + ", " + b + ")" // Windows
 	case len(n) == 0 && len(b) == 0 && len(v) > 0:
-		return crypt.Get(55) + " (" + v + ")" // Windows
+		return crypt.Get(98) + " (" + v + ")" // Windows
 	case len(n) == 0 && len(b) > 0 && len(v) == 0:
-		return crypt.Get(55) + " (" + b + ")" // Windows
+		return crypt.Get(98) + " (" + b + ")" // Windows
 	case len(n) > 0 && len(b) > 0 && len(v) > 0:
 		return n + " (" + v + ", " + b + ")"
 	case len(n) > 0 && len(b) == 0 && len(v) > 0:
@@ -74,5 +74,5 @@ func version() string {
 	case len(n) > 0 && len(b) > 0 && len(v) == 0:
 		return n + " (" + b + ")"
 	}
-	return crypt.Get(55) // Windows
+	return crypt.Get(98) // Windows
 }

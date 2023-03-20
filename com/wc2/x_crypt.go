@@ -25,18 +25,18 @@ import (
 	"github.com/iDigitalFlame/xmt/util/crypt"
 )
 
-var userAgent = crypt.Get(27) // User-Agent
+var userAgent = crypt.Get(26) // User-Agent
 
 func (addr) Network() string {
-	return crypt.Get(28) // wc2
+	return crypt.Get(27) // wc2
 }
 func modHeaders(h http.Header) {
 	h.Set(
-		crypt.Get(29), // Upgrade
-		crypt.Get(30), // websocket
+		crypt.Get(28), // Upgrade
+		crypt.Get(29), // websocket
 	)
 	h.Set(
-		crypt.Get(31), // Connection
-		crypt.Get(29), // Upgrade
+		crypt.Get(30), // Connection
+		crypt.Get(28), // Upgrade
 	)
 }

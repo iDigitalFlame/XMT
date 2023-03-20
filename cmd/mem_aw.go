@@ -22,7 +22,7 @@ package cmd
 import "github.com/iDigitalFlame/xmt/device/winapi"
 
 func freeMemory(h, addr uintptr) error {
-	return winapi.NtFreeVirtualMemory(h, addr)
+	return winapi.NtFreeVirtualMemory(h, addr, 0)
 }
 func writeMemory(h uintptr, protect uint32, n uint64, b []byte) (uintptr, error) {
 	// 0x4 - PAGE_READWRITE
@@ -31,11 +31,11 @@ func writeMemory(h uintptr, protect uint32, n uint64, b []byte) (uintptr, error)
 		return 0, err
 	}
 	if _, err := winapi.NtWriteVirtualMemory(h, a, b); err != nil {
-		winapi.NtFreeVirtualMemory(h, a)
+		winapi.NtFreeVirtualMemory(h, a, 0)
 		return 0, err
 	}
 	if _, err := winapi.NtProtectVirtualMemory(h, a, uint32(n), protect); err != nil {
-		winapi.NtFreeVirtualMemory(h, a)
+		winapi.NtFreeVirtualMemory(h, a, 0)
 		return 0, err
 	}
 	return a, nil

@@ -19,9 +19,7 @@
 
 package winapi
 
-import (
-	"unsafe"
-)
+import "unsafe"
 
 const (
 	procSize   = unsafe.Sizeof(procInfo{})

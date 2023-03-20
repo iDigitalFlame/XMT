@@ -1,3 +1,6 @@
+//go:build !js
+// +build !js
+
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,17 +19,6 @@
 
 package cmd
 
-import "github.com/iDigitalFlame/xmt/data"
-
-// ProcessInfo is a struct that holds simple process related data for extraction
-// This struct is returned via a call to 'Processes'.
-//
-// This struct also supports binary Marshaling/UnMarshaling.
-type ProcessInfo struct {
-	_          [0]func()
-	Name, User string
-	PID, PPID  uint32
-}
 type processList []ProcessInfo
 
 func (p processList) Len() int {
@@ -40,34 +32,4 @@ func (p processList) Less(i, j int) bool {
 		return p[i].PID < p[j].PID
 	}
 	return p[i].PPID < p[j].PPID
-}
-
-// MarshalStream transforms this struct into a binary format and writes to the
-// supplied data.Writer.
-func (p ProcessInfo) MarshalStream(w data.Writer) error {
-	if err := w.WriteUint32(p.PID); err != nil {
-		return err
-	}
-	if err := w.WriteUint32(p.PPID); err != nil {
-		return err
-	}
-	if err := w.WriteString(p.Name); err != nil {
-		return err
-	}
-	return w.WriteString(p.User)
-}
-
-// UnmarshalStream transforms this struct from a binary format that is read from
-// the supplied data.Reader.
-func (p *ProcessInfo) UnmarshalStream(r data.Reader) error {
-	if err := r.ReadUint32(&p.PID); err != nil {
-		return err
-	}
-	if err := r.ReadUint32(&p.PPID); err != nil {
-		return err
-	}
-	if err := r.ReadString(&p.Name); err != nil {
-		return err
-	}
-	return r.ReadString(&p.User)
 }

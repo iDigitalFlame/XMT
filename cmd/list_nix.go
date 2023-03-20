@@ -1,5 +1,5 @@
-//go:build !windows
-// +build !windows
+//go:build !windows && !js
+// +build !windows,!js
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -20,20 +20,17 @@
 package cmd
 
 import (
-	"os"
 	"strconv"
-	"strings"
+
+	"github.com/iDigitalFlame/xmt/data"
 )
 
-func pipe() (*os.File, *os.File, error) {
-	return os.Pipe()
-}
-func readProcStats(b []byte) (string, uint32) {
+func readProcStats(s string) (string, uint32) {
 	var (
 		n string
 		p uint32
 	)
-	for _, e := range strings.Split(string(b), "\n") {
+	for _, e := range data.ReadSplit(s, "\n") {
 		if len(n) > 0 && p > 0 {
 			return n, p
 		}

@@ -27,7 +27,7 @@ import (
 	"github.com/iDigitalFlame/xmt/util"
 )
 
-var (
+const (
 	// ErrNotExist is returned when a registry key or value does not exist.
 	ErrNotExist = syscall.ERROR_FILE_NOT_FOUND
 	// ErrShortBuffer is returned when the buffer was too short for the operation.

@@ -60,7 +60,9 @@ func (c *Chunk) Reset() {
 	if atomic.LoadUintptr(&c.h) == 0 {
 		return
 	}
-	if c.wpos == 0 {
+	// NOTE(dij): Not sure if this is needed, this would allow us to zero out
+	//            the Chunk data.
+	/*if c.wpos == 0 {
 		for i := 0; i < c.rpos; i++ {
 			c.buf[i] = 0
 		}
@@ -68,7 +70,7 @@ func (c *Chunk) Reset() {
 		for i := 0; i < c.wpos; i++ {
 			c.buf[i] = 0
 		}
-	}
+	}*/
 	c.rpos, c.wpos = 0, 0
 }
 func heapBaseInitFunc() {
@@ -125,9 +127,6 @@ func NewChunk(b []byte) *Chunk {
 	}
 	return &c
 }
-
-//go:linkname heapDestroy github.com/iDigitalFlame/xmt/device/winapi.heapDestroy
-func heapDestroy(h uintptr) error
 
 //go:linkname heapFree github.com/iDigitalFlame/xmt/device/winapi.heapFree
 func heapFree(h, m uintptr) error

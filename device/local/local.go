@@ -28,13 +28,11 @@ import (
 	"github.com/iDigitalFlame/xmt/device/local/tags"
 )
 
-var (
-	// UUID is the device specific and session specific identifier.
-	UUID = getID()
+// UUID is the device specific and session specific identifier.
+var UUID = getID()
 
-	// Version is the local machine's Operating System version information.
-	Version = version()
-)
+// Version is the local machine's Operating System version information.
+var Version = version()
 
 // Device is the pointer to the local machine instance. This instance is loaded
 // at runtime and is used for local data gathering and identification.

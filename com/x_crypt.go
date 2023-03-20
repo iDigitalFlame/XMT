@@ -23,10 +23,10 @@ import "github.com/iDigitalFlame/xmt/util/crypt"
 
 // Named Network Constants
 var (
-	NameIP   = crypt.Get(14) // ip
-	NameTCP  = crypt.Get(15) // tcp
-	NameUDP  = crypt.Get(16) // udp
-	NameUnix = crypt.Get(17) // unix
-	NamePipe = crypt.Get(18) // pipe
-	NameHTTP = crypt.Get(19) // http
+	NameIP   = crypt.Get(13) // ip
+	NameTCP  = crypt.Get(14) // tcp
+	NameUDP  = crypt.Get(15) // udp
+	NameUnix = crypt.Get(16) // unix
+	NamePipe = crypt.Get(17) // pipe
+	NameHTTP = crypt.Get(18) // http
 )

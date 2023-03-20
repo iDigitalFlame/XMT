@@ -32,26 +32,23 @@ const (
 	dnsSeg = 256
 )
 
-var (
-	// DNS is the standard DNS Transform alias. This alias uses the default
-	// DNS addresses contained in 'DefaultDomains()' to spoof C2 communications
-	// as valid DNS packets.
-	//
-	// Custom options may be used by creating a new DNS alias or updating the
-	// current alias (string array) with new domains.
-	DNS = DNSTransform{}
+// DNS is the standard DNS Transform alias. This alias uses the default
+// DNS addresses contained in 'DefaultDomains()' to spoof C2 communications
+// as valid DNS packets.
+//
+// Custom options may be used by creating a new DNS alias or updating the
+// current alias (string array) with new domains.
+var DNS = DNSTransform{}
 
-	packets = sync.Pool{
-		New: func() interface{} {
-			return new(dnsPacket)
-		},
-	}
-
-	dnsBuiltins struct {
-		sync.Once
-		e []string
-	}
-)
+var packets = sync.Pool{
+	New: func() interface{} {
+		return new(dnsPacket)
+	},
+}
+var dnsBuiltins struct {
+	e []string
+	sync.Once
+}
 
 type dnsPacket struct {
 	_ [0]func()

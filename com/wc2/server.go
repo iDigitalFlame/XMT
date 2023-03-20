@@ -38,15 +38,14 @@ import (
 // C2 functions.
 type Server struct {
 	Target  Target
-	Timeout time.Duration
-
-	t   transport
-	ch  chan complete
-	tls *tls.Config
-	//dialer  *net.Dialer
+	t       transport
+	ch      chan complete
+	tls     *tls.Config
 	handler *http.ServeMux
 	client  *http.Client
 	rules   []Rule
+
+	Timeout time.Duration
 	done    uint32
 }
 type directory string
@@ -220,7 +219,7 @@ func (s *Server) Listen(x context.Context, a string) (net.Listener, error) {
 		p:     s,
 		ch:    make(chan complete, 1),
 		pch:   s.ch,
-		new:   make(chan *conn, 128),
+		new:   make(chan *conn, 64),
 		ctx:   x,
 		rules: make([]Rule, len(s.rules)),
 		Server: &http.Server{

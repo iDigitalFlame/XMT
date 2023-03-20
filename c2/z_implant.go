@@ -24,7 +24,7 @@ import (
 	"github.com/iDigitalFlame/xmt/device"
 )
 
-const maxEvents = 512
+const maxEvents = 256
 
 // Server is the manager for all C2 Listener and Sessions connection and states.
 // This struct also manages all events and connection changes.

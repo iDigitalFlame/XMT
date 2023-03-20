@@ -49,13 +49,13 @@ var (
 
 type udpErr struct{}
 type udpConn struct {
-	lock        sync.Mutex
 	bufs        chan udpData
 	sock        *udpListener
 	wake        chan struct{}
-	buf         []byte
 	dev         udpAddr
+	buf         []byte
 	read, write time.Duration
+	lock        sync.Mutex
 }
 type udpData struct {
 	_ [0]func()
@@ -77,15 +77,15 @@ type udpSock interface {
 	net.PacketConn
 }
 type udpListener struct {
-	del      chan udpAddr
 	err      error
 	ctx      context.Context
+	del      chan udpAddr
 	new      chan *udpConn
 	cons     map[udpAddr]*udpConn
 	sock     *udpCompat
-	lock     sync.RWMutex
 	cancel   context.CancelFunc
 	deadline time.Duration
+	lock     sync.RWMutex
 }
 type udpConnector struct {
 	net.Dialer

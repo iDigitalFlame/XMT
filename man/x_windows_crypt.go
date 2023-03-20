@@ -22,6 +22,6 @@ package man
 import "github.com/iDigitalFlame/xmt/util/crypt"
 
 var (
-	slot   = crypt.Get(92) // \\.\mailslot\
-	prefix = crypt.Get(93) // Global\
+	slot   = crypt.Get(117) // \\.\mailslot\
+	prefix = crypt.Get(118) // Global\
 )

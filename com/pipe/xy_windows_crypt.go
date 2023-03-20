@@ -28,16 +28,16 @@ var (
 	// This can be used for Pipe communication between privilege boundaries.
 	//
 	// Can be applied with the ListenPerm function.
-	PermEveryone = crypt.Get(20) // D:PAI(A;;FA;;;WD)(A;;FA;;;SY)
+	PermEveryone = crypt.Get(22) // D:PAI(A;;FA;;;WD)(A;;FA;;;SY)
 
 	// ErrTimeout is an error returned by the 'Dial*' functions when the
 	// specified timeout was reached when attempting to connect to a Pipe.
-	ErrTimeout = &errno{m: crypt.Get(21), t: true} // connection timeout
+	ErrTimeout = &errno{m: crypt.Get(23), t: true} // connection timeout
 	// ErrEmptyConn is an error received when the 'Listen' function receives a
 	// shortly lived Pipe connection.
 	//
 	// This error is only temporary and does not indicate any Pipe server failures.
-	ErrEmptyConn = &errno{m: crypt.Get(22), t: true} // empty connection
+	ErrEmptyConn = &errno{m: crypt.Get(24), t: true} // empty connection
 )
 
 // Format will ensure the path for this Pipe socket fits the proper OS based
@@ -46,5 +46,5 @@ func Format(s string) string {
 	if len(s) > 2 && s[0] == '\\' && s[1] == '\\' {
 		return s
 	}
-	return crypt.Get(23) + s // \\.\pipe\
+	return crypt.Get(25) + s // \\.\pipe\
 }

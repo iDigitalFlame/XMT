@@ -22,16 +22,12 @@ package cmd
 import (
 	"context"
 	"io"
-	"os"
 	"syscall"
 
 	"github.com/iDigitalFlame/xmt/cmd/filter"
 )
 
-type executable struct {
-	r       *os.File
-	closers []io.Closer
-}
+type executable struct{}
 
 func (executable) close() {}
 func (executable) Pid() uint32 {
@@ -99,6 +95,15 @@ func (executable) kill(_ uint32, _ *Process) error {
 func (executable) SetNewConsole(_ bool, _ *Process) {
 }
 func (executable) SetParent(_ *filter.Filter, _ *Process) {
+}
+func (executable) StdinPipe(_ *Process) (io.WriteCloser, error) {
+	return nil, syscall.EINVAL
+}
+func (executable) StdoutPipe(_ *Process) (io.ReadCloser, error) {
+	return nil, syscall.EINVAL
+}
+func (executable) StderrPipe(_ *Process) (io.ReadCloser, error) {
+	return nil, syscall.EINVAL
 }
 func (executable) start(_ context.Context, _ *Process, _ bool) error {
 	return syscall.EINVAL

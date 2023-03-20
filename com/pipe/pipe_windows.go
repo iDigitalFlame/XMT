@@ -493,8 +493,8 @@ func (c *Conn) finish(e error, a int, t time.Time, o *winapi.Overlapped) (int, e
 	return a, e
 }
 func create(path addr, p *winapi.SecurityAttributes, t, l uint32, f bool) (uintptr, error) {
-	m := uint32(0x40040003)
 	// 0x40040003 - PIPE_ACCESS_DUPLEX | WRITE_DAC | FILE_FLAG_OVERLAPPED
+	m := uint32(0x40040003)
 	if f {
 		// 0x80000 - FILE_FLAG_FIRST_PIPE_INSTANCE
 		m |= 0x80000

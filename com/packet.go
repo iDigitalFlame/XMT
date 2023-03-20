@@ -27,20 +27,16 @@ import (
 
 const (
 	// PacketMaxTags is the max amount of tags that are allowed on a specific
-	// Packet.
+	// Packet. If the amount of tags exceed this limit, an error will occur
+	// doing writing.
 	PacketMaxTags = 2 << 14
 	// PacketHeaderSize is the length of the Packet header in bytes.
 	PacketHeaderSize = 46
 )
 
-var (
-	// ErrMalformedTag is an error returned when a read on a Packet Tag returns
-	// an empty (zero) tag value.
-	ErrMalformedTag = xerr.Sub("malformed Tag", 0x2A)
-	// ErrTagsTooLarge is an error returned when attempting to write a Packet
-	// that contains too many Tags (> 32768)
-	ErrTagsTooLarge = xerr.Sub("tags list is too large", 0x2B)
-)
+// ErrMalformedTag is an error returned when a read on a Packet Tag returns
+// an empty (zero) tag value.
+var ErrMalformedTag = xerr.Sub("malformed Tag", 0x2A)
 
 // Packet is a struct that is a Reader and Writer that can be generated to be
 // sent, or received from a Connection.
@@ -301,7 +297,7 @@ func (p *Packet) readHeader(r io.Reader) error {
 func (p *Packet) writeHeader(w io.Writer) error {
 	t := len(p.Tags)
 	if t > PacketMaxTags {
-		return ErrTagsTooLarge
+		return xerr.Sub("tags list is too large", 0x2B)
 	}
 	if bugtrack.Enabled {
 		if p.Device.Empty() {

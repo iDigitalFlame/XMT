@@ -44,9 +44,9 @@ import (
 // PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON
 var secProtect uint64 = 0x100100000000
 var envOnce struct {
-	sync.Once
 	r string
 	e []string
+	sync.Once
 }
 var verOnce struct {
 	_ [0]func()
@@ -72,12 +72,19 @@ type executable struct {
 	sf, x, y, w, h     uint32
 	mode               uint16
 }
-type closeFunc func() error
 
 func envOnceFunc() {
 	envOnce.e = syscall.Environ()[4:] // Removes all '=' prefixed vars
-	if envOnce.r, _ = syscall.Getenv(sysRoot); len(envOnce.e) == 0 {
-		envOnce.r = sysRootVar
+	if envOnce.r, _ = syscall.Getenv(sysRoot); len(envOnce.e) == 0 || len(envOnce.r) == 0 {
+		var (
+			v = winapi.SystemDirectory()
+			x = strings.LastIndexByte(v, '\\')
+		)
+		if x > 6 {
+			envOnce.r = v[:x]
+		} else {
+			envOnce.r = v
+		}
 	}
 }
 func verOnceFunc() {
@@ -121,9 +128,6 @@ func wait(h, m uintptr) error {
 		return err
 	}
 	return nil
-}
-func (c closeFunc) Close() error {
-	return c()
 }
 func (e *executable) Pid() uint32 {
 	return e.i.ProcessID
@@ -172,6 +176,16 @@ func (e *executable) isRunning() bool {
 }
 func (e *executable) Handle() uintptr {
 	return e.i.Process
+}
+func pipe() (*os.File, *os.File, error) {
+	var (
+		p   [2]syscall.Handle
+		err = syscall.Pipe(p[:])
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	return newFile(p[0], "|0", "file"), newFile(p[1], "|1", "file"), nil
 }
 func (e *executable) SetToken(t uintptr) {
 	e.token = t
@@ -262,6 +276,9 @@ func (executable) SetSuspended(s bool, p *Process) {
 		p.flags = p.flags &^ 0x4
 	}
 }
+
+//go:linkname newFile os.newFile
+func newFile(h syscall.Handle, n, k string) *os.File
 func (e *executable) SetWindowPosition(x, y uint32) {
 	// 0x4 - STARTF_USEPOSITION
 	e.sf |= 0x4
@@ -367,6 +384,32 @@ func (e *executable) SetParent(f *filter.Filter, p *Process) {
 		e.SetNewConsole(true, p)
 	}
 }
+func (e *executable) StdinPipe(p *Process) (io.WriteCloser, error) {
+	var err error
+	if p.Stdin, e.r, err = pipe(); err != nil {
+		return nil, xerr.Wrap("unable to create Pipe", err)
+	}
+	e.closers = append(e.closers, p.Stdin.(io.Closer))
+	return e.r, nil
+}
+func (e *executable) StdoutPipe(p *Process) (io.ReadCloser, error) {
+	r, w, err := pipe()
+	if err != nil {
+		return nil, xerr.Wrap("unable to create Pipe", err)
+	}
+	p.Stdout = w
+	e.closers = append(e.closers, w)
+	return r, nil
+}
+func (e *executable) StderrPipe(p *Process) (io.ReadCloser, error) {
+	r, w, err := pipe()
+	if err != nil {
+		return nil, xerr.Wrap("unable to create Pipe", err)
+	}
+	p.Stderr = w
+	e.closers = append(e.closers, w)
+	return r, nil
+}
 func (e *executable) addRetHandle(c bool, h uintptr) (uintptr, error) {
 	if e.parent == 0 {
 		if c {
@@ -468,11 +511,6 @@ func (e *executable) start(x context.Context, p *Process, sus bool) error {
 	v, y, err := e.startInfo()
 	if err != nil {
 		return err
-	}
-	if v != nil && v.AttributeList != nil {
-		e.closers = append(e.closers, closeFunc(func() error {
-			return winapi.DeleteProcThreadAttributeList(v.AttributeList)
-		}))
 	}
 	if p.Stderr != nil || p.Stdout != nil || p.Stdin != nil {
 		var si, so, se uintptr
@@ -640,9 +678,8 @@ func (e *executable) startInfo() (*winapi.StartupInfoEx, *winapi.StartupInfo, er
 	if x.StartupInfo.Cb = uint32(unsafe.Sizeof(x)); e.parent > 0 {
 		// 0x20000 - PROC_THREAD_ATTRIBUTE_PARENT_PROCESS
 		if err = winapi.UpdateProcThreadAttribute(x.AttributeList, 0x20000, unsafe.Pointer(&e.parent), uint64(unsafe.Sizeof(e.parent)), nil, nil); err != nil {
-			winapi.DeleteProcThreadAttributeList(x.AttributeList)
 			winapi.CloseHandle(e.parent)
-			e.parent = 0
+			e.parent, x.AttributeList = 0, nil
 			return nil, nil, xerr.Wrap("UpdateProcThreadAttribute", err)
 		}
 		c--
@@ -650,7 +687,7 @@ func (e *executable) startInfo() (*winapi.StartupInfoEx, *winapi.StartupInfo, er
 	if c == 1 {
 		// 0x20007 - PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY
 		if err = winapi.UpdateProcThreadAttribute(x.AttributeList, 0x20007, unsafe.Pointer(&secProtect), uint64(unsafe.Sizeof(secProtect)), nil, nil); err != nil {
-			if winapi.DeleteProcThreadAttributeList(x.AttributeList); e.parent > 0 {
+			if x.AttributeList = nil; e.parent > 0 {
 				winapi.CloseHandle(e.parent)
 				e.parent = 0
 			}

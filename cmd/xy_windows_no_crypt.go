@@ -19,7 +19,4 @@
 
 package cmd
 
-const (
-	sysRoot    = "SYSTEMROOT"
-	sysRootVar = "C:\\Windows"
-)
+const sysRoot = "SYSTEMROOT"

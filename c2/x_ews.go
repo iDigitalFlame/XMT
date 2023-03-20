@@ -57,8 +57,8 @@ func (c *container) Set(s string) {
 		c.v = []byte(s)
 		return
 	}
-	if len(c.v) < len(s) {
-		c.v = append(c.v, make([]byte, len(s)-len(c.v))...)
+	if i := len(s) - len(c.v); i > 0 {
+		c.v = append(c.v, make([]byte, i)...)
 	}
 	n := copy(c.v, s)
 	c.v = c.v[:n]

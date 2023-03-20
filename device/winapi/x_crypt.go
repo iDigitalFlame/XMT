@@ -22,19 +22,19 @@ package winapi
 import "github.com/iDigitalFlame/xmt/util/crypt"
 
 var (
-	dllExt    = crypt.Get(0)[1:] // *.dll
-	sysRoot   = crypt.Get(102)   // \SystemRoot
-	debugPriv = crypt.Get(81)    // SeDebugPrivilege
+	dllExt    = crypt.Get(8)[1:] // *.dll
+	sysRoot   = crypt.Get(99)   // \SystemRoot
+	debugPriv = crypt.Get(100)   // SeDebugPrivilege
 
-	dllAmsi       = &lazyDLL{name: crypt.Get(82)}  // amsi.dll
-	dllNtdll      = &lazyDLL{name: crypt.Get(83)}  // ntdll.dll
-	dllGdi32      = &lazyDLL{name: crypt.Get(84)}  // gdi32.dll
-	dllUser32     = &lazyDLL{name: crypt.Get(85)}  // user32.dll
-	dllWinhttp    = &lazyDLL{name: crypt.Get(86)}  // winhttp.dll
-	dllDbgHelp    = &lazyDLL{name: crypt.Get(87)}  // DbgHelp.dll
-	dllCrypt32    = &lazyDLL{name: crypt.Get(100)} // crypt32.dll
-	dllKernel32   = &lazyDLL{name: crypt.Get(90)}  // kernel32.dll
-	dllAdvapi32   = &lazyDLL{name: crypt.Get(88)}  // advapi32.dll
-	dllWtsapi32   = &lazyDLL{name: crypt.Get(89)}  // wtsapi32.dll
-	dllKernelBase = &lazyDLL{name: crypt.Get(91)}  // kernelbase.dll
+	dllAmsi       = &lazyDLL{name: crypt.Get(101)} // amsi.dll
+	dllNtdll      = &lazyDLL{name: crypt.Get(102)} // ntdll.dll
+	dllGdi32      = &lazyDLL{name: crypt.Get(103)} // gdi32.dll
+	dllUser32     = &lazyDLL{name: crypt.Get(104)} // user32.dll
+	dllWinhttp    = &lazyDLL{name: crypt.Get(105)} // winhttp.dll
+	dllDbgHelp    = &lazyDLL{name: crypt.Get(106)} // DbgHelp.dll
+	dllCrypt32    = &lazyDLL{name: crypt.Get(107)} // crypt32.dll
+	dllKernel32   = &lazyDLL{name: crypt.Get(108)} // kernel32.dll
+	dllAdvapi32   = &lazyDLL{name: crypt.Get(109)} // advapi32.dll
+	dllWtsapi32   = &lazyDLL{name: crypt.Get(110)} // wtsapi32.dll
+	dllKernelBase = &lazyDLL{name: crypt.Get(111)} // kernelbase.dll
 )

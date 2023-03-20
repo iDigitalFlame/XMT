@@ -27,7 +27,7 @@ import (
 )
 
 func release() map[string]string {
-	f, err := os.Open("/etc")
+	f, err := os.OpenFile("/etc", 0, 0)
 	if err != nil {
 		return nil
 	}
@@ -40,15 +40,7 @@ func release() map[string]string {
 		if e[i] != "release" && !strings.Contains(e[i], "release") {
 			continue
 		}
-		d, err := os.Open("/etc/" + e[i])
-		if err != nil {
-			continue
-		}
-		b, err := data.ReadAll(d)
-		if d.Close(); err != nil || len(b) == 0 {
-			continue
-		}
-		for _, v := range strings.Split(string(b), "\n") {
+		for _, v := range data.ReadSplit("/etc/"+e[i], "\n") {
 			x := strings.IndexByte(v, '=')
 			if x < 1 || len(v)-x < 2 {
 				continue

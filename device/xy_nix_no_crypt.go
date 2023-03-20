@@ -40,16 +40,11 @@ const (
 	// PowerShell is the path to the PowerShell binary, which is based on the
 	// underlying OS type.
 	PowerShell = "pwsh"
-	home       = "$HOME"
 )
 
 // IsDebugged returns true if the current process is attached by a debugger.
 func IsDebugged() bool {
-	b, err := data.ReadFile("/proc/self/status")
-	if err != nil {
-		return false
-	}
-	for _, e := range strings.Split(string(b), "\n") {
+	for _, e := range data.ReadSplit("/proc/self/status", "\n") {
 		if len(e) <= 9 {
 			continue
 		}
@@ -58,6 +53,30 @@ func IsDebugged() bool {
 		}
 	}
 	return false
+}
+
+// UserHomeDir returns the current user's home directory.
+//
+// On Unix, including macOS, it returns the $HOME environment variable.
+// On Windows, it returns %USERPROFILE%.
+// On Plan 9, it returns the $home environment variable.
+// On JS/WASM it returns and empty string.
+//
+// Golang compatibility helper function.
+func UserHomeDir() string {
+	if OS == Plan9 {
+		return os.Getenv("home")
+	}
+	if v := os.Getenv("HOME"); len(v) > 0 {
+		return v
+	}
+	switch OS {
+	case IOS:
+		return "/"
+	case Android:
+		return os.Getenv("/sdcard")
+	}
+	return ""
 }
 
 // Logins returns an array that contains information about current logged

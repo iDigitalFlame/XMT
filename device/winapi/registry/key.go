@@ -40,9 +40,9 @@ const (
 	KeyUsers           = Key(syscall.HKEY_USERS)
 	KeyCurrentConfig   = Key(syscall.HKEY_CURRENT_CONFIG)
 	KeyPerformanceData = Key(syscall.HKEY_PERFORMANCE_DATA)
-
-	errNoMoreItems syscall.Errno = 259
 )
+
+const errNoMoreItems syscall.Errno = 259
 
 // Key is a handle to an open Windows registry key.
 //

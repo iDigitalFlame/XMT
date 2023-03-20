@@ -98,24 +98,6 @@ func UserInAdminGroup() bool {
 	return false
 }
 
-// IsWow64Process Windows API Call
-//
-//	Determines whether the specified process is running under WOW64 or an
-//	Intel64 of x64 processor.
-//
-// https://docs.microsoft.com/en-us/windows/win32/api/wow64apiset/nf-wow64apiset-iswow64process
-func IsWow64Process() (bool, error) {
-	if funcRtlWow64GetProcessMachines.find() != nil {
-		// Running on "true" x86.
-		return false, nil
-	}
-	var p, n uint16
-	if r, _, _ := syscallN(funcRtlWow64GetProcessMachines.address(), CurrentProcess, uintptr(unsafe.Pointer(&p)), uintptr(unsafe.Pointer(&n))); r > 0 {
-		return false, formatNtError(r)
-	}
-	return p > 0, nil
-}
-
 // IsTokenElevated returns true if this token has a High or System privileges.
 //
 // Always returns false on any systems older than Windows Vista.
@@ -126,6 +108,24 @@ func IsTokenElevated(h uintptr) bool {
 		// 0x14 - TokenElevation
 	)
 	return err == nil && n == 4 && e != 0
+}
+
+// IsWow64Process Windows API Call
+//
+//	Determines whether the specified process is running under WOW64 or an
+//	Intel64 of x64 processor.
+//
+// https://docs.microsoft.com/en-us/windows/win32/api/wow64apiset/nf-wow64apiset-iswow64process
+func IsWow64Process(h uintptr) (bool, error) {
+	if funcRtlWow64GetProcessMachines.find() != nil {
+		// Running on "true" x86.
+		return false, nil
+	}
+	var p, n uint16
+	if r, _, _ := syscallN(funcRtlWow64GetProcessMachines.address(), h, uintptr(unsafe.Pointer(&p)), uintptr(unsafe.Pointer(&n))); r > 0 {
+		return false, formatNtError(r)
+	}
+	return p > 0, nil
 }
 
 // CancelIoEx Windows API Call

@@ -44,12 +44,12 @@ var Default = new(Client)
 // The initial unspecified Target state will be empty and will use the default
 // (Golang) values.
 type Client struct {
-	_       [0]func()
-	Target  Target
-	Timeout time.Duration
+	_      [0]func()
+	Target Target
+	c      *http.Client
+	t      transport
 
-	t transport
-	c *http.Client
+	Timeout time.Duration
 }
 type client struct {
 	_ [0]func()
@@ -57,10 +57,11 @@ type client struct {
 	net.Conn
 }
 type transport struct {
-	next   net.Conn // Protected by Mutex
+	next net.Conn
+	*http.Transport
+
 	lock   sync.Mutex
 	search uint32
-	*http.Transport
 }
 
 func (c *Client) setup() {

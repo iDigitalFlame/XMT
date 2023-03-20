@@ -127,5 +127,5 @@ func (a *Assembly) Location() (uintptr, error) {
 // This function accepts a context that can be used to control the cancellation
 // of the thread.
 func NewAsmContext(x context.Context, b []byte) *Assembly {
-	return &Assembly{Data: b, t: thread{ctx: x}}
+	return &Assembly{Data: b, t: threadInit(x)}
 }

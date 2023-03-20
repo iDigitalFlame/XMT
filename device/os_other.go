@@ -26,10 +26,10 @@ import (
 	"github.com/iDigitalFlame/xmt/cmd/filter"
 )
 
-const (
-	// OS is the local machine's Operating System type.
-	OS = Unsupported
+// OS is the local machine's Operating System type.
+const OS = Unsupported
 
+const (
 	// Shell is the default machine specific command shell.
 	Shell = ""
 	// ShellArgs is the default machine specific command shell arguments to run
@@ -38,12 +38,23 @@ const (
 	// PowerShell is the path to the PowerShell binary, which is based on the
 	// underlying OS type.
 	PowerShell = ""
-	home       = ""
 )
 
 // IsDebugged returns true if the current process is attached by a debugger.
 func IsDebugged() bool {
 	return false
+}
+
+// UserHomeDir returns the current user's home directory.
+//
+// On Unix, including macOS, it returns the $HOME environment variable.
+// On Windows, it returns %USERPROFILE%.
+// On Plan 9, it returns the $home environment variable.
+// On JS/WASM it returns and empty string.
+//
+// Golang compatibility helper function.
+func UserHomeDir() string {
+	return ""
 }
 
 // Logins returns an array that contains information about current logged

@@ -57,26 +57,6 @@ func Mounts() *com.Packet {
 	return &com.Packet{ID: MvMounts}
 }
 
-// Whoami returns a user discovery Packet. This will instruct the client to query
-// it's current token/access and determine a non-cached username/user ID. This
-// Task also returns the current Process path the client is in.
-//
-// The result is NOT cached, so it may be different depending on the client and
-// any operations in-between calls.
-//
-// C2 Details:
-//
-//	ID: MvWhoami
-//
-//	Input:
-//	    <none>
-//	Output:
-//	    string // Username
-//	    string // Process Path
-func Whoami() *com.Packet {
-	return &com.Packet{ID: MvWhoami}
-}
-
 // Refresh returns a refresh Packet. This will instruct the client to re-update
 // it's internal Device storage and return the new result. This can be used to
 // detect new network interfaces added/removed and changes to hostname/user
@@ -94,53 +74,6 @@ func Whoami() *com.Packet {
 //	    Machine // Updated device details
 func Refresh() *com.Packet {
 	return &com.Packet{ID: MvRefresh}
-}
-
-// RevToSelf returns a Rev2Self Packet. This can be used to instruct Windows
-// based devices to drop any previous elevated Tokens they may possess and return
-// to their "normal" Token.
-//
-// This task result does not return any data, only errors if it fails.
-//
-// Always returns 'ErrNoWindows' on non-Windows devices.
-//
-// C2 Details:
-//
-//	ID: TvRevSelf
-//
-//	Input:
-//	    <none>
-//	Output:
-//	    <none>
-func RevToSelf() *com.Packet {
-	return &com.Packet{ID: TvRevSelf}
-}
-
-// UserLogins returns a current Login sessions Packet. This will instruct the
-// client to reterive a list of the current login sessions on the device.
-//
-// C2 Details:
-//
-//	ID: TvLogins
-//
-//	Input:
-//	    <none>
-//	Output:
-//	    uint32               // Count
-//	    []Login struct {     // List of Logins
-//	        uint32           // Session ID
-//	        uint8            // Login Status
-//	        int64            // Login Time
-//	        int64            // Last Idle Time
-//	        Address struct { // From Address
-//	            uint64       // High bits of Address
-//	            uint64       // Low bits of Address
-//	        }
-//	        string           // Username
-//	        string           // Hostname
-//	    }
-func UserLogins() *com.Packet {
-	return &com.Packet{ID: TvLogins}
 }
 
 // ScreenShot returns a screenshot Packet. This will instruct the client to
@@ -351,25 +284,6 @@ func Wait(d time.Duration) *com.Packet {
 	return n
 }
 
-// UserLogoff returns a logoff user session Packet. This will instruct the client
-// to logoff the targeted user session via ID (or -1 for the current session).
-//
-// C2 Details:
-//
-//	ID: TvLoginsAct
-//
-//	Input:
-//	    uint8 // Always set to 1 for this task.
-//	    int32 // Session ID
-//	Output:
-//	    <none>
-func UserLogoff(sid int32) *com.Packet {
-	n := &com.Packet{ID: TvLoginsAct}
-	n.WriteUint8(taskLoginsLogoff)
-	n.WriteInt32(sid)
-	return n
-}
-
 // Sleep returns a set Session sleep Packet. This can be used to instruct the
 // client to update it's sleep value to the specified duration.
 //
@@ -397,52 +311,6 @@ func UserLogoff(sid int32) *com.Packet {
 //	    }
 func Sleep(d time.Duration) *com.Packet {
 	return Duration(d, -1)
-}
-
-// ProxyRemove returns a remove Proxy Packet. This can be used to instruct the
-// client to attempt to remove the Proxy setup by the name, or the single Proxy
-// instance (if multi-proxy mode is disabled).
-//
-// Returns an NotFound error if the Proxy is not registered or Proxy support is
-// disabled
-//
-// C2 Details:
-//
-//	ID: MvProxy
-//
-//	Input:
-//	    string // Proxy Name (may be empty)
-//	    uint8  // Always set to true for this task.
-//	Output:
-//	    <none>
-func ProxyRemove(name string) *com.Packet {
-	n := &com.Packet{ID: MvProxy}
-	n.WriteString(name)
-	n.WriteUint8(0)
-	return n
-}
-
-// UserProcesses returns a list processes Packet. This can be used to instruct
-// the client to return a list of the current running host's processes under the
-// specified Session ID (or -1/0 for all session processes).
-//
-// C2 Details:
-//
-//	ID: TvLoginsProc
-//
-//	Input:
-//	    <none>
-//	Output:
-//	    uint32          // Count
-//	    []ProcessInfo { // List of Running Processes
-//	        uint32      // Process ID
-//	        uint32      // _
-//	        string      // Process Image Name
-//	    }
-func UserProcesses(sid int32) *com.Packet {
-	n := &com.Packet{ID: TvLoginsProc}
-	n.WriteInt32(sid)
-	return n
 }
 
 // UnTrust returns an Untrust Packet. This will instruct the client to use the
@@ -501,26 +369,6 @@ func Elevate(f *filter.Filter) *com.Packet {
 	return n
 }
 
-// UserDisconnect returns a disconnect user session Packet. This will instruct the
-// client to disconnect the targeted user session via ID (or -1 for the current
-// session).
-//
-// C2 Details:
-//
-//	ID: TvLoginsAct
-//
-//	Input:
-//	    uint8 // Always set to 0 for this task.
-//	    int32 // Session ID
-//	Output:
-//	    <none>
-func UserDisconnect(sid int32) *com.Packet {
-	n := &com.Packet{ID: TvLoginsAct}
-	n.WriteUint8(taskLoginsDisconnect)
-	n.WriteInt32(sid)
-	return n
-}
-
 // Duration returns a set Session sleep and/or jitter Packet. This can be used
 // to instruct the client to update it's sleep and jitters value to the specified
 // duration and 0-100 percentage values if they are not unset. (-1 for Jitter,
@@ -553,91 +401,7 @@ func UserDisconnect(sid int32) *com.Packet {
 func Duration(d time.Duration, j int) *com.Packet {
 	n := &com.Packet{ID: MvTime}
 	n.WriteUint16(uint16(j & 0xFF))
-	n.WriteUint64(uint64(d))
-	return n
-}
-
-// Proxy returns an add Proxy Packet. This can be used to instruct the client to
-// attempt to add the specified Proxy with the name, bind address and Profile
-// bytes.
-//
-// Returns an error if Proxy support is disabled, a listen/setup error occurs or
-// the name already is in use.
-//
-// C2 Details:
-//
-//	ID: MvProxy
-//
-//	Input:
-//	    string // Proxy Name (may be empty)
-//	    uint8  // Always set to false for this task.
-//	    string // Proxy Bind Address
-//	    []byte // Proxy Profile
-//	Output:
-//	    <none>
-func Proxy(name, addr string, p []byte) *com.Packet {
-	n := &com.Packet{ID: MvProxy}
-	n.WriteString(name)
-	n.WriteUint8(2)
-	n.WriteString(addr)
-	n.WriteBytes(p)
-	return n
-}
-
-// ProxyReplace returns a replace Proxy Packet. This can be used to instruct
-// the client to attempt to call the 'Replace' function on the specified Proxy
-// with the name, bind address and Profile bytes as the arguments.
-//
-// Returns an error if Proxy support is disabled, a listen/setup error occurs or
-// the name already is in use.
-//
-// C2 Details:
-//
-//	ID: MvProxy
-//
-//	Input:
-//	    string // Proxy Name (may be empty)
-//	    uint8  // Always set to false for this task.
-//	    string // Proxy Bind Address
-//	    []byte // Proxy Profile
-//	Output:
-//	    <none>
-func ProxyReplace(name, addr string, p []byte) *com.Packet {
-	n := &com.Packet{ID: MvProxy}
-	n.WriteString(name)
-	n.WriteUint8(1)
-	n.WriteString(addr)
-	n.WriteBytes(p)
-	return n
-}
-
-// LoginUser returns an impersonate user Packet. This will instruct the client to
-// use the provided credentials to change it's Token to the user that owns the
-// supplied credentials.
-//
-// If the interactive boolen at the start is true, the client will do an interactive
-// login instead. This allows for more access and will change the username, but
-// may prevent access to network resources.
-//
-// Always returns 'ErrNoWindows' on non-Windows devices. (for now).
-//
-// C2 Details:
-//
-//	ID: TvLoginUser
-//
-//	Input:
-//	    bool   // Interactive
-//	    string // Username
-//	    string // Domain
-//	    string // Password
-//	Output:
-//	    <none>
-func LoginUser(interactive bool, user, domain, pass string) *com.Packet {
-	n := &com.Packet{ID: TvLoginUser}
-	n.WriteBool(interactive)
-	n.WriteString(user)
-	n.WriteString(domain)
-	n.WriteString(pass)
+	n.WriteInt64(int64(d))
 	return n
 }
 

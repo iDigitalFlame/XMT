@@ -22,13 +22,13 @@ import (
 	"github.com/iDigitalFlame/xmt/data"
 )
 
-const (
-	// Separator is an entry that can be used to create Groups in Config instances.
-	//
-	// It is recommended to use the 'AddGroup' functions instead, but this can
-	// be used to create more advanced Groupings.
-	Separator = cBit(0xFA)
+// Separator is an entry that can be used to create Groups in Config instances.
+//
+// It is recommended to use the 'AddGroup' functions instead, but this can
+// be used to create more advanced Groupings.
+const Separator = cBit(0xFA)
 
+const (
 	invalid = cBit(0)
 
 	valHost      = cBit(0xA0)

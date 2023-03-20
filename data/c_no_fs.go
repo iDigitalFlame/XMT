@@ -57,11 +57,11 @@ func (d dirEntry) Type() os.FileMode {
 //
 // This is a pre go1.16 compatibility helper.
 func ReadDir(n string) ([]DirEntry, error) {
-	f, err := os.Open(n)
+	f, err := os.OpenFile(n, 0, 0)
 	if err != nil {
 		return nil, err
 	}
-	d, err := f.Readdir(-1)
+	d, err := f.Readdir(0)
 	f.Close()
 	sort.Slice(d, func(i, j int) bool {
 		return d[i].Name() < d[j].Name()

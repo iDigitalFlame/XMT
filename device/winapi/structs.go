@@ -20,6 +20,7 @@
 package winapi
 
 import (
+	"sync"
 	"unsafe"
 )
 
@@ -60,6 +61,69 @@ type LUID struct {
 	Low  uint32
 	High int32
 }
+type curDir struct {
+	// DO NOT REORDER
+	DosPath lsaString
+	Handle  uintptr
+}
+type modInfo struct {
+	// DO NOT REORDER
+	Base  uintptr
+	Size  uint32
+	Entry uintptr
+}
+type clientID struct {
+	// DO NOT REORDER
+	Process uintptr
+	Thread  uintptr
+}
+type objAttrs struct {
+	// DO NOT REORDER
+	Length                   uint32
+	RootDirectory            uintptr
+	ObjectName               *lsaString
+	Attributes               uint32
+	SecurityDescriptor       *SecurityDescriptor
+	SecurityQualityOfService *SecurityQualityOfService
+}
+type certBlob struct {
+	// DO NOT REORDER
+	_ uint32
+	_ uintptr
+}
+type certAlgo struct {
+	// DO NOT REORDER
+	_ *uint16
+	_ certBlob
+}
+type certInfo struct {
+	// DO NOT REORDER
+	_       uint32
+	Serial  certBlob
+	_       certAlgo
+	Issuer  certBlob
+	_, _    uint64
+	Subject certBlob
+	_       certAlgo
+	_, _, _ certBlob
+	_       uint32
+	_       uintptr
+	// NOTE(dij): This is here as go1.10 has a bug with this.
+	//            It tries to compare certInfo structs for some reason?
+	_ [0]func()
+}
+type lsaString struct {
+	// DO NOT REORDER
+	Length        uint16
+	MaximumLength uint16
+	Buffer        *uint16
+}
+type dumpParam struct {
+	_ [0]func()
+	sync.Mutex
+	h, b uintptr
+	s, w uint64
+}
 
 // TokenUser matches the TOKEN_USER struct.
 //
@@ -89,6 +153,50 @@ type ProxyInfo struct {
 	AccessType  uint32
 	Proxy       *uint16
 	ProxyBypass *uint16
+}
+type certSigner struct {
+	// DO NOT REORDER
+	_       uint32
+	Issuer  certBlob
+	Serial  certBlob
+	_, _    certAlgo
+	_, _, _ certBlob
+	// NOTE(dij): This is here as go1.10 has a bug with this.
+	//            It tries to compare certSigner structs for some reason?
+	_ [0]func()
+}
+type dumpOutput struct {
+	Status int32
+}
+type privileges struct {
+	// DO NOT REORDER
+	PrivilegeCount uint32
+	Privileges     [5]LUIDAndAttributes
+}
+type processPeb struct {
+	// DO NOT REORDER
+	_                      [2]byte
+	BeingDebugged          byte
+	_                      [1]byte
+	_                      [2]uintptr
+	Ldr                    uintptr
+	ProcessParameters      *processParams
+	_                      [3]uintptr
+	AtlThunkSListPtr       uintptr
+	_                      uintptr
+	_                      uint32
+	_                      uintptr
+	_                      uint32
+	AtlThunkSListPtr32     uint32
+	_                      [9]uintptr
+	_                      [10]byte
+	NtGlobalFlag           uint32
+	_                      [35]uintptr
+	_                      [84]byte
+	PostProcessInitRoutine uintptr
+	_                      [128]byte
+	_                      [1]uintptr
+	SessionID              uint32
 }
 
 // Overlapped matches the OVERLAPPED struct
@@ -158,30 +266,19 @@ type StartupInfo struct {
 	StdOutput     uintptr
 	StdErr        uintptr
 }
-
-// ThreadEntry32 matches the THREADENTRY32 struct
-//
-//	https://docs.microsoft.com/en-us/windows/win32/api/tlhelp32/ns-tlhelp32-threadentry32
-//
-//	typedef struct tagTHREADENTRY32 {
-//	  DWORD dwSize;
-//	  DWORD cntUsage;
-//	  DWORD th32ThreadID;
-//	  DWORD th32OwnerProcessID;
-//	  LONG  tpBasePri;
-//	  LONG  tpDeltaPri;
-//	  DWORD dwFlags;
-//	} THREADENTRY32;
-//
-// DO NOT REORDER
-type ThreadEntry32 struct {
-	Size           uint32
-	Usage          uint32
-	ThreadID       uint32
-	OwnerProcessID uint32
-	BasePri        int32
-	DeltaPri       int32
-	Flags          uint32
+type timeZoneInfo struct {
+	// DO NOT REORDER
+	Bias         uint32
+	_            [80]byte
+	StdBias      uint32
+	_            [80]byte
+	DaylightBias uint32
+}
+type highContrast struct {
+	// DO NOT REORDER
+	Size  uint32
+	Flags uint32
+	_     *uint16
 }
 
 // StartupInfoEx matches the STARTUPINFOEXW struct
@@ -197,6 +294,28 @@ type ThreadEntry32 struct {
 type StartupInfoEx struct {
 	StartupInfo   StartupInfo
 	AttributeList *StartupAttributes
+}
+type lsaAttributes struct {
+	// DO NOT REORDER
+	Length     uint32
+	_          uintptr
+	_          *lsaString
+	Attributes uint32
+	_, _       unsafe.Pointer
+}
+type processParams struct {
+	// DO NOT REORDER
+	_                [16]byte
+	Console          uintptr
+	_                uint32
+	StandardInput    uintptr
+	StandardOutput   uintptr
+	StandardError    uintptr
+	CurrentDirectory curDir
+	DllPath          lsaString
+	ImagePathName    lsaString
+	CommandLine      lsaString
+	Environment      uintptr
 }
 
 // ServiceStatus matches the SERVICE_STATUS struct
@@ -221,36 +340,37 @@ type ServiceStatus struct {
 	CheckPoint              uint32
 	WaitHint                uint32
 }
-
-// ProcessEntry32 matches the PROCESSENTRY32 struct
-//
-//	https://docs.microsoft.com/en-us/windows/win32/api/tlhelp32/ns-tlhelp32-processentry32
-//
-//	typedef struct tagPROCESSENTRY32 {
-//	  DWORD     dwSize;
-//	  DWORD     cntUsage;
-//	  DWORD     th32ProcessID;
-//	  ULONG_PTR th32DefaultHeapID;
-//	  DWORD     th32ModuleID;
-//	  DWORD     cntThreads;
-//	  DWORD     th32ParentProcessID;
-//	  LONG      pcPriClassBase;
-//	  DWORD     dwFlags;
-//	  CHAR      szExeFile[MAX_PATH];
-//	} PROCESSENTRY32;
-//
-// DO NOT REORDER
-type ProcessEntry32 struct {
-	Size            uint32
-	Usage           uint32
-	ProcessID       uint32
-	DefaultHeapID   uintptr
-	ModuleID        uint32
-	Threads         uint32
-	ParentProcessID uint32
-	PriClassBase    int32
-	Flags           uint32
-	ExeFile         [260]uint16
+type diskGeometryEx struct {
+	// DO NOT REORDER
+	_    [24]byte
+	Size uint64
+	_    uintptr
+}
+type threadBasicInfo struct {
+	// DO NOT REORDER
+	ExitStatus     uint32
+	TebBaseAddress uintptr
+	ClientID       clientID
+	_              uint64
+	_              uint32
+}
+type ntUnicodeString struct {
+	// DO NOT REORDER
+	Length        uint16
+	MaximumLength uint16
+	_, _          uint16
+	Buffer        [260]uint16
+}
+type systemBasicInfo struct {
+	// DO NOT REORDER
+	_             [8]byte
+	PageSize      uint32
+	PhysicalPages uint32
+	LowPage       uint32
+	HighPage      uint32
+	_             uint32
+	_             [3]uintptr
+	NumProc       uint8
 }
 
 // SIDAndAttributes matches the SID_AND_ATTRIBUTES struct
@@ -266,6 +386,15 @@ type ProcessEntry32 struct {
 type SIDAndAttributes struct {
 	Sid        *SID
 	Attributes uint32
+}
+type processBasicInfo struct {
+	// DO NOT REORDER
+	ExitStatus                   uint32
+	PebBaseAddress               uintptr
+	_                            *uintptr
+	_                            uint32
+	UniqueProcessID              uintptr
+	InheritedFromUniqueProcessID uintptr
 }
 
 // ServiceTableEntry matches the SERVICE_TABLE_ENTRYW struct
@@ -363,6 +492,11 @@ type SecurityAttributes struct {
 	Length             uint32
 	SecurityDescriptor *SecurityDescriptor
 	InheritHandle      uint32
+}
+type lsaAccountDomainInfo struct {
+	// DO NOT REORDER
+	_   lsaString
+	SID *SID
 }
 
 // SecurityQualityOfService matches the SECURITY_QUALITY_OF_SERVICE struct

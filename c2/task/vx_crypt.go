@@ -59,5 +59,5 @@ import "github.com/iDigitalFlame/xmt/util/crypt"
 //	    int32               // Exit Code
 //	    []byte              // Output (Stdout and Stderr)
 func Shell(c string) Process {
-	return Process{Args: []string{crypt.Get(8), c}, Wait: true} // @SHELL@
+	return Process{Args: []string{crypt.Get(0), c}, Wait: true} // @SHELL@
 }

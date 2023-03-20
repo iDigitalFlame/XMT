@@ -59,8 +59,6 @@ var (
 	_ backer = (*com.Packet)(nil)
 )
 
-var errInvalidOp = xerr.Sub("invalid operation", 0x68)
-
 type backer interface {
 	Grow(int) error
 	WriteUint32Pos(int, uint32) error
@@ -116,8 +114,9 @@ func taskPull(x context.Context, r data.Reader, w data.Writer) error {
 	if len(p) == 0 { // If the destination path is zero, then redirect it to the Writer
 		w.WriteString("")
 		if w.WriteInt64(0); o.Request.ContentLength > 0 {
-			(w.(backer)).Grow(int(o.Request.ContentLength))
-			//  ^ This should NEVER panic!
+			if s, ok := w.(backer); ok {
+				s.Grow(int(o.Request.ContentLength))
+			}
 		}
 		_, err := io.Copy(w, o.Body)
 		o.Body.Close()
@@ -288,7 +287,9 @@ func taskDownload(x context.Context, r data.Reader, w data.Writer) error {
 	c := i.Size()
 	w.WriteBool(false)
 	w.WriteInt64(c)
-	(w.(backer)).Grow(int(c))
+	if s, ok := w.(backer); ok {
+		s.Grow(int(c))
+	}
 	//  ^ This should NEVER panic!
 	// 0 - READONLY
 	f, err := os.OpenFile(v, 0, 0)
@@ -359,9 +360,12 @@ func taskPullExec(x context.Context, r data.Reader, w data.Writer) error {
 	}
 	var (
 		c, _ = e.ExitCode()
-		s    = w.(backer)
+		s, _ = w.(backer)
 		//     ^ This should NEVER panic!
 	)
+	if s == nil {
+		return nil
+	}
 	s.WriteUint32Pos(0, i)
 	s.WriteUint32Pos(4, uint32(c))
 	return nil
@@ -480,7 +484,7 @@ func taskSystemIo(x context.Context, r data.Reader, w data.Writer) error {
 		}
 		return os.Remove(k)
 	}
-	return errInvalidOp
+	return xerr.Sub("invalid operation", 0x68)
 }
 func taskLoginUser(_ context.Context, r data.Reader, _ data.Writer) error {
 	// NOTE(dij): This function is here and NOT in an OS-specific file as I

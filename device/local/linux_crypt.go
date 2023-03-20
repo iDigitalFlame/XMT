@@ -27,11 +27,11 @@ import (
 )
 
 func sysID() []byte {
-	b, err := data.ReadFile(crypt.Get(63)) // /var/lib/dbus/machine-id
+	b, err := data.ReadFile(crypt.Get(80)) // /var/lib/dbus/machine-id
 	if err == nil {
 		return b
 	}
-	b, _ = data.ReadFile(crypt.Get(64)) // /etc/machine-id
+	b, _ = data.ReadFile(crypt.Get(81)) // /etc/machine-id
 	return b
 }
 func version() string {
@@ -40,12 +40,12 @@ func version() string {
 		b, n, v string
 	)
 	if m := release(); len(m) > 0 {
-		b = m[crypt.Get(2)]                // ID
-		if n, ok = m[crypt.Get(65)]; !ok { // PRETTY_NAME
-			n = m[crypt.Get(66)] // NAME
+		b = m[crypt.Get(1)]                // ID
+		if n, ok = m[crypt.Get(75)]; !ok { // PRETTY_NAME
+			n = m[crypt.Get(75)[7:]] // PRETTY_NAME
 		}
-		if v, ok = m[crypt.Get(67)]; !ok { // VERSION_ID
-			v = m[crypt.Get(68)] // VERSION
+		if v, ok = m[crypt.Get(76)]; !ok { // VERSION_ID
+			v = m[crypt.Get(76)[0:7]] // VERSION_ID
 		}
 	}
 	if len(v) == 0 {
@@ -53,13 +53,13 @@ func version() string {
 	}
 	switch {
 	case len(n) == 0 && len(b) == 0 && len(v) == 0:
-		return crypt.Get(69) // Linux
+		return crypt.Get(82) // Linux
 	case len(n) == 0 && len(b) > 0 && len(v) > 0:
-		return crypt.Get(69) + " (" + v + ", " + b + ")" // Linux
+		return crypt.Get(82) + " (" + v + ", " + b + ")" // Linux
 	case len(n) == 0 && len(b) == 0 && len(v) > 0:
-		return crypt.Get(69) + " (" + v + ")" // Linux
+		return crypt.Get(82) + " (" + v + ")" // Linux
 	case len(n) == 0 && len(b) > 0 && len(v) == 0:
-		return crypt.Get(69) + " (" + b + ")" // Linux
+		return crypt.Get(82) + " (" + b + ")" // Linux
 	case len(n) > 0 && len(b) > 0 && len(v) > 0:
 		return n + " (" + v + ", " + b + ")"
 	case len(n) > 0 && len(b) == 0 && len(v) > 0:
@@ -67,5 +67,5 @@ func version() string {
 	case len(n) > 0 && len(b) > 0 && len(v) == 0:
 		return n + " (" + b + ")"
 	}
-	return crypt.Get(69) // Linux
+	return crypt.Get(82) // Linux
 }

@@ -67,12 +67,12 @@ type OSType uint8
 // Login is a struct that represents a current user Session on the device.
 type Login struct {
 	_         [0]func()
-	User      string
-	Host      string
 	Login     time.Time
 	LastInput time.Time
-	ID        uint32
+	User      string
+	Host      string
 	From      Address
+	ID        uint32
 	Status    uint8
 }
 
@@ -91,9 +91,11 @@ func Expand(s string) string {
 	if len(s) == 0 {
 		return s
 	}
-	if len(s) >= 2 && s[0] == '~' && s[1] == '/' && len(home) > 0 {
+	if len(s) >= 2 && s[0] == '~' && s[1] == '/' {
 		// Account for shell expansion. (Except JS/WASM)
-		s = home + s[1:]
+		if h := UserHomeDir(); len(h) > 0 {
+			s = h + s[1:]
+		}
 	}
 	var (
 		l  = -1

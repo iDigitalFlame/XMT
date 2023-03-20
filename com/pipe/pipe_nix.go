@@ -36,8 +36,8 @@ var dialer = new(net.Dialer)
 
 type listener struct {
 	_ [0]func()
-	p string
 	net.Listener
+	p string
 }
 
 func (l *listener) Close() error {
@@ -108,7 +108,7 @@ func stringToDec(s string) (os.FileMode, error) {
 	return p, nil
 }
 func getPerms(s string) (os.FileMode, int, int, error) {
-	if i := strings.IndexByte(s, 59); i == -1 {
+	if i := strings.IndexByte(s, ';'); i == -1 {
 		p, err := stringToDec(s)
 		return p, -1, -1, err
 	}

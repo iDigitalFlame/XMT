@@ -47,7 +47,7 @@ func (t *transport) hook(x *http.Transport) {
 }
 func newRequest(x context.Context) *http.Request {
 	r, _ := http.NewRequest(http.MethodGet, "", nil)
-	return r.WithContext(x) // added in go1.7
+	return r.WithContext(x)
 }
 func newTransport(d time.Duration) *http.Transport {
 	return &http.Transport{

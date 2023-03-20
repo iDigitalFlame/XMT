@@ -70,7 +70,7 @@ C_SRC = """#define WINVER 0x0501
 #include <winsock.h>
 #include <windows.h>
 
-#include "{name}.h"
+#include "$name.h"
 
 """
 C_DLL = """DWORD $thread(void) {
@@ -148,11 +148,13 @@ C_BINARY = """int main(int argc, char *argv[]) {
 }
 """
 C_COMPILER = "x86_64-w64-mingw32-gcc"
+C_COMPILER32 = "i686-w64-mingw32-gcc"
 
 
 def _main():
     a = ArgumentParser(description="Golang Windows DLL/EXE Build Helper")
     a.add_argument("-D", "--dll", dest="dll", action="store_true")
+    a.add_argument("-3", "--32bit", dest="x32", action="store_true")
     a.add_argument(
         "-o", "--out", type=str, dest="output", metavar="output_file", required=True
     )
@@ -164,11 +166,12 @@ def _main():
     a.add_argument("-t", "--thread", type=str, dest="thread", metavar="thread_name")
     a.add_argument("-l", "-ldflags", type=str, dest="flags", metavar="ldflags")
     a.add_argument("-g", "-gcflags", type=str, dest="gcflags", metavar="gcflags")
+    a.add_argument("-B", "--go", type=str, dest="go", metavar="go")
     a.add_argument("-T", "-tags", type=str, dest="tags", metavar="tags")
     a.add_argument("-m", "-trimpath", dest="trim", action="store_true")
     a.add_argument(nargs=1, type=str, dest="input", metavar="go file")
 
-    p = a.parse_args()
+    p, z = a.parse_known_intermixed_args()
     if len(p.input) != 1:
         print("Invalid input file!", file=stderr)
         return exit(1)
@@ -184,11 +187,20 @@ def _main():
         print("Export function name cannot be empty!", file=stderr)
         return exit(1)
 
-    if which("go") is None:
-        print('Golang "go" not found!', file=stderr)
-        return exit(1)
+    if p.go:
+        if not isfile(p.go):
+            print(f'Golang path "{p.go}" not found!', file=stderr)
+            return exit(1)
+    else:
+        p.go = which("go")
+        if p.go is None:
+            print('Golang "go" not found!', file=stderr)
+            return exit(1)
     if which(C_COMPILER) is None:
         print(f'Compiler "{C_COMPILER}" not found!', file=stderr)
+        return exit(1)
+    if which(C_COMPILER32) is None:
+        print(f'Compiler "{C_COMPILER32}" not found!', file=stderr)
         return exit(1)
 
     with open(p.input, "r") as f:
@@ -202,15 +214,19 @@ def _main():
     del b
 
     e = environ
-    e["CC"] = C_COMPILER
+    if p.x32:
+        e["CC"] = C_COMPILER32
+    else:
+        e["CC"] = C_COMPILER
     e["GOOS"] = "windows"
     e["CGO_ENABLED"] = "1"
     if isinstance(p.goroot, str) and len(p.goroot) > 0 and isdir(p.goroot):
         e["GOROOT"] = p.goroot
+    if p.x32:
+        e["GOARCH"] = "386"
 
     d = mkdtemp()
     print(f'Work dir "{d}"..')
-
     o = "".join([choice(ascii_lowercase) for _ in range(8)])
     if not isinstance(p.func, str) or len(p.func) == 0:
         p.func = "".join([choice(ascii_lowercase) for _ in range(12)])
@@ -224,7 +240,7 @@ def _main():
 
     try:
         print(f'Building go archive "{o}.a"..')
-        x = ["go", "build", "-buildmode=c-archive", "-buildvcs=false"]
+        x = [p.go, "build", "-buildmode=c-archive"]
         if p.trim:
             x.append("-trimpath")
         if isinstance(p.tags, str) and len(p.tags) > 0:
@@ -233,7 +249,11 @@ def _main():
             x += ["-ldflags", p.flags]
         if isinstance(p.gcflags, str) and len(p.gcflags) > 0:
             x += ["-gcflags", p.gcflags]
-        x += ["-o", f"{join(d, o)}.a", p.input]
+        x += ["-o", f"{join(d, o)}.a"]
+
+        if isinstance(z, list) and len(z) > 0:
+            x += z
+        x.append(p.input)
         run(x, env=e, text=True, check=True, capture_output=True)
         del x
 
@@ -253,7 +273,7 @@ def _main():
         if not p.dll:
             return run(
                 [
-                    C_COMPILER,
+                    e["CC"],
                     "-mwindows",
                     "-o",
                     p.output,
@@ -275,7 +295,7 @@ def _main():
             )
         run(
             [
-                C_COMPILER,
+                e["CC"],
                 "-c",
                 "-o",
                 f"{join(d, o)}.o",
@@ -298,7 +318,7 @@ def _main():
         )
         run(
             [
-                C_COMPILER,
+                e["CC"],
                 "-shared",
                 "-o",
                 p.output,

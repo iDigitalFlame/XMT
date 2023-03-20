@@ -74,27 +74,23 @@ const (
 // Groups are automatically created when a Config is built into a Profile
 // that contains multiple Profile 'Groups'.
 type Group struct {
-	lock sync.Mutex
-
 	cur     *profile
 	entries []*profile
-
-	src []byte
-	sel uint8
+	src     []byte
+	lock    sync.Mutex
+	sel     uint8
 }
 type profile struct {
-	w    Wrapper
-	t    Transform
-	kds  bool
-	keys []uint32
-	kill time.Time
-	work *WorkHours
-	conn interface{}
-
-	src   []byte
-	hosts []string
-	sleep time.Duration
-
+	kill   time.Time
+	w      Wrapper
+	t      Transform
+	conn   interface{}
+	work   *WorkHours
+	keys   []uint32
+	src    []byte
+	hosts  []string
+	sleep  time.Duration
+	kds    bool
 	weight uint8
 	jitter int8
 }
@@ -134,14 +130,14 @@ func (g *Group) Swap(i, j int) {
 func (p *profile) Jitter() int8 {
 	return p.jitter
 }
+func (profile) Switch(_ bool) bool {
+	return false
+}
 
 // Less implements the 'sort.Interface' interface, this allows for a Group to be
 // sorted.
 func (g *Group) Less(i, j int) bool {
 	return g.entries[i].weight > g.entries[j].weight
-}
-func (*profile) Switch(_ bool) bool {
-	return false
 }
 
 // Switch is function that will indicate to the caller if the 'Next' function

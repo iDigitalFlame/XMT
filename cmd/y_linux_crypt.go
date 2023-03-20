@@ -1,5 +1,5 @@
-//go:build !windows && crypt
-// +build !windows,crypt
+//go:build !windows && !js && crypt
+// +build !windows,!js,crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -24,16 +24,17 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/iDigitalFlame/xmt/data"
 	"github.com/iDigitalFlame/xmt/util/crypt"
 )
 
+// Processes attempts to gather the current running Processes and returns them
+// as a slice of ProcessInfo structs, otherwise any errors are returned.
 func Processes() ([]ProcessInfo, error) {
-	f, err := os.Open(crypt.Get(12)) // /proc/
+	f, err := os.OpenFile(crypt.Get(11), 0, 0) // /proc/
 	if err != nil {
 		return nil, err
 	}
-	l, err := f.Readdir(-1)
+	l, err := f.Readdir(0)
 	if f.Close(); err != nil {
 		return nil, err
 	}
@@ -41,10 +42,9 @@ func Processes() ([]ProcessInfo, error) {
 		return nil, nil
 	}
 	var (
-		n string
-		b []byte
 		v uint64
 		p uint32
+		n string
 		r = make(processList, 0, len(l)/2)
 	)
 	for i := range l {
@@ -57,19 +57,20 @@ func Processes() ([]ProcessInfo, error) {
 		if v, err = strconv.ParseUint(n, 10, 32); err != nil {
 			continue
 		}
-		b, err = data.ReadFile(
-			crypt.Get(12) + // /proc/
+		n, p = readProcStats(
+			crypt.Get(11) + // /proc/
 				n +
-				crypt.Get(13), // /status
+				crypt.Get(12), // /status
 		)
-		if err != nil {
+		if len(n) == 0 {
 			continue
 		}
-		u := getProcUser(crypt.Get(12) + n) // /proc/
-		if n, p = readProcStats(b); len(n) == 0 {
-			continue
-		}
-		r = append(r, ProcessInfo{Name: n, User: u, PID: uint32(v), PPID: p})
+		r = append(r, ProcessInfo{
+			PID:  uint32(v),
+			PPID: p,
+			Name: n,
+			User: getProcUser(crypt.Get(11) + n), // /proc/
+		})
 	}
 	sort.Sort(r)
 	return r, nil
