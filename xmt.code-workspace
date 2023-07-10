@@ -8,6 +8,9 @@
         },
         {
             "path": "../Libraries/TinyPatchedGo"
+        },
+        {
+            "path": "../XrMT"
         }
     ],
     "settings": {
@@ -72,6 +75,7 @@
             "VIRT",
             "vulncheck",
             "wtsapi",
+            "xrmt",
             "Zombified"
         ]
     }

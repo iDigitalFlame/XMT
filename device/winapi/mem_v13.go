@@ -78,6 +78,14 @@ type mspan struct {
 	_         uintptr
 	startAddr uintptr
 }
+type fixalloc struct {
+	_, _, _, _ uintptr
+	chunk      uintptr
+	_          uint32
+	inuse      uintptr
+	_          uintptr
+	_          bool
+}
 type treapNode struct {
 	_, _   uintptr
 	parent *treapNode

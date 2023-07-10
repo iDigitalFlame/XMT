@@ -171,7 +171,6 @@ var (
 	funcCreateCompatibleDC     = dllGdi32.proc("CreateCompatibleDC")
 	funcCreateCompatibleBitmap = dllGdi32.proc("CreateCompatibleBitmap")
 
-	funcWTSFreeMemory              = dllWtsapi32.proc("WTSFreeMemory")
 	funcWTSOpenServer              = dllWtsapi32.proc("WTSOpenServerW")
 	funcWTSCloseServer             = dllWtsapi32.proc("WTSCloseServer")
 	funcWTSSendMessage             = dllWtsapi32.proc("WTSSendMessageW")

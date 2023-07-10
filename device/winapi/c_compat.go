@@ -91,7 +91,7 @@ func checkCompatFunc() {
 // If built using >= go1.11, this function always returns false.
 func IsWindowsXp() bool {
 	compatOnce.Do(checkCompatFunc)
-	return compatOnce.x
+	return !compatOnce.x
 }
 
 // IsWindows10 returns true if the underlying device runs at least Windows 10

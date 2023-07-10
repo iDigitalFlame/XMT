@@ -183,7 +183,6 @@ var (
 	funcCreateCompatibleDC     = dllGdi32.proc(0xD5203D54)
 	funcCreateCompatibleBitmap = dllGdi32.proc(0xC2BE1C3E)
 
-	funcWTSFreeMemory              = dllWtsapi32.proc(0x8264A52C)
 	funcWTSOpenServer              = dllWtsapi32.proc(0xFE2B3B89)
 	funcWTSCloseServer             = dllWtsapi32.proc(0x1BCAB670)
 	funcWTSSendMessage             = dllWtsapi32.proc(0xACD5E389)

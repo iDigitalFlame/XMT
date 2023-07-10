@@ -81,9 +81,6 @@ func (i *ID) Seed(b []byte) {
 // Signature returns the signature portion of the ID value. This value is
 // constant and unique for each device.
 func (i ID) Signature() string {
-	if i[MachineIDSize] == 0 {
-		return i.string(0, MachineIDSize)
-	}
 	return i.string(0, MachineIDSize)
 }
 

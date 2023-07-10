@@ -205,7 +205,7 @@ loop:
 	if n > len(o) {
 		return o, io.EOF
 	}
-	return o, nil
+	return o, err
 }
 
 // Open opens a new key with path name relative to the key.

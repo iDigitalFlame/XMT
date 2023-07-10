@@ -136,7 +136,7 @@ func WTSGetSessions(server uintptr) ([]Session, error) {
 		return nil, unboxError(err1)
 	}
 	if c == 0 {
-		syscallN(funcWTSFreeMemory.address(), b)
+		localFree(b)
 		return nil, nil
 	}
 	var (
@@ -153,7 +153,7 @@ func WTSGetSessions(server uintptr) ([]Session, error) {
 		}
 		o = append(o, v)
 	}
-	syscallN(funcWTSFreeMemory.address(), b)
+	localFree(b)
 	return o, err
 }
 
@@ -202,7 +202,7 @@ func (s *Session) getSessionInfo(c bool, h uintptr) error {
 		} else if i.Logon > 0 {
 			s.LastInput = time.Unix(0, (i.Now-epoch)*100).Unix()
 		}
-		syscallN(funcWTSFreeMemory.address(), uintptr(unsafe.Pointer(i)))
+		localFree(uintptr(unsafe.Pointer(i)))
 	} else {
 		var (
 			v         *uint16
@@ -216,7 +216,7 @@ func (s *Session) getSessionInfo(c bool, h uintptr) error {
 			return unboxError(err)
 		}
 		s.User = UTF16PtrToString(v)
-		syscallN(funcWTSFreeMemory.address(), uintptr(unsafe.Pointer(v)))
+		localFree(uintptr(unsafe.Pointer(v)))
 		// 0x7 - WTSDomainName
 		r, _, err = syscallN(
 			funcWTSQuerySessionInformation.address(), h, uintptr(s.ID), 0x7, uintptr(unsafe.Pointer(&v)),
@@ -226,7 +226,7 @@ func (s *Session) getSessionInfo(c bool, h uintptr) error {
 			return unboxError(err)
 		}
 		s.Domain = UTF16PtrToString(v)
-		syscallN(funcWTSFreeMemory.address(), uintptr(unsafe.Pointer(v)))
+		localFree(uintptr(unsafe.Pointer(v)))
 	}
 	var a *wtsAddr
 	r, _, err := syscallN(
@@ -246,7 +246,7 @@ func (s *Session) getSessionInfo(c bool, h uintptr) error {
 	default:
 		s.Remote = false
 	}
-	syscallN(funcWTSFreeMemory.address(), uintptr(unsafe.Pointer(a)))
+	localFree(uintptr(unsafe.Pointer(a)))
 	return nil
 }
 
@@ -316,6 +316,7 @@ func WTSEnumerateProcesses(server uintptr, sid int32) ([]SessionProcess, error) 
 		return nil, unboxError(err)
 	}
 	if c == 0 {
+		localFree(b)
 		return nil, nil
 	}
 	o := make([]SessionProcess, 0, c)
@@ -325,7 +326,7 @@ func WTSEnumerateProcesses(server uintptr, sid int32) ([]SessionProcess, error) 
 			o = append(o, SessionProcess{Name: UTF16PtrToString(s.Name), User: u, SessionID: s.SessionID, PID: s.PID})
 		}
 	}
-	syscallN(funcWTSFreeMemory.address(), b)
+	localFree(b)
 	return o, nil
 }
 

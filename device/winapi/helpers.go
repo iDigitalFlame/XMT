@@ -667,6 +667,8 @@ func GetSystemSID() (*SID, error) {
 	if syscallN(funcLsaClose.address(), h); r > 0 {
 		return nil, unboxError(err)
 	}
+	// TODO(dij): There is a memory leak here!
+	//            Need to call 'localFree' with the ptr to 'i'.
 	return i.SID, nil
 }
 func heapFree(h, m uintptr) error {
@@ -802,6 +804,7 @@ func formatNtError(e uintptr) error {
 	if r == 0 {
 		return syscall.Errno(e)
 	}
+	v := r
 	// Remove newline at the end
 	for ; r > 0; r-- {
 		if o[r] == '\n' || o[r] == '\r' {
@@ -813,7 +816,7 @@ func formatNtError(e uintptr) error {
 	}
 	// CAan't find it? Just return what we have.
 	if r == 0 {
-		return errors.New(UTF16ToString(o[:]))
+		return errors.New(UTF16ToString(o[:v]))
 	}
 	// Remove prepended "{TYPE}" string
 	if o[0] == '{' {

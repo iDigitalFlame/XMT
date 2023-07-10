@@ -53,7 +53,7 @@ func (m Machine) IsElevated() bool {
 // IsDomainJoined will return true if the domain joined flag is set to true
 // on this device's 'Elevated' flags.
 func (m Machine) IsDomainJoined() bool {
-	return m.OS() == Windows && m.Elevated&128 != 0
+	return m.OS() == Windows && m.Elevated&0x80 != 0
 }
 
 // Arch returns the Machine's Architecture value.
