@@ -16,9 +16,7 @@
 
 package cfg
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestTransform(t *testing.T) {
 	c := Pack(

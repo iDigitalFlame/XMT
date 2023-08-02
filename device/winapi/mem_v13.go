@@ -1,5 +1,5 @@
-//go:build windows && cgo && go1.13 && !go1.14
-// +build windows,cgo,go1.13,!go1.14
+//go:build windows && cgo && freemem && go1.13 && !go1.14
+// +build windows,cgo,freemem,go1.13,!go1.14
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

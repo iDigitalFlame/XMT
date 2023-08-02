@@ -262,30 +262,43 @@ def _write_out(s, key, v, pretty, json):
         del f
 
 
-class CFBXor(object):
-    __slots__ = ("key", "used", "out", "next", "decrypt")
+class CTRXor(object):
+    __slots__ = ("ctr", "key", "used", "out", "total")
 
-    def __init__(self, iv, key, decrypt):
+    def __init__(self, iv, key):
+        if len(iv) != len(key):
+            raise ValueError("key and iv lengths must be equal")
         self.key = key
-        self.used = len(key)
-        self.decrypt = decrypt
+        self.used = 0
+        self.total = 0
+        self.ctr = bytearray(len(key))
         self.out = bytearray(len(key))
-        self.next = bytearray(len(key))
-        _copy(self.next, iv)
+        _copy(self.ctr, iv)
+
+    def refill(self):
+        r = self.total - self.used
+        if self.used > 0:
+            _copy(self.out, self.out[self.used :])
+        while r <= (len(self.out) - len(self.out)):
+            _xor(self.out, self.ctr, self.key, r)
+            r += len(self.out)
+            for x in range(len(self.ctr) - 1, 0, -1):
+                if self.ctr[x] == 0xFF:
+                    self.ctr[x] = 0
+                else:
+                    self.ctr[x] += 1
+                if self.ctr[x] != 0:
+                    break
+        self.total, self.used = r, 0
 
     def xor(self, dst, src):
         if len(dst) < len(src):
             raise ValueError("output smaller than input")
         x, y = 0, 0
         while x < len(src):
-            if self.used == len(self.out):
-                _xor(self.out, self.next, self.key)
-                self.used = 0
-            if self.decrypt:
-                _copy(self.next, src[x:], self.used)
+            if self.used >= self.total - len(self.out):
+                self.refill()
             n = _xor(dst, src[x:], self.out[self.used :], y)
-            if not self.decrypt:
-                _copy(self.next, dst[y:], self.used)
             x += n
             y += n
             self.used += n
@@ -441,35 +454,35 @@ class Writer(object):
             self.write_str(i)
 
 
-class ReadCFB(object):
-    __slots__ = ("r", "cfb")
+class ReadCTR(object):
+    __slots__ = ("r", "ctr")
 
-    def __init__(self, cfb, r):
+    def __init__(self, ctr, r):
         self.r = r
-        self.cfb = cfb
+        self.ctr = ctr
 
     def read(self, n):
         r = self.r.read(n)
         if r is None:
             return None
         b = bytearray(len(r))
-        self.cfb.xor(b, r)
+        self.ctr.xor(b, r)
         del r
         return b
 
 
-class WriteCFB(object):
-    __slots__ = ("w", "cfb")
+class WriteCTR(object):
+    __slots__ = ("w", "ctr")
 
-    def __init__(self, cfb, w):
+    def __init__(self, ctr, w):
         self.w = w
-        self.cfb = cfb
+        self.ctr = ctr
 
     def write(self, b):
         if not isinstance(b, (bytes, bytearray)):
             raise ValueError("write: not a bytes type")
         r = bytearray(len(b))
-        self.cfb.xor(r, b)
+        self.ctr.xor(r, b)
         self.w.write(r)
         del r
 
@@ -665,7 +678,7 @@ class Sentinel(object):
         if k is not None:
             i = token_bytes(len(k))
             b.write(i)
-            o = WriteCFB(CFBXor(i, k, False), b)
+            o = WriteCTR(CTRXor(i, k), b)
             del i
         else:
             o = b
@@ -722,7 +735,7 @@ class Sentinel(object):
             b = open(expanduser(expandvars(path)), "rb")
         if k is not None:
             i = b.read(len(k))
-            o = ReadCFB(CFBXor(i, k, True), b)
+            o = ReadCTR(CTRXor(i, k), b)
             del i
         else:
             o = b

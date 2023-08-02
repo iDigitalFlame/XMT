@@ -1,6 +1,7 @@
-//go:build windows && cgo && (amd64 || arm64 || loong64 || mips64 || mips64le || ppc64 || ppc64le || riscv64)
+//go:build windows && cgo && freemem && (amd64 || arm64 || loong64 || mips64 || mips64le || ppc64 || ppc64le || riscv64)
 // +build windows
 // +build cgo
+// +build freemem
 // +build amd64 arm64 loong64 mips64 mips64le ppc64 ppc64le riscv64
 
 // Copyright (C) 2020 - 2023 iDigitalFlame

@@ -1,5 +1,5 @@
-//go:build windows && cgo
-// +build windows,cgo
+//go:build windows && cgo && freemem
+// +build windows,cgo,freemem
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

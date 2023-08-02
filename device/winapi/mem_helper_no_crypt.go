@@ -1,5 +1,5 @@
-//go:build windows && cgo && !crypt
-// +build windows,cgo,!crypt
+//go:build windows && cgo && freemem && !crypt
+// +build windows,cgo,freemem,!crypt
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //

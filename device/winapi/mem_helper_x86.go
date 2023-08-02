@@ -1,6 +1,7 @@
-//go:build windows && cgo && (386 || arm || mips || mipsle)
+//go:build windows && cgo && freemem && (386 || arm || mips || mipsle)
 // +build windows
 // +build cgo
+// +build freemem
 // +build 386 arm mips mipsle
 
 // Copyright (C) 2020 - 2023 iDigitalFlame

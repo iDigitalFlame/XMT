@@ -82,6 +82,9 @@ func Check(l Linker, n string) bool {
 	return v
 }
 func (p *sentinelPath) valid() bool {
+	if bugtrack.Enabled {
+		bugtrack.Track("man.(*sentinelPath).valid(): p.t=%d, p.path=%s, p.extra=%s", p.t, p.path, p.extra)
+	}
 	if p.t > sentPathZombie || len(p.path) == 0 {
 		return false
 	}
@@ -370,6 +373,9 @@ func (p sentinelPath) MarshalStream(w data.Writer) error {
 // error returned will be 'ErrNoEndpoints' which results when no Guardians could
 // be loaded.
 func (s *Sentinel) Find(l Linker, n string) (bool, error) {
+	if bugtrack.Enabled {
+		bugtrack.Track("man.(*Sentinel).Find(): Starting with len(s.paths)=%d", len(s.paths))
+	}
 	if len(s.paths) == 0 {
 		return false, ErrNoEndpoints
 	}
@@ -435,7 +441,7 @@ func (s *Sentinel) Wake(l Linker, n string) (bool, error) {
 // supplied cipher is not nil, it will be used to decrypt the data during reader,
 // otherwise the data will read un-encrypted.
 func (s *Sentinel) Read(c cipher.Block, r io.Reader) error {
-	if c == nil {
+	if c == nil || c.BlockSize() == 0 {
 		return s.read(r)
 	}
 	var (
@@ -460,6 +466,9 @@ func (p *sentinelPath) UnmarshalStream(r data.Reader) error {
 	if err := r.ReadUint8(&p.t); err != nil {
 		return err
 	}
+	if bugtrack.Enabled {
+		bugtrack.Track("man.(*sentinelPath).UnmarshalStream(): Read one p.t=%d", p.t)
+	}
 	if err := r.ReadString(&p.path); err != nil {
 		return err
 	}
@@ -473,7 +482,7 @@ func (p *sentinelPath) UnmarshalStream(r data.Reader) error {
 // supplied cipher is not nil, it will be used to encrypt the data during writing,
 // otherwise the data will be un-encrypted.
 func (s *Sentinel) Write(c cipher.Block, w io.Writer) error {
-	if c == nil {
+	if c == nil || c.BlockSize() == 0 {
 		return s.write(w)
 	}
 	var (
@@ -546,6 +555,9 @@ func WakeMultiFile(l Linker, name string, c cipher.Block, paths []string) (bool,
 			//            Defaults to yes.
 		}*/
 		if r, err = e[v].Find(l, name); err != nil {
+			if bugtrack.Enabled {
+				bugtrack.Track("man.WakeMultiFile(): Find v=%d, returned error err=%s", v, err)
+			}
 			continue
 		}
 		if r {

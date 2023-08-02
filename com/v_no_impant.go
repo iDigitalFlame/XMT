@@ -19,9 +19,7 @@
 
 package com
 
-import (
-	"github.com/iDigitalFlame/xmt/util"
-)
+import "github.com/iDigitalFlame/xmt/util"
 
 // String returns a character representation of this Flag.
 func (f Flag) String() string {

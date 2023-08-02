@@ -16,9 +16,7 @@
 
 package cfg
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestConnect(t *testing.T) {
 	c := Pack(
