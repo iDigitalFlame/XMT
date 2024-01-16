@@ -1,8 +1,7 @@
-//go:build windows && (arm || 386) && go1.18 && !go1.21
+//go:build windows && (arm64 || amd64) && go1.21
 // +build windows
-// +build arm 386
-// +build go1.18
-// +build !go1.21
+// +build arm64 amd64
+// +build go1.21
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -23,8 +22,8 @@
 package winapi
 
 // M constant offsets
-// Golang 1.21 (x86)
+// Golang 1.21 (x64)
 const (
-	ptrNext   = 184
-	ptrThread = 444
+	ptrNext   = 288
+	ptrThread = 792
 )

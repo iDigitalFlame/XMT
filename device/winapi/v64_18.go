@@ -1,7 +1,8 @@
-//go:build windows && (arm64 || amd64) && go1.18
+//go:build windows && (arm64 || amd64) && go1.18 && !go1.21
 // +build windows
 // +build arm64 amd64
 // +build go1.18
+// +build !go1.21
 
 // Copyright (C) 2020 - 2023 iDigitalFlame
 //
@@ -22,7 +23,7 @@
 package winapi
 
 // M constant offsets
-// Golang 1.18 to Latest (1.20) (x64)
+// Golang 1.18 to 1.20 (x64)
 const (
 	ptrNext   = 288
 	ptrThread = 784
