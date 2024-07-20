@@ -133,10 +133,10 @@ func (i Window) IsMaximized() bool {
 }
 func keyCode(k byte) (uint16, bool) {
 	if k > 47 && k < 58 {
-		return uint16(0x30 + (k - 48)), false
+		return uint16(k), false
 	}
 	if k > 64 && k < 91 {
-		return uint16(0x41 + (k - 65)), true
+		return uint16(k), true
 	}
 	if k > 96 && k < 123 {
 		return uint16(0x41 + (k - 97)), false

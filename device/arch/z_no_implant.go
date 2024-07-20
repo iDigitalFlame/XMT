@@ -36,10 +36,14 @@ func (a Architecture) String() string {
 		return "MIPS"
 	case ARM64:
 		return "ARM64"
+	case Sparc:
+		return "SPARC"
 	case PowerPC:
 		return "PowerPC"
 	case Loong64:
 		return "Loong64"
+	case Emulated:
+		return "Emulated"
 	case X86OnX64:
 		return "32bit [64bit]"
 	case ARMOnARM64:

@@ -123,7 +123,7 @@ func (i *ID) Read(r io.Reader) error {
 		if err != nil {
 			return err
 		}
-		return io.ErrUnexpectedEOF
+		return io.ErrNoProgress
 	}
 	return nil
 }

@@ -177,7 +177,7 @@ func ProcessUnmarshal(x context.Context, r data.Reader) (*cmd.Process, bool, err
 		if len(p.Args) == 1 {
 			v.Args = []string{device.PowerShell}
 		} else {
-			v.Args = append([]string{device.PowerShell, "-c"}, p.Args[1:]...)
+			v.Args = append([]string{device.PowerShell}, p.Args[1:]...)
 		}
 	}
 	if v.SetFlags(p.Flags); p.Hide {

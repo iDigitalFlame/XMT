@@ -156,7 +156,7 @@ func (g *Group) Switch(e bool) bool {
 	if (g.cur != nil && !e && g.sel == 0) || len(g.entries) == 0 {
 		return false
 	}
-	if g.sel == 0 && !e && g.cur != nil {
+	if g.sel == 0 && !e && g.cur != nil { // redundent?
 		return false
 	}
 	if g.cur != nil && (g.sel == 3 || g.sel == 4) && util.FastRandN(4) != 0 {

@@ -626,10 +626,6 @@ func (s *Session) session(c net.Conn) bool {
 		s.keyCheckRevert()
 		return false
 	}
-	// KeyCrypt: "next" was called, check for a Key Swap.
-	if s.keyCheckSync() != nil {
-		return false
-	}
 	if n.Flags&com.FlagChannel != 0 && !s.state.Channel() {
 		s.state.Set(stateChannel)
 	}
@@ -644,9 +640,16 @@ func (s *Session) session(c net.Conn) bool {
 		// KeyCrypt: Decrypt incoming Packet here to be read (if not a SvComplete).
 		n.KeyCrypt(s.keys)
 	}
+	// KeyCrypt: "next" was called, check for a Key Swap.
+	// -BUG-(dij): Should we call this AFTER reading the new packet? seems to break
+	//           a read if the packet is read right before a swap operation
+	// DONE(dij): Moved downward similar to Rust port.
+	if s.keyCheckSync() != nil {
+		return false
+	}
 	if n.Flags&com.FlagChannel != 0 && !s.state.Channel() {
 		if s.state.Set(stateChannel); cout.Enabled {
-			s.log.Trace("[%s] %s: Enabling Channel as received Packet has a Channel flag!", s.ID, s.host)
+			s.log.Trace("[%s] %s: Enabling Channel as a received Packet has a Channel flag!", s.ID, s.host)
 		}
 	}
 	if cout.Enabled {

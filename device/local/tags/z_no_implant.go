@@ -92,6 +92,9 @@ func ParseCapabilities(windows bool, v uint32) string {
 			b.WriteString("chunk_heap;")
 		}
 	}
+	if v&CapRust != 0 {
+		b.WriteString("rust;")
+	}
 	if b.Len() == 0 {
 		return ""
 	}

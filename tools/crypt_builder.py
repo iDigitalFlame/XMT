@@ -41,7 +41,7 @@ def check_tags(args):
     for x in range(0, len(args)):
         if args[x] == "-tags":
             if "crypt" not in [k.strip() for k in args[x + 1].split(",")]:
-                args[x + 1] = f"crypt,{args[x+1].strip()}"
+                args[x + 1] = f"crypt,{args[x + 1].strip()}"
             return args
     return args + ["-tags", "crypt"]
 

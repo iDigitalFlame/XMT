@@ -43,6 +43,10 @@ const (
 	// ARMOnARM64 represents the ARM64 chipset family, but the executable
 	// is compiled for ARM.
 	ARMOnARM64 Architecture = 0xA
+	// Sparc represents the Sparc64 chipset family.
+	Sparc Architecture = 0xB
+	// Emulated repersents an emulated Architecture, such as MacOS Rosetta.
+	Emulated Architecture = 0xE
 	// Unknown represents an unknown chipset family.
 	Unknown Architecture = 0xF
 )

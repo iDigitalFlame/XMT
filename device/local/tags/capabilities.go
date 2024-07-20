@@ -39,6 +39,7 @@ const (
 	CapFuncmap
 	CapAltLoad
 	CapChunkHeap
+	CapRust
 
 	// CapLimitStandard is a flagset combo that is recognized as
 	//  CapLimitLarge | CapLimitMedium

@@ -37,6 +37,7 @@ type container struct {
 	k [16]byte
 }
 
+// TODO(dij): Also encode the Profile data like in Rust
 func (c *container) Wrap() {
 	for i := 0; i < 16; i++ {
 		c.k[i] = byte(util.FastRand())

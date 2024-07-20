@@ -87,6 +87,7 @@ func (s *Session) keyNextSync() *com.Packet {
 	return n
 }
 func (s *Session) keySessionGenerate(n *com.Packet) {
+	// reset next keys here?
 	s.keys.Fill()
 	s.keys.Write(n)
 	if n.Flags |= com.FlagCrypt; cout.Enabled {

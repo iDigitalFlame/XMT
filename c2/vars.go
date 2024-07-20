@@ -222,7 +222,7 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 		}
 		return xerr.Sub("received Packet that does not match our own device ID", 0x57)
 	}
-	if n.Flags&com.FlagOneshot != 0 {
+	if l != nil && n.Flags&com.FlagOneshot != 0 {
 		l.oneshot(n)
 		return nil
 	}
@@ -238,6 +238,7 @@ func receive(s *Session, l *Listener, n *com.Packet) error {
 		}
 		for ; x > 0; x-- {
 			var v com.Packet
+			bugtrack.Track("Unpacking Packet %d of %d..", x, n.Flags.Len())
 			if err := v.UnmarshalStream(n); err != nil {
 				n.Clear()
 				v.Clear()

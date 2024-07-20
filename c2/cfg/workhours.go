@@ -137,11 +137,12 @@ func (w WorkHours) Work() time.Duration {
 	if (w.EndHour == 0 && w.EndMin == 0) || w.EndHour > 23 || w.EndMin > 60 {
 		return 0
 	}
+	// TODO(dij): Fix this
 	e := time.Date(y, m, d, int(w.EndHour), int(w.EndMin), 0, 0, l)
 	if e.Before(s) { // End is before start, bail.
 		return 0
 	}
-	if n.After(e) { // Wait until start for next
+	if n.After(e) { // Wait until start for next day.
 		return s.AddDate(0, 0, 1).Sub(n)
 	}
 	return 0

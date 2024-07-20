@@ -119,6 +119,7 @@ func proxyInit() config {
 		}
 		q := strings.IndexByte(x, '=')
 		if q > 3 {
+			_ = x[4]
 			if (x[0] != 'h' && x[0] != 'H') || (x[1] != 't' && x[1] != 'T') || (x[2] != 't' && x[2] != 'T') || (x[3] != 'p' && x[3] != 'P') {
 				continue
 			}
