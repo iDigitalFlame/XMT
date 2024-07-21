@@ -19,4 +19,4 @@
 
 package winapi
 
-var dllPsapi = &lazyDLL{name: "psapi.dll"}
+var dllPsapi = &LazyDLL{name: "psapi.dll"}

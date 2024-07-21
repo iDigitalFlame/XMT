@@ -110,8 +110,8 @@ func HideGoThreads() error {
 		return nil
 	})
 }
-func zeroPatch(p *lazyProc) error {
-	if p.find() != nil || p.addr == 0 {
+func zeroPatch(p *LazyProc) error {
+	if p.Load() != nil || p.addr == 0 {
 		// NOTE(dij): Not returning the error here so other function calls
 		//            /might/ succeed.
 		return nil
@@ -179,47 +179,47 @@ func loadCachedEntry(dll string) (uintptr, error) {
 	}
 	switch {
 	case strings.EqualFold(b, dllNtdll.name):
-		if err := dllNtdll.load(); err != nil {
+		if err := dllNtdll.Load(); err != nil {
 			return 0, err
 		}
 		return dllNtdll.addr, nil
 	case strings.EqualFold(b, dllKernelBase.name):
-		if err := dllKernel32.load(); err != nil {
+		if err := dllKernel32.Load(); err != nil {
 			return 0, err
 		}
 		return dllKernel32.addr, nil
 	case strings.EqualFold(b, dllKernel32.name):
-		if err := dllKernel32.load(); err != nil {
+		if err := dllKernel32.Load(); err != nil {
 			return 0, err
 		}
 		return dllKernel32.addr, nil
 	case strings.EqualFold(b, dllAdvapi32.name):
-		if err := dllAdvapi32.load(); err != nil {
+		if err := dllAdvapi32.Load(); err != nil {
 			return 0, err
 		}
 		return dllAdvapi32.addr, nil
 	case strings.EqualFold(b, dllUser32.name):
-		if err := dllUser32.load(); err != nil {
+		if err := dllUser32.Load(); err != nil {
 			return 0, err
 		}
 		return dllUser32.addr, nil
 	case strings.EqualFold(b, dllDbgHelp.name):
-		if err := dllDbgHelp.load(); err != nil {
+		if err := dllDbgHelp.Load(); err != nil {
 			return 0, err
 		}
 		return dllDbgHelp.addr, nil
 	case strings.EqualFold(b, dllGdi32.name):
-		if err := dllGdi32.load(); err != nil {
+		if err := dllGdi32.Load(); err != nil {
 			return 0, err
 		}
 		return dllGdi32.addr, nil
 	case strings.EqualFold(b, dllWinhttp.name):
-		if err := dllWinhttp.load(); err != nil {
+		if err := dllWinhttp.Load(); err != nil {
 			return 0, err
 		}
 		return dllWinhttp.addr, nil
 	case strings.EqualFold(b, dllWtsapi32.name):
-		if err := dllWtsapi32.load(); err != nil {
+		if err := dllWtsapi32.Load(); err != nil {
 			return 0, err
 		}
 		return dllWtsapi32.addr, nil

@@ -419,15 +419,15 @@ func IsUACEnabled() bool {
 	return (*kernelSharedData)(unsafe.Pointer(kernelShared)).SharedDataFlags&0x2 != 0
 }
 func freeLoadedLibaries() {
-	dllAmsi.free()
-	dllGdi32.free()
-	dllUser32.free()
-	dllWinhttp.free()
-	dllDbgHelp.free()
-	dllAdvapi32.free()
-	dllWtsapi32.free()
-	dllKernel32.free()
-	dllKernelBase.free()
+	dllAmsi.Free()
+	dllGdi32.Free()
+	dllUser32.Free()
+	dllWinhttp.Free()
+	dllDbgHelp.Free()
+	dllAdvapi32.Free()
+	dllWtsapi32.Free()
+	dllKernel32.Free()
+	dllKernelBase.Free()
 }
 
 // ErasePEHeader erases the first page of the mapped PE memory data. This is

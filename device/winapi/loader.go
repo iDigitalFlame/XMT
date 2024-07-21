@@ -54,21 +54,20 @@ func byteSlicePtr(s string) *byte {
 	copy(a, s)
 	return &a[0]
 }
-func (p *lazyProc) address() uintptr {
-	if p.addr > 0 {
-		// NOTE(dij): Might be racy, but will catch most of the re-used calls
-		//            that are already populated without an additional alloc and
-		//            call to "find".
-		return p.addr
-	}
-	if err := p.find(); err != nil {
-		if !canPanic {
-			syscall.Exit(2)
-			return 0
-		}
-		panic(err.Error())
-	}
-	return p.addr
+
+// IsLoaded returns true if this function has been loaded into memory.
+func (p *LazyProc) IsLoaded() bool {
+	return p.addr != 0
+}
+
+// NewLazyDLL returns a LazyDLL struct.
+//
+// This function DOES NOT make any loads or calls.
+func NewLazyDLL(s string) *LazyDLL {
+	return &LazyDLL{name: s}
+}
+func (p *LazyProc) address() uintptr {
+	return p.MustAddress()
 }
 func unboxError(e syscall.Errno) error {
 	switch e {
@@ -101,6 +100,26 @@ func loadDLL(s string) (uintptr, error) {
 	}
 	return h, nil
 }
+
+// MustAddress is like the Address function returns the memory addess of this function.
+// If it's not loaded, it will attempt to be loaded. If the load fails, this function
+// will panic instead of returning an error.
+func (p *LazyProc) MustAddress() uintptr {
+	if p.addr > 0 {
+		// NOTE(dij): Might be racy, but will catch most of the re-used calls
+		//            that are already populated without an additional alloc and
+		//            call to "find".
+		return p.addr
+	}
+	if err := p.Load(); err != nil {
+		if !canPanic {
+			syscall.Exit(2)
+			return 0
+		}
+		panic(err.Error())
+	}
+	return p.addr
+}
 func loadLibraryEx(s string) (uintptr, error) {
 	var (
 		n = s
@@ -113,6 +132,41 @@ func loadLibraryEx(s string) (uintptr, error) {
 		n = systemDirectoryPrefix + s
 	}
 	return LoadLibraryEx(n, f)
+}
+
+// Address returns the memory addess of this function. If it's not loaded, it
+// will attempt to be loaded. If the load fails, this function will return an error.
+func (p *LazyProc) Address() (uintptr, error) {
+	if p.addr > 0 {
+		// NOTE(dij): Might be racy, but will catch most of the re-used calls
+		//            that are already populated without an additional alloc and
+		//            call to "find".
+		return p.addr, nil
+	}
+	if err := p.Load(); err != nil {
+		return 0, err
+	}
+	return p.addr, nil
+}
+
+// Call will call this function with the specified arguments.
+//
+// This is the same as the 'syscall.SyscallN' call.
+//
+// If the function could not be loaded, this function will return an error.
+//
+// The return of this function is the function result and any errors that may
+// be returned.
+//
+// It is recommened to check the result of the first result as the error result
+// may be non-nil but still indicate success.
+func (p *LazyProc) Call(a ...uintptr) (uintptr, error) {
+	if err := p.Load(); err != nil {
+		return 0, err
+	}
+	// p.addr should be loaded by here.
+	r, _, err := syscallN(p.addr, a...)
+	return r, unboxError(err)
 }
 func findProc(h uintptr, s, n string) (uintptr, error) {
 	h, err := syscallGetProcAddress(h, byteSlicePtr(s))

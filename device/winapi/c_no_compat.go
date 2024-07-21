@@ -117,7 +117,7 @@ func IsTokenElevated(h uintptr) bool {
 //
 // https://docs.microsoft.com/en-us/windows/win32/api/wow64apiset/nf-wow64apiset-iswow64process
 func IsWow64Process(h uintptr) (bool, error) {
-	if funcRtlWow64GetProcessMachines.find() != nil {
+	if funcRtlWow64GetProcessMachines.Load() != nil {
 		// Running on "true" x86.
 		return false, nil
 	}

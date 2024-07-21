@@ -36,7 +36,7 @@ var (
 
 type funcMap struct {
 	_    [0]func()
-	proc *lazyProc
+	proc *LazyProc
 	bak  uintptr
 	swap uintptr
 	len  uint32
@@ -209,7 +209,7 @@ func FuncRemapHash(h uint32, b []byte) error {
 	NtFreeVirtualMemory(CurrentProcess, a, 0)
 	return err
 }
-func registerSyscall(p *lazyProc, n string, h uint32) {
+func registerSyscall(p *LazyProc, n string, h uint32) {
 	if funcLock.Lock(); funcMapper == nil {
 		funcMapper = make(map[uint32]*funcMap, 8)
 	}

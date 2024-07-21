@@ -114,4 +114,4 @@ func FuncRemapHash(_ uint32, _ []byte) error {
 func (FuncEntry) MarshalStream(_ data.Writer) error {
 	return nil
 }
-func registerSyscall(_ *lazyProc, _ string, _ uint32) {}
+func registerSyscall(_ *LazyProc, _ string, _ uint32) {}

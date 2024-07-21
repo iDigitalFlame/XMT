@@ -26,15 +26,15 @@ const (
 )
 
 var (
-	dllAmsi       = &lazyDLL{name: "amsi.dll"}
-	dllNtdll      = &lazyDLL{name: "ntdll.dll"}
-	dllGdi32      = &lazyDLL{name: "gdi32.dll"}
-	dllUser32     = &lazyDLL{name: "user32.dll"}
-	dllWinhttp    = &lazyDLL{name: "winhttp.dll"}
-	dllDbgHelp    = &lazyDLL{name: "DbgHelp.dll"}
-	dllCrypt32    = &lazyDLL{name: "crypt32.dll"}
-	dllKernel32   = &lazyDLL{name: "kernel32.dll"}
-	dllAdvapi32   = &lazyDLL{name: "advapi32.dll"}
-	dllWtsapi32   = &lazyDLL{name: "wtsapi32.dll"}
-	dllKernelBase = &lazyDLL{name: "kernelbase.dll"}
+	dllAmsi       = &LazyDLL{name: "amsi.dll"}
+	dllNtdll      = &LazyDLL{name: "ntdll.dll"}
+	dllGdi32      = &LazyDLL{name: "gdi32.dll"}
+	dllUser32     = &LazyDLL{name: "user32.dll"}
+	dllWinhttp    = &LazyDLL{name: "winhttp.dll"}
+	dllDbgHelp    = &LazyDLL{name: "DbgHelp.dll"}
+	dllCrypt32    = &LazyDLL{name: "crypt32.dll"}
+	dllKernel32   = &LazyDLL{name: "kernel32.dll"}
+	dllAdvapi32   = &LazyDLL{name: "advapi32.dll"}
+	dllWtsapi32   = &LazyDLL{name: "wtsapi32.dll"}
+	dllKernelBase = &LazyDLL{name: "kernelbase.dll"}
 )

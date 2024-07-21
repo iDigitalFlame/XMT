@@ -25,21 +25,36 @@ import (
 	"syscall"
 )
 
-type lazyDLL struct {
+// LazyDLL is a struct that can be used to load a DLL into the current Process.
+// The DLL is not loaded until a function is executed.
+//
+// If the 'crypt' build tag is present, function names MUST be FNV32 hashes.
+type LazyDLL struct {
 	_    [0]func()
-	name string
-	sync.Mutex
-	addr uintptr
-}
-type lazyProc struct {
-	_    [0]func()
-	dll  *lazyDLL
 	name string
 	sync.Mutex
 	addr uintptr
 }
 
-func (d *lazyDLL) free() error {
+// LazyProc is a struct returned from a LazyDLL struct. This represents a function
+// that can be called from the target DLL. This struct does not load the function
+// address until called or the 'Load' function is called.
+//
+// If the 'crypt' or 'altload' build tag is present, function names MUST be FNV32 hashes.
+type LazyProc struct {
+	_    [0]func()
+	dll  *LazyDLL
+	name string
+	sync.Mutex
+	addr uintptr
+}
+
+// Free will call tne 'FreeLibrary' function on the DLL (if loaded) and release
+// it's resources. After being free'd, it is recommended to NOT call any functions
+// loaded from it, as it may cause undefined behavior.
+//
+// Extra calls to Free do nothing.
+func (d *LazyDLL) Free() error {
 	if d.addr == 0 {
 		return nil
 	}
@@ -49,7 +64,14 @@ func (d *lazyDLL) free() error {
 	d.Unlock()
 	return err
 }
-func (d *lazyDLL) load() error {
+
+// Load will force the DLL and all functions to be loaded, if not already.
+//
+// If the DLL is already loaded, this function does nothing.
+//
+// It is recommended to NOT call this directly until all functions are retrieved
+// as newly generated LazyProc functions may not map.
+func (d *LazyDLL) Load() error {
 	if atomic.LoadUintptr(&d.addr) > 0 {
 		return nil
 	}
@@ -78,13 +100,23 @@ func (d *lazyDLL) load() error {
 	d.Unlock()
 	return err
 }
-func (p *lazyProc) find() error {
+
+// Load will force the DLL that owns this function and all functions to be loaded,
+// if not already.
+//
+// If the DLL is already loaded, this function does nothing.
+//
+// If the function does not exist, this call returns an error.
+//
+// It is recommended to NOT call this directly until all functions are retrieved
+// as newly generated LazyProc functions may not map.
+func (p *LazyProc) Load() error {
 	if atomic.LoadUintptr(&p.addr) > 0 {
 		return nil
 	}
 	var err error
 	p.Lock()
-	if err = p.dll.load(); err != nil {
+	if err = p.dll.Load(); err != nil {
 		p.Unlock()
 		return err
 	}
@@ -95,14 +127,20 @@ func (p *lazyProc) find() error {
 	p.Unlock()
 	return err
 }
-func (d *lazyDLL) proc(n string) *lazyProc {
-	return &lazyProc{name: n, dll: d}
+
+// Proc will return a LazyProc that links the specified function name or hash.
+// The DLL or function won't be loaded until called or the 'LazyProc.Load()'
+// function is called.
+//
+// If the 'crypt' or 'altload' build tag is present, function names MUST be FNV32 hashes.
+func (d *LazyDLL) Proc(n string) *LazyProc {
+	return &LazyProc{name: n, dll: d}
 }
-func (d *lazyDLL) sysProc(n string) *lazyProc {
+func (d *LazyDLL) sysProc(n string) *LazyProc {
 	if len(d.name) != 9 && d.name[0] != 'n' && d.name[1] != 't' {
-		return d.proc(n)
+		return d.Proc(n)
 	}
-	p := d.proc(n)
+	p := d.Proc(n)
 	registerSyscall(p, n, 0)
 	return p
 }

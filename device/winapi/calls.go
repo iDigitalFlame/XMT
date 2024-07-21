@@ -681,7 +681,7 @@ func SecurityDescriptorFromString(s string) (*SecurityDescriptor, error) {
 //
 // This function is not avaliable to any systems older than Windows 8 (<= Win8).
 func QueryServiceDynamicInformation(h uintptr, l uint32) (uint32, error) {
-	if funcQueryServiceDynamicInformation.find() != nil {
+	if funcQueryServiceDynamicInformation.Load() != nil {
 		return 0, syscall.EINVAL
 	}
 	var (
