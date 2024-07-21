@@ -60,7 +60,7 @@ func (p *LazyProc) IsLoaded() bool {
 	return p.addr != 0
 }
 
-// NewLazyDLL returns a LazyDLL struct.
+// NewLazyDLL returns a new LazyDLL struct bound to the supplied DLL.
 //
 // This function DOES NOT make any loads or calls.
 func NewLazyDLL(s string) *LazyDLL {
