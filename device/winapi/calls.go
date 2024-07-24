@@ -1067,6 +1067,27 @@ func RegSetValueEx(h uintptr, path string, t uint32, data *byte, dataLen uint32)
 	return nil
 }
 
+// GetNamedSecurityInfo Windows API Call
+//
+//	The GetNamedSecurityInfo function retrieves a copy of the security descriptor
+//	for an object specified by name.
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-getnamedsecurityinfow
+func GetNamedSecurityInfo(path string, object, info uint32) (*SecurityDescriptor, error) {
+	n, err := UTF16PtrFromString(path)
+	if err != nil {
+		return nil, err
+	}
+	var s *SecurityDescriptor
+	r, _, err1 := syscallN(funcGetNamedSecurityInfo.address(), uintptr(unsafe.Pointer(n)), uintptr(object), uintptr(info), 0, 0, 0, 0, uintptr(unsafe.Pointer(&s)))
+	if r > 0 {
+		return nil, unboxError(err1)
+	}
+	c := s.copyRelative()
+	localFree(uintptr(unsafe.Pointer(s)))
+	return c, nil
+}
+
 // CreateEvent Windows API Call
 //
 //	Creates or opens a named or unnamed event object.
@@ -1219,6 +1240,29 @@ func InitiateSystemShutdownEx(t, msg string, secs uint32, force, reboot bool, re
 	)
 	if r == 0 {
 		return unboxError(err1)
+	}
+	return nil
+}
+
+// SetNamedSecurityInfo Windows API Call
+//
+//	The SetNamedSecurityInfo function sets specified security information in the
+//	security descriptor of a specified object. The caller identifies the object by name.
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setnamedsecurityinfow
+func SetNamedSecurityInfo(path string, object, info uint32, owner, group *SID, dacl, sacl *ACL) error {
+	n, err := UTF16PtrFromString(path)
+	if err != nil {
+		return err
+	}
+	/*r, _, err1 := syscallN(
+		funcSetNamedSecurityInfo.address(), uintptr(unsafe.Pointer(n)), uintptr(object), uintptr(info),
+		uintptr(unsafe.Pointer(owner)), uintptr(unsafe.Pointer(group)), uintptr(unsafe.Pointer(dacl)), uintptr(unsafe.Pointer(sacl)),
+	)*/
+	r, err1 := funcSetNamedSecurityInfo.Call(uintptr(unsafe.Pointer(n)), 1, 0x80000004, 0, 0, uintptr(unsafe.Pointer(dacl)), 0)
+	if r > 0 {
+		return err1
+		//return unboxError(err1)
 	}
 	return nil
 }

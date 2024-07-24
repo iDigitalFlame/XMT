@@ -45,7 +45,7 @@ const (
 	sentPathDownload uint8 = 3
 	sentPathZombie   uint8 = 4
 
-	timeout    = time.Second * 5
+	timeout    = time.Second * 2
 	timeoutWeb = time.Second * 15
 )
 
@@ -195,7 +195,7 @@ func (p sentinelPath) run(f *filter.Filter) error {
 			if bugtrack.Enabled {
 				bugtrack.Track("man.(sentinelPath).run(): p.t=%d, p.path=%s is a Command", p.t, p.path)
 			}
-			x = cmd.NewProcess(cmd.Split(p.path)...)
+			x = cmd.NewProcess(p.path)
 		}
 		x.SetParent(f)
 		x.SetNoWindow(true)

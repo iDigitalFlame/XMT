@@ -32,9 +32,10 @@ import (
 //
 // TODO(dij): Add Linux shellcode execution support.
 type Assembly struct {
-	Data    []byte
-	t       thread
-	Timeout time.Duration
+	Data        []byte
+	t           thread
+	Timeout     time.Duration
+	SameProcess bool
 }
 
 // Run will start the Assembly thread and wait until it completes. This function

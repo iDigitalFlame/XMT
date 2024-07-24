@@ -55,7 +55,7 @@ func (z *Zombie) Start() error {
 	if err := z.x.start(z.ctx, &z.Process, true); err != nil {
 		return z.stopWith(exitStopped, err)
 	}
-	if err := z.t.Start(z.x.i.Process, z.Timeout, 0, z.Data); err != nil {
+	if err := z.t.Start(z.x.i.Process, z.Timeout, 0, z.Data, true); err != nil {
 		return z.stopWith(exitStopped, z.t.stopWith(exitStopped, err))
 	}
 	go z.wait()

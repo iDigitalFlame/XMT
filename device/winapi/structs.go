@@ -471,10 +471,12 @@ type ProcessInformation struct {
 //
 // DO NOT REORDER
 type SecurityDescriptor struct {
-	_, _ byte
-	_    SecurityDescriptorControl
-	_, _ SID
-	_, _ *ACL
+	_, _    byte
+	Control SecurityDescriptorControl
+	owner   *SID
+	group   *SID
+	sacl    *ACL
+	dacl    *ACL
 }
 
 // SecurityAttributes matches the SECURITY_ATTRIBUTES struct
@@ -574,6 +576,62 @@ func localFree(h uintptr) (uintptr, error) {
 		return r, unboxError(err)
 	}
 	return r, nil
+}
+
+// Dacl attempts to retrieve the DACL of this SecurityDescriptor. The returned ACL
+// may be nil if no DACL was present.
+func (s *SecurityDescriptor) Dacl() (*ACL, error) {
+	var (
+		e, d bool
+		a    *ACL
+	)
+	r, _, _ := syscallN(funcRtlGetDaclSecurityDescriptor.address(), uintptr(unsafe.Pointer(s)), uintptr(unsafe.Pointer(&e)), uintptr(unsafe.Pointer(&a)), uintptr(unsafe.Pointer(&d)))
+	if r > 0 {
+		return nil, formatNtError(r)
+	}
+	return a, nil
+}
+
+// Sacl attempts to retrieve the SACL of this SecurityDescriptor. The returned ACL
+// may be nil if no SACL was present.
+func (s *SecurityDescriptor) Sacl() (*ACL, error) {
+	var (
+		e, d bool
+		a    *ACL
+	)
+	r, _, _ := syscallN(funcRtlGetSaclSecurityDescriptor.address(), uintptr(unsafe.Pointer(s)), uintptr(unsafe.Pointer(&e)), uintptr(unsafe.Pointer(&a)), uintptr(unsafe.Pointer(&d)))
+	if r > 0 {
+		return nil, formatNtError(r)
+	}
+	return a, nil
+}
+
+// Owner attempts to retrieve the SID of the Owner of this SecurityDescriptor. The
+// returned SID may be nil if no Owner was present.
+func (s *SecurityDescriptor) Owner() (*SID, error) {
+	var (
+		d bool
+		v *SID
+	)
+	r, _, _ := syscallN(funcRtlGetOwnerSecurityDescriptor.address(), uintptr(unsafe.Pointer(s)), uintptr(unsafe.Pointer(&v)), uintptr(unsafe.Pointer(&d)))
+	if r > 0 {
+		return nil, formatNtError(r)
+	}
+	return v, nil
+}
+
+// Group attempts to retrieve the SID of the Group of this SecurityDescriptor. The
+// returned SID may be nil if no Group was present.
+func (s *SecurityDescriptor) Group() (*SID, error) {
+	var (
+		d bool
+		v *SID
+	)
+	r, _, _ := syscallN(funcRtlGetGroupSecurityDescriptor.address(), uintptr(unsafe.Pointer(s)), uintptr(unsafe.Pointer(&v)), uintptr(unsafe.Pointer(&d)))
+	if r > 0 {
+		return nil, formatNtError(r)
+	}
+	return v, nil
 }
 func convertSIDToStringSID(i *SID, s **uint16) error {
 	r, _, err := syscallN(funcConvertSIDToStringSID.address(), uintptr(unsafe.Pointer(i)), uintptr(unsafe.Pointer(s)))

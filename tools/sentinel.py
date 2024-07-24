@@ -272,24 +272,32 @@ class CTRXor(object):
         self.used = 0
         self.total = 0
         self.ctr = bytearray(len(key))
-        self.out = bytearray(len(key))
+        k = 512
+        if k < len(key):
+            k = len(key)
+        self.out = bytearray(k)
+        del k
         _copy(self.ctr, iv)
 
     def refill(self):
         r = self.total - self.used
-        if self.used > 0:
-            _copy(self.out, self.out[self.used :])
-        while r <= (len(self.out) - len(self.out)):
+        _copy(self.out, self.out[self.used :])
+        self.total = len(self.out)
+        n = len(self.key)
+        while r <= (self.total - n):
             _xor(self.out, self.ctr, self.key, r)
-            r += len(self.out)
-            for x in range(len(self.ctr) - 1, 0, -1):
-                if self.ctr[x] == 0xFF:
-                    self.ctr[x] = 0
+            r += n
+            for x in range(len(self.ctr) - 1, -1, -1):
+                v = self.ctr[x] + 1
+                if v >= 0x100:
+                    self.ctr[x] = v - 0x100
                 else:
-                    self.ctr[x] += 1
+                    self.ctr[x] = v
+                del v
                 if self.ctr[x] != 0:
                     break
         self.total, self.used = r, 0
+        del n
 
     def xor(self, dst, src):
         if len(dst) < len(src):
@@ -633,7 +641,7 @@ class Sentinel(object):
         if not isinstance(self.paths, list) or len(self.paths) == 0:
             return w.write_uint16(0)
         w.write_uint16(len(self.paths))
-        for x in range(0, min(len(self.paths), 0xFFFFFFFF)):
+        for x in range(0, min(len(self.paths), 0xFFFF)):
             self.paths[x].write(w)
 
     def from_json(self, j):

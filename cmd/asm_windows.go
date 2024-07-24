@@ -41,7 +41,7 @@ func (a *Assembly) Start() error {
 	if len(a.Data) == 0 {
 		return ErrEmptyCommand
 	}
-	if err := a.t.Start(0, a.Timeout, 0, a.Data); err != nil {
+	if err := a.t.Start(0, a.Timeout, 0, a.Data, a.SameProcess); err != nil {
 		return err
 	}
 	go a.t.wait(0, 0)

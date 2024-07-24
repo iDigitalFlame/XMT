@@ -57,9 +57,11 @@ func (t *thread) close() {
 	if t.callback != nil {
 		t.callback()
 	} else {
-		// NOTE(dij): We only need to close the owner if there is no callback as
-		//            it's usually a Zombie that'll handle it's own handle closure.
-		winapi.CloseHandle(t.owner)
+		if t.owner != 0 && t.owner != winapi.CurrentProcess {
+			// NOTE(dij): We only need to close the owner if there is no callback as
+			//            it's usually a Zombie that'll handle it's own handle closure.
+			winapi.CloseHandle(t.owner)
+		}
 	}
 	winapi.CloseHandle(t.hwnd)
 	t.hwnd, t.owner, t.loc = 0, 0, 0
@@ -261,7 +263,7 @@ func (t *thread) waitInner(x chan<- error, p, i uint32) {
 	x <- e
 	close(x)
 }
-func (t *thread) Start(p uintptr, d time.Duration, a uintptr, b []byte) error {
+func (t *thread) Start(p uintptr, d time.Duration, a uintptr, b []byte, same bool) error {
 	if t.Running() {
 		return ErrAlreadyStarted
 	}
@@ -278,6 +280,9 @@ func (t *thread) Start(p uintptr, d time.Duration, a uintptr, b []byte) error {
 	}
 	atomic.StoreUint32(&t.cookie, 0)
 	if t.ch, t.owner = make(chan struct{}), p; t.owner == 0 {
+		if !same {
+			return t.stopWith(exitStopped, ErrNotSame)
+		}
 		t.owner = winapi.CurrentProcess
 	}
 	var err error
@@ -291,6 +296,12 @@ func (t *thread) Start(p uintptr, d time.Duration, a uintptr, b []byte) error {
 		//            need more permissions here such as 'PROCESS_VM_*' stuff.
 		if t.owner, err = t.filter.HandleFunc(0x43A, nil); err != nil {
 			return t.stopWith(exitStopped, err)
+		}
+		if !same {
+			if i, _ := winapi.GetProcessID(t.owner); i == winapi.GetCurrentProcessID() {
+				winapi.CloseHandle(t.owner)
+				return t.stopWith(exitStopped, ErrNotSame)
+			}
 		}
 	}
 	// 0x20 - PAGE_EXECUTE_READ
@@ -316,6 +327,9 @@ func (t *thread) Start(p uintptr, d time.Duration, a uintptr, b []byte) error {
 		}
 	}
 	if t.owner == winapi.CurrentProcess || t.owner == 0 {
+		if !same {
+			return t.stopWith(exitStopped, ErrNotSame)
+		}
 		// 0x4 - PAGE_READWRITE
 		if t.loc, err = winapi.NtAllocateVirtualMemory(t.owner, uint32(l), 0x4); err != nil {
 			return t.stopWith(exitStopped, err)

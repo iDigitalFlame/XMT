@@ -23,6 +23,12 @@ import (
 )
 
 var (
+	// ErrNotSame is an error returned by the 'Start' or 'Run' functions when
+	// attempting to start a ASM or DLL without a Filter target and not setting
+	// the 'SelfProcess' attribute to 'true',
+	//
+	// This is used to prevent accidental self-injection
+	ErrNotSame = xerr.Sub("cannot host new thread", 0x80)
 	// ErrNotStarted is an error returned by multiple functions when attempting
 	// to access a Runnable function that requires the Runnable to be started first.
 	ErrNotStarted = xerr.Sub("process has not started", 0x3A)

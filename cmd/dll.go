@@ -28,9 +28,10 @@ import (
 // The 'SetParent*' function will attempt to set the target that loads the DLL.
 // If none are specified, the DLL will be loaded into the current process.
 type DLL struct {
-	Path    string
-	t       thread
-	Timeout time.Duration
+	Path        string
+	t           thread
+	Timeout     time.Duration
+	SameProcess bool
 }
 
 // Run will start the DLL thread and wait until it completes. This function

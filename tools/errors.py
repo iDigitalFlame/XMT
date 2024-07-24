@@ -170,6 +170,7 @@ add(0x76, "invalid non-hex byte", "data")
 add(0x77, "cannot parse curve PublicKey", "data")
 add(0x78, "cannot multiply PrivateKey with PublicKey", "data")
 add(0x79, "non-trusted server PublicKey", "c2")
+add(0x80, "cannot host new thread", "cmd", "ErrNotSame")
 
 
 if __name__ == "__main__":
