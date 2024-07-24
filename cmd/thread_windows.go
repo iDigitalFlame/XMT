@@ -280,9 +280,6 @@ func (t *thread) Start(p uintptr, d time.Duration, a uintptr, b []byte, same boo
 	}
 	atomic.StoreUint32(&t.cookie, 0)
 	if t.ch, t.owner = make(chan struct{}), p; t.owner == 0 {
-		if !same {
-			return t.stopWith(exitStopped, ErrNotSame)
-		}
 		t.owner = winapi.CurrentProcess
 	}
 	var err error
