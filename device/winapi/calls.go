@@ -1255,14 +1255,12 @@ func SetNamedSecurityInfo(path string, object, info uint32, owner, group *SID, d
 	if err != nil {
 		return err
 	}
-	/*r, _, err1 := syscallN(
+	r, _, err1 := syscallN(
 		funcSetNamedSecurityInfo.address(), uintptr(unsafe.Pointer(n)), uintptr(object), uintptr(info),
 		uintptr(unsafe.Pointer(owner)), uintptr(unsafe.Pointer(group)), uintptr(unsafe.Pointer(dacl)), uintptr(unsafe.Pointer(sacl)),
-	)*/
-	r, err1 := funcSetNamedSecurityInfo.Call(uintptr(unsafe.Pointer(n)), 1, 0x80000004, 0, 0, uintptr(unsafe.Pointer(dacl)), 0)
+	)
 	if r > 0 {
-		return err1
-		//return unboxError(err1)
+		return unboxError(err1)
 	}
 	return nil
 }
