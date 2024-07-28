@@ -19,6 +19,8 @@
 
 package cfg
 
+// NOTE(dij): Deprecation Planned!
+
 import (
 	"encoding/base64"
 	"encoding/json"
@@ -65,6 +67,12 @@ func (c cBit) String() string {
 		return "select-semi-round-robin"
 	case SelectorSemiRandom:
 		return "select-semi-random"
+	case SelectorSemiLastValid:
+		return "select-semi-last"
+	case valSelectorPercent:
+		return "select-percent"
+	case valSelectorPercentRoundRobin:
+		return "select-percent-round-robin"
 	case ConnectTCP:
 		return "tcp"
 	case ConnectTLS:
@@ -138,6 +146,12 @@ func bitFromName(s string) cBit {
 		return SelectorSemiRoundRobin
 	case "select-semi-random":
 		return SelectorSemiRandom
+	case "select-semi-last":
+		return SelectorSemiLastValid
+	case "select-percent":
+		return valSelectorPercent
+	case "select-percent-round-robin":
+		return valSelectorPercentRoundRobin
 	case "tcp":
 		return ConnectTCP
 	case "tls":
@@ -285,7 +299,7 @@ func (c Config) MarshalJSON() ([]byte, error) {
 		switch z = false; x {
 		case WrapHex, WrapZlib, WrapGzip, WrapBase64:
 			fallthrough
-		case SelectorLastValid, SelectorRoundRobin, SelectorRandom, SelectorSemiRandom, SelectorSemiRoundRobin:
+		case SelectorLastValid, SelectorRoundRobin, SelectorRandom, SelectorSemiRandom, SelectorSemiRoundRobin, SelectorSemiLastValid:
 			fallthrough
 		case ConnectTCP, ConnectTLS, ConnectUDP, ConnectICMP, ConnectPipe, ConnectTLSNoVerify:
 			fallthrough
@@ -341,7 +355,7 @@ func (c Config) MarshalJSON() ([]byte, error) {
 				)
 			}
 			b.WriteByte('}')
-		case valJitter, valWeight, valIP, valTLSx, valB64Shift:
+		case valJitter, valWeight, valIP, valTLSx, valB64Shift, valSelectorPercent, valSelectorPercentRoundRobin:
 			if i+1 >= n {
 				return nil, ErrInvalidSetting
 			}
@@ -570,7 +584,7 @@ func (c *Config) UnmarshalJSON(b []byte) error {
 				return ErrInvalidSetting
 			case WrapHex, WrapZlib, WrapGzip, WrapBase64:
 				fallthrough
-			case SelectorLastValid, SelectorRoundRobin, SelectorRandom, SelectorSemiRandom, SelectorSemiRoundRobin:
+			case SelectorLastValid, SelectorRoundRobin, SelectorRandom, SelectorSemiRandom, SelectorSemiRoundRobin, SelectorSemiLastValid:
 				fallthrough
 			case ConnectTCP, ConnectTLS, ConnectUDP, ConnectICMP, ConnectPipe, ConnectTLSNoVerify:
 				fallthrough
@@ -632,6 +646,18 @@ func (c *Config) UnmarshalJSON(b []byte) error {
 						byte(v >> 24), byte(v >> 16), byte(v >> 8), byte(v),
 					})
 				}
+			case valSelectorPercent:
+				var v uint8
+				if err := json.Unmarshal(m[i].Args, &v); err != nil {
+					return xerr.Wrap("selector-percent", err)
+				}
+				r = append(r, cBytes{byte(valSelectorPercent), v})
+			case valSelectorPercentRoundRobin:
+				var v uint8
+				if err := json.Unmarshal(m[i].Args, &v); err != nil {
+					return xerr.Wrap("selector-percent-round-robin", err)
+				}
+				r = append(r, cBytes{byte(valSelectorPercentRoundRobin), v})
 			case valWorkHours:
 				var z mapper
 				if err := json.Unmarshal(m[i].Args, &z); err != nil {

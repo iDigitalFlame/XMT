@@ -98,8 +98,26 @@ BUILD ARGUMENTS:
                                   be used in. Takes effect globally and
                                   only needs to be used once in ANY
                                   group.
-
+  --percent         <change %>  Use the Percent selector to indicate
+                                  which order the Profile Groups should
+                                  be used in. Takes effect globally and
+                                  only needs to be used once in ANY
+                                  group.
                                   See SELECTOR VALUES for more info.
+                                  The supplied percentage value is used to
+                                  determine WHEN to switch. Acts like the
+                                  "semi-random" selector when running.
+                                  WIP
+  --percent-robin   <change %>  Use the Percent selector to indicate
+                                  which order the Profile Groups should
+                                  be used in. Takes effect globally and
+                                  only needs to be used once in ANY
+                                  group.
+                                  See SELECTOR VALUES for more info.
+                                  The supplied percentage value is used to
+                                  determine WHEN to switch. Acts like the
+                                  "semi-round-robin" selector when running.
+                                  WIP
   --killdate        <ISO-8601>  Specify a time in ISO-8601 format that
                                   be used to indicate when the implant
                                   will cease to function. The time should
@@ -233,6 +251,10 @@ SELECTOR VALUES
                                   dependent on a 25% chance. If the chance
                                   fails (75%), do not switch. Affected by
                                   Group Weights (lower is better).
+ semi-last                      Switch Profile Group if the last attempt
+                                  failed or a 25% chance. If the chance
+                                  fails (75%), do not switch. Affected
+                                  by Group Weights (lower is better).
 """
 
 
@@ -252,6 +274,9 @@ class Cfg:
         RANDOM = 0xAC
         SEMI_ROUND_ROBIN = 0xAD
         SEMI_RANDOM = 0xAE
+        SEMI_LAST_VALID = 0xA7
+        PERCENT = 0xA8
+        PERCENT_ROUND_ROBIN = 0xA9
 
         TCP = 0xC0
         TLS = 0xC1
@@ -293,6 +318,9 @@ class Cfg:
             RANDOM: "select-random",
             SEMI_ROUND_ROBIN: "select-semi-round-robin",
             SEMI_RANDOM: "select-semi-random",
+            SEMI_LAST_VALID: "select-semi-last",
+            PERCENT: "select-percent",
+            PERCENT_ROUND_ROBIN: "select-percent-round-robin",
             TCP: "tcp",
             TLS: "tls",
             UDP: "udp",
@@ -330,6 +358,9 @@ class Cfg:
             "select-random": RANDOM,
             "select-semi-round-robin": SEMI_ROUND_ROBIN,
             "select-semi-random": SEMI_RANDOM,
+            "select-semi-last": SEMI_LAST_VALID,
+            "select-percent": PERCENT,
+            "select-percent-round-robin": PERCENT_ROUND_ROBIN,
             "tcp": TCP,
             "tls": TLS,
             "udp": UDP,
@@ -572,6 +603,22 @@ class Cfg:
         return s
 
     @staticmethod
+    def selector_percent(p):
+        if Utils.nes(p):
+            if "%" in p:
+                p = p.replace("%", "")
+            try:
+                p = int(p)
+            except ValueError:
+                raise ValueError("select_percent: invalid percentage")
+        if not isinstance(p, int) or p < 0 or p > 100:
+            raise ValueError("select_percent: invalid percentage")
+        s = Setting(2)
+        s[0] = Cfg.Const.SELECT_PERCENT
+        s[1] = p & 0xFF
+        return s
+
+    @staticmethod
     def connect_tls_ca(v, ca):
         if isinstance(ca, (bytes, bytearray)):
             f = ca
@@ -620,7 +667,11 @@ class Cfg:
         return Cfg.Const.as_single(Cfg.Const.TLS_INSECURE)
 
     @staticmethod
-    def select_semi_round_robin():
+    def selector_semi_last_valid():
+        return Cfg.Const.as_single(Cfg.Const.SEMI_LAST_VALID)
+
+    @staticmethod
+    def selector_semi_round_robin():
         return Cfg.Const.as_single(Cfg.Const.SEMI_ROUND_ROBIN)
 
     @staticmethod
@@ -795,6 +846,22 @@ class Cfg:
         for x in range(0, m):
             s[x + n + 6] = k[x]
         del p, k, n, m
+        return s
+
+    @staticmethod
+    def selector_percent_round_robin(p):
+        if Utils.nes(p):
+            if "%" in p:
+                p = p.replace("%", "")
+            try:
+                p = int(p)
+            except ValueError:
+                raise ValueError("select_percent_round_robin: invalid percentage")
+        if not isinstance(p, int) or p < 0 or p > 100:
+            raise ValueError("select_percent_round_robin: invalid percentage")
+        s = Setting(2)
+        s[0] = Cfg.Const.SELECT_PERCENT
+        s[1] = p & 0xFF
         return s
 
     @staticmethod
@@ -1256,11 +1323,13 @@ class Utils:
             else:
                 f = open(v, "w")
         try:
-            if pretty or json:
+            if pretty and json:
                 return print(
                     dumps(c.json(), sort_keys=False, indent=(4 if pretty else None)),
                     file=f,
                 )
+            elif pretty:
+                return print(c)
             if f == stdout and not f.isatty():
                 return f.buffer.write(c)
             if f.mode == "wb":
@@ -1731,6 +1800,18 @@ class Config(bytearray):
             s[5] = m
             del d, h, j, n, m
             return self.add(s)
+        if m == Cfg.Const.PERCENT:
+            if not isinstance(p, int):
+                raise ValueError("selector_percent: invalid JSON value")
+            if p < 0 or p > 100:
+                raise ValueError("selector_percent: invalid JSON value")
+            return self.add(Cfg.selector_percent(p))
+        if m == Cfg.Const.PERCENT_ROUND_ROBIN:
+            if not isinstance(p, int):
+                raise ValueError("selector_percent_round_robin: invalid JSON value")
+            if p < 0 or p > 100:
+                raise ValueError("selector_percent_round_robin: invalid JSON value")
+            return self.add(Cfg.selector_percent_round_robin(p))
         if m == Cfg.Const.IP:
             if not isinstance(p, int):
                 raise ValueError("ip: invalid JSON value")
@@ -1867,7 +1948,9 @@ class Setting(bytearray):
             return False
         if v == Cfg.Const.B64T or v == Cfg.Const.SEPARATOR:
             return True
-        if v >= Cfg.Const.LAST_VALID and v <= Cfg.Const.SEMI_RANDOM:
+        if v == Cfg.Const.PERCENT or v == Cfg.Const.PERCENT_ROUND_ROBIN:
+            return False
+        if v >= Cfg.Const.SEMI_LAST_VALID and v <= Cfg.Const.SEMI_RANDOM:
             return True
         if v >= Cfg.Const.TCP and v <= Cfg.Const.TLS_INSECURE:
             return True
@@ -1916,7 +1999,7 @@ class _Builder(ArgumentParser):
         self.add_argument("-T", "--host", type=str, dest="host")
         self.add_argument("-S", "--sleep", type=str, dest="sleep")
         self.add_argument("-J", "--jitter", type=int, dest="jitter")
-        self.add_argument("-W", "--weight", type=int, dest="weight")
+        self.add_argument("-W", "--weight", type=str, dest="weight")
         self.add_argument(
             "-X",
             "--selector",
@@ -1929,8 +2012,12 @@ class _Builder(ArgumentParser):
                 "round-robin",
                 "semi-random",
                 "semi-round-robin",
+                "semi-last",
             ],
         )
+
+        self.add_argument("--percent", type=str, dest="percent")
+        self.add_argument("--percent-robin", type=str, dest="percent_robin")
 
         self.add_argument("--killdate", type=str, dest="killdate")
         self.add_argument("--wh-days", type=str, dest="workhours_days")
@@ -2076,7 +2163,7 @@ class _Builder(ArgumentParser):
             config.add(Cfg.host(args.host))
         if args.sleep:
             config.add(Cfg.sleep(args.sleep))
-        if isinstance(args.jitter, int):
+        if isinstance(args.jitter, (int, str)):
             config.add(Cfg.jitter(args.jitter))
         if isinstance(args.weight, int):
             config.add(Cfg.weight(args.weight))
@@ -2097,6 +2184,10 @@ class _Builder(ArgumentParser):
                 for x in i:
                     config.add(Cfg.key_pin(x))
         if args.selector:
+            if args.percent or args.percent_robin:
+                raise ValueError(
+                    "selector: cannot use a selector with --percent/--percent-robin"
+                )
             if args.selector == "last":
                 config.add(Cfg.selector_last_valid())
             elif args.selector == "random":
@@ -2107,8 +2198,19 @@ class _Builder(ArgumentParser):
                 config.add(Cfg.selector_semi_random())
             elif args.selector == "semi-round-robin":
                 config.add(Cfg.selector_semi_round_robin())
+            elif args.selector == "semi-last":
+                config.add(Cfg.selector_semi_last_valid())
             else:
                 raise ValueError("selector: invalid value")
+        else:
+            if args.percent and args.percent_robin:
+                raise ValueError(
+                    "selector: cannot use both --percent and --percent-robin"
+                )
+            if args.percent:
+                config.add(Cfg.selector_percent(args.percent))
+            elif args.percent_robin:
+                config.add(Cfg.selector_percent_round_robin(args.percent_robin))
         if args.tcp:
             config.add(Cfg.connect_tcp())
         if args.tls:

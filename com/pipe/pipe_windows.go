@@ -133,11 +133,6 @@ func (l *Listener) Close() error {
 				bugtrack.Track("com.(*Listener).Close(): CancelIoEx error: %s!", err.Error())
 			}
 		}
-		if err = winapi.CloseHandle(l.overlap.Event); err != nil {
-			if bugtrack.Enabled {
-				bugtrack.Track("com.(*Listener).Close(): CloseHandle(event) error: %s!", err.Error())
-			}
-		}
 		if l.active > 0 { // Extra check as it can be reset here sometimes.
 			if err = winapi.CloseHandle(l.active); err != nil {
 				if bugtrack.Enabled {

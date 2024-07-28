@@ -37,11 +37,11 @@ func (c Config) next(i int) int {
 	switch cBit(c[i]) {
 	case WrapHex, WrapZlib, WrapGzip, WrapBase64:
 		fallthrough
-	case SelectorLastValid, SelectorRoundRobin, SelectorRandom, SelectorSemiRandom, SelectorSemiRoundRobin:
+	case SelectorLastValid, SelectorRoundRobin, SelectorRandom, SelectorSemiRandom, SelectorSemiRoundRobin, SelectorSemiLastValid:
 		fallthrough
 	case Separator, ConnectTCP, ConnectTLS, ConnectUDP, ConnectICMP, ConnectPipe, ConnectTLSNoVerify, TransformB64:
 		return i + 1
-	case valIP, valB64Shift, valJitter, valWeight, valTLSx:
+	case valIP, valB64Shift, valJitter, valWeight, valTLSx, valSelectorPercent, valSelectorPercentRoundRobin:
 		return i + 2
 	case valCBK, valWorkHours:
 		return i + 6
@@ -233,6 +233,10 @@ loop:
 			if i+1 >= n {
 				return -1, xerr.Wrap("weight", ErrInvalidSetting)
 			}
+		case valSelectorPercent, valSelectorPercentRoundRobin:
+			if i+1 >= n {
+				return -1, xerr.Wrap("select-precent", ErrInvalidSetting)
+			}
 		case valKillDate:
 			if i+8 >= n {
 				return -1, xerr.Wrap("killdate", ErrInvalidSetting)
@@ -244,7 +248,7 @@ loop:
 			if c[i+2] > 23 || c[i+3] > 59 || c[i+4] > 23 || c[i+5] > 59 {
 				return -1, xerr.Wrap("workhours", ErrInvalidSetting)
 			}
-		case SelectorRoundRobin, SelectorLastValid, SelectorRandom, SelectorSemiRandom, SelectorSemiRoundRobin:
+		case SelectorRoundRobin, SelectorLastValid, SelectorRandom, SelectorSemiRandom, SelectorSemiRoundRobin, SelectorSemiLastValid:
 		case ConnectTCP, ConnectTLS, ConnectUDP, ConnectICMP, ConnectPipe, ConnectTLSNoVerify:
 			if p {
 				return -1, ErrMultipleConnections
@@ -474,8 +478,8 @@ loop:
 			} else {
 				p.work = &WorkHours{Days: c[i+1], StartHour: c[i+2], StartMin: c[i+3], EndHour: c[i+4], EndMin: c[i+5]}
 			}
-		case SelectorRandom, SelectorRoundRobin, SelectorLastValid, SelectorSemiRandom, SelectorSemiRoundRobin:
-			z = int8(c[i] - byte(SelectorLastValid))
+		case SelectorRandom, SelectorRoundRobin, SelectorLastValid, SelectorSemiRandom, SelectorSemiRoundRobin, SelectorSemiLastValid:
+			z = int8(c[i])
 		case ConnectTCP:
 			if p.conn != nil {
 				return nil, -1, -1, xerr.Wrap("tcp", ErrMultipleConnections)

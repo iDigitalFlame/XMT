@@ -66,6 +66,19 @@ const (
 	// Takes effect only if there are multiple Groups in this Config.
 	// This value is GLOBAL and can be present in any Group!
 	SelectorSemiRandom = cBit(0xAE)
+	// SelectorSemiLastValid is a selection that will keep using the last
+	// Group unless it fails or a random precentage threashold is met (25%).
+	// On a failure, the first call or a random change, this will act similar to
+	// 'SelectorRoundRobin'.
+	//
+	// Takes effect only if there are multiple Groups in this Config.
+	// This value is GLOBAL and can be present in any Group!
+	SelectorSemiLastValid = cBit(0xA7)
+)
+
+const (
+	valSelectorPercent           = cBit(0xA8)
+	valSelectorPercentRoundRobin = cBit(0xA9)
 )
 
 // Group is a struct that allows for using multiple connections for a single
@@ -153,16 +166,25 @@ func (g *Group) Less(i, j int) bool {
 //
 // Static Profile variants may always return 'false' to prevent allocations.
 func (g *Group) Switch(e bool) bool {
-	if (g.cur != nil && !e && g.sel == 0) || len(g.entries) == 0 {
+	// NOTE(dij): Rust sets the first Group on creation, but Go does not, so
+	//            if g.cur == nil, it means we haven't set it yet.
+	if len(g.entries) == 0 {
 		return false
 	}
-	if g.sel == 0 && !e && g.cur != nil { // redundent?
-		return false
+	if g.cur != nil {
+		if !e && g.sel == uint8(SelectorLastValid) {
+			return false
+		}
+		if !e && g.sel == uint8(SelectorSemiLastValid) && util.FastRandN(4) != 0 {
+			return false
+		}
+		if (g.sel == uint8(SelectorSemiRandom) || g.sel == uint8(SelectorSemiRoundRobin)) && util.FastRandN(4) != 0 {
+			return false
+		}
+		// selectorPercent stuff here.
 	}
-	if g.cur != nil && (g.sel == 3 || g.sel == 4) && util.FastRandN(4) != 0 {
-		return false
-	}
-	if g.lock.Lock(); g.sel == 2 || g.sel == 4 {
+	switch g.lock.Lock(); {
+	case g.sel == uint8(SelectorRandom) || g.sel == uint8(SelectorSemiRandom):
 		if n := g.entries[util.FastRandN(len(g.entries))]; g.cur != n {
 			g.cur = n
 			g.lock.Unlock()
@@ -170,8 +192,7 @@ func (g *Group) Switch(e bool) bool {
 		}
 		g.lock.Unlock()
 		return false
-	}
-	if g.cur == nil {
+	case g.cur == nil:
 		g.cur = g.entries[0]
 		g.lock.Unlock()
 		return true
