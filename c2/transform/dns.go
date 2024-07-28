@@ -118,7 +118,7 @@ func decodePacket(w io.Writer, b []byte) (int, error) {
 	)
 	for ; q > 0; q-- {
 		for i := 0; i < 64; {
-			if i >= len(b) {
+			if i >= len(b) || s > len(b) {
 				return 0, io.ErrUnexpectedEOF
 			}
 			if i = int(b[s]); i == 0 {

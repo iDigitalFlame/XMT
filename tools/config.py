@@ -1323,7 +1323,7 @@ class Utils:
             else:
                 f = open(v, "w")
         try:
-            if pretty and json:
+            if json:
                 return print(
                     dumps(c.json(), sort_keys=False, indent=(4 if pretty else None)),
                     file=f,
