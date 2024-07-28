@@ -168,7 +168,7 @@ func (c Config) Build() (Profile, error) {
 		e   []*profile
 		n   int
 		v   *profile
-		s   int8
+		s   uint8
 		g   uint8
 		err error
 	)
@@ -179,7 +179,7 @@ func (c Config) Build() (Profile, error) {
 		if v == nil || (n-i == 1 && c[i] == byte(Separator)) {
 			continue
 		}
-		if e = append(e, v); s >= 0 {
+		if e = append(e, v); s > 0 {
 			g = uint8(s)
 		}
 		v = nil
@@ -397,12 +397,12 @@ loop:
 	}
 	return n, nil
 }
-func (c Config) build(x int) (*profile, int, int8, error) {
+func (c Config) build(x int) (*profile, int, uint8, error) {
 	var (
 		p profile
 		n int
-		z int8 = -1
-		w      = make([]Wrapper, 0, 4)
+		z uint8
+		w = make([]Wrapper, 0, 4)
 	)
 loop:
 	for i := x; n >= 0 && n < len(c); i = n {
@@ -413,19 +413,19 @@ loop:
 		case Separator:
 			break loop
 		case invalid:
-			return nil, -1, -1, ErrInvalidSetting
+			return nil, -1, 0, ErrInvalidSetting
 		case valHost:
 			if i+3 >= n {
-				return nil, -1, -1, xerr.Wrap("host", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("host", ErrInvalidSetting)
 			}
 			v := (int(c[i+2]) | int(c[i+1])<<8) + i
 			if v > n || v < i {
-				return nil, -1, -1, xerr.Wrap("host", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("host", ErrInvalidSetting)
 			}
 			p.hosts = append(p.hosts, string(c[i+3:v+3]))
 		case valSleep:
 			if i+8 >= n {
-				return nil, -1, -1, xerr.Wrap("sleep", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("sleep", ErrInvalidSetting)
 			}
 			p.sleep = time.Duration(
 				uint64(c[i+8]) | uint64(c[i+7])<<8 | uint64(c[i+6])<<16 | uint64(c[i+5])<<24 |
@@ -436,7 +436,7 @@ loop:
 			}
 		case valJitter:
 			if i+1 >= n {
-				return nil, -1, -1, xerr.Wrap("jitter", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("jitter", ErrInvalidSetting)
 			}
 			if p.jitter = int8(c[i+1]); p.jitter > 100 {
 				p.jitter = 100
@@ -445,19 +445,19 @@ loop:
 			}
 		case valKeyPin:
 			if i+4 >= n {
-				return nil, -1, -1, xerr.Wrap("keypin", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("keypin", ErrInvalidSetting)
 			}
 			p.keys = append(p.keys, uint32(c[i+4])|uint32(c[i+3])<<8|uint32(c[i+2])<<16|uint32(c[i+1])<<24)
 		case valWeight:
 			if i+1 >= n {
-				return nil, -1, -1, xerr.Wrap("weight", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("weight", ErrInvalidSetting)
 			}
 			if p.weight = c[i+1]; p.weight > 100 {
 				p.weight = 100
 			}
 		case valKillDate:
 			if i+8 >= n {
-				return nil, -1, -1, xerr.Wrap("killdate", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("killdate", ErrInvalidSetting)
 			}
 			u := uint64(c[i+8]) | uint64(c[i+7])<<8 | uint64(c[i+6])<<16 | uint64(c[i+5])<<24 |
 				uint64(c[i+4])<<32 | uint64(c[i+3])<<40 | uint64(c[i+2])<<48 | uint64(c[i+1])<<56
@@ -468,10 +468,10 @@ loop:
 			}
 		case valWorkHours:
 			if i+5 >= n {
-				return nil, -1, -1, xerr.Wrap("workhours", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("workhours", ErrInvalidSetting)
 			}
 			if c[i+2] > 23 || c[i+3] > 59 || c[i+4] > 23 || c[i+5] > 59 {
-				return nil, -1, -1, xerr.Wrap("workhours", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("workhours", ErrInvalidSetting)
 			}
 			if c[i+1] == 0 && c[i+2] == 0 && c[i+3] == 0 && c[i+4] == 0 && c[i+5] == 0 {
 				p.work = &WorkHours{}
@@ -479,74 +479,74 @@ loop:
 				p.work = &WorkHours{Days: c[i+1], StartHour: c[i+2], StartMin: c[i+3], EndHour: c[i+4], EndMin: c[i+5]}
 			}
 		case SelectorRandom, SelectorRoundRobin, SelectorLastValid, SelectorSemiRandom, SelectorSemiRoundRobin, SelectorSemiLastValid:
-			z = int8(c[i])
+			z = c[i]
 		case ConnectTCP:
 			if p.conn != nil {
-				return nil, -1, -1, xerr.Wrap("tcp", ErrMultipleConnections)
+				return nil, -1, 0, xerr.Wrap("tcp", ErrMultipleConnections)
 			}
 			p.conn = com.TCP
 		case ConnectTLS:
 			if p.conn != nil {
-				return nil, -1, -1, xerr.Wrap("tls", ErrMultipleConnections)
+				return nil, -1, 0, xerr.Wrap("tls", ErrMultipleConnections)
 			}
 			p.conn = com.TLS
 		case ConnectUDP:
 			if p.conn != nil {
-				return nil, -1, -1, xerr.Wrap("udp", ErrMultipleConnections)
+				return nil, -1, 0, xerr.Wrap("udp", ErrMultipleConnections)
 			}
 			p.conn = com.UDP
 		case ConnectICMP:
 			if p.conn != nil {
-				return nil, -1, -1, xerr.Wrap("icmp", ErrMultipleConnections)
+				return nil, -1, 0, xerr.Wrap("icmp", ErrMultipleConnections)
 			}
 			p.conn = com.ICMP
 		case ConnectPipe:
 			if p.conn != nil {
-				return nil, -1, -1, xerr.Wrap("pipe", ErrMultipleConnections)
+				return nil, -1, 0, xerr.Wrap("pipe", ErrMultipleConnections)
 			}
 			p.conn = pipe.Pipe
 		case ConnectTLSNoVerify:
 			if p.conn != nil {
-				return nil, -1, -1, xerr.Wrap("tls-insecure", ErrMultipleConnections)
+				return nil, -1, 0, xerr.Wrap("tls-insecure", ErrMultipleConnections)
 			}
 			p.conn = com.TLSInsecure
 		case valIP:
 			if p.conn != nil {
-				return nil, -1, -1, xerr.Wrap("ip", ErrMultipleConnections)
+				return nil, -1, 0, xerr.Wrap("ip", ErrMultipleConnections)
 			}
 			if i+1 >= n {
-				return nil, -1, -1, xerr.Wrap("ip", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("ip", ErrInvalidSetting)
 			}
 			if c[i+1] == 0 {
-				return nil, -1, -1, xerr.Wrap("ip", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("ip", ErrInvalidSetting)
 			}
 			p.conn = com.NewIP(com.DefaultTimeout, c[i+1])
 		case valWC2:
 			if p.conn != nil {
-				return nil, -1, -1, xerr.Wrap("wc2", ErrMultipleConnections)
+				return nil, -1, 0, xerr.Wrap("wc2", ErrMultipleConnections)
 			}
 			if i+7 >= n {
-				return nil, -1, -1, xerr.Wrap("wc2", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("wc2", ErrInvalidSetting)
 			}
 			var (
 				v, q = (int(c[i+2]) | int(c[i+1])<<8) + i + 8, i + 8
 				t    wc2.Target
 			)
 			if v > n || q > n || q < i || v < i {
-				return nil, -1, -1, xerr.Wrap("wc2", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("wc2", ErrInvalidSetting)
 			}
 			if v > q {
 				t.URL = text.Matcher(c[q:v])
 			}
 			if v, q = (int(c[i+4])|int(c[i+3])<<8)+v, v; v > q {
 				if v > n || q > n || v < q || q < i || v < i {
-					return nil, -1, -1, xerr.Wrap("wc2", ErrInvalidSetting)
+					return nil, -1, 0, xerr.Wrap("wc2", ErrInvalidSetting)
 				}
 				t.Host = text.Matcher(c[q:v])
 			}
 			if v, q = (int(c[i+6])|int(c[i+5])<<8)+v, v; v > q {
 				if v > n || q > n || v < q || q < i || v < i {
-					return nil, -1, -1, xerr.Wrap("wc2", ErrInvalidSetting)
+					return nil, -1, 0, xerr.Wrap("wc2", ErrInvalidSetting)
 				}
 				t.Agent = text.Matcher(c[q:v])
 			}
@@ -555,7 +555,7 @@ loop:
 				for j := 0; v < n && q < n && j < n; {
 					q, j = v+2, int(c[v])+v+2
 					if v = int(c[v+1]) + j; q == j || q > n || j > n || v > n || v < j || j < q || q < i || j < i || v < i {
-						return nil, -1, -1, xerr.Wrap("wc2", ErrInvalidSetting)
+						return nil, -1, 0, xerr.Wrap("wc2", ErrInvalidSetting)
 					}
 					t.Header(string(c[q:j]), text.Matcher(c[j:v]))
 				}
@@ -563,22 +563,22 @@ loop:
 			p.conn = wc2.NewClient(com.DefaultTimeout, &t)
 		case valTLSx:
 			if p.conn != nil {
-				return nil, -1, -1, xerr.Wrap("tls-ex", ErrMultipleConnections)
+				return nil, -1, 0, xerr.Wrap("tls-ex", ErrMultipleConnections)
 			}
 			if i+1 >= n {
-				return nil, -1, -1, xerr.Wrap("tls-ex", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("tls-ex", ErrInvalidSetting)
 			}
 			t, err := com.NewTLSConfig(false, uint16(c[i+1]), nil, nil, nil)
 			if err != nil {
-				return nil, -1, -1, xerr.Wrap("tls-ex", err)
+				return nil, -1, 0, xerr.Wrap("tls-ex", err)
 			}
 			p.conn = com.NewTLS(com.DefaultTimeout, t)
 		case valMuTLS:
 			if p.conn != nil {
-				return nil, -1, -1, xerr.Wrap("mtls", ErrMultipleConnections)
+				return nil, -1, 0, xerr.Wrap("mtls", ErrMultipleConnections)
 			}
 			if i+7 >= n {
-				return nil, -1, -1, xerr.Wrap("mtls", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("mtls", ErrInvalidSetting)
 			}
 			var (
 				a = (int(c[i+3]) | int(c[i+2])<<8) + i + 8
@@ -586,46 +586,46 @@ loop:
 				k = (int(c[i+7]) | int(c[i+6])<<8) + b
 			)
 			if a > n || b > n || k > n || b < a || k < b || a < i || b < i || k < i {
-				return nil, -1, -1, xerr.Wrap("mtls", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("mtls", ErrInvalidSetting)
 			}
 			t, err := com.NewTLSConfig(true, uint16(c[i+1]), c[i+8:a], c[a:b], c[b:k])
 			if err != nil {
-				return nil, -1, -1, xerr.Wrap("mtls", err)
+				return nil, -1, 0, xerr.Wrap("mtls", err)
 			}
 			p.conn = com.NewTLS(com.DefaultTimeout, t)
 		case valTLSxCA:
 			if p.conn != nil {
-				return nil, -1, -1, xerr.Wrap("tls-ca", ErrMultipleConnections)
+				return nil, -1, 0, xerr.Wrap("tls-ca", ErrMultipleConnections)
 			}
 			if i+4 >= n {
-				return nil, -1, -1, xerr.Wrap("tls-ca", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("tls-ca", ErrInvalidSetting)
 			}
 			a := (int(c[i+3]) | int(c[i+2])<<8) + i + 4
 			if a > n || a < i {
-				return nil, -1, -1, xerr.Wrap("tls-ca", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("tls-ca", ErrInvalidSetting)
 			}
 			t, err := com.NewTLSConfig(false, uint16(c[i+1]), c[i+4:a], nil, nil)
 			if err != nil {
-				return nil, -1, -1, xerr.Wrap("tls-ca", err)
+				return nil, -1, 0, xerr.Wrap("tls-ca", err)
 			}
 			p.conn = com.NewTLS(com.DefaultTimeout, t)
 		case valTLSCert:
 			if p.conn != nil {
-				return nil, -1, -1, xerr.Wrap("tls-cert", ErrMultipleConnections)
+				return nil, -1, 0, xerr.Wrap("tls-cert", ErrMultipleConnections)
 			}
 			if i+6 >= n {
-				return nil, -1, -1, xerr.Wrap("tls-cert", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("tls-cert", ErrInvalidSetting)
 			}
 			var (
 				b = (int(c[i+3]) | int(c[i+2])<<8) + i + 6
 				k = (int(c[i+5]) | int(c[i+4])<<8) + b
 			)
 			if b > n || k > n || b < i || k < i || k < b {
-				return nil, -1, -1, xerr.Wrap("tls-cert", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("tls-cert", ErrInvalidSetting)
 			}
 			t, err := com.NewTLSConfig(true, uint16(c[i+1]), nil, c[i+6:b], c[b:k])
 			if err != nil {
-				return nil, -1, -1, xerr.Wrap("tls-cert", err)
+				return nil, -1, 0, xerr.Wrap("tls-cert", err)
 			}
 			p.conn = com.NewTLS(com.DefaultTimeout, t)
 		case WrapHex:
@@ -638,55 +638,55 @@ loop:
 			w = append(w, wrapper.Base64)
 		case valXOR:
 			if i+3 >= n {
-				return nil, -1, -1, xerr.Wrap("xor", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("xor", ErrInvalidSetting)
 			}
 			k := (int(c[i+2]) | int(c[i+1])<<8) + i
 			if k > n || k < i {
-				return nil, -1, -1, xerr.Wrap("xor", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("xor", ErrInvalidSetting)
 			}
 			w = append(w, wrapper.NewXOR(c[i+3:k+3]))
 		case valCBK:
 			if i+5 >= n {
-				return nil, -1, -1, xerr.Wrap("cbk", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("cbk", ErrInvalidSetting)
 			}
 			w = append(w, wrapper.NewCBK(c[i+2], c[i+3], c[i+4], c[i+5], c[i+1]))
 		case valAES:
 			if i+3 >= n {
-				return nil, -1, -1, xerr.Wrap("aes", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("aes", ErrInvalidSetting)
 			}
 			var (
 				v = int(c[i+1]) + i + 3
 				z = int(c[i+2]) + v
 			)
 			if v == z || i+3 == v || v > n || z > n || z < i || v < i || z < v {
-				return nil, -1, -1, xerr.Wrap("aes", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("aes", ErrInvalidSetting)
 			}
 			b, err := crypto.NewAes(c[i+3 : v])
 			if err != nil {
-				return nil, -1, -1, xerr.Wrap("aes", err)
+				return nil, -1, 0, xerr.Wrap("aes", err)
 			}
 			u, err := wrapper.NewBlock(b, c[v:z])
 			if err != nil {
-				return nil, -1, -1, xerr.Wrap("aes", err)
+				return nil, -1, 0, xerr.Wrap("aes", err)
 			}
 			w = append(w, u)
 		case TransformB64:
 			if p.t != nil {
-				return nil, -1, -1, xerr.Wrap("base64T", ErrMultipleTransforms)
+				return nil, -1, 0, xerr.Wrap("base64T", ErrMultipleTransforms)
 			}
 			p.t = transform.Base64
 		case valDNS:
 			if p.t != nil {
-				return nil, -1, -1, xerr.Wrap("dns", ErrMultipleTransforms)
+				return nil, -1, 0, xerr.Wrap("dns", ErrMultipleTransforms)
 			}
 			if i+1 >= n {
-				return nil, -1, -1, xerr.Wrap("dns", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("dns", ErrInvalidSetting)
 			}
 			_ = c[i+1]
 			d := make(transform.DNSTransform, 0, c[i+1])
 			for x, v, e := int(c[i+1]), i+2, i+2; x > 0 && v < n; x-- {
 				if v += int(c[v]) + 1; e+1 > v || e+1 == v || v < e || v > n || e > n || x > n || e < i || v < i || x < i {
-					return nil, -1, -1, xerr.Wrap("dns", ErrInvalidSetting)
+					return nil, -1, 0, xerr.Wrap("dns", ErrInvalidSetting)
 				}
 				d = append(d, string(c[e+1:v]))
 				e = v
@@ -694,14 +694,14 @@ loop:
 			p.t = d
 		case valB64Shift:
 			if p.t != nil {
-				return nil, -1, -1, xerr.Wrap("b64S", ErrMultipleTransforms)
+				return nil, -1, 0, xerr.Wrap("b64S", ErrMultipleTransforms)
 			}
 			if i+1 >= n {
-				return nil, -1, -1, xerr.Wrap("b64S", ErrInvalidSetting)
+				return nil, -1, 0, xerr.Wrap("b64S", ErrInvalidSetting)
 			}
 			p.t = transform.B64(c[i+1])
 		default:
-			return nil, -1, -1, ErrInvalidSetting
+			return nil, -1, 0, ErrInvalidSetting
 		}
 	}
 	if len(w) > 1 {
