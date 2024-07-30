@@ -111,7 +111,7 @@ func mutexCreate(s string) (listener, error) {
 		return nil, err
 	}
 	v.Length = uint32(unsafe.Sizeof(v))
-	m, err := winapi.CreateMutex(&v, true, s)
+	m, err := winapi.CreateMutex(&v, false, s)
 	if m > 0 && err == syscall.ERROR_ALREADY_EXISTS {
 		winapi.CloseHandle(m)
 		return nil, err
@@ -136,7 +136,7 @@ func eventCreate(s string) (listener, error) {
 		return nil, err
 	}
 	v.Length = uint32(unsafe.Sizeof(v))
-	e, err := winapi.CreateEvent(&v, true, true, s)
+	e, err := winapi.CreateEvent(&v, true, false, s)
 	if e > 0 && err == syscall.ERROR_ALREADY_EXISTS {
 		winapi.CloseHandle(e)
 		return nil, err
