@@ -175,3 +175,5 @@ Third-party Licenses:
   - Only if [Otto](https://github.com/robertkrimen/otto) support is compiled in and enabled.
 - [LogX](https://raw.githubusercontent.com/PurpleSec/LogX/main/LICENSE) (Apache v2)
 - [Escape](https://raw.githubusercontent.com/PurpleSec/Escape/main/LICENSE) (Apache v2)
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Z8Z4121TDS)
