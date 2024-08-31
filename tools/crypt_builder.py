@@ -172,7 +172,7 @@ if __name__ == "__main__":
         "go",
         "build",
         "-ldflags",
-        f"-w -s -X "
+        f"-w -s -checklinkname=0 -X "
         f"'github.com/iDigitalFlame/xmt/util/crypt.key={w.key_output()}'"
         f" -X 'github.com/iDigitalFlame/xmt/util/crypt.payload={w.output()}'",
     ]

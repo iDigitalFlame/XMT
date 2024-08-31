@@ -34,7 +34,7 @@ __using XMT (or a derivative of it).__
 
 ## Roadmap
 
-_Updated 02/17/23_
+_Updated 02/17/23_ (I will update this soon!)
 
 - Reflective DLL Injection (Windows)
 - Updates to handeling x86 PEB (Windows)
@@ -53,6 +53,33 @@ above list:
 - EDR Detection
 - Linux shellcode support
 - More thread injection options (Windows)
+
+## Go 1.23 Notes
+
+Due to the Golang team no longer allowing the usage of `go:linkname` _(unless you're_
+_a huge project like Docker)_, __ALL XMT BUILDS MUST INCLUDE THIS BUILD ARG__:
+
+```shell
+-ldflags '-checklinkname=0'
+```
+
+For example, if you want to build a simple binary with XMT like:
+
+```shell
+GOOS=windows go build -o test.exe examples/main.go
+```
+
+You must now include `-checklinkname=0` or __IT WILL NOT COMPILE__ like:
+
+```shell
+GOOS=windows go build -ldflags '-checklinkname=0' -o test.exe examples/main.go
+```
+
+I'm sorry if this breaks any building systems. ThunderStorm's JetStream/CloudSeed
+has been updated to support this flag.
+
+Due to how XMT interacts with the runtime and requires functions that the Golang
+developers will never export, removing the usage `go:linkname` is not possible.
 
 ## Compatibility
 

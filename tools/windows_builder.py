@@ -246,7 +246,9 @@ def _main():
         if isinstance(p.tags, str) and len(p.tags) > 0:
             x += ["-tags", p.tags]
         if isinstance(p.flags, str) and len(p.flags) > 0:
-            x += ["-ldflags", p.flags]
+            x += ["-ldflags", p.flags + " -checklinkname=0"]
+        else:
+            x += ["-ldflags", "-checklinkname=0"]
         if isinstance(p.gcflags, str) and len(p.gcflags) > 0:
             x += ["-gcflags", p.gcflags]
         x += ["-o", f"{join(d, o)}.a"]
