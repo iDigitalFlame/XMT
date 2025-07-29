@@ -643,7 +643,7 @@ func (e *executable) startInfo() (*winapi.StartupInfoEx, *winapi.StartupInfo, er
 		}
 	}
 	// NOTE(dij): checkVersion(): Retruns false if the system is < Windows Vista
-	if x.StartupInfo.Cb = uint32(unsafe.Sizeof(x)); !checkVersion() {
+	if x.StartupInfo.Cb = uint32(unsafe.Sizeof(x.StartupInfo)); !checkVersion() {
 		return nil, &x.StartupInfo, nil
 	}
 	if e.filter != nil && !e.filter.Empty() {

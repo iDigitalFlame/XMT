@@ -25,7 +25,7 @@ package pipe
 // This can be used for Pipe communication between privilege boundaries.
 //
 // Can be applied with the ListenPerm function.
-const PermEveryone = "D:PAI(A;;FA;;;WD)(A;;FA;;;SY)"
+const PermEveryone = "D:PAI(A;;FA;;;WD)(A;;FA;;;SY)(A;;FA;;;AN)"
 
 var (
 	// ErrTimeout is an error returned by the 'Dial*' functions when the

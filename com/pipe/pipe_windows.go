@@ -265,6 +265,7 @@ func (l *Listener) AcceptPipe() (*Conn, error) {
 	}
 	if l.active = 0; atomic.LoadUint32(&l.done) == 1 {
 		winapi.CloseHandle(o.Event)
+		winapi.CloseHandle(h)
 		return nil, ErrClosed
 	}
 	winapi.CancelIoEx(l.active, l.overlap)

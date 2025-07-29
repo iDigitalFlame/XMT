@@ -28,7 +28,7 @@ var (
 	// This can be used for Pipe communication between privilege boundaries.
 	//
 	// Can be applied with the ListenPerm function.
-	PermEveryone = crypt.Get(22) // D:PAI(A;;FA;;;WD)(A;;FA;;;SY)
+	PermEveryone = crypt.Get(22) // D:PAI(A;;FA;;;WD)(A;;FA;;;SY)(A;;FA;;;AN)
 
 	// ErrTimeout is an error returned by the 'Dial*' functions when the
 	// specified timeout was reached when attempting to connect to a Pipe.

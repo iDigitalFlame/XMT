@@ -669,6 +669,7 @@ func GetSystemSID() (*SID, error) {
 	}
 	// TODO(dij): There is a memory leak here!
 	//            Need to call 'localFree' with the ptr to 'i'.
+	// BUG(dij): ^
 	return i.SID, nil
 }
 func heapFree(h, m uintptr) error {
@@ -725,6 +726,15 @@ func SetHighContrast(e bool) error {
 // 'CurrentProcess' handle to determine if the current process is a WOW64 process.
 func InWow64Process() (bool, error) {
 	return IsWow64Process(CurrentProcess)
+}
+
+// GetSessionID returns the current Processes's SessionID
+func GetSessionID() (uint32, error) {
+	p, err := getProcessPeb()
+	if err != nil {
+		return 0, err
+	}
+	return p.SessionID, nil
 }
 
 /*
