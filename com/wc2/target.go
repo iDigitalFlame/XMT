@@ -45,7 +45,7 @@ type Stringer interface {
 // Reset sets all the Target values to nil. This allows for an empty Target to
 // be used.
 func (t *Target) Reset() {
-	if t.URL, t.Host, t.Agent = nil, nil, nil; t.Headers != nil && len(t.Headers) > 0 {
+	if t.URL, t.Host, t.Agent = nil, nil, nil; len(t.Headers) > 0 {
 		for k := range t.Headers {
 			delete(t.Headers, k)
 		}
@@ -92,7 +92,7 @@ func (t Target) Rule() Rule {
 			r.Agent = text.Matcher(t.Agent.String()).Match()
 		}
 	}
-	if t.Headers != nil && len(t.Headers) > 0 {
+	if len(t.Headers) > 0 {
 		r.Headers = make(map[string]Matcher, len(t.Headers))
 		for k, v := range t.Headers {
 			if m, ok := v.(Matcher); ok {

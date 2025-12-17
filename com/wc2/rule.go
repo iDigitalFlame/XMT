@@ -53,7 +53,7 @@ func (r Rule) match(c *http.Request) bool {
 	if r.Agent != nil && !r.Agent.MatchString(c.UserAgent()) {
 		return false
 	}
-	if r.Headers != nil && len(r.Headers) > 0 {
+	if len(r.Headers) > 0 {
 		if len(c.Header) == 0 {
 			return false
 		}

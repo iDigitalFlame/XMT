@@ -88,7 +88,7 @@ func (j *Job) Cancel() {
 		return
 	}
 	j.s.lock.Lock()
-	if j.s.jobs == nil || len(j.s.jobs) == 0 {
+	if len(j.s.jobs) == 0 {
 		close(j.done)
 		j.Status, j.done = StatusCanceled, nil
 		// NOTE(dij): We're using the Session Mutex to protect all Jobs since it's

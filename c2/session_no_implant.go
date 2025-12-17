@@ -87,7 +87,7 @@ type Session struct {
 // This returns nil if there are no Jobs or this Session does not have the
 // ability to schedule them.
 func (s *Session) Jobs() []*Job {
-	if s.jobs == nil || len(s.jobs) == 0 {
+	if len(s.jobs) == 0 {
 		return nil
 	}
 	s.lock.RLock()
@@ -106,7 +106,7 @@ func (s *Session) IsClient() bool {
 	return s.parent == nil && s.s == nil
 }
 func (s *Session) accept(i uint16) {
-	if i < 2 || s.parent == nil || s.jobs == nil || len(s.jobs) == 0 {
+	if i < 2 || s.parent == nil || len(s.jobs) == 0 {
 		return
 	}
 	s.lock.RLock()
@@ -141,7 +141,7 @@ func (s *Session) newJobID() uint16 {
 // Job returns a Job with the associated ID, if it exists. It returns nil
 // otherwise.
 func (s *Session) Job(i uint16) *Job {
-	if i < 2 || s.jobs == nil || len(s.jobs) == 0 {
+	if i < 2 || len(s.jobs) == 0 {
 		return nil
 	}
 	s.lock.RLock()
@@ -164,7 +164,7 @@ func (s *Session) handle(p *com.Packet) bool {
 	if p == nil || p.Device.Empty() || p.ID != RvResult || p.Job < 2 {
 		return false
 	}
-	if s.jobs == nil || len(s.jobs) == 0 {
+	if len(s.jobs) == 0 {
 		if cout.Enabled {
 			s.log.Warning("[%s/ShC] Received an un-tracked Job %d!", s.ID, p.Job)
 		}
