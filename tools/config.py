@@ -73,6 +73,12 @@ INPUT/OUTPUT ARGUMENTS:
                                   only set via the command line.
                                   This option disables using stdin for
                                   Config data.
+  --take            <index>     Specify a Group index to output directly.
+                                  By default, the entire Profile is used,
+                                  but this specifier can be used to select
+                                  a Group index to use instead. This is
+                                  useful for splitting a multi-group Profile
+                                  into separate Profiles.
 
 OPERATION ARGUMENTS:
   -p
@@ -1317,12 +1323,12 @@ class Utils:
     @staticmethod
     def write_file_output(c, v, pretty, json):
         f = stdout
-        if Utils.nes(v) and v != "-":
-            if not pretty and not json:
-                f = open(v, "wb")
-            else:
-                f = open(v, "w")
         try:
+            if Utils.nes(v) and v != "-":
+                if not pretty and not json:
+                    f = open(v, "wb")
+                else:
+                    f = open(v, "w")
             if json:
                 return print(
                     dumps(c.json(), sort_keys=False, indent=(4 if pretty else None)),
@@ -1721,6 +1727,29 @@ class Config(bytearray):
                 self.add(Cfg.separator())
         del v
 
+    def group(self, p):
+        if len(self) == 0 or p == -1:
+            return self
+        i, n, s = 0, 0, 0
+        while n >= 0 and n < len(self):
+            n = self.next(n)
+            if n == -1 or n >= len(self):
+                break
+            if self[n] != Cfg.Const.SEPARATOR:
+                continue
+            if n == 0:
+                continue
+            if p <= 0 and i == 0:
+                return Config(self[0:n])
+            if p == i:
+                return Config(self[s:n])
+            s, i = n + 1, i + 1
+        if i > 0 and s > 0:
+            return Config(self[s:])
+        if p <= 0 and i == 0:
+            return self
+        return None
+
     @staticmethod
     def from_file(file):
         with open(file, "rb") as f:
@@ -1995,6 +2024,7 @@ class _Builder(ArgumentParser):
 
         self.add_argument("-f", "--in", type=str, dest="input")
         self.add_argument("-o", "--out", type=str, dest="output")
+        self.add_argument("--take", type=int, dest="take", default=None)
 
         self.add_argument("-T", "--host", type=str, dest="host")
         self.add_argument("-S", "--sleep", type=str, dest="sleep")
@@ -2111,8 +2141,10 @@ class _Builder(ArgumentParser):
             _Builder.build(c, a, e, argv)
         if len(c) == 0:
             return
+        if isinstance(a.take, int):
+            c = c.group(a.take)
         Utils.write_file_output(c, a.output, a.print, a.json)
-        del e, a, c
+        del a, c, e
 
     @staticmethod
     def _organize(args):
