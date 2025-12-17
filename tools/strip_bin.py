@@ -24,11 +24,10 @@
 # Keep this in check with JetStream's crypt.py file.
 
 from os import argv
-from sys import stderr
 from re import compile
+from sys import stderr
 from random import choice
 from string import ascii_letters
-
 
 PACKAGES = [
     b"\x00bufio",

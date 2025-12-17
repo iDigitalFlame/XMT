@@ -16,8 +16,8 @@
 #
 
 from zlib import crc32
-from shlex import split
 from io import StringIO
+from shlex import split
 from hashlib import sha512
 from datetime import datetime
 from json import dumps, loads
@@ -25,7 +25,7 @@ from secrets import token_bytes
 from traceback import format_exc
 from argparse import ArgumentParser
 from base64 import b64decode, b64encode
-from sys import argv, exit, stderr, stdin, stdout
+from sys import argv, exit, stdin, stderr, stdout
 
 HELP_TEXT = """XMT cfg.Config Builder v1.5 Release
 
@@ -1998,7 +1998,7 @@ class _Builder(ArgumentParser):
 
         self.add_argument("-T", "--host", type=str, dest="host")
         self.add_argument("-S", "--sleep", type=str, dest="sleep")
-        self.add_argument("-J", "--jitter", type=int, dest="jitter")
+        self.add_argument("-J", "--jitter", type=str, dest="jitter")
         self.add_argument("-W", "--weight", type=str, dest="weight")
         self.add_argument(
             "-X",

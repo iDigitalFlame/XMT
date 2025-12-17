@@ -23,7 +23,7 @@ from json import loads
 from os import environ
 from subprocess import run
 from secrets import token_bytes
-from sys import stderr, exit, argv
+from sys import argv, exit, stderr
 from base64 import urlsafe_b64encode
 from platform import system, architecture
 

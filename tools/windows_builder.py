@@ -17,14 +17,14 @@
 
 from os import environ
 from random import choice
+from sys import exit, stderr
 from tempfile import mkdtemp
-from sys import stderr, exit
 from shutil import which, rmtree
 from traceback import format_exc
 from argparse import ArgumentParser
-from os.path import isdir, isfile, join
+from os.path import join, isdir, isfile
 from subprocess import SubprocessError, run
-from string import ascii_lowercase, Template
+from string import Template, ascii_lowercase
 
 C_SRC = """#define WINVER 0x0501
 #define _WIN32_WINNT 0x0501

@@ -17,12 +17,12 @@
 
 from json import loads
 from threading import Lock
-from sys import argv, stderr, exit
 from socketserver import TCPServer
+from sys import argv, exit, stderr
 from watchdog.observers import Observer
 from http.server import SimpleHTTPRequestHandler
-from os.path import expanduser, expandvars, isfile
-from watchdog.events import FileSystemEventHandler, FileModifiedEvent
+from os.path import isfile, expanduser, expandvars
+from watchdog.events import FileModifiedEvent, FileSystemEventHandler
 
 
 class Server(FileSystemEventHandler):

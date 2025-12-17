@@ -18,12 +18,12 @@
 from io import BytesIO
 from shlex import split
 from json import dumps, loads
-from struct import unpack, pack
 from secrets import token_bytes
+from struct import pack, unpack
 from traceback import format_exc
 from base64 import b64decode, b64encode
-from sys import argv, exit, stderr, stdin, stdout
-from os.path import expanduser, expandvars, isfile
+from sys import argv, exit, stdin, stderr, stdout
+from os.path import isfile, expanduser, expandvars
 from argparse import ArgumentParser, BooleanOptionalAction
 
 HELP_TEXT = """XMT man.Sentinel Builder v1 Release
