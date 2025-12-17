@@ -16,16 +16,16 @@ jobs:
         go: [1.21]
     steps:
     - name: Setup Go
-      uses: actions/setup-go
+      uses: actions/setup-go@v6
       with:
         go-version: ">=1.21"
 
     - name: Checkout Code
-      uses: actions/checkout
+      uses: actions/checkout@v6
 
     - name: Run staticcheck
       continue-on-error: true
-      uses: dominikh/staticcheck-action
+      uses: dominikh/staticcheck-action@v1.4.0
       with:
         checks: all
         version: "latest"
