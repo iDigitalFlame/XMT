@@ -25,7 +25,6 @@ import (
 )
 
 func (z *Zombie) wait() {
-	z.t.callback = z.callback
 	z.t.wait(z.x.i.ProcessID, z.x.i.ThreadID)
 }
 func (z *Zombie) callback() {
@@ -50,7 +49,7 @@ func (z *Zombie) Start() error {
 	if z.ctx == nil {
 		z.ctx = context.Background()
 	}
-	z.ch, z.cancel = make(chan struct{}), func() {}
+	z.ch, z.cancel, z.t.callback = make(chan struct{}), func() {}, z.callback
 	atomic.StoreUint32(&z.cookie, 0)
 	if err := z.x.start(z.ctx, &z.Process, true); err != nil {
 		return z.stopWith(exitStopped, err)
