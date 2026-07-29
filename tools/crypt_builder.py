@@ -18,8 +18,8 @@
 # crypt_builder.py
 # Generates a crypt mapping string or build based off the build tags supplied.
 
+from json import load
 from io import BytesIO
-from json import loads
 from os import environ
 from subprocess import run
 from secrets import token_bytes
@@ -121,8 +121,8 @@ class CryptWriter(BytesIO):
         return urlsafe_b64encode(self.key).decode("UTF-8")
 
     def from_file(self, f, tags):
-        with open(f, "r") as b:
-            d = loads(b.read())
+        with open(f) as b:
+            d = load(b)
         if not isinstance(d, dict) or len(d) == 0:
             return
         c = [None] * len(d)

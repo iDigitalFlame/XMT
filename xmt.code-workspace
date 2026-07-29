@@ -4,13 +4,10 @@
             "path": "."
         },
         {
-            "path": "../Libraries/PersistKit"
-        },
-        {
-            "path": "../Libraries/TinyPatchedGo"
-        },
-        {
             "path": "../XrMT"
+        },
+        {
+            "path": "../ThunderStorm"
         }
     ],
     "settings": {

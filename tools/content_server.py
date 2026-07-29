@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-from json import loads
+from json import load
 from threading import Lock
 from socketserver import TCPServer
 from sys import argv, exit, stderr
@@ -47,7 +47,7 @@ class Server(FileSystemEventHandler):
     def _reload(self):
         print(f'Reading config file "{self._file}"..')
         with open(self._file) as f:
-            e = loads(f.read())
+            e = load(f)
         if not isinstance(e, dict):
             raise ValueError(f'file "{self._file}" does not contain a JSON dict')
         for k, v in e.items():

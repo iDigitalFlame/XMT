@@ -103,8 +103,9 @@ func (z *Zombie) Release() error {
 	if !z.x.isStarted() {
 		return ErrNotStarted
 	}
+	err := z.t.Release()
 	z.x.close()
-	return z.t.Release()
+	return err
 }
 
 // SetSuspended will delay the execution of this thread and will put the
