@@ -272,7 +272,7 @@ func NewServerContext(x context.Context, l logx.Log) *Server {
 		active:      make(map[string]*Listener),
 		events:      make(chan event, maxEvents),
 		sessions:    make(map[uint32]*Session),
-		delSession:  make(chan uint32, 64),
+		delSession:  make(chan uint32, 255),
 		delListener: make(chan string, 16),
 	}
 	s.ctx, s.cancel = context.WithCancel(x)
